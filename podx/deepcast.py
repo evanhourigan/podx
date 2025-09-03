@@ -1,0 +1,315 @@
+#!/usr/bin/env python3
+"""
+podx-deepcast: Reads a Transcript JSON (base/aligned/diarized) and produces a rich Markdown brief and optional structured JSON using the OpenAI API via a chunked map-reduce flow.
+
+Detects:
+- timestamps? (segments with start/end) -> include timecodes in output
+- speakers? (segments have 'speaker') -> include speaker labels when available
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import os
+import sys
+import textwrap
+import time
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import click
+
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None  # type: ignore
+
+
+# utils
+def read_stdin_or_file(inp: Optional[Path]) -> Dict[str, Any]:
+    if inp:
+        raw = inp.read_text(encoding="utf-8")
+    else:
+        raw = sys.stdin.read()
+
+    if not raw.strip():
+        raise SystemExit("Provide transcript JSON via --in or stdin.")
+
+    return json.loads(raw)
+
+
+def hhmmss(sec: float) -> str:
+    """Convert seconds to HH:MM:SS format."""
+    h, remainder = divmod(sec, 3600)
+    m, s = divmod(remainder, 60)
+    return f"{int(h):02}:{int(m):02}:{int(s):02}"
+
+
+def segments_to_plain_text(
+    segs: List[Dict[str, Any]], with_time: bool, with_speaker: bool
+) -> str:
+    """Convert segments to plain text with optional timecodes and speaker labels."""
+    lines = []
+    for s in segs:
+        t = f"[{hhmmss(s['start'])}] " if with_time and "start" in s else ""
+        spk = f"{s.get('speaker', '')}: " if with_speaker and s.get("speaker") else ""
+        txt = s.get("text", "").strip()
+        if txt:
+            lines.append(f"{t}{spk}{txt}")
+    return "\n".join(lines)
+
+
+def split_into_chunks(text: str, approx_chars: int) -> List[str]:
+    """Split text into chunks, trying to keep paragraphs together."""
+    if len(text) <= approx_chars:
+        return [text]
+
+    paras = text.split("\n")
+    chunks = []
+    cur = []
+    cur_len = 0
+
+    for p in paras:
+        L = len(p) + 1  # +1 for newline
+        if cur_len + L > approx_chars and cur:
+            chunks.append("\n".join(cur))
+            cur = []
+            cur_len = 0
+        cur.append(p)
+        cur_len += L
+
+    if cur:
+        chunks.append("\n".join(cur))
+
+    return chunks
+
+
+# prompting
+SYSTEM_BASE = "You are a meticulous editorial assistant for podcast transcripts."
+
+
+def build_prompt_variant(has_time: bool, has_spk: bool) -> str:
+    time_text = (
+        "- When quoting, include [HH:MM:SS] timecodes from the nearest preceding segment.\n"
+        if has_time
+        else "- When quoting, omit timecodes because they are not available.\n"
+    )
+    spk_text = (
+        "- Preserve speaker labels like [SPEAKER_00] or actual names if provided; otherwise omit.\n"
+        if has_spk
+        else "- Speaker labels are not available; write neutrally.\n"
+    )
+
+    return textwrap.dedent(
+        f"""
+    Write concise, information-dense notes from a podcast transcript.
+    
+    {time_text}
+    {spk_text}
+    
+    Output high-quality Markdown with these sections (only include a section if content exists):
+    
+    # Episode Summary (3-6 sentences)
+    ## Key Points (bulleted list of 6-12 items)
+    ## Gold Nuggets (short bullets of surprising/novel insights)
+    ## Notable Quotes (each on its own line; include timecodes and speakers when available)
+    ## Action Items / Resources (bullets)
+    ## Timestamps Outline (10-20 coarse checkpoints)
+    
+    Be faithful to the text; do not invent facts. Prefer short paragraphs and crisp bullets.
+    If jargon or proper nouns appear, keep them verbatim.
+    """
+    ).strip()
+
+
+MAP_INSTRUCTIONS = textwrap.dedent(
+    """
+Extract key information from this transcript CHUNK.
+
+Return:
+- 3-6 Key Points
+- 2-5 Gold Nuggets  
+- 1-4 Notable Quotes
+- Any Action Items / Resources
+
+Return a tight Markdown; do not include a global summary—chunk only.
+"""
+).strip()
+
+REDUCE_INSTRUCTIONS = textwrap.dedent(
+    """
+Synthesize these chunk-level notes into a single, cohesive Markdown brief.
+
+Deduplicate and organize cleanly. Follow the earlier rules for structure and formatting.
+"""
+).strip()
+
+JSON_SCHEMA_HINT = textwrap.dedent(
+    """
+After the Markdown, also prepare a concise JSON object with this structure:
+
+{
+  "summary": "string",
+  "key_points": ["string"],
+  "gold_nuggets": ["string"], 
+  "quotes": [{"quote": "string", "time": "string", "speaker": "string"}],
+  "actions": ["string"],
+  "outline": [{"label": "string", "time": "string"}]
+}
+
+Return the JSON after the Markdown, separated by a line containing: ---JSON---
+"""
+).strip()
+
+
+# llm client
+def get_client() -> OpenAI:
+    if OpenAI is None:
+        raise SystemExit("Install OpenAI: pip install openai")
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise SystemExit("Set OPENAI_API_KEY environment variable")
+
+    base_url = os.getenv("OPENAI_BASE_URL") or None
+    return OpenAI(api_key=api_key, base_url=base_url)
+
+
+def chat_once(
+    client: OpenAI, model: str, system: str, user: str, temperature: float = 0.2
+) -> str:
+    """Make a single chat completion call."""
+    resp = client.chat.completions.create(
+        model=model,
+        temperature=temperature,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+    )
+    return resp.choices[0].message.content or ""
+
+
+# main pipeline
+def deepcast(
+    transcript: Dict[str, Any],
+    model: str,
+    temperature: float,
+    max_chars_per_chunk: int,
+    want_json: bool,
+) -> Tuple[str, Optional[Dict[str, Any]]]:
+    """Main deepcast pipeline: map-reduce with OpenAI."""
+    segs = transcript.get("segments") or []
+    has_time = any("start" in s and "end" in s for s in segs)
+    has_spk = any("speaker" in s for s in segs)
+
+    # Convert to plain text
+    text = segments_to_plain_text(segs, has_time, has_spk)
+    if not text.strip():
+        text = transcript.get("text", "")
+    if not text.strip():
+        raise SystemExit("No transcript text found in input")
+
+    client = get_client()
+    system = SYSTEM_BASE + "\n" + build_prompt_variant(has_time, has_spk)
+
+    # Map phase
+    chunks = split_into_chunks(text, max_chars_per_chunk)
+    map_notes = []
+
+    for i, chunk in enumerate(chunks):
+        prompt = f"{MAP_INSTRUCTIONS}\n\nChunk {i+1}/{len(chunks)}:\n\n{chunk}"
+        note = chat_once(
+            client, model=model, system=system, user=prompt, temperature=temperature
+        )
+        map_notes.append(note)
+        time.sleep(0.1)  # Rate limiting
+
+    # Reduce phase
+    reduce_prompt = f"{REDUCE_INSTRUCTIONS}\n\nChunk notes:\n\n" + "\n\n---\n\n".join(
+        map_notes
+    )
+    if want_json:
+        reduce_prompt += f"\n\n{JSON_SCHEMA_HINT}"
+
+    final = chat_once(
+        client, model=model, system=system, user=reduce_prompt, temperature=temperature
+    )
+
+    # Extract JSON if present
+    if want_json and "---JSON---" in final:
+        md, js = final.split("---JSON---", 1)
+        js = js.strip()
+        # Handle fenced code blocks
+        if js.startswith("```json"):
+            js = js[7:]
+        if js.startswith("```"):
+            js = js[3:]
+        if js.endswith("```"):
+            js = js[:-3]
+        js = js.strip()
+
+        try:
+            parsed = json.loads(js)
+            return md.strip(), parsed
+        except json.JSONDecodeError:
+            return md.strip(), None
+
+    return final.strip(), None
+
+
+@click.command()
+@click.option(
+    "--in",
+    "inp",
+    type=click.Path(exists=True, path_type=Path),
+    help="Input transcript JSON file",
+)
+@click.option(
+    "--md-out",
+    type=click.Path(path_type=Path),
+    required=True,
+    help="Output Markdown file",
+)
+@click.option("--json-out", type=click.Path(path_type=Path), help="Output JSON file")
+@click.option(
+    "--model",
+    default=lambda: os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+    help="OpenAI model",
+)
+@click.option(
+    "--temperature",
+    default=lambda: float(os.getenv("OPENAI_TEMPERATURE", "0.2")),
+    type=float,
+    help="Model temperature",
+)
+@click.option(
+    "--chunk-chars", default=24000, type=int, help="Approximate chars per chunk"
+)
+def main(
+    inp: Optional[Path],
+    md_out: Path,
+    json_out: Optional[Path],
+    model: str,
+    temperature: float,
+    chunk_chars: int,
+):
+    """
+    podx-deepcast: turn transcripts into a polished Markdown brief (and optional JSON) with summaries key points quotes timestamps and speaker labels when available
+    """
+    transcript = read_stdin_or_file(inp)
+    want_json = json_out is not None
+
+    md, json_data = deepcast(transcript, model, temperature, chunk_chars, want_json)
+
+    # Write outputs
+    md_out.write_text(md, encoding="utf-8")
+    if json_out and json_data:
+        json_out.write_text(
+            json.dumps(json_data, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+
+
+if __name__ == "__main__":
+    main()

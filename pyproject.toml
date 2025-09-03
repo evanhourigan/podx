@@ -26,6 +26,10 @@ asr = [
 whisperx = [
   "whisperx @ git+https://github.com/m-bain/whisperx.git",
 ]
+llm = [
+  "openai>=1.40.0",
+  "tiktoken>=0.7.0",
+]
 dev = [
   "pytest>=8.0",
   "pytest-cov>=5.0",
@@ -42,6 +46,7 @@ podx-transcribe = "podx.transcribe:main"
 podx-align = "podx.align:main"
 podx-diarize = "podx.diarize:main"
 podx-export = "podx.export:main"
+podx-deepcast = "podx.deepcast:main"
 podx = "podx.orchestrate:main"
 
 [tool.setuptools.packages.find]
