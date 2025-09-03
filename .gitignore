@@ -1,0 +1,24 @@
+# venvs & direnv cache
+.venv/
+.direnv/
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+
+# build
+dist/
+build/
+*.egg-info/
+
+# artifacts
+work/
+episodes/
+*.wav
+*.mp3
+*.m4a
+*.srt
+*.vtt
+*.json
+*.txt
