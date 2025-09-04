@@ -19,7 +19,7 @@ def write_if_changed(path: Path, content: str, replace: bool = False) -> None:
         existing_content = path.read_text(encoding="utf-8")
         if existing_content == content:
             return  # Content unchanged, skip write
-    
+
     path.write_text(content, encoding="utf-8")
 
 
@@ -28,7 +28,9 @@ def write_if_changed(path: Path, content: str, replace: bool = False) -> None:
 @click.option("--vtt", type=click.Path(dir_okay=False, path_type=Path))
 @click.option("--txt", type=click.Path(dir_okay=False, path_type=Path))
 @click.option("--md", type=click.Path(dir_okay=False, path_type=Path))
-@click.option("--replace", is_flag=True, help="Only overwrite files if content has changed")
+@click.option(
+    "--replace", is_flag=True, help="Only overwrite files if content has changed"
+)
 def main(srt, vtt, txt, md, replace):
     """
     Read (aligned or diarized) Transcript JSON on stdin and write files.
@@ -67,7 +69,9 @@ def main(srt, vtt, txt, md, replace):
         write_if_changed(vtt, content, replace)
     # MD
     if md:
-        content = "# Transcript\n\n" + "\n\n".join(s["text"].strip() for s in segs) + "\n"
+        content = (
+            "# Transcript\n\n" + "\n\n".join(s["text"].strip() for s in segs) + "\n"
+        )
         write_if_changed(md, content, replace)
 
 

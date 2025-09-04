@@ -2,7 +2,7 @@
 
 Composable podcast tooling (Unix-style):
 
-- `podx-fetch`: Find & download an episode by show/date/title
+- `podx-fetch`: Find & download an episode by show/date/title or RSS URL
 - `podx-transcode`: `ffmpeg` to `wav` (16k mono) / `mp3` / `aac`
 - `podx-transcribe`: `faster-whisper` (fast pass)
 - `podx-align`: `WhisperX` alignment (word-level timings)
@@ -45,7 +45,15 @@ pip install -e ".[notion]"
 ### Unix-style pipeline (JSON on stdout/stdin):
 
 ```bash
+# Using show name (iTunes search)
 podx-fetch --show "Radiolab" --date 2024-10-02 \
+| podx-transcode --to wav16 --outdir work \
+| podx-transcribe \
+| tee work/base.json \
+| podx-export --txt work/base.txt --srt work/base.srt
+
+# Using RSS URL (for private/unlisted podcasts)
+podx-fetch --rss-url "https://feeds.example.com/podcast.xml" --date 2024-10-02 \
 | podx-transcode --to wav16 --outdir work \
 | podx-transcribe \
 | tee work/base.json \
@@ -66,6 +74,7 @@ cat work/base.json \
 ### One-shot convenience:
 
 ```bash
+# Using show name (iTunes search)
 # Minimal happy-path (fast pass; fetch → transcode → transcribe → export)
 podx run --show "Radiolab" --date 2024-10-02 --workdir work/
 
@@ -80,6 +89,9 @@ podx run --show "Radiolab" --date 2024-10-02 --align --diarize --deepcast --work
 export NOTION_TOKEN=secret_xxx
 export NOTION_DB_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxx
 podx run --show "Radiolab" --date 2024-10-02 --align --diarize --deepcast --notion --workdir work/
+
+# Using RSS URL (for private/unlisted podcasts)
+podx run --rss-url "https://feeds.example.com/podcast.xml" --date 2024-10-02 --workdir work/
 
 # Advanced usage with content replacement and cleanup
 podx run --show "Radiolab" --date 2024-10-02 --align --diarize --deepcast --notion \
@@ -244,11 +256,36 @@ The `podx run` command provides a unified interface to the entire pipeline with 
 
 ### Advanced features
 
+- **RSS URL support**: Use `--rss-url` instead of `--show` for private, unlisted, or custom podcast feeds
 - **Content replacement**: Use `--replace-content` to replace existing Notion page content instead of appending
 - **Cleanup management**: Use `--clean` to remove intermediate files after successful completion
 - **Audio preservation**: Use `--keep-audio` (default) to preserve downloaded/transcoded audio files when cleaning
 - **Smart file updates**: Use `--replace` with `podx-export` to only overwrite files when content has changed
 - **Cover images**: Use `--cover-image` with `podx-notion` to automatically set podcast artwork as the page cover
+
+### RSS URL Usage
+
+For podcasts that aren't publicly listed or when you have a direct RSS feed URL:
+
+```bash
+# Direct RSS feed usage
+podx-fetch --rss-url "https://feeds.example.com/podcast.xml" --date 2024-10-02
+
+# With orchestrator
+podx run --rss-url "https://feeds.example.com/podcast.xml" --date 2024-10-02 --workdir work/
+
+# Full pipeline with RSS URL
+podx run --rss-url "https://feeds.example.com/podcast.xml" --date 2024-10-02 \
+  --align --diarize --deepcast --notion --workdir work/
+```
+
+**Benefits of RSS URL:**
+
+- Works with private or unlisted podcasts
+- No dependency on iTunes/Apple Podcasts search
+- Direct access to custom or specialized feeds
+- Automatic show name extraction from feed metadata
+- Automatic artwork extraction for Notion cover images
 
 ## Project Structure
 

@@ -60,7 +60,8 @@ def main():
 
 
 @main.command("run")
-@click.option("--show", required=True, help="Podcast show name")
+@click.option("--show", help="Podcast show name (iTunes search)")
+@click.option("--rss-url", help="Direct RSS feed URL (alternative to --show)")
 @click.option("--date", help="Episode date (YYYY-MM-DD)")
 @click.option("--title-contains", help="Substring to match in episode title")
 @click.option(
@@ -151,7 +152,8 @@ def main():
     help="Preserve downloaded/transcoded audio when --clean is used",
 )
 def run(
-    show: str,
+    show: Optional[str],
+    rss_url: Optional[str],
     date: Optional[str],
     title_contains: Optional[str],
     workdir: Path,
@@ -180,15 +182,26 @@ def run(
     wd.mkdir(parents=True, exist_ok=True)
 
     # 1) FETCH → meta.json
+    fetch_cmd = ["podx-fetch"]
+    if show:
+        fetch_cmd.extend(["--show", show])
+    elif rss_url:
+        fetch_cmd.extend(["--rss-url", rss_url])
+    else:
+        raise SystemExit("Either --show or --rss-url must be provided.")
+
+    if date:
+        fetch_cmd.extend(["--date", date])
+    if title_contains:
+        fetch_cmd.extend(["--title-contains", title_contains])
+
     meta = _run(
-        ["podx-fetch", "--show", show]
-        + (["--date", date] if date else [])
-        + (["--title-contains", title_contains] if title_contains else []),
+        fetch_cmd,
         verbose=verbose,
         save_to=wd / "meta.json",
         label="Fetch episode metadata",
     )
-    
+
     # Track original audio path for cleanup
     original_audio_path = Path(meta["audio_path"]) if "audio_path" in meta else None
 
@@ -200,7 +213,7 @@ def run(
         save_to=wd / "audio.json",
         label=f"Transcode → {fmt}",
     )
-    
+
     # Track transcoded audio path for cleanup
     transcoded_path = Path(audio["audio_path"])
 
@@ -329,7 +342,7 @@ def run(
 
         if json_path:
             cmd += ["--json", json_path]
-        
+
         if replace_content:
             cmd += ["--replace-content"]
 
@@ -343,7 +356,7 @@ def run(
         # Keep final artifacts (small pointers)
         keep = {
             wd / "latest.json",
-            wd / "latest.txt", 
+            wd / "latest.txt",
             wd / "latest.srt",
             wd / "brief.md",
             wd / "brief.json",
@@ -351,7 +364,7 @@ def run(
             wd / "meta.json",
             wd / "audio.json",
         }
-        
+
         # Remove intermediate JSON files
         for p in [wd / "base.json", wd / "aligned.json", wd / "diar.json"]:
             if p.exists() and p not in keep:
@@ -359,7 +372,7 @@ def run(
                     p.unlink()
                 except Exception:
                     pass
-        
+
         # Remove audio files if not keeping them
         if not keep_audio:
             for p in [transcoded_path, original_audio_path]:

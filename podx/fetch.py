@@ -81,29 +81,59 @@ def download_enclosure(entry, out_dir: Path) -> Path:
 
 
 @click.command()
-@click.option("--show", required=True, help="Podcast show name (iTunes search).")
+@click.option("--show", help="Podcast show name (iTunes search).")
+@click.option("--rss-url", help="Direct RSS feed URL (alternative to --show).")
 @click.option("--date", help="Episode date (YYYY-MM-DD). Picks nearest.")
 @click.option("--title-contains", help="Substring to match in episode title.")
 @click.option(
     "--outdir", default="episodes", show_default=True, type=click.Path(path_type=Path)
 )
-def main(show, date, title_contains, outdir):
+def main(show, rss_url, date, title_contains, outdir):
     """Find feed, choose episode, download audio. Prints EpisodeMeta JSON to stdout."""
-    feed_url = find_feed_for_show(show)
+    # Validate that either show or rss_url is provided
+    if not show and not rss_url:
+        raise SystemExit("Either --show or --rss-url must be provided.")
+    if show and rss_url:
+        raise SystemExit("Provide either --show or --rss-url, not both.")
+
+    # Get feed URL
+    if rss_url:
+        feed_url = rss_url
+        show_name = None  # Will be extracted from feed
+    else:
+        feed_url = find_feed_for_show(show)
+        show_name = show
+
+    # Parse feed
     f = feedparser.parse(feed_url)
     if f.bozo:
         raise SystemExit(f"Failed to parse feed: {feed_url}")
+
+    # Extract show name from feed if not provided
+    if not show_name:
+        show_name = f.feed.get("title", "Unknown Show")
+
+    # Choose episode
     ep = choose_episode(f.entries, date, title_contains)
     if not ep:
         raise SystemExit("No episode found.")
+
+    # Download audio
     audio_path = download_enclosure(ep, outdir)
+
+    # Build metadata
     meta: EpisodeMeta = {
-        "show": show,
+        "show": show_name,
         "feed": feed_url,
         "episode_title": ep.get("title", ""),
         "episode_published": (ep.get("published") or ep.get("updated") or ""),
         "audio_path": str(audio_path),
     }
+
+    # Add image URL if available from feed
+    if f.feed.get("image", {}).get("href"):
+        meta["image_url"] = f.feed["image"]["href"]
+
     print_json(meta)
 
 

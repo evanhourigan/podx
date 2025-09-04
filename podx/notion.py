@@ -186,26 +186,24 @@ def _list_children_all(client: Client, page_id: str) -> List[Dict[str, Any]]:
     """List all children of a page, handling pagination."""
     all_children = []
     start_cursor = None
-    
+
     while True:
         resp = client.blocks.children.list(
-            block_id=page_id,
-            start_cursor=start_cursor,
-            page_size=100
+            block_id=page_id, start_cursor=start_cursor, page_size=100
         )
         all_children.extend(resp.get("results", []))
-        
+
         if not resp.get("has_more"):
             break
         start_cursor = resp.get("next_cursor")
-    
+
     return all_children
 
 
 def _clear_children(client: Client, page_id: str) -> None:
     """Archive all existing children of a page."""
     children = _list_children_all(client, page_id)
-    
+
     for child in children:
         try:
             client.blocks.update(block_id=child["id"], archived=True)
@@ -218,23 +216,23 @@ def _download_cover_image(image_url: str, workdir: Path) -> Optional[str]:
     """Download cover image and return the local file path."""
     if not image_url:
         return None
-    
+
     try:
         response = requests.get(image_url, timeout=30)
         response.raise_for_status()
-        
+
         # Determine file extension from content type or URL
-        content_type = response.headers.get('content-type', '')
-        if 'jpeg' in content_type or 'jpg' in content_type:
-            ext = '.jpg'
-        elif 'png' in content_type:
-            ext = '.png'
-        elif 'webp' in content_type:
-            ext = '.webp'
+        content_type = response.headers.get("content-type", "")
+        if "jpeg" in content_type or "jpg" in content_type:
+            ext = ".jpg"
+        elif "png" in content_type:
+            ext = ".png"
+        elif "webp" in content_type:
+            ext = ".webp"
         else:
             # Fallback to URL extension
-            ext = Path(image_url).suffix or '.jpg'
-        
+            ext = Path(image_url).suffix or ".jpg"
+
         cover_path = workdir / f"cover{ext}"
         cover_path.write_bytes(response.content)
         return str(cover_path)
@@ -247,11 +245,7 @@ def _set_page_cover(client: Client, page_id: str, cover_url: str) -> None:
     """Set the cover image for a Notion page using external URL."""
     try:
         client.pages.update(
-            page_id=page_id,
-            cover={
-                "type": "external",
-                "external": {"url": cover_url}
-            }
+            page_id=page_id, cover={"type": "external", "external": {"url": cover_url}}
         )
     except Exception:
         # If cover setting fails, continue without cover
@@ -353,7 +347,9 @@ def upsert_page(
     help="Replace page body in Notion instead of appending",
 )
 @click.option(
-    "--cover-image", is_flag=True, help="Set podcast artwork as page cover (requires image_url in meta)"
+    "--cover-image",
+    is_flag=True,
+    help="Set podcast artwork as page cover (requires image_url in meta)",
 )
 @click.option(
     "--dry-run", is_flag=True, help="Parse and print Notion payload (don't write)"
@@ -411,8 +407,10 @@ def main(
     # Handle cover image
     cover_url = None
     if cover_image and meta:
-        cover_url = meta.get("image_url") or meta.get("artwork_url") or meta.get("cover_url")
-    
+        cover_url = (
+            meta.get("image_url") or meta.get("artwork_url") or meta.get("cover_url")
+        )
+
     if dry_run:
         payload = {
             "db_id": db_id,
