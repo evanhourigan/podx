@@ -1,107 +1,319 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
 import json
+import os
 import subprocess
 from pathlib import Path
+from typing import Dict, List, Optional
 
 import click
 
 
-def run_cmd(cmd: list, stdin_payload: dict | None = None) -> dict:
+def _run(
+    cmd: List[str],
+    stdin_payload: Dict | None = None,
+    verbose: bool = False,
+    save_to: Path | None = None,
+    label: str | None = None,
+) -> Dict:
+    """Run a CLI tool that prints JSON to stdout; return parsed dict. If verbose, echo stdout to console. Optionally save stdout JSON to file."""
+    if label:
+        click.secho(f"→ {label}", fg="cyan", bold=True)
+
     proc = subprocess.run(
         cmd,
-        input=(json.dumps(stdin_payload) if stdin_payload else None),
+        input=json.dumps(stdin_payload) if stdin_payload else None,
         text=True,
         capture_output=True,
     )
+
     if proc.returncode != 0:
-        raise SystemExit(proc.stderr.strip() or f"Command failed: {' '.join(cmd)}")
-    return json.loads(proc.stdout)
+        err = proc.stderr.strip() or proc.stdout.strip()
+        raise SystemExit(f"Command failed: {' '.join(cmd)}\n{err}")
+
+    # stdout should be JSON; optionally mirror to console
+    out = proc.stdout
+
+    if verbose:
+        # Show a compact preview of the JSON output
+        preview = out[:400] + "..." if len(out) > 400 else out
+        click.secho(preview, fg="white")
+
+    try:
+        data = json.loads(out)
+    except json.JSONDecodeError:
+        # Some subcommands (e.g., deepcast/notion) print plain text "Wrote: ..."
+        data = {"stdout": out.strip()}
+
+    if save_to:
+        save_to.write_text(out, encoding="utf-8")
+        click.secho(f"  saved: {save_to}", fg="green")
+
+    return data
 
 
 @click.group()
 def main():
-    """Convenience wrapper calling the smaller tools under the hood."""
+    """podx orchestrator: fetch → transcode → transcribe → (align) → (diarize) → (deepcast) → (notion)."""
     pass
 
 
 @main.command("run")
-@click.option("--show", required=True)
-@click.option("--date")
-@click.option("--title-contains")
-@click.option("--align/--no-align", default=False, show_default=True)
-@click.option("--diarize/--no-diarize", default=False, show_default=True)
+@click.option("--show", required=True, help="Podcast show name")
+@click.option("--date", help="Episode date (YYYY-MM-DD)")
+@click.option("--title-contains", help="Substring to match in episode title")
 @click.option(
-    "--workdir", default="work", show_default=True, type=click.Path(path_type=Path)
+    "--workdir",
+    default="work",
+    type=click.Path(path_type=Path),
+    help="Working directory",
 )
 @click.option(
-    "--model", default=None, help="Override model (e.g., small.en, medium.en)."
+    "--fmt",
+    default="wav16",
+    type=click.Choice(["wav16", "mp3", "aac"]),
+    help="Transcode format for ASR step",
+)
+@click.option(
+    "--model",
+    default=lambda: os.getenv("PODX_DEFAULT_MODEL", "small.en"),
+    help="ASR model",
 )
 @click.option(
     "--compute",
-    default=None,
+    default=lambda: os.getenv("PODX_DEFAULT_COMPUTE", "int8"),
     type=click.Choice(["int8", "int8_float16", "float16", "float32"]),
+    help="Compute type",
 )
-def run(show, date, title_contains, align, diarize, workdir, model, compute):
-    workdir = Path(workdir)
-    workdir.mkdir(parents=True, exist_ok=True)
+@click.option(
+    "--align/--no-align",
+    default=False,
+    show_default=True,
+    help="Run WhisperX alignment",
+)
+@click.option(
+    "--diarize/--no-diarize", default=False, show_default=True, help="Run diarization"
+)
+@click.option(
+    "--deepcast/--no-deepcast",
+    default=False,
+    show_default=True,
+    help="Run LLM summarization",
+)
+@click.option(
+    "--deepcast-model",
+    default=lambda: os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+    help="OpenAI model for deepcast",
+)
+@click.option(
+    "--deepcast-temp",
+    default=lambda: float(os.getenv("OPENAI_TEMPERATURE", "0.2")),
+    type=float,
+    help="OpenAI temperature for deepcast",
+)
+@click.option(
+    "--notion/--no-notion",
+    default=False,
+    show_default=True,
+    help="Upload to Notion database",
+)
+@click.option(
+    "--db",
+    "notion_db",
+    default=lambda: os.getenv("NOTION_DB_ID"),
+    help="Notion database ID (required if --notion)",
+)
+@click.option(
+    "--title-prop",
+    default=lambda: os.getenv("NOTION_TITLE_PROP", "Name"),
+    help="Notion property name for title",
+)
+@click.option(
+    "--date-prop",
+    default=lambda: os.getenv("NOTION_DATE_PROP", "Date"),
+    help="Notion property name for date",
+)
+@click.option("-v", "--verbose", is_flag=True, help="Print interstitial outputs")
+def run(
+    show: str,
+    date: Optional[str],
+    title_contains: Optional[str],
+    workdir: Path,
+    fmt: str,
+    model: str,
+    compute: str,
+    align: bool,
+    diarize: bool,
+    deepcast: bool,
+    deepcast_model: str,
+    deepcast_temp: float,
+    notion: bool,
+    notion_db: Optional[str],
+    title_prop: str,
+    date_prop: str,
+    verbose: bool,
+):
+    """
+    Orchestrate the whole pipeline. Each step runs only if its flag is set or required downstream.
+    Saves intermediates to WORKDIR and prints a final summary with key artifact paths.
+    """
+    wd = Path(workdir)
+    wd.mkdir(parents=True, exist_ok=True)
 
-    meta = run_cmd(
+    # 1) FETCH → meta.json
+    meta = _run(
         ["podx-fetch", "--show", show]
         + (["--date", date] if date else [])
-        + (["--title-contains", title_contains] if title_contains else [])
+        + (["--title-contains", title_contains] if title_contains else []),
+        verbose=verbose,
+        save_to=wd / "meta.json",
+        label="Fetch episode metadata",
     )
-    # transcode to wav16
-    audio = run_cmd(
-        ["podx-transcode", "--to", "wav16", "--outdir", str(workdir)],
+
+    # 2) TRANSCODE → audio.json
+    audio = _run(
+        ["podx-transcode", "--to", fmt, "--outdir", str(wd)],
         stdin_payload=meta,
+        verbose=verbose,
+        save_to=wd / "audio.json",
+        label="Transcode audio",
     )
-    # transcribe
-    transcribe_cmd = ["podx-transcribe"]
-    if model:
-        transcribe_cmd += ["--model", model]
-    if compute:
-        transcribe_cmd += ["--compute", compute]
-    base = run_cmd(transcribe_cmd, stdin_payload=audio)
+
+    # 3) TRANSCRIBE → base.json
+    base = _run(
+        ["podx-transcribe", "--model", model, "--compute", compute],
+        stdin_payload=audio,
+        verbose=verbose,
+        save_to=wd / "base.json",
+        label="Transcribe (faster-whisper)",
+    )
 
     latest = base
+    latest_name = "base"
+
+    # 4) ALIGN (optional) → aligned.json
     if align:
-        aligned = run_cmd(
-            ["podx-align", "--audio", audio["audio_path"]], stdin_payload=base
+        aligned = _run(
+            ["podx-align", "--audio", audio["audio_path"]],
+            stdin_payload=base,
+            verbose=verbose,
+            save_to=wd / "aligned.json",
+            label="Align (WhisperX)",
         )
         latest = aligned
-        if diarize:
-            diar = run_cmd(
-                ["podx-diarize", "--audio", audio["audio_path"]], stdin_payload=aligned
-            )
-            latest = diar
+        latest_name = "aligned"
 
-    # write some convenience files
-    (workdir / "latest.json").write_text(json.dumps(latest, indent=2), encoding="utf-8")
-    # quick SRT/TXT
-    subprocess.run(
+    # 5) DIARIZE (optional) → diar.json
+    if diarize:
+        diar = _run(
+            ["podx-diarize", "--audio", audio["audio_path"]],
+            stdin_payload=latest,
+            verbose=verbose,
+            save_to=wd / "diar.json",
+            label="Diarize (speakers)",
+        )
+        latest = diar
+        latest_name = "diar"
+
+    # Always keep a pointer to the latest JSON/SRT/TXT for convenience
+    (wd / "latest.json").write_text(json.dumps(latest, indent=2), encoding="utf-8")
+
+    # quick TXT/SRT from whatever we have
+    _run(
         [
             "podx-export",
             "--srt",
-            str(workdir / "latest.srt"),
+            str(wd / "latest.srt"),
             "--txt",
-            str(workdir / "latest.txt"),
+            str(wd / "latest.txt"),
         ],
-        input=json.dumps(latest),
-        text=True,
-        check=True,
+        stdin_payload=latest,
+        verbose=verbose,
+        label="Export TXT/SRT",
     )
 
-    print(
-        json.dumps(
+    results = {
+        "meta": str(wd / "meta.json"),
+        "audio": str(wd / "audio.json"),
+        "transcript": (
+            str(wd / f"{latest_name}.json")
+            if (wd / f"{latest_name}.json").exists()
+            else str(wd / "latest.json")
+        ),
+        "latest_json": str(wd / "latest.json"),
+        "latest_txt": str(wd / "latest.txt"),
+        "latest_srt": str(wd / "latest.srt"),
+    }
+
+    # 6) DEEPCAST (optional) → brief.md / brief.json
+    if deepcast:
+        inp = str(wd / "latest.json")
+        md_out = wd / "brief.md"
+        json_out = wd / "brief.json"
+
+        cmd = [
+            "podx-deepcast",
+            "--in",
+            inp,
+            "--md-out",
+            str(md_out),
+            "--json-out",
+            str(json_out),
+            "--model",
+            deepcast_model,
+            "--temperature",
+            str(deepcast_temp),
+        ]
+
+        _run(cmd, verbose=verbose, save_to=None, label="Deepcast (LLM synthesis)")
+        results.update(
             {
-                "meta": meta,
-                "audio": audio,
-                "result_path": str(workdir / "latest.json"),
-                "srt": str(workdir / "latest.srt"),
-                "txt": str(workdir / "latest.txt"),
-            },
-            indent=2,
+                "deepcast_md": str(md_out),
+                "deepcast_json": str(json_out),
+            }
         )
-    )
+
+    # 7) NOTION (optional) — requires DB id
+    if notion:
+        if not notion_db:
+            raise SystemExit(
+                "Please pass --db or set NOTION_DB_ID environment variable"
+            )
+
+        # Prefer brief.md from deepcast, fallback to latest.txt
+        md_path = (
+            str(wd / "brief.md")
+            if (wd / "brief.md").exists()
+            else str(wd / "latest.txt")
+        )
+        json_path = str(wd / "brief.json") if (wd / "brief.json").exists() else None
+
+        cmd = [
+            "podx-notion",
+            "--markdown",
+            md_path,
+            "--meta",
+            str(wd / "latest.json"),
+            "--db",
+            notion_db,
+            "--title-prop",
+            title_prop,
+            "--date-prop",
+            date_prop,
+        ]
+
+        if json_path:
+            cmd += ["--json", json_path]
+
+        notion_resp = _run(
+            cmd, verbose=verbose, save_to=wd / "notion.out.json", label="Notion upload"
+        )
+        results.update({"notion": str(wd / "notion.out.json")})
+
+    # Final summary
+    click.secho("✓ Pipeline complete", fg="green", bold=True)
+    print(json.dumps(results, indent=2))
 
 
 if __name__ == "__main__":

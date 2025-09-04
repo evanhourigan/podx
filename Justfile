@@ -77,6 +77,13 @@ notion-dry:
 notion:
     podx-notion --markdown work/brief.md --json work/brief.json --meta work/latest.json --db "$NOTION_DB_ID"
 
+# Orchestration helpers
+orchestrate:
+    podx run --show "Radiolab" --date 2024-10-02 --align --deepcast --workdir work/ -v
+
+publish:
+    podx run --show "Radiolab" --date 2024-10-02 --align --deepcast --notion --workdir work/ -v
+
 # Cleanup
 clean:
     #!/usr/bin/env bash

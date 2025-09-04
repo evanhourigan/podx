@@ -66,8 +66,20 @@ cat work/base.json \
 ### One-shot convenience:
 
 ```bash
-podx run --show "Radiolab" --date 2024-10-02 --align --diarize --workdir work/ \
---model small.en --compute int8
+# Minimal happy-path (fast pass; fetch → transcode → transcribe → export)
+podx run --show "Radiolab" --date 2024-10-02 --workdir work/
+
+# Add alignment & diarization
+podx run --show "Radiolab" --date 2024-10-02 --align --diarize --workdir work/
+
+# Add Deepcast (AI analysis)
+export OPENAI_API_KEY=sk-...
+podx run --show "Radiolab" --date 2024-10-02 --align --diarize --deepcast --workdir work/
+
+# Add Notion upload (complete pipeline)
+export NOTION_TOKEN=secret_xxx
+export NOTION_DB_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+podx run --show "Radiolab" --date 2024-10-02 --align --diarize --deepcast --notion --workdir work/
 ```
 
 ### AI-powered analysis with deepcast:
@@ -182,6 +194,8 @@ podx run --show "Radiolab" --date 2024-10-02 --align --diarize --workdir work/ \
 ```bash
 just notion-dry    # Preview what would be uploaded
 just notion        # Upload to Notion
+just orchestrate   # Run full pipeline with deepcast (no Notion)
+just publish       # Run complete pipeline including Notion upload
 ```
 
 ### Notion Configuration
@@ -190,6 +204,28 @@ just notion        # Upload to Notion
 - **Updating content**: Currently appends blocks on update for simplicity. A `--replace` flag could be added to replace existing content
 - **More properties**: Map fields from `brief.json` to Notion properties (numeric "Episode #", status, relations) in the `props_extra` section
 - **Inline formatting**: Block-level parsing for robustness. Can be extended to support bold/italic/links if needed
+
+## Orchestrator Behavior
+
+The `podx run` command provides a unified interface to the entire pipeline with intelligent defaults and selective execution:
+
+### How it works
+
+- **Selective execution**: Only runs steps when their flags are set or required downstream
+- **Independent toggles**: `--align`, `--diarize`, `--deepcast`, `--notion` are independent
+- **Verbose output**: `--verbose` streams interstitial JSON and prints progress banners
+- **Intermediate saving**: Saves all intermediates to `--workdir` for inspection/reuse
+
+### Output files (persisted in `--workdir`)
+
+- **Core pipeline**: `meta.json`, `audio.json`, `base.json`, `aligned.json`, `diar.json`, `latest.json`, `latest.txt`, `latest.srt`
+- **Deepcast output**: `brief.md`, `brief.json` (when `--deepcast` is used)
+- **Notion response**: `notion.out.json` (when `--notion` is used)
+
+### Fallback behavior
+
+- **Notion without Deepcast**: If `--notion` is used without `--deepcast`, it falls back to using `latest.txt` for upload
+- **Smart file detection**: Automatically detects the best available input files for each step
 
 ## Project Structure
 
