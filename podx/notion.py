@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import click
+import requests
 
 try:
     from notion_client import Client
@@ -181,6 +182,82 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
     return blocks
 
 
+def _list_children_all(client: Client, page_id: str) -> List[Dict[str, Any]]:
+    """List all children of a page, handling pagination."""
+    all_children = []
+    start_cursor = None
+    
+    while True:
+        resp = client.blocks.children.list(
+            block_id=page_id,
+            start_cursor=start_cursor,
+            page_size=100
+        )
+        all_children.extend(resp.get("results", []))
+        
+        if not resp.get("has_more"):
+            break
+        start_cursor = resp.get("next_cursor")
+    
+    return all_children
+
+
+def _clear_children(client: Client, page_id: str) -> None:
+    """Archive all existing children of a page."""
+    children = _list_children_all(client, page_id)
+    
+    for child in children:
+        try:
+            client.blocks.update(block_id=child["id"], archived=True)
+        except Exception:
+            # Continue on non-fatal errors
+            pass
+
+
+def _download_cover_image(image_url: str, workdir: Path) -> Optional[str]:
+    """Download cover image and return the local file path."""
+    if not image_url:
+        return None
+    
+    try:
+        response = requests.get(image_url, timeout=30)
+        response.raise_for_status()
+        
+        # Determine file extension from content type or URL
+        content_type = response.headers.get('content-type', '')
+        if 'jpeg' in content_type or 'jpg' in content_type:
+            ext = '.jpg'
+        elif 'png' in content_type:
+            ext = '.png'
+        elif 'webp' in content_type:
+            ext = '.webp'
+        else:
+            # Fallback to URL extension
+            ext = Path(image_url).suffix or '.jpg'
+        
+        cover_path = workdir / f"cover{ext}"
+        cover_path.write_bytes(response.content)
+        return str(cover_path)
+    except Exception:
+        # If download fails, continue without cover
+        return None
+
+
+def _set_page_cover(client: Client, page_id: str, cover_url: str) -> None:
+    """Set the cover image for a Notion page using external URL."""
+    try:
+        client.pages.update(
+            page_id=page_id,
+            cover={
+                "type": "external",
+                "external": {"url": cover_url}
+            }
+        )
+    except Exception:
+        # If cover setting fails, continue without cover
+        pass
+
+
 def upsert_page(
     client: Client,
     db_id: str,
@@ -190,6 +267,7 @@ def upsert_page(
     date_prop: str = "Date",
     props_extra: Optional[Dict[str, Any]] = None,
     blocks: Optional[List[Dict[str, Any]]] = None,
+    replace_content: bool = False,
 ) -> str:
     """
     Try to find an existing page (by exact title and optionally date), else create.
@@ -216,8 +294,8 @@ def upsert_page(
         client.pages.update(page_id=page_id, properties=props)
 
         if blocks is not None:
-            # Notion doesn't support clearing children directly; we append for simplicity/safety
-            # Could add a --replace flag that archives existing children first
+            if replace_content:
+                _clear_children(client, page_id)
             client.blocks.children.append(block_id=page_id, children=blocks)
 
         return page_id
@@ -270,6 +348,14 @@ def upsert_page(
     help="Notion property name for date",
 )
 @click.option(
+    "--replace-content/--append-content",
+    default=False,
+    help="Replace page body in Notion instead of appending",
+)
+@click.option(
+    "--cover-image", is_flag=True, help="Set podcast artwork as page cover (requires image_url in meta)"
+)
+@click.option(
     "--dry-run", is_flag=True, help="Parse and print Notion payload (don't write)"
 )
 def main(
@@ -281,6 +367,8 @@ def main(
     meta_path: Optional[Path],
     title_prop: str,
     date_prop: str,
+    replace_content: bool,
+    cover_image: bool,
     dry_run: bool,
 ):
     """
@@ -320,6 +408,11 @@ def main(
                 ]  # Notion name limit
             }
 
+    # Handle cover image
+    cover_url = None
+    if cover_image and meta:
+        cover_url = meta.get("image_url") or meta.get("artwork_url") or meta.get("cover_url")
+    
     if dry_run:
         payload = {
             "db_id": db_id,
@@ -327,8 +420,10 @@ def main(
             "date_prop": date_prop,
             "title": title,
             "date_iso": date_iso,
-            "props_extra": props_extra,
-            "blocks_preview": blocks[:3],  # First 3 blocks
+            "replace_content": replace_content,
+            "cover_image": cover_url is not None,
+            "cover_url": cover_url,
+            "props_extra_keys": list(props_extra.keys()) if props_extra else [],
             "blocks_count": len(blocks),
         }
         print(json.dumps(payload, indent=2))
@@ -344,7 +439,12 @@ def main(
         date_prop=date_prop,
         props_extra=props_extra,
         blocks=blocks,
+        replace_content=replace_content,
     )
+
+    # Set cover image if requested and available
+    if cover_url:
+        _set_page_cover(client, page_id, cover_url)
 
     print(json.dumps({"ok": True, "page_id": page_id}, indent=2))
 

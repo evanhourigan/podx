@@ -80,6 +80,20 @@ podx run --show "Radiolab" --date 2024-10-02 --align --diarize --deepcast --work
 export NOTION_TOKEN=secret_xxx
 export NOTION_DB_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxx
 podx run --show "Radiolab" --date 2024-10-02 --align --diarize --deepcast --notion --workdir work/
+
+# Advanced usage with content replacement and cleanup
+podx run --show "Radiolab" --date 2024-10-02 --align --diarize --deepcast --notion \
+  --replace-content --clean --keep-audio --workdir work/
+
+# Minimal upload with aggressive cleanup
+podx run --show "Radiolab" --date 2024-10-02 --notion --clean --no-keep-audio --workdir work/
+
+# Export with smart file updates (only overwrite if changed)
+podx-export --srt work/episode.srt --txt work/episode.txt --replace
+
+# Notion upload with cover image and content replacement
+podx-notion --markdown work/brief.md --json work/brief.json --meta work/latest.json \
+  --db "$NOTION_DB_ID" --replace-content --cover-image
 ```
 
 ### AI-powered analysis with deepcast:
@@ -201,7 +215,8 @@ just publish       # Run complete pipeline including Notion upload
 ### Notion Configuration
 
 - **Property names**: If your database uses different property names, set `NOTION_TITLE_PROP` and `NOTION_DATE_PROP` in `.env`, or pass `--title-prop` and `--date-prop`
-- **Updating content**: Currently appends blocks on update for simplicity. A `--replace` flag could be added to replace existing content
+- **Content management**: Use `--replace-content` to replace existing page content instead of appending
+- **Cover images**: Use `--cover-image` to automatically set podcast artwork as the page cover (requires `image_url` in metadata)
 - **More properties**: Map fields from `brief.json` to Notion properties (numeric "Episode #", status, relations) in the `props_extra` section
 - **Inline formatting**: Block-level parsing for robustness. Can be extended to support bold/italic/links if needed
 
@@ -226,6 +241,14 @@ The `podx run` command provides a unified interface to the entire pipeline with 
 
 - **Notion without Deepcast**: If `--notion` is used without `--deepcast`, it falls back to using `latest.txt` for upload
 - **Smart file detection**: Automatically detects the best available input files for each step
+
+### Advanced features
+
+- **Content replacement**: Use `--replace-content` to replace existing Notion page content instead of appending
+- **Cleanup management**: Use `--clean` to remove intermediate files after successful completion
+- **Audio preservation**: Use `--keep-audio` (default) to preserve downloaded/transcoded audio files when cleaning
+- **Smart file updates**: Use `--replace` with `podx-export` to only overwrite files when content has changed
+- **Cover images**: Use `--cover-image` with `podx-notion` to automatically set podcast artwork as the page cover
 
 ## Project Structure
 

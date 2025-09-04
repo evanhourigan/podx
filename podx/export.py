@@ -13,12 +13,23 @@ def ts(sec: float) -> str:
     return f"{h:02}:{m:02}:{s:02},{ms:03}"
 
 
+def write_if_changed(path: Path, content: str, replace: bool = False) -> None:
+    """Write content to file only if it has changed (when replace=True)."""
+    if replace and path.exists():
+        existing_content = path.read_text(encoding="utf-8")
+        if existing_content == content:
+            return  # Content unchanged, skip write
+    
+    path.write_text(content, encoding="utf-8")
+
+
 @click.command()
 @click.option("--srt", type=click.Path(dir_okay=False, path_type=Path))
 @click.option("--vtt", type=click.Path(dir_okay=False, path_type=Path))
 @click.option("--txt", type=click.Path(dir_okay=False, path_type=Path))
 @click.option("--md", type=click.Path(dir_okay=False, path_type=Path))
-def main(srt, vtt, txt, md):
+@click.option("--replace", is_flag=True, help="Only overwrite files if content has changed")
+def main(srt, vtt, txt, md, replace):
     """
     Read (aligned or diarized) Transcript JSON on stdin and write files.
     """
@@ -26,9 +37,8 @@ def main(srt, vtt, txt, md):
     segs = data.get("segments") or []
     # TXT
     if txt:
-        txt.write_text(
-            "\n".join(s["text"].strip() for s in segs) + "\n", encoding="utf-8"
-        )
+        content = "\n".join(s["text"].strip() for s in segs) + "\n"
+        write_if_changed(txt, content, replace)
     # SRT
     if srt:
         lines = []
@@ -38,7 +48,8 @@ def main(srt, vtt, txt, md):
                 s["text"].strip() if not speaker else f"[{speaker}] {s['text'].strip()}"
             )
             lines += [str(i), f"{ts(s['start'])} --> {ts(s['end'])}", line, ""]
-        srt.write_text("\n".join(lines), encoding="utf-8")
+        content = "\n".join(lines)
+        write_if_changed(srt, content, replace)
     # VTT
     if vtt:
         lines = ["WEBVTT", ""]
@@ -52,13 +63,12 @@ def main(srt, vtt, txt, md):
                 line,
                 "",
             ]
-        vtt.write_text("\n".join(lines), encoding="utf-8")
+        content = "\n".join(lines)
+        write_if_changed(vtt, content, replace)
     # MD
     if md:
-        md.write_text(
-            "# Transcript\n\n" + "\n\n".join(s["text"].strip() for s in segs) + "\n",
-            encoding="utf-8",
-        )
+        content = "# Transcript\n\n" + "\n\n".join(s["text"].strip() for s in segs) + "\n"
+        write_if_changed(md, content, replace)
 
 
 if __name__ == "__main__":

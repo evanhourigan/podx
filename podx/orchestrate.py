@@ -134,7 +134,22 @@ def main():
     default=lambda: os.getenv("NOTION_DATE_PROP", "Date"),
     help="Notion property name for date",
 )
+@click.option(
+    "--replace-content/--append-content",
+    default=False,
+    help="Replace page body in Notion instead of appending",
+)
 @click.option("-v", "--verbose", is_flag=True, help="Print interstitial outputs")
+@click.option(
+    "--clean/--no-clean",
+    default=False,
+    help="Delete intermediates after success (keeps final artifacts)",
+)
+@click.option(
+    "--keep-audio/--no-keep-audio",
+    default=True,
+    help="Preserve downloaded/transcoded audio when --clean is used",
+)
 def run(
     show: str,
     date: Optional[str],
@@ -152,7 +167,10 @@ def run(
     notion_db: Optional[str],
     title_prop: str,
     date_prop: str,
+    replace_content: bool,
     verbose: bool,
+    clean: bool,
+    keep_audio: bool,
 ):
     """
     Orchestrate the whole pipeline. Each step runs only if its flag is set or required downstream.
@@ -170,6 +188,9 @@ def run(
         save_to=wd / "meta.json",
         label="Fetch episode metadata",
     )
+    
+    # Track original audio path for cleanup
+    original_audio_path = Path(meta["audio_path"]) if "audio_path" in meta else None
 
     # 2) TRANSCODE → audio.json
     audio = _run(
@@ -177,8 +198,11 @@ def run(
         stdin_payload=meta,
         verbose=verbose,
         save_to=wd / "audio.json",
-        label="Transcode audio",
+        label=f"Transcode → {fmt}",
     )
+    
+    # Track transcoded audio path for cleanup
+    transcoded_path = Path(audio["audio_path"])
 
     # 3) TRANSCRIBE → base.json
     base = _run(
@@ -305,11 +329,45 @@ def run(
 
         if json_path:
             cmd += ["--json", json_path]
+        
+        if replace_content:
+            cmd += ["--replace-content"]
 
         notion_resp = _run(
             cmd, verbose=verbose, save_to=wd / "notion.out.json", label="Notion upload"
         )
         results.update({"notion": str(wd / "notion.out.json")})
+
+    # 8) Optional cleanup
+    if clean:
+        # Keep final artifacts (small pointers)
+        keep = {
+            wd / "latest.json",
+            wd / "latest.txt", 
+            wd / "latest.srt",
+            wd / "brief.md",
+            wd / "brief.json",
+            wd / "notion.out.json",
+            wd / "meta.json",
+            wd / "audio.json",
+        }
+        
+        # Remove intermediate JSON files
+        for p in [wd / "base.json", wd / "aligned.json", wd / "diar.json"]:
+            if p.exists() and p not in keep:
+                try:
+                    p.unlink()
+                except Exception:
+                    pass
+        
+        # Remove audio files if not keeping them
+        if not keep_audio:
+            for p in [transcoded_path, original_audio_path]:
+                if p and p.exists():
+                    try:
+                        p.unlink()
+                    except Exception:
+                        pass
 
     # Final summary
     click.secho("✓ Pipeline complete", fg="green", bold=True)
