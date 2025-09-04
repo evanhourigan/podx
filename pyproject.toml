@@ -30,6 +30,9 @@ llm = [
   "openai>=1.40.0",
   "tiktoken>=0.7.0",
 ]
+notion = [
+  "notion-client>=2.2.1",
+]
 dev = [
   "pytest>=8.0",
   "pytest-cov>=5.0",
@@ -47,6 +50,7 @@ podx-align = "podx.align:main"
 podx-diarize = "podx.diarize:main"
 podx-export = "podx.export:main"
 podx-deepcast = "podx.deepcast:main"
+podx-notion = "podx.notion:main"
 podx = "podx.orchestrate:main"
 
 [tool.setuptools.packages.find]

@@ -70,6 +70,13 @@ full:
 pre-commit-install:
     pre-commit install
 
+# Notion helpers
+notion-dry:
+    podx-notion --markdown work/brief.md --json work/brief.json --meta work/latest.json --db "$NOTION_DB_ID" --dry-run
+
+notion:
+    podx-notion --markdown work/brief.md --json work/brief.json --meta work/latest.json --db "$NOTION_DB_ID"
+
 # Cleanup
 clean:
     #!/usr/bin/env bash
