@@ -37,9 +37,33 @@ def _generate_workdir(show_name: str, episode_date: str) -> Path:
 def find_feed_for_show(show_name: str) -> str:
     q = {"media": "podcast", "term": show_name}
     url = "https://itunes.apple.com/search?" + urlencode(q)
-    r = requests.get(url, headers={"User-Agent": UA}, timeout=30)
-    r.raise_for_status()
-    data = r.json()
+    
+    # Try with different session configuration to avoid connection issues
+    session = requests.Session()
+    session.headers.update({"User-Agent": UA})
+    
+    try:
+        r = session.get(url, timeout=30, verify=True)
+        r.raise_for_status()
+        data = r.json()
+    except requests.exceptions.ConnectionError as e:
+        # Fallback: use curl via subprocess
+        import subprocess
+        import json
+        
+        try:
+            result = subprocess.run(
+                ["curl", "-s", url],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if result.returncode != 0:
+                raise Exception(f"curl failed with return code {result.returncode}")
+            data = json.loads(result.stdout)
+        except Exception as curl_e:
+            raise SystemExit(f"Failed to connect to iTunes API: {e}. Also tried curl: {curl_e}")
+    
     results = data.get("results") or []
     if not results:
         raise SystemExit(f"No podcasts found for: {show_name}")
@@ -56,6 +80,10 @@ def choose_episode(entries, date_str: Optional[str], title_contains: Optional[st
                 return e
     if date_str:
         want = dtparse.parse(date_str)
+        # Make sure want is timezone-aware for comparison
+        if want.tzinfo is None:
+            want = want.replace(tzinfo=None)  # Make both naive for comparison
+        
         best = None
         best_delta = None
         for e in entries:
@@ -64,6 +92,9 @@ def choose_episode(entries, date_str: Optional[str], title_contains: Optional[st
                 continue
             try:
                 dt = dtparse.parse(d)
+                # Make sure dt is timezone-aware for comparison
+                if dt.tzinfo is not None:
+                    dt = dt.replace(tzinfo=None)  # Convert to naive for comparison
             except Exception:
                 continue
             delta = abs((dt - want).total_seconds())
