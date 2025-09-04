@@ -45,6 +45,11 @@ def main(srt, vtt, txt, md, replace, input):
         data = json.loads(input.read_text())
     else:
         data = json.loads(sys.stdin.read())
+
+    # Validate input format
+    if not data or "segments" not in data:
+        raise SystemExit("input must contain Transcript JSON with 'segments' field")
+
     segs = data.get("segments") or []
     # TXT
     if txt:

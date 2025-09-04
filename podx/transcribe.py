@@ -41,7 +41,7 @@ def main(model, compute, input, output):
         meta = read_stdin_json()
 
     if not meta or "audio_path" not in meta:
-        raise SystemExit("input must contain JSON with 'audio_path'")
+        raise SystemExit("input must contain EpisodeMeta JSON with 'audio_path' field")
     audio = Path(meta["audio_path"])
 
     from faster_whisper import WhisperModel

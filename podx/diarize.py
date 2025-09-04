@@ -34,7 +34,9 @@ def main(audio, input, output):
         aligned = read_stdin_json()
 
     if not aligned or "segments" not in aligned:
-        raise SystemExit("input must contain aligned JSON with 'segments'")
+        raise SystemExit(
+            "input must contain AlignedTranscript JSON with 'segments' field"
+        )
 
     import whisperx
 

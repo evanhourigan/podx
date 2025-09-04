@@ -33,7 +33,7 @@ def main(audio, input, output):
         base = read_stdin_json()
 
     if not base or "segments" not in base:
-        raise SystemExit("input must contain Transcript JSON with 'segments'")
+        raise SystemExit("input must contain Transcript JSON with 'segments' field")
     lang = base.get("language", "en")
     segs = base["segments"]
 
