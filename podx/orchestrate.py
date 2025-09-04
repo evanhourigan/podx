@@ -68,14 +68,8 @@ def main():
 @click.option("--title-contains", help="Substring to match in episode title")
 @click.option(
     "--workdir",
-    default="work",
     type=click.Path(path_type=Path),
-    help="Working directory",
-)
-@click.option(
-    "--auto-workdir",
-    is_flag=True,
-    help="Auto-generate workdir based on show name and date",
+    help="Override working directory (bypasses smart naming)",
 )
 @click.option(
     "--fmt",
@@ -164,7 +158,6 @@ def run(
     date: Optional[str],
     title_contains: Optional[str],
     workdir: Path,
-    auto_workdir: bool,
     fmt: str,
     model: str,
     compute: str,
@@ -186,13 +179,8 @@ def run(
     Orchestrate the whole pipeline. Each step runs only if its flag is set or required downstream.
     Saves intermediates to WORKDIR and prints a final summary with key artifact paths.
     """
-    # Determine working directory
-    if auto_workdir:
-        # We'll determine the actual workdir after fetching metadata
-        wd = None  # Will be set after fetch
-    else:
-        wd = Path(workdir)
-        wd.mkdir(parents=True, exist_ok=True)
+    # We'll determine the actual workdir after fetching metadata
+    wd = None  # Will be set after fetch
 
     # 1) FETCH → meta.json
     fetch_cmd = ["podx-fetch"]
@@ -208,30 +196,27 @@ def run(
     if title_contains:
         fetch_cmd.extend(["--title-contains", title_contains])
 
-    if auto_workdir:
-        fetch_cmd.append("--auto-workdir")
+    # Run fetch first to get metadata, then determine workdir
+    meta = _run(
+        fetch_cmd,
+        verbose=verbose,
+        save_to=None,  # Don't save yet, we'll save after determining workdir
+        label="Fetch episode metadata",
+    )
 
-    # For auto-workdir, we need to run fetch first to get metadata, then determine workdir
-    if auto_workdir:
-        meta = _run(
-            fetch_cmd,
-            verbose=verbose,
-            save_to=None,  # Don't save yet, we'll save after determining workdir
-            label="Fetch episode metadata",
-        )
-        # Determine workdir from metadata
-        episode_date = meta.get("episode_published") or date or "unknown"
-        wd = _generate_workdir(meta["show"], episode_date)
-        wd.mkdir(parents=True, exist_ok=True)
-        # Save metadata to the determined workdir
-        (wd / "meta.json").write_text(json.dumps(meta, indent=2))
+    # Determine workdir from metadata
+    if workdir:
+        # Override: use specified workdir
+        wd = Path(workdir)
     else:
-        meta = _run(
-            fetch_cmd,
-            verbose=verbose,
-            save_to=wd / "meta.json",
-            label="Fetch episode metadata",
-        )
+        # Default: use smart naming with spaces
+        show_name = meta.get("show", "Unknown Show")
+        episode_date = meta.get("episode_published") or date or "unknown"
+        wd = _generate_workdir(show_name, episode_date)
+
+    wd.mkdir(parents=True, exist_ok=True)
+    # Save metadata to the determined workdir
+    (wd / "meta.json").write_text(json.dumps(meta, indent=2))
 
     # Track original audio path for cleanup
     original_audio_path = Path(meta["audio_path"]) if "audio_path" in meta else None

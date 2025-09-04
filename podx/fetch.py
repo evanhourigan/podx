@@ -15,7 +15,8 @@ UA = "podx/1.0 (+mac cli)"
 
 
 def _sanitize(s: str) -> str:
-    return re.sub(r"[^\w\-.]+", "_", s.strip())
+    # Keep spaces, only replace truly problematic characters
+    return re.sub(r'[<>:"/\\|?*]', "_", s.strip())
 
 
 def _generate_workdir(show_name: str, episode_date: str) -> Path:
@@ -37,33 +38,32 @@ def _generate_workdir(show_name: str, episode_date: str) -> Path:
 def find_feed_for_show(show_name: str) -> str:
     q = {"media": "podcast", "term": show_name}
     url = "https://itunes.apple.com/search?" + urlencode(q)
-    
+
     # Try with different session configuration to avoid connection issues
     session = requests.Session()
     session.headers.update({"User-Agent": UA})
-    
+
     try:
         r = session.get(url, timeout=30, verify=True)
         r.raise_for_status()
         data = r.json()
     except requests.exceptions.ConnectionError as e:
         # Fallback: use curl via subprocess
-        import subprocess
         import json
-        
+        import subprocess
+
         try:
             result = subprocess.run(
-                ["curl", "-s", url],
-                capture_output=True,
-                text=True,
-                timeout=30
+                ["curl", "-s", url], capture_output=True, text=True, timeout=30
             )
             if result.returncode != 0:
                 raise Exception(f"curl failed with return code {result.returncode}")
             data = json.loads(result.stdout)
         except Exception as curl_e:
-            raise SystemExit(f"Failed to connect to iTunes API: {e}. Also tried curl: {curl_e}")
-    
+            raise SystemExit(
+                f"Failed to connect to iTunes API: {e}. Also tried curl: {curl_e}"
+            )
+
     results = data.get("results") or []
     if not results:
         raise SystemExit(f"No podcasts found for: {show_name}")
@@ -83,7 +83,7 @@ def choose_episode(entries, date_str: Optional[str], title_contains: Optional[st
         # Make sure want is timezone-aware for comparison
         if want.tzinfo is None:
             want = want.replace(tzinfo=None)  # Make both naive for comparison
-        
+
         best = None
         best_delta = None
         for e in entries:
@@ -133,14 +133,11 @@ def download_enclosure(entry, out_dir: Path) -> Path:
 @click.option("--date", help="Episode date (YYYY-MM-DD). Picks nearest.")
 @click.option("--title-contains", help="Substring to match in episode title.")
 @click.option(
-    "--outdir", default="episodes", show_default=True, type=click.Path(path_type=Path)
+    "--outdir",
+    type=click.Path(path_type=Path),
+    help="Override output directory (bypasses smart naming)",
 )
-@click.option(
-    "--auto-workdir",
-    is_flag=True,
-    help="Auto-generate workdir based on show name and date",
-)
-def main(show, rss_url, date, title_contains, outdir, auto_workdir):
+def main(show, rss_url, date, title_contains, outdir):
     """Find feed, choose episode, download audio. Prints EpisodeMeta JSON to stdout."""
     # Validate that either show or rss_url is provided
     if not show and not rss_url:
@@ -171,11 +168,13 @@ def main(show, rss_url, date, title_contains, outdir, auto_workdir):
         raise SystemExit("No episode found.")
 
     # Determine output directory
-    if auto_workdir:
+    if outdir:
+        # Override: use specified outdir
+        workdir = outdir
+    else:
+        # Default: use smart naming with spaces
         episode_date = ep.get("published") or ep.get("updated") or date or "unknown"
         workdir = _generate_workdir(show_name, episode_date)
-    else:
-        workdir = outdir
 
     # Download audio
     audio_path = download_enclosure(ep, workdir)
