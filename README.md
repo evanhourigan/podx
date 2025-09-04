@@ -2,6 +2,32 @@
 
 Composable podcast tooling (Unix-style):
 
+## Installation
+
+### Option 1: Global Installation (Recommended)
+
+Install globally so commands are available from anywhere:
+
+```bash
+# Clone and install globally
+git clone <repo>
+cd podx
+pipx install -e ".[asr,whisperx,llm,notion]"
+```
+
+### Option 2: Local Development Installation
+
+For development with virtual environment:
+
+```bash
+# Clone and install locally
+git clone <repo>
+cd podx
+pip install -e ".[asr,whisperx,llm,notion]"
+```
+
+**Note**: With Option 1 (pipx), all `podx-*` commands will be available globally. With Option 2, you need to activate the virtual environment or be in the project directory.
+
 - `podx-fetch`: Find & download an episode by show/date/title or RSS URL
 - `podx-transcode`: `ffmpeg` to `wav` (16k mono) / `mp3` / `aac`
 - `podx-transcribe`: `faster-whisper` (fast pass)
@@ -92,6 +118,9 @@ podx run --show "Radiolab" --date 2024-10-02 --align --diarize --deepcast --noti
 
 # Using RSS URL (for private/unlisted podcasts)
 podx run --rss-url "https://feeds.example.com/podcast.xml" --date 2024-10-02 --workdir work/
+
+# Using auto-workdir for organized output
+podx run --show "Radio Lab" --date 2024-02-02 --auto-workdir
 
 # Advanced usage with content replacement and cleanup
 podx run --show "Radiolab" --date 2024-10-02 --align --diarize --deepcast --notion \
@@ -257,6 +286,7 @@ The `podx run` command provides a unified interface to the entire pipeline with 
 ### Advanced features
 
 - **RSS URL support**: Use `--rss-url` instead of `--show` for private, unlisted, or custom podcast feeds
+- **Auto-workdir**: Use `--auto-workdir` to automatically generate organized directories like `Radio_Lab/2024-02-02/`
 - **Content replacement**: Use `--replace-content` to replace existing Notion page content instead of appending
 - **Cleanup management**: Use `--clean` to remove intermediate files after successful completion
 - **Audio preservation**: Use `--keep-audio` (default) to preserve downloaded/transcoded audio files when cleaning
@@ -286,6 +316,30 @@ podx run --rss-url "https://feeds.example.com/podcast.xml" --date 2024-10-02 \
 - Direct access to custom or specialized feeds
 - Automatic show name extraction from feed metadata
 - Automatic artwork extraction for Notion cover images
+
+### Auto-Workdir Usage
+
+Automatically generate organized work directories based on show name and episode date:
+
+```bash
+# Auto-generate workdir: Radio_Lab/2024-02-02/
+podx-fetch --show "Radio Lab" --date 2024-02-02 --auto-workdir
+
+# With orchestrator
+podx run --show "Radio Lab" --date 2024-02-02 --auto-workdir
+
+# Full pipeline with auto-workdir
+podx run --show "Radio Lab" --date 2024-02-02 --auto-workdir \
+  --align --diarize --deepcast --notion
+```
+
+**Benefits of Auto-Workdir:**
+
+- Organized file structure: `Show_Name/YYYY-MM-DD/`
+- Automatic sanitization of show names for filesystem compatibility
+- Consistent date formatting (YYYY-MM-DD)
+- No need to manually specify work directories
+- Perfect for batch processing multiple episodes
 
 ## Project Structure
 

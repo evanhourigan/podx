@@ -18,6 +18,22 @@ def _sanitize(s: str) -> str:
     return re.sub(r"[^\w\-.]+", "_", s.strip())
 
 
+def _generate_workdir(show_name: str, episode_date: str) -> Path:
+    """Generate a work directory path based on show name and episode date."""
+    # Sanitize show name for filesystem
+    safe_show = _sanitize(show_name)
+
+    # Parse and format date
+    try:
+        parsed_date = dtparse.parse(episode_date)
+        date_str = parsed_date.strftime("%Y-%m-%d")
+    except Exception:
+        # Fallback to original date string if parsing fails
+        date_str = _sanitize(episode_date)
+
+    return Path(safe_show) / date_str
+
+
 def find_feed_for_show(show_name: str) -> str:
     q = {"media": "podcast", "term": show_name}
     url = "https://itunes.apple.com/search?" + urlencode(q)
@@ -88,7 +104,12 @@ def download_enclosure(entry, out_dir: Path) -> Path:
 @click.option(
     "--outdir", default="episodes", show_default=True, type=click.Path(path_type=Path)
 )
-def main(show, rss_url, date, title_contains, outdir):
+@click.option(
+    "--auto-workdir",
+    is_flag=True,
+    help="Auto-generate workdir based on show name and date",
+)
+def main(show, rss_url, date, title_contains, outdir, auto_workdir):
     """Find feed, choose episode, download audio. Prints EpisodeMeta JSON to stdout."""
     # Validate that either show or rss_url is provided
     if not show and not rss_url:
@@ -118,8 +139,15 @@ def main(show, rss_url, date, title_contains, outdir):
     if not ep:
         raise SystemExit("No episode found.")
 
+    # Determine output directory
+    if auto_workdir:
+        episode_date = ep.get("published") or ep.get("updated") or date or "unknown"
+        workdir = _generate_workdir(show_name, episode_date)
+    else:
+        workdir = outdir
+
     # Download audio
-    audio_path = download_enclosure(ep, outdir)
+    audio_path = download_enclosure(ep, workdir)
 
     # Build metadata
     meta: EpisodeMeta = {
