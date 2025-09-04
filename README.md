@@ -74,30 +74,30 @@ pip install -e ".[notion]"
 ### Unix-style pipeline (JSON on stdout/stdin):
 
 ```bash
-# Using show name (iTunes search)
+# Using show name (iTunes search) - files stay organized in smart directories
 podx-fetch --show "Radiolab" --date 2024-10-02 \
-| podx-transcode --to wav16 --outdir work \
+| podx-transcode --to wav16 \
 | podx-transcribe \
-| tee work/base.json \
-| podx-export --txt work/base.txt --srt work/base.srt
+| tee "[Show Name]/[YYYY-MM-DD]/base.json" \
+| podx-export --txt "[Show Name]/[YYYY-MM-DD]/base.txt" --srt "[Show Name]/[YYYY-MM-DD]/base.srt"
 
 # Using RSS URL (for private/unlisted podcasts)
 podx-fetch --rss-url "https://feeds.example.com/podcast.xml" --date 2024-10-02 \
-| podx-transcode --to wav16 --outdir work \
+| podx-transcode --to wav16 \
 | podx-transcribe \
-| tee work/base.json \
-| podx-export --txt work/base.txt --srt work/base.srt
+| tee "[Show Name]/[YYYY-MM-DD]/base.json" \
+| podx-export --txt "[Show Name]/[YYYY-MM-DD]/base.txt" --srt "[Show Name]/[YYYY-MM-DD]/base.srt"
 ```
 
 ### Add alignment/diarization only when needed:
 
 ```bash
-cat work/base.json \
-| podx-align --audio "$(jq -r .audio_path work/base.json)" \
-| tee work/aligned.json \
-| podx-diarize --audio "$(jq -r .audio_path work/base.json)" \
-| tee work/diar.json \
-| podx-export --srt work/episode.srt --vtt work/episode.vtt --txt work/episode.txt
+cat "[Show Name]/[YYYY-MM-DD]/base.json" \
+| podx-align --audio "$(jq -r .audio_path "[Show Name]/[YYYY-MM-DD]/base.json")" \
+| tee "[Show Name]/[YYYY-MM-DD]/aligned.json" \
+| podx-diarize --audio "$(jq -r .audio_path "[Show Name]/[YYYY-MM-DD]/base.json")" \
+| tee "[Show Name]/[YYYY-MM-DD]/diar.json" \
+| podx-export --srt "[Show Name]/[YYYY-MM-DD]/episode.srt" --vtt "[Show Name]/[YYYY-MM-DD]/episode.vtt" --txt "[Show Name]/[YYYY-MM-DD]/episode.txt"
 ```
 
 ### One-shot convenience:
@@ -326,7 +326,7 @@ podx run --rss-url "https://feeds.example.com/podcast.xml" --date 2024-10-02 \
 Podx automatically generates organized work directories based on show name and episode date:
 
 ```bash
-# Smart workdir: "Radio Lab/2024-02-02/" (automatic)
+# Smart workdir: "[Show Name]/[YYYY-MM-DD]/" (automatic)
 podx-fetch --show "Radio Lab" --date 2024-02-02
 
 # With orchestrator (smart workdir automatic)
@@ -339,18 +339,19 @@ podx run --show "Radio Lab" --date 2024-02-02 \
 # Override with custom directory
 podx run --show "Radio Lab" --date 2024-02-02 --workdir work/
 
-# Unknown show: "Unknown Show/2024-02-02/"
+# Unknown show: "Unknown Show/[YYYY-MM-DD]/"
 podx run --rss-url "https://example.com/feed.xml"
 ```
 
 **Benefits of Smart Workdir:**
 
-- Organized file structure: `"Show Name/YYYY-MM-DD/"` (with spaces)
+- Organized file structure: `"[Show Name]/[YYYY-MM-DD]/"` (with spaces)
 - Automatic sanitization of show names for filesystem compatibility
 - Consistent date formatting (YYYY-MM-DD)
 - No need to manually specify work directories
 - Perfect for batch processing multiple episodes
 - Override capability with `--outdir`/`--workdir` when needed
+- Intuitive piping: `podx-transcode` automatically uses the same directory as source audio
 
 ## Project Structure
 
