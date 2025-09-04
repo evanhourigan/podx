@@ -55,7 +55,10 @@ cd podx
 cp .env.example .env
 direnv allow
 
-# install editable
+# For global installation (recommended):
+pipx install -e ".[asr,whisperx,llm,notion]"
+
+# For local development:
 pip install -U pip
 pip install -e ".[asr]" # faster-whisper backend
 # Optional for alignment/diarization:
@@ -170,7 +173,8 @@ podx-deepcast --in work/latest.json --md-out work/brief.md --json-out work/brief
 ## Notes & tweaks
 
 - **`direnv`**: `.envrc` auto-creates `.venv` and loads `.env`. Run `direnv allow` after editing `.envrc`.
-- **Editable install**: `pip install -e .` lets you run `podx-*` from any folder.
+- **Global install**: `pipx install -e .` makes `podx-*` commands available from anywhere.
+- **Local install**: `pip install -e .` for development (requires virtual environment).
 - **Optional deps**: Keep `WhisperX` and `llm` optional to keep base install light.
 - **Testing**: `pip install -e .[dev] && pytest -q`
 - **Notion integration**: Use `podx-notion` to upload Deepcast output to Notion as formatted pages.
