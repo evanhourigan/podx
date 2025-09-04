@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Optional
 import click
 import requests
 
+from .cli_shared import read_stdin_json
+
 try:
     from notion_client import Client
 except ImportError:
@@ -313,11 +315,15 @@ def upsert_page(
     "--date", "date_iso", help="ISO date (YYYY-MM-DD) (or derive from --meta)"
 )
 @click.option(
+    "--input",
+    type=click.Path(exists=True, path_type=Path),
+    help="Read DeepcastBrief JSON from file instead of stdin",
+)
+@click.option(
     "--markdown",
     "md_path",
     type=click.Path(exists=True, path_type=Path),
-    required=True,
-    help="Markdown file",
+    help="Markdown file (alternative to --input)",
 )
 @click.option(
     "--json",
@@ -358,7 +364,8 @@ def main(
     db_id: Optional[str],
     title: Optional[str],
     date_iso: Optional[str],
-    md_path: Path,
+    input: Optional[Path],
+    md_path: Optional[Path],
     json_path: Optional[Path],
     meta_path: Optional[Path],
     title_prop: str,
@@ -374,11 +381,48 @@ def main(
     if not db_id:
         raise SystemExit("Please pass --db or set NOTION_DB_ID environment variable")
 
-    # Prefer explicit CLI title/date, else derive from meta JSON
-    meta = {}
-    if meta_path:
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    # Handle input modes: --input (from stdin/file) vs separate files
+    if input:
+        # Read DeepcastBrief JSON from file
+        deepcast_data = json.loads(input.read_text(encoding="utf-8"))
+    elif not md_path:
+        # Read DeepcastBrief JSON from stdin
+        deepcast_data = read_stdin_json()
+    else:
+        # Traditional separate files mode
+        deepcast_data = None
 
+    if deepcast_data:
+        # Extract data from DeepcastBrief JSON
+        md = deepcast_data.get("markdown", "")
+        if not md:
+            raise SystemExit("DeepcastBrief JSON must contain 'markdown' field")
+
+        # Extract metadata if available
+        meta = deepcast_data.get("metadata", {})
+
+        # Extract structured data for Notion properties
+        js = deepcast_data  # The whole deepcast output
+    else:
+        # Traditional mode: separate files
+        if not md_path:
+            raise SystemExit(
+                "Either provide --input (for DeepcastBrief JSON) or --markdown (for separate files)"
+            )
+
+        # Prefer explicit CLI title/date, else derive from meta JSON
+        meta = {}
+        if meta_path:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+
+        md = md_path.read_text(encoding="utf-8")
+
+        # Extra Notion properties from JSON
+        js = {}
+        if json_path:
+            js = json.loads(json_path.read_text(encoding="utf-8"))
+
+    # Derive title and date
     if not title:
         title = meta.get("episode_title") or meta.get("title") or "Podcast Notes"
 
@@ -387,13 +431,11 @@ def main(
         if isinstance(d, str) and len(d) >= 10:
             date_iso = d[:10]  # YYYY-MM-DD from ISO datetime
 
-    md = md_path.read_text(encoding="utf-8")
     blocks = md_to_blocks(md)
 
     # Extra Notion properties from JSON
     props_extra: Dict[str, Any] = {}
-    if json_path:
-        js = json.loads(json_path.read_text(encoding="utf-8"))
+    if js:
         # You can map structured fields to Notion properties here if desired.
         # Example: add a multi-select "Tags" from key_points (top 3)
         key_points = (js.get("key_points") or [])[:3]

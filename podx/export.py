@@ -31,11 +31,20 @@ def write_if_changed(path: Path, content: str, replace: bool = False) -> None:
 @click.option(
     "--replace", is_flag=True, help="Only overwrite files if content has changed"
 )
-def main(srt, vtt, txt, md, replace):
+@click.option(
+    "--input",
+    type=click.Path(exists=True, path_type=Path),
+    help="Read Transcript JSON from file instead of stdin",
+)
+def main(srt, vtt, txt, md, replace, input):
     """
     Read (aligned or diarized) Transcript JSON on stdin and write files.
     """
-    data = json.loads(sys.stdin.read())
+    # Read input
+    if input:
+        data = json.loads(input.read_text())
+    else:
+        data = json.loads(sys.stdin.read())
     segs = data.get("segments") or []
     # TXT
     if txt:

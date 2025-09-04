@@ -1,3 +1,4 @@
+import json
 import re
 from pathlib import Path
 from typing import Optional
@@ -137,7 +138,12 @@ def download_enclosure(entry, out_dir: Path) -> Path:
     type=click.Path(path_type=Path),
     help="Override output directory (bypasses smart naming)",
 )
-def main(show, rss_url, date, title_contains, outdir):
+@click.option(
+    "--output",
+    type=click.Path(path_type=Path),
+    help="Save EpisodeMeta JSON to file (also prints to stdout)",
+)
+def main(show, rss_url, date, title_contains, outdir, output):
     """Find feed, choose episode, download audio. Prints EpisodeMeta JSON to stdout."""
     # Validate that either show or rss_url is provided
     if not show and not rss_url:
@@ -192,6 +198,11 @@ def main(show, rss_url, date, title_contains, outdir):
     if f.feed.get("image", {}).get("href"):
         meta["image_url"] = f.feed["image"]["href"]
 
+    # Save to file if requested
+    if output:
+        output.write_text(json.dumps(meta, indent=2))
+
+    # Always print to stdout
     print_json(meta)
 
 

@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import click
@@ -11,13 +12,28 @@ from .cli_shared import print_json, read_stdin_json
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     required=True,
 )
-def main(audio):
+@click.option(
+    "--input",
+    type=click.Path(exists=True, path_type=Path),
+    help="Read Transcript JSON from file instead of stdin",
+)
+@click.option(
+    "--output",
+    type=click.Path(path_type=Path),
+    help="Save AlignedTranscript JSON to file (also prints to stdout)",
+)
+def main(audio, input, output):
     """
     Read coarse Transcript JSON on stdin -> WhisperX align -> print aligned JSON to stdout.
     """
-    base = read_stdin_json()
+    # Read input
+    if input:
+        base = json.loads(input.read_text())
+    else:
+        base = read_stdin_json()
+
     if not base or "segments" not in base:
-        raise SystemExit("stdin must contain Transcript JSON with 'segments'")
+        raise SystemExit("input must contain Transcript JSON with 'segments'")
     lang = base.get("language", "en")
     segs = base["segments"]
 
@@ -27,6 +43,11 @@ def main(audio):
     aligned = whisperx.align(segs, model_a, metadata, str(audio), device="cpu")
     aligned["audio_path"] = str(audio)
 
+    # Save to file if requested
+    if output:
+        output.write_text(json.dumps(aligned, indent=2))
+
+    # Always print to stdout
     print_json(aligned)
 
 

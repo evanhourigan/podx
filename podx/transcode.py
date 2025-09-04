@@ -1,3 +1,4 @@
+import json
 import subprocess
 from pathlib import Path
 
@@ -33,18 +34,46 @@ def to_wav16(src: Path, dst: Path) -> Path:
 )
 @click.option("--bitrate", default="128k", show_default=True)
 @click.option(
-    "--outdir", default="work", show_default=True, type=click.Path(path_type=Path)
+    "--outdir",
+    type=click.Path(path_type=Path),
+    help="Output directory (defaults to same directory as source audio)",
 )
-def main(fmt, bitrate, outdir):
+@click.option(
+    "--input",
+    type=click.Path(exists=True, path_type=Path),
+    help="Read EpisodeMeta JSON from file instead of stdin",
+)
+@click.option(
+    "--output",
+    type=click.Path(path_type=Path),
+    help="Save AudioMeta JSON to file (also prints to stdout)",
+)
+def main(fmt, bitrate, outdir, input, output):
     """
     Read EpisodeMeta JSON on stdin (with audio_path), transcode, print AudioMeta JSON on stdout.
     """
-    meta = read_stdin_json()
+    # Read input
+    if input:
+        meta = json.loads(input.read_text())
+    else:
+        meta = read_stdin_json()
+
     if not meta or "audio_path" not in meta:
-        raise SystemExit("stdin must contain JSON with 'audio_path'")
+        raise SystemExit("input must contain JSON with 'audio_path'")
     src = Path(meta["audio_path"])
-    outdir.mkdir(parents=True, exist_ok=True)
-    dst = outdir / (src.stem + ".wav16" if fmt == "wav16" else src.stem + ".transcoded")
+
+    # Determine output directory
+    if outdir:
+        # Use specified outdir
+        output_dir = outdir
+    else:
+        # Default: use same directory as source audio
+        output_dir = src.parent
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    dst = output_dir / (
+        src.stem + ".wav16" if fmt == "wav16" else src.stem + ".transcoded"
+    )
 
     if fmt == "wav16":
         wav = to_wav16(src, dst)
@@ -65,6 +94,11 @@ def main(fmt, bitrate, outdir):
         ffmpeg(["-y", "-i", str(src), "-c:a", "aac", "-b:a", bitrate, str(dst)])
         out = {"audio_path": str(dst), "format": "aac"}
 
+    # Save to file if requested
+    if output:
+        output.write_text(json.dumps(out, indent=2))
+
+    # Always print to stdout
     print_json(out)
 
 

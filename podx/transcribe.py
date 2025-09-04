@@ -1,4 +1,6 @@
+import json
 import os
+import sys
 from pathlib import Path
 
 import click
@@ -18,13 +20,28 @@ from .cli_shared import print_json, read_stdin_json
     type=click.Choice(["int8", "int8_float16", "float16", "float32"]),
     show_default=True,
 )
-def main(model, compute):
+@click.option(
+    "--input",
+    type=click.Path(exists=True, path_type=Path),
+    help="Read AudioMeta JSON from file instead of stdin",
+)
+@click.option(
+    "--output",
+    type=click.Path(path_type=Path),
+    help="Save Transcript JSON to file (also prints to stdout)",
+)
+def main(model, compute, input, output):
     """
     Read AudioMeta JSON on stdin -> run faster-whisper -> print Transcript JSON to stdout.
     """
-    meta = read_stdin_json()
+    # Read input
+    if input:
+        meta = json.loads(input.read_text())
+    else:
+        meta = read_stdin_json()
+
     if not meta or "audio_path" not in meta:
-        raise SystemExit("stdin must contain JSON with 'audio_path'")
+        raise SystemExit("input must contain JSON with 'audio_path'")
     audio = Path(meta["audio_path"])
 
     from faster_whisper import WhisperModel
@@ -47,6 +64,12 @@ def main(model, compute):
         "segments": segs,
         "text": "\n".join(text_lines).strip(),
     }
+
+    # Save to file if requested
+    if output:
+        output.write_text(json.dumps(out, indent=2))
+
+    # Always print to stdout
     print_json(out)
 
 
