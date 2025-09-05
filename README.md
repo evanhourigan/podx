@@ -127,17 +127,17 @@ podx run --show "The Podcast" --date 2024-02-02
 
 # Advanced usage with content replacement and cleanup
 podx run --show "The Podcast" --date 2024-10-02 --align --diarize --deepcast --notion \
-  --replace-content --clean --keep-audio --workdir work/
+  --append-content --clean --no-keep-audio --workdir work/
 
 # Minimal upload with aggressive cleanup
 podx run --show "The Podcast" --date 2024-10-02 --notion --clean --no-keep-audio --workdir work/
 
 # Export with smart file updates (only overwrite if changed)
-podx-export --srt work/episode.srt --txt work/episode.txt --replace
+podx-export --formats txt,srt --output-dir work --replace
 
 # Notion upload with cover image and content replacement
-podx-notion --markdown work/brief.md --json work/brief.json --meta work/latest.json \
-  --db "$NOTION_DB_ID" --replace-content --cover-image
+podx-notion --input work/brief.json --meta work/latest.json \
+  --db "$NOTION_DB_ID" --append-content --cover-image
 ```
 
 ### AI-powered analysis with deepcast:
@@ -148,7 +148,7 @@ podx-fetch --show "The Podcast" --date 2024-10-02 \
 | podx-transcode --to wav16 --outdir work \
 | podx-transcribe \
 | tee work/base.json \
-| podx-deepcast --md-out work/brief.md --json-out work/brief.json
+| podx-deepcast --output work/brief.json
 
 # With alignment & diarization → deepcast
 cat work/base.json \
@@ -156,7 +156,7 @@ cat work/base.json \
 | tee work/aligned.json \
 | podx-diarize --audio "$(jq -r .audio_path work/base.json)" \
 | tee work/diar.json \
-| podx-deepcast --md-out work/brief.md --json-out work/brief.json
+| podx-deepcast --output work/brief.json
 ```
 
 ### Complete workflow:
@@ -167,7 +167,7 @@ podx run --show "The Podcast" --date 2024-10-02 --align --diarize --workdir work
 --model small.en --compute int8
 
 # Then deepcast the final artifact
-podx-deepcast --in work/latest.json --md-out work/brief.md --json-out work/brief.json
+podx-deepcast --input work/latest.json --output work/brief.json
 ```
 
 ## Notes & tweaks
@@ -244,8 +244,8 @@ This will:
 
 ```bash
 podx run --show "The Podcast" --date 2024-10-02 --align --diarize --workdir work/ \
-&& podx-deepcast --in work/latest.json --md-out work/brief.md --json-out work/brief.json \
-&& podx-notion --markdown work/brief.md --json work/brief.json --meta work/latest.json --db "$NOTION_DB_ID"
+&& podx-deepcast --input work/latest.json --output work/brief.json \
+&& podx-notion --input work/brief.json --meta work/latest.json --db "$NOTION_DB_ID"
 ```
 
 #### Justfile helpers:
@@ -260,7 +260,7 @@ just publish       # Run complete pipeline including Notion upload
 ### Notion Configuration
 
 - **Property names**: If your database uses different property names, set `NOTION_TITLE_PROP` and `NOTION_DATE_PROP` in `.env`, or pass `--title-prop` and `--date-prop`
-- **Content management**: Use `--replace-content` to replace existing page content instead of appending
+- **Content management**: Use `--append-content` to append to existing page content instead of replacing (default: replace)
 - **Cover images**: Use `--cover-image` to automatically set podcast artwork as the page cover (requires `image_url` in metadata)
 - **More properties**: Map fields from `brief.json` to Notion properties (numeric "Episode #", status, relations) in the `props_extra` section
 - **Inline formatting**: Block-level parsing for robustness. Can be extended to support bold/italic/links if needed
@@ -278,8 +278,8 @@ The `podx run` command provides a unified interface to the entire pipeline with 
 
 ### Output files (persisted in `--workdir`)
 
-- **Core pipeline**: `meta.json`, `audio.json`, `base.json`, `aligned.json`, `diar.json`, `latest.json`, `latest.txt`, `latest.srt`
-- **Deepcast output**: `brief.md`, `brief.json` (when `--deepcast` is used)
+- **Core pipeline**: `episode-meta.json`, `audio-meta.json`, `transcript.json`, `aligned-transcript.json`, `diarized-transcript.json`, `latest.json`, `transcript.txt`, `transcript.srt`
+- **Deepcast output**: `deepcast-brief.json` (when `--deepcast` is used)
 - **Notion response**: `notion.out.json` (when `--notion` is used)
 
 ### Fallback behavior
@@ -291,10 +291,12 @@ The `podx run` command provides a unified interface to the entire pipeline with 
 
 - **RSS URL support**: Use `--rss-url` instead of `--show` for private, unlisted, or custom podcast feeds
 - **Smart workdir**: Automatically generates organized directories like `Radio_Lab/2024-02-02/` based on show name and date
-- **Content replacement**: Use `--replace-content` to replace existing Notion page content instead of appending
-- **Cleanup management**: Use `--clean` to remove intermediate files after successful completion
-- **Audio preservation**: Use `--keep-audio` (default) to preserve downloaded/transcoded audio files when cleaning
+- **Content replacement**: Use `--append-content` to append to existing Notion page content instead of replacing (default: replace)
+- **Cleanup management**: Use `--clean` to remove intermediate files after successful completion (default: keep all files)
+- **Audio preservation**: Use `--no-keep-audio` to delete audio files when cleaning (default: keep audio)
 - **Smart file updates**: Use `--replace` with `podx-export` to only overwrite files when content has changed
+- **Export formats**: Use `--formats txt,srt,vtt,md` with `podx-export` to specify output formats (default: txt,srt)
+- **Standardized I/O**: All utilities support `-i`/`--input` and `-o`/`--output` flags for consistent file handling
 - **Cover images**: Use `--cover-image` with `podx-notion` to automatically set podcast artwork as the page cover
 
 ### RSS URL Usage
