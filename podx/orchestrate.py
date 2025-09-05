@@ -128,6 +128,11 @@ def main():
     help="OpenAI temperature for deepcast [default: 0.2]",
 )
 @click.option(
+    "--extract-markdown",
+    is_flag=True,
+    help="Also extract raw markdown file when running deepcast",
+)
+@click.option(
     "--notion",
     is_flag=True,
     help="Upload to Notion database (default: no upload)",
@@ -178,6 +183,7 @@ def run(
     deepcast: bool,
     deepcast_model: str,
     deepcast_temp: float,
+    extract_markdown: bool,
     notion: bool,
     notion_db: Optional[str],
     title_prop: str,
@@ -380,6 +386,9 @@ def run(
                 "--temperature",
                 str(deepcast_temp),
             ]
+
+            if extract_markdown:
+                cmd.append("--extract-markdown")
 
             _run(
                 cmd, verbose=verbose, save_to=None, label=None

@@ -290,12 +290,18 @@ def deepcast(
     type=int,
     help="Approximate chars per chunk [default: 24000]",
 )
+@click.option(
+    "--extract-markdown",
+    is_flag=True,
+    help="Also write raw markdown to a separate .md file",
+)
 def main(
     inp: Optional[Path],
     output: Optional[Path],
     model: str,
     temperature: float,
     chunk_chars: int,
+    extract_markdown: bool,
 ):
     """
     podx-deepcast: turn transcripts into a polished Markdown brief (and optional JSON) with summaries key points quotes timestamps and speaker labels when available
@@ -321,6 +327,11 @@ def main(
     output.write_text(
         json.dumps(unified, indent=2, ensure_ascii=False), encoding="utf-8"
     )
+
+    # Extract markdown to separate file if requested
+    if extract_markdown:
+        markdown_file = output.with_suffix(".md")
+        markdown_file.write_text(md, encoding="utf-8")
 
     # Always print to stdout (for pipelines)
     print(json.dumps(unified, ensure_ascii=False))
