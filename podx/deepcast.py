@@ -89,6 +89,21 @@ def split_into_chunks(text: str, approx_chars: int) -> List[str]:
 SYSTEM_BASE = "You are a meticulous editorial assistant for podcast transcripts."
 
 
+def build_episode_header(transcript: Dict[str, Any]) -> str:
+    """Build episode metadata header from transcript."""
+    show_name = transcript.get("show_name", "Unknown Show")
+    episode_title = transcript.get("episode_title", "Unknown Episode")
+    release_date = transcript.get("release_date", "Unknown Date")
+
+    return f"""# {show_name}
+## {episode_title}
+**Released:** {release_date}
+
+---
+
+"""
+
+
 def build_prompt_variant(has_time: bool, has_spk: bool) -> str:
     time_text = (
         "- When quoting, include [HH:MM:SS] timecodes from the nearest preceding segment.\n"
@@ -252,11 +267,11 @@ def deepcast(
 
         try:
             parsed = json.loads(js)
-            return md.strip(), parsed
+            return build_episode_header(transcript) + md.strip(), parsed
         except json.JSONDecodeError:
-            return md.strip(), None
+            return build_episode_header(transcript) + md.strip(), None
 
-    return final.strip(), None
+    return build_episode_header(transcript) + final.strip(), None
 
 
 @click.command()
