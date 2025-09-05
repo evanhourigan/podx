@@ -12,21 +12,23 @@ from .cli_shared import print_json, read_stdin_json
 @click.option(
     "--model",
     default=lambda: os.getenv("PODX_DEFAULT_MODEL", "small.en"),
-    show_default=True,
+    help="ASR model (tiny, base, small, medium, large, large-v2, large-v3) [default: small.en]",
 )
 @click.option(
     "--compute",
     default=lambda: os.getenv("PODX_DEFAULT_COMPUTE", "int8"),
     type=click.Choice(["int8", "int8_float16", "float16", "float32"]),
-    show_default=True,
+    help="Compute type [default: int8]",
 )
 @click.option(
     "--input",
+    "-i",
     type=click.Path(exists=True, path_type=Path),
     help="Read AudioMeta JSON from file instead of stdin",
 )
 @click.option(
     "--output",
+    "-o",
     type=click.Path(path_type=Path),
     help="Save Transcript JSON to file (also prints to stdout)",
 )

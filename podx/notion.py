@@ -316,6 +316,7 @@ def upsert_page(
 )
 @click.option(
     "--input",
+    "-i",
     type=click.Path(exists=True, path_type=Path),
     help="Read DeepcastBrief JSON from file instead of stdin",
 )
@@ -348,9 +349,9 @@ def upsert_page(
     help="Notion property name for date",
 )
 @click.option(
-    "--replace-content/--append-content",
-    default=False,
-    help="Replace page body in Notion instead of appending",
+    "--append-content",
+    is_flag=True,
+    help="Append to page body in Notion instead of replacing (default: replace)",
 )
 @click.option(
     "--cover-image",
@@ -370,7 +371,7 @@ def main(
     meta_path: Optional[Path],
     title_prop: str,
     date_prop: str,
-    replace_content: bool,
+    append_content: bool,
     cover_image: bool,
     dry_run: bool,
 ):
@@ -460,7 +461,7 @@ def main(
             "date_prop": date_prop,
             "title": title,
             "date_iso": date_iso,
-            "replace_content": replace_content,
+            "replace_content": not append_content,
             "cover_image": cover_url is not None,
             "cover_url": cover_url,
             "props_extra_keys": list(props_extra.keys()) if props_extra else [],
@@ -479,7 +480,7 @@ def main(
         date_prop=date_prop,
         props_extra=props_extra,
         blocks=blocks,
-        replace_content=replace_content,
+        replace_content=not append_content,
     )
 
     # Set cover image if requested and available

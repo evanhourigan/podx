@@ -1,4 +1,7 @@
 import json
+import os
+import sys
+from contextlib import redirect_stderr
 from pathlib import Path
 
 import click
@@ -14,11 +17,13 @@ from .cli_shared import print_json, read_stdin_json
 )
 @click.option(
     "--input",
+    "-i",
     type=click.Path(exists=True, path_type=Path),
     help="Read Transcript JSON from file instead of stdin",
 )
 @click.option(
     "--output",
+    "-o",
     type=click.Path(path_type=Path),
     help="Save AlignedTranscript JSON to file (also prints to stdout)",
 )
@@ -39,8 +44,11 @@ def main(audio, input, output):
 
     import whisperx
 
-    model_a, metadata = whisperx.load_align_model(language_code=lang, device="cpu")
-    aligned = whisperx.align(segs, model_a, metadata, str(audio), device="cpu")
+    # Suppress WhisperX debug output that contaminates stdout
+    with redirect_stderr(open(os.devnull, "w")):
+        model_a, metadata = whisperx.load_align_model(language_code=lang, device="cpu")
+        aligned = whisperx.align(segs, model_a, metadata, str(audio), device="cpu")
+
     aligned["audio_path"] = str(audio)
 
     # Save to file if requested

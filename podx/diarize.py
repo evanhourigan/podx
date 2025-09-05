@@ -1,5 +1,7 @@
 import json
 import os
+import sys
+from contextlib import redirect_stderr
 from pathlib import Path
 
 import click
@@ -15,11 +17,13 @@ from .cli_shared import print_json, read_stdin_json
 )
 @click.option(
     "--input",
+    "-i",
     type=click.Path(exists=True, path_type=Path),
     help="Read AlignedTranscript JSON from file instead of stdin",
 )
 @click.option(
     "--output",
+    "-o",
     type=click.Path(path_type=Path),
     help="Save DiarizedTranscript JSON to file (also prints to stdout)",
 )
@@ -38,13 +42,16 @@ def main(audio, input, output):
             "input must contain AlignedTranscript JSON with 'segments' field"
         )
 
-    import whisperx
+    from whisperx import diarize
 
-    dia = whisperx.DiarizationPipeline(
-        use_auth_token=os.getenv("HUGGINGFACE_TOKEN"), device="cpu"
-    )
-    diarized = dia(str(audio))
-    final = whisperx.assign_word_speakers(diarized, aligned)
+    # Suppress WhisperX debug output that contaminates stdout
+    with redirect_stderr(open(os.devnull, "w")):
+        dia = diarize.DiarizationPipeline(
+            use_auth_token=os.getenv("HUGGINGFACE_TOKEN"), device="cpu"
+        )
+        diarized = dia(str(audio))
+        final = diarize.assign_word_speakers(diarized, aligned)
+
     final["audio_path"] = str(audio)
 
     # Save to file if requested

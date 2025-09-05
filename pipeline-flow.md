@@ -58,6 +58,10 @@ graph TD
 7. **Full pipeline with AI**: fetch → transcode → transcribe → align → diarize → export + deepcast → notion
 8. **Export + AI**: transcribe → export + deepcast → notion
 
+### Orchestrator Behavior
+
+The `podx run` orchestrator shows steps as sequential (e.g., `export → deepcast`), but both `export` and `deepcast` actually run from the same transcript JSON source. The sequential display is for clarity, but they don't depend on each other's output.
+
 ## Invalid Flows
 
 - ❌ transcribe → diarize (diarization requires aligned timestamps)

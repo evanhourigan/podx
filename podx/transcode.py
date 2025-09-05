@@ -40,11 +40,13 @@ def to_wav16(src: Path, dst: Path) -> Path:
 )
 @click.option(
     "--input",
+    "-i",
     type=click.Path(exists=True, path_type=Path),
     help="Read EpisodeMeta JSON from file instead of stdin",
 )
 @click.option(
     "--output",
+    "-o",
     type=click.Path(path_type=Path),
     help="Save AudioMeta JSON to file (also prints to stdout)",
 )

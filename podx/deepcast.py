@@ -110,9 +110,9 @@ def build_prompt_variant(has_time: bool, has_spk: bool) -> str:
     
     Output high-quality Markdown with these sections (only include a section if content exists):
     
-    # Episode Summary (3-6 sentences)
-    ## Key Points (bulleted list of 6-12 items)
-    ## Gold Nuggets (short bullets of surprising/novel insights)
+    # Episode Summary (6-12 sentences)
+    ## Key Points (bulleted list of 12-24 items, each two to three sentences, with relevant context also specified in addition to the sentences.)
+    ## Gold Nuggets (medium sized bulleted list of 6-12 items of surprising/novel insights, these should be also two sentences but specify relevant context as well.)
     ## Notable Quotes (each on its own line; include timecodes and speakers when available)
     ## Action Items / Resources (bullets)
     ## Timestamps Outline (10-20 coarse checkpoints)
@@ -261,40 +261,37 @@ def deepcast(
 
 @click.command()
 @click.option(
-    "--in",
+    "--input",
+    "-i",
     "inp",
     type=click.Path(exists=True, path_type=Path),
     help="Input transcript JSON file",
 )
 @click.option(
-    "--md-out",
-    type=click.Path(path_type=Path),
-    help="Output Markdown file (required unless using --output)",
-)
-@click.option("--json-out", type=click.Path(path_type=Path), help="Output JSON file")
-@click.option(
     "--output",
+    "-o",
     type=click.Path(path_type=Path),
-    help="Save unified DeepcastBrief JSON to file (also prints to stdout)",
+    help="Output unified JSON file (contains both summary and brief)",
 )
 @click.option(
     "--model",
-    default=lambda: os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-    help="OpenAI model",
+    default=lambda: os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
+    help="OpenAI model (gpt-4.1, gpt-4.1-mini) [default: gpt-4.1-mini]",
 )
 @click.option(
     "--temperature",
     default=lambda: float(os.getenv("OPENAI_TEMPERATURE", "0.2")),
     type=float,
-    help="Model temperature",
+    help="Model temperature [default: 0.2]",
 )
 @click.option(
-    "--chunk-chars", default=24000, type=int, help="Approximate chars per chunk"
+    "--chunk-chars",
+    default=24000,
+    type=int,
+    help="Approximate chars per chunk [default: 24000]",
 )
 def main(
     inp: Optional[Path],
-    md_out: Optional[Path],
-    json_out: Optional[Path],
     output: Optional[Path],
     model: str,
     temperature: float,
@@ -304,39 +301,29 @@ def main(
     podx-deepcast: turn transcripts into a polished Markdown brief (and optional JSON) with summaries key points quotes timestamps and speaker labels when available
     """
     # Validate arguments
-    if not output and not md_out:
-        raise SystemExit("Either --md-out or --output must be provided")
+    if not output:
+        raise SystemExit("--output must be provided")
 
     transcript = read_stdin_or_file(inp)
-    want_json = json_out is not None or output is not None
+    want_json = True  # Always generate JSON for unified output
 
     md, json_data = deepcast(transcript, model, temperature, chunk_chars, want_json)
 
-    # Handle different output modes
-    if output:
-        # Unified JSON output (for pipelines)
-        unified = {
-            "markdown": md,
-            "metadata": transcript,  # Original transcript metadata
-        }
-        if json_data:
-            unified.update(json_data)  # Merge structured analysis
+    # Unified JSON output
+    unified = {
+        "markdown": md,
+        "metadata": transcript,  # Original transcript metadata
+    }
+    if json_data:
+        unified.update(json_data)  # Merge structured analysis
 
-        # Save to file if requested
-        output.write_text(
-            json.dumps(unified, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+    # Save to file
+    output.write_text(
+        json.dumps(unified, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
 
-        # Always print to stdout (for pipelines)
-        print(json.dumps(unified, ensure_ascii=False))
-    else:
-        # Traditional separate file outputs
-        if md_out:
-            md_out.write_text(md, encoding="utf-8")
-        if json_out and json_data:
-            json_out.write_text(
-                json.dumps(json_data, indent=2, ensure_ascii=False), encoding="utf-8"
-            )
+    # Always print to stdout (for pipelines)
+    print(json.dumps(unified, ensure_ascii=False))
 
 
 if __name__ == "__main__":

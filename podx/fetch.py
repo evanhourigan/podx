@@ -48,7 +48,7 @@ def find_feed_for_show(show_name: str) -> str:
         r = session.get(url, timeout=30, verify=True)
         r.raise_for_status()
         data = r.json()
-    except requests.exceptions.ConnectionError as e:
+    except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout) as e:
         # Fallback: use curl via subprocess
         import json
         import subprocess
@@ -140,6 +140,7 @@ def download_enclosure(entry, out_dir: Path) -> Path:
 )
 @click.option(
     "--output",
+    "-o",
     type=click.Path(path_type=Path),
     help="Save EpisodeMeta JSON to file (also prints to stdout)",
 )
