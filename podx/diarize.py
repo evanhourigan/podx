@@ -42,12 +42,12 @@ def main(audio, input, output):
             "input must contain AlignedTranscript JSON with 'segments' field"
         )
 
-    from whisperx import diarize
-
     # Suppress WhisperX debug output that contaminates stdout
     import sys
-    from contextlib import redirect_stdout, redirect_stderr
-    
+    from contextlib import redirect_stderr, redirect_stdout
+
+    from whisperx import diarize
+
     with redirect_stdout(open(os.devnull, "w")), redirect_stderr(open(os.devnull, "w")):
         dia = diarize.DiarizationPipeline(
             use_auth_token=os.getenv("HUGGINGFACE_TOKEN"), device="cpu"
