@@ -45,7 +45,10 @@ def main(audio, input, output):
     from whisperx import diarize
 
     # Suppress WhisperX debug output that contaminates stdout
-    with redirect_stderr(open(os.devnull, "w")):
+    import sys
+    from contextlib import redirect_stdout, redirect_stderr
+    
+    with redirect_stdout(open(os.devnull, "w")), redirect_stderr(open(os.devnull, "w")):
         dia = diarize.DiarizationPipeline(
             use_auth_token=os.getenv("HUGGINGFACE_TOKEN"), device="cpu"
         )

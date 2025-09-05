@@ -45,7 +45,10 @@ def main(audio, input, output):
     import whisperx
 
     # Suppress WhisperX debug output that contaminates stdout
-    with redirect_stderr(open(os.devnull, "w")):
+    import sys
+    from contextlib import redirect_stdout, redirect_stderr
+    
+    with redirect_stdout(open(os.devnull, "w")), redirect_stderr(open(os.devnull, "w")):
         model_a, metadata = whisperx.load_align_model(language_code=lang, device="cpu")
         aligned = whisperx.align(segs, model_a, metadata, str(audio), device="cpu")
 
