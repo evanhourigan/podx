@@ -174,7 +174,7 @@ def run(
     rss_url: Optional[str],
     date: Optional[str],
     title_contains: Optional[str],
-    workdir: Path,
+    workdir: Optional[Path],
     fmt: str,
     model: str,
     compute: str,
@@ -350,6 +350,9 @@ def run(
                 "txt,srt",
                 "--output-dir",
                 str(wd),
+                "--input",
+                str(wd / f"{latest_name}.json"),
+                "--replace",
             ],
             stdin_payload=latest,
             verbose=verbose,
@@ -358,14 +361,24 @@ def run(
         step_duration = time.time() - step_start
         progress.complete_step("Transcript files exported (TXT, SRT)", step_duration)
 
+        # Build results using export output paths when available
+        exported_files = (
+            export_result.get("files", {}) if isinstance(export_result, dict) else {}
+        )
         results = {
             "meta": str(wd / "episode-meta.json"),
             "audio": str(wd / "audio-meta.json"),
             "transcript": str(wd / f"{latest_name}.json"),
             "latest_json": str(wd / "latest.json"),
-            "latest_txt": str(wd / f"{latest_name}.txt"),
-            "latest_srt": str(wd / f"{latest_name}.srt"),
         }
+        if "txt" in exported_files:
+            results["latest_txt"] = exported_files["txt"]
+        else:
+            results["latest_txt"] = str(wd / f"{latest_name}.txt")
+        if "srt" in exported_files:
+            results["latest_srt"] = exported_files["srt"]
+        else:
+            results["latest_srt"] = str(wd / f"{latest_name}.srt")
 
         # 6) DEEPCAST (optional) → deepcast-brief.md / deepcast-brief.json
         if deepcast:
@@ -395,11 +408,10 @@ def run(
             )  # Progress handles the display
             step_duration = time.time() - step_start
             progress.complete_step("AI analysis completed", step_duration)
-            results.update(
-                {
-                    "deepcast_json": str(json_out),
-                }
-            )
+            results.update({"deepcast_json": str(json_out)})
+            # Record markdown path when extracted
+            if extract_markdown and md_out.exists():
+                results.update({"deepcast_md": str(md_out)})
 
         # 7) NOTION (optional) — requires DB id
         if notion:
@@ -411,12 +423,17 @@ def run(
             progress.start_step("Uploading to Notion")
             step_start = time.time()
             # Prefer brief.md from deepcast, fallback to latest.txt
+            # Prefer deepcast outputs; fallback to latest.txt
             md_path = (
-                str(wd / "brief.md")
-                if (wd / "brief.md").exists()
+                str(wd / "deepcast-brief.md")
+                if (wd / "deepcast-brief.md").exists()
                 else str(wd / "latest.txt")
             )
-            json_path = str(wd / "brief.json") if (wd / "brief.json").exists() else None
+            json_path = (
+                str(wd / "deepcast-brief.json")
+                if (wd / "deepcast-brief.json").exists()
+                else None
+            )
 
             cmd = [
                 "podx-notion",

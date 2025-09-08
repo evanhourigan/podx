@@ -90,10 +90,19 @@ SYSTEM_BASE = "You are a meticulous editorial assistant for podcast transcripts.
 
 
 def build_episode_header(transcript: Dict[str, Any]) -> str:
-    """Build episode metadata header from transcript."""
-    show_name = transcript.get("show_name", "Unknown Show")
-    episode_title = transcript.get("episode_title", "Unknown Episode")
-    release_date = transcript.get("release_date", "Unknown Date")
+    """Build episode metadata header from transcript.
+
+    Prefer pipeline metadata field names, fallback to older/alternative names.
+    """
+    show_name = transcript.get("show") or transcript.get("show_name", "Unknown Show")
+    episode_title = (
+        transcript.get("episode_title") or transcript.get("title") or "Unknown Episode"
+    )
+    release_date = (
+        transcript.get("episode_published")
+        or transcript.get("release_date")
+        or "Unknown Date"
+    )
 
     return f"""# {show_name}
 ## {episode_title}

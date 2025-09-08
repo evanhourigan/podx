@@ -1,6 +1,7 @@
 import json
 import subprocess
 from pathlib import Path
+from typing import Any, Dict
 
 import click
 
@@ -22,6 +23,35 @@ def to_wav16(src: Path, dst: Path) -> Path:
     dst = dst.with_suffix(".wav")
     ffmpeg(["-y", "-i", str(src), "-ac", "1", "-ar", "16000", "-vn", str(dst)])
     return dst
+
+
+def ffprobe_audio_meta(path: Path) -> Dict[str, Any]:
+    """Probe audio stream for sample rate and channels using ffprobe (best effort)."""
+    try:
+        proc = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "a:0",
+                "-show_entries",
+                "stream=sample_rate,channels",
+                "-of",
+                "default=nw=1:nk=1",
+                str(path),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            return {}
+        vals = [v for v in proc.stdout.strip().splitlines() if v]
+        if len(vals) >= 2:
+            return {"sample_rate": int(vals[0]), "channels": int(vals[1])}
+    except Exception:
+        pass
+    return {}
 
 
 @click.command()
@@ -73,9 +103,7 @@ def main(fmt, bitrate, outdir, input, output):
         output_dir = src.parent
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    dst = output_dir / (
-        src.stem + ".wav16" if fmt == "wav16" else src.stem + ".transcoded"
-    )
+    dst = output_dir / src.stem
 
     if fmt == "wav16":
         wav = to_wav16(src, dst)
@@ -90,11 +118,13 @@ def main(fmt, bitrate, outdir, input, output):
         ffmpeg(
             ["-y", "-i", str(src), "-codec:a", "libmp3lame", "-b:a", bitrate, str(dst)]
         )
-        out = {"audio_path": str(dst), "format": "mp3"}
+        probed = ffprobe_audio_meta(dst)
+        out = {"audio_path": str(dst), "format": "mp3", **probed}
     else:
         dst = dst.with_suffix(".m4a")
         ffmpeg(["-y", "-i", str(src), "-c:a", "aac", "-b:a", bitrate, str(dst)])
-        out = {"audio_path": str(dst), "format": "aac"}
+        probed = ffprobe_audio_meta(dst)
+        out = {"audio_path": str(dst), "format": "aac", **probed}
 
     # Save to file if requested
     if output:

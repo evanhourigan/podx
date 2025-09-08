@@ -1,8 +1,11 @@
 import json
 import sys
 from pathlib import Path
+from typing import Any, Dict
 
 import click
+
+from .cli_shared import read_stdin_json
 
 
 def ts(sec: float) -> str:
@@ -49,15 +52,24 @@ def write_if_changed(path: Path, content: str, replace: bool = False) -> None:
     type=click.Path(path_type=Path),
     help="Save output info JSON to file (also prints to stdout)",
 )
-def main(formats, output_dir, replace, input, output):
+def main(
+    formats: str,
+    output_dir: Path | None,
+    replace: bool,
+    input: Path | None,
+    output: Path | None,
+):
     """
     Read (aligned or diarized) Transcript JSON on stdin and write files.
     """
     # Read input
     if input:
-        data = json.loads(input.read_text())
+        data: Dict[str, Any] = json.loads(input.read_text())
     else:
-        data = json.loads(sys.stdin.read())
+        raw = read_stdin_json()
+        if raw is None:
+            raise SystemExit("Provide Transcript JSON via --input or stdin.")
+        data = raw
 
     # Validate input format
     if not data or "segments" not in data:
@@ -140,7 +152,7 @@ def main(formats, output_dir, replace, input, output):
             output_files["md"] = str(out_path)
 
     # Create output info
-    result = {
+    result: Dict[str, Any] = {
         "formats": format_list,
         "output_dir": str(out_dir),
         "files": output_files,
