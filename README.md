@@ -181,7 +181,7 @@ podx-deepcast --input work/latest.json --output work/brief.json
 
 ### Deepcast Configuration
 
-- **Models**: Default is `OPENAI_MODEL` env (e.g., `gpt-4o-mini`). Override with `--model`.
+- **Models**: Default is `OPENAI_MODEL` env (e.g., `gpt-4.1-mini`). Override with `--model`.
 - **Big episodes**: Increase `--chunk-chars` if you have a high-context model; otherwise keep ~24k chars.
 - **Determinism**: Keep temperature low (0.1-0.3) for consistent outlines.
 - **Timestamps**: If you skip alignment/diarization, you still have coarse segment start/end; it will use them. If your base JSON lacks start/end, timecodes are omitted.
