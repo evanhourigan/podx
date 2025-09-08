@@ -7,6 +7,7 @@ import threading
 import time
 from typing import Optional
 
+from rich import box
 from rich.console import Console
 from rich.live import Live
 from rich.panel import Panel
@@ -28,6 +29,7 @@ class PodxProgress:
         self.spinner_thread = None
         self.spinner_started = False
         self.spinner_running = False
+        self.enabled = console.is_terminal
 
     def __enter__(self):
         self.total_start_time = time.time()
@@ -47,6 +49,11 @@ class PodxProgress:
 
         # Stop any existing spinner first
         self.stop_spinner()
+
+        # In non-TTY contexts, just log a simple line and skip spinner
+        if not self.enabled:
+            console.print(f"→ {description}")
+            return
 
         def update_spinner():
             with Live(
@@ -86,40 +93,54 @@ class PodxProgress:
     def stop_spinner(self):
         """Stop the current spinner display."""
         self.spinner_running = False
-        if self.live:
-            self.live.stop()
+        try:
+            if self.live:
+                self.live.stop()
+        finally:
             self.live = None
-        # Give the thread a moment to clean up
-        if self.spinner_thread and self.spinner_thread.is_alive():
-            time.sleep(0.2)  # Increased delay
+            # Give the thread a moment to clean up
+            if self.spinner_thread and self.spinner_thread.is_alive():
+                time.sleep(0.2)
 
 
 def print_podx_header():
     """Print the podx orchestrator header."""
+    if not console.is_terminal:
+        console.print("Starting: Podx Podcast Processing Pipeline")
+        return
     panel = Panel(
         Text("🎙️  Podx Podcast Processing Pipeline", style="bold blue"),
-        title="🚀  Starting",
+        title="🚀 Starting",
         border_style="blue",
+        box=box.SQUARE,
     )
     console.print(panel)
 
 
 def print_podx_success(message: str):
     """Print a success message in a nice panel."""
+    if not console.is_terminal:
+        console.print(f"Complete: {message}")
+        return
     panel = Panel(
         Text(message, style="bold green"),
-        title="✅  Complete",
+        title="✅ Complete",
         border_style="green",
+        box=box.SQUARE,
     )
     console.print(panel)
 
 
 def print_podx_info(message: str):
     """Print an info message in a nice panel."""
+    if not console.is_terminal:
+        console.print(message)
+        return
     panel = Panel(
         Text(message, style="bold cyan"),
-        title="ℹ️  Info",
+        title="ℹ️ Info",
         border_style="cyan",
+        box=box.SQUARE,
     )
     console.print(panel)
 

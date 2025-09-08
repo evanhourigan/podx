@@ -1,6 +1,7 @@
 import json
 import re
 from pathlib import Path
+from time import sleep
 from typing import Optional
 from urllib.parse import urlencode
 
@@ -119,12 +120,28 @@ def download_enclosure(entry, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     name = _sanitize(entry.get("title", "episode")) + Path(audio).suffix
     dest = out_dir / name
-    with requests.get(audio, stream=True, headers={"User-Agent": UA}) as r:
-        r.raise_for_status()
-        with open(dest, "wb") as f:
-            for chunk in r.iter_content(chunk_size=1 << 20):
-                if chunk:
-                    f.write(chunk)
+    # Simple retries with backoff
+    backoffs = [0, 1, 2, 4]
+    last_err: Exception | None = None
+    for delay in backoffs:
+        try:
+            if delay:
+                sleep(delay)
+            with requests.get(
+                audio, stream=True, headers={"User-Agent": UA}, timeout=60
+            ) as r:
+                r.raise_for_status()
+                with open(dest, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=1 << 20):
+                        if chunk:
+                            f.write(chunk)
+            last_err = None
+            break
+        except Exception as e:
+            last_err = e
+            continue
+    if last_err is not None and not dest.exists():
+        raise SystemExit(f"Failed to download enclosure: {last_err}")
     return dest
 
 
