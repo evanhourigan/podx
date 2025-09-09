@@ -10,7 +10,10 @@ from typing import Dict, List, Optional
 
 import click
 
+from .config import get_config
+from .errors import ValidationError
 from .fetch import _generate_workdir
+from .logging import get_logger, setup_logging
 from .progress import (
     PodxProgress,
     format_duration,
@@ -18,6 +21,10 @@ from .progress import (
     print_podx_info,
     print_podx_success,
 )
+
+# Initialize logging
+setup_logging()
+logger = get_logger(__name__)
 
 
 def _run(
@@ -27,9 +34,9 @@ def _run(
     save_to: Path | None = None,
     label: str | None = None,
 ) -> Dict:
-    """Run a CLI tool that prints JSON to stdout; return parsed dict. If verbose, echo stdout to console. Optionally save stdout JSON to file."""
+    """Run a CLI tool that prints JSON to stdout; return parsed dict."""
     if label:
-        click.secho(f"→ {label}", fg="cyan", bold=True)
+        logger.debug("Running command", command=" ".join(cmd), label=label)
 
     proc = subprocess.run(
         cmd,
@@ -40,7 +47,13 @@ def _run(
 
     if proc.returncode != 0:
         err = proc.stderr.strip() or proc.stdout.strip()
-        raise SystemExit(f"Command failed: {' '.join(cmd)}\n{err}")
+        logger.error(
+            "Command failed",
+            command=" ".join(cmd),
+            return_code=proc.returncode,
+            error=err,
+        )
+        raise ValidationError(f"Command failed: {' '.join(cmd)}\n{err}")
 
     # stdout should be JSON; optionally mirror to console
     out = proc.stdout
@@ -52,14 +65,15 @@ def _run(
 
     try:
         data = json.loads(out)
+        logger.debug("Command completed successfully", command=cmd[0])
     except json.JSONDecodeError:
         # Some subcommands (e.g., deepcast/notion) print plain text "Wrote: ..."
         data = {"stdout": out.strip()}
+        logger.debug("Command returned non-JSON output", command=cmd[0])
 
     if save_to:
         save_to.write_text(out, encoding="utf-8")
-        # Don't print "saved:" message when in progress context
-        # The progress system will handle completion messages
+        logger.debug("Output saved", file=str(save_to))
 
     return data
 
@@ -92,14 +106,14 @@ def main():
 )
 @click.option(
     "--model",
-    default=lambda: os.getenv("PODX_DEFAULT_MODEL", "small.en"),
-    help="ASR transcription model (tiny, base, small, medium, large, large-v2, large-v3) [default: small.en]",
+    default=lambda: get_config().default_asr_model,
+    help="ASR transcription model",
 )
 @click.option(
     "--compute",
-    default=lambda: os.getenv("PODX_DEFAULT_COMPUTE", "int8"),
+    default=lambda: get_config().default_compute,
     type=click.Choice(["int8", "int8_float16", "float16", "float32"]),
-    help="Compute type [default: int8]",
+    help="Compute type",
 )
 @click.option(
     "--align",
@@ -118,14 +132,14 @@ def main():
 )
 @click.option(
     "--deepcast-model",
-    default=lambda: os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
-    help="OpenAI model for AI analysis (gpt-4.1, gpt-4.1-mini) [default: gpt-4.1-mini]",
+    default=lambda: get_config().openai_model,
+    help="OpenAI model for AI analysis",
 )
 @click.option(
     "--deepcast-temp",
-    default=lambda: float(os.getenv("OPENAI_TEMPERATURE", "0.2")),
+    default=lambda: get_config().openai_temperature,
     type=float,
-    help="OpenAI temperature for deepcast [default: 0.2]",
+    help="OpenAI temperature for deepcast",
 )
 @click.option(
     "--extract-markdown",
@@ -140,17 +154,17 @@ def main():
 @click.option(
     "--db",
     "notion_db",
-    default=lambda: os.getenv("NOTION_DB_ID"),
+    default=lambda: get_config().notion_db_id,
     help="Notion database ID (required if --notion)",
 )
 @click.option(
     "--title-prop",
-    default=lambda: os.getenv("NOTION_TITLE_PROP", "Name"),
+    default=lambda: get_config().notion_title_prop,
     help="Notion property name for title",
 )
 @click.option(
     "--date-prop",
-    default=lambda: os.getenv("NOTION_DATE_PROP", "Date"),
+    default=lambda: get_config().notion_date_prop,
     help="Notion property name for date",
 )
 @click.option(
@@ -209,6 +223,16 @@ def run(
     if notion:
         steps.append("notion")
 
+    logger.info(
+        "Starting pipeline",
+        steps=steps,
+        show=show,
+        rss_url=rss_url,
+        date=date,
+        model=model,
+        compute=compute,
+    )
+
     print_podx_info(f"Pipeline: {' → '.join(steps)}")
 
     start_time = time.time()
@@ -228,7 +252,7 @@ def run(
         elif rss_url:
             fetch_cmd.extend(["--rss-url", rss_url])
         else:
-            raise SystemExit("Either --show or --rss-url must be provided.")
+            raise ValidationError("Either --show or --rss-url must be provided.")
 
         if date:
             fetch_cmd.extend(["--date", date])
@@ -251,11 +275,13 @@ def run(
         if workdir:
             # Override: use specified workdir
             wd = Path(workdir)
+            logger.debug("Using specified workdir", workdir=str(workdir))
         else:
             # Default: use smart naming with spaces
             show_name = meta.get("show", "Unknown Show")
             episode_date = meta.get("episode_published") or date or "unknown"
             wd = _generate_workdir(show_name, episode_date)
+            logger.debug("Using smart workdir", workdir=str(wd))
 
         wd.mkdir(parents=True, exist_ok=True)
         # Save metadata to the determined workdir
@@ -482,6 +508,7 @@ def run(
                 wd / "audio-meta.json",
             }
 
+            cleaned_files = 0
             # Remove intermediate JSON files
             for p in [
                 wd / "transcript.json",
@@ -491,8 +518,12 @@ def run(
                 if p.exists() and p not in keep:
                     try:
                         p.unlink()
-                    except Exception:
-                        pass
+                        cleaned_files += 1
+                        logger.debug("Cleaned intermediate file", file=str(p))
+                    except Exception as e:
+                        logger.warning(
+                            "Failed to clean file", file=str(p), error=str(e)
+                        )
 
             # Remove audio files if not keeping them
             if no_keep_audio:
@@ -500,13 +531,27 @@ def run(
                     if p and p.exists():
                         try:
                             p.unlink()
-                        except Exception:
-                            pass
+                            cleaned_files += 1
+                            logger.debug("Cleaned audio file", file=str(p))
+                        except Exception as e:
+                            logger.warning(
+                                "Failed to clean audio file", file=str(p), error=str(e)
+                            )
+
             step_duration = time.time() - step_start
-            progress.complete_step("Cleanup completed", step_duration)
+            progress.complete_step(
+                f"Cleanup completed ({cleaned_files} files removed)", step_duration
+            )
 
     # Final summary
     total_time = time.time() - start_time
+    logger.info(
+        "Pipeline completed",
+        total_duration=total_time,
+        steps_completed=len(steps),
+        workdir=str(wd),
+    )
+
     print_podx_success(f"Pipeline completed in {format_duration(total_time)}")
 
     # Show key results
