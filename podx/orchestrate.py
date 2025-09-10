@@ -10,9 +10,12 @@ from typing import Dict, List, Optional
 
 import click
 
+# Import individual command modules for CLI integration
+from . import align, deepcast, diarize, export, fetch, notion, transcode, transcribe
 from .config import get_config
 from .errors import ValidationError
 from .fetch import _generate_workdir
+from .help import help_cmd
 from .logging import get_logger, setup_logging
 from .progress import (
     PodxProgress,
@@ -83,7 +86,20 @@ def main():
     """Podx: Composable podcast processing pipeline
 
     A modular toolkit for podcast transcription, analysis, and publishing.
-    Use 'podx run' for the complete pipeline or individual tools for specific tasks.
+
+    WORKFLOWS:
+      run       Complete customizable pipeline
+      quick     Fast transcription only (fetch + transcribe)
+      analyze   AI analysis workflow (transcribe + align + deepcast)
+      publish   Full pipeline with Notion upload
+
+    STAGES:
+      fetch, transcode, transcribe, align, diarize, export, deepcast, notion
+
+    UTILITIES:
+      help, list, config
+
+    Use 'podx list' to see all commands or 'podx help --examples' for usage examples.
     """
     pass
 
@@ -583,6 +599,433 @@ def run(
 
     # Still print JSON for programmatic use
     print(json.dumps(results, indent=2))
+
+
+# Add individual commands as subcommands to main CLI group
+# This provides a consistent interface: podx <command> instead of podx-<command>
+
+
+@main.command("fetch")
+@click.pass_context
+def fetch_cmd(ctx):
+    """Find and download podcast episodes by show name or RSS URL."""
+    # Pass through to the original fetch.main() with sys.argv adjustments
+    import sys
+
+    # Remove 'podx fetch' from sys.argv and call fetch.main()
+    original_argv = sys.argv.copy()
+    sys.argv = ["podx-fetch"] + sys.argv[2:]  # Keep original args after 'fetch'
+    try:
+        fetch.main()
+    finally:
+        sys.argv = original_argv
+
+
+@main.command("transcode")
+@click.pass_context
+def transcode_cmd(ctx):
+    """Convert audio files to different formats (wav16, mp3, aac)."""
+    import sys
+
+    original_argv = sys.argv.copy()
+    sys.argv = ["podx-transcode"] + sys.argv[2:]
+    try:
+        transcode.main()
+    finally:
+        sys.argv = original_argv
+
+
+@main.command("transcribe")
+@click.pass_context
+def transcribe_cmd(ctx):
+    """Convert audio to text using Whisper ASR models."""
+    import sys
+
+    original_argv = sys.argv.copy()
+    sys.argv = ["podx-transcribe"] + sys.argv[2:]
+    try:
+        transcribe.main()
+    finally:
+        sys.argv = original_argv
+
+
+@main.command("align")
+@click.pass_context
+def align_cmd(ctx):
+    """Add word-level timing alignment to transcripts using WhisperX."""
+    import sys
+
+    original_argv = sys.argv.copy()
+    sys.argv = ["podx-align"] + sys.argv[2:]
+    try:
+        align.main()
+    finally:
+        sys.argv = original_argv
+
+
+@main.command("diarize")
+@click.pass_context
+def diarize_cmd(ctx):
+    """Add speaker identification to transcripts using WhisperX."""
+    import sys
+
+    original_argv = sys.argv.copy()
+    sys.argv = ["podx-diarize"] + sys.argv[2:]
+    try:
+        diarize.main()
+    finally:
+        sys.argv = original_argv
+
+
+@main.command("export")
+@click.pass_context
+def export_cmd(ctx):
+    """Export transcripts to various formats (TXT, SRT, VTT, MD)."""
+    import sys
+
+    original_argv = sys.argv.copy()
+    sys.argv = ["podx-export"] + sys.argv[2:]
+    try:
+        export.main()
+    finally:
+        sys.argv = original_argv
+
+
+@main.command("deepcast")
+@click.pass_context
+def deepcast_cmd(ctx):
+    """AI-powered transcript analysis and summarization."""
+    import sys
+
+    original_argv = sys.argv.copy()
+    sys.argv = ["podx-deepcast"] + sys.argv[2:]
+    try:
+        deepcast.main()
+    finally:
+        sys.argv = original_argv
+
+
+@main.command("notion")
+@click.pass_context
+def notion_cmd(ctx):
+    """Upload processed content to Notion databases."""
+    import sys
+
+    original_argv = sys.argv.copy()
+    sys.argv = ["podx-notion"] + sys.argv[2:]
+    try:
+        notion.main()
+    finally:
+        sys.argv = original_argv
+
+
+# Add convenience workflow commands
+@main.command("quick")
+@click.option("--show", help="Podcast show name (iTunes search)")
+@click.option("--rss-url", help="Direct RSS feed URL (alternative to --show)")
+@click.option("--date", help="Episode date (YYYY-MM-DD)")
+@click.option("--title-contains", help="Substring to match in episode title")
+@click.option(
+    "--model", default=lambda: get_config().default_asr_model, help="ASR model"
+)
+@click.option(
+    "--compute",
+    default=lambda: get_config().default_compute,
+    type=click.Choice(["int8", "int8_float16", "float16", "float32"]),
+    help="Compute type",
+)
+@click.option("-v", "--verbose", is_flag=True, help="Print interstitial outputs")
+def quick(show, rss_url, date, title_contains, model, compute, verbose):
+    """Quick workflow: fetch + transcribe only (fastest option)."""
+    click.echo("🚀 Running quick transcription workflow...")
+
+    # Use the existing run command but with minimal options
+    ctx = click.get_current_context()
+    ctx.invoke(
+        run,
+        show=show,
+        rss_url=rss_url,
+        date=date,
+        title_contains=title_contains,
+        model=model,
+        compute=compute,
+        verbose=verbose,
+        # All other options default to False/None
+        align=False,
+        diarize=False,
+        deepcast=False,
+        notion=False,
+        extract_markdown=False,
+        clean=False,
+    )
+
+
+@main.command("analyze")
+@click.option("--show", help="Podcast show name (iTunes search)")
+@click.option("--rss-url", help="Direct RSS feed URL (alternative to --show)")
+@click.option("--date", help="Episode date (YYYY-MM-DD)")
+@click.option("--title-contains", help="Substring to match in episode title")
+@click.option(
+    "--model", default=lambda: get_config().default_asr_model, help="ASR model"
+)
+@click.option(
+    "--compute",
+    default=lambda: get_config().default_compute,
+    type=click.Choice(["int8", "int8_float16", "float16", "float32"]),
+    help="Compute type",
+)
+@click.option(
+    "--deepcast-model",
+    default=lambda: get_config().openai_model,
+    help="AI analysis model",
+)
+@click.option(
+    "--type",
+    "podcast_type",
+    type=click.Choice(
+        [
+            "interview",
+            "tech",
+            "business",
+            "news",
+            "educational",
+            "narrative",
+            "comedy",
+            "general",
+        ]
+    ),
+    help="Podcast type for specialized analysis",
+)
+@click.option("-v", "--verbose", is_flag=True, help="Print interstitial outputs")
+def analyze(
+    show,
+    rss_url,
+    date,
+    title_contains,
+    model,
+    compute,
+    deepcast_model,
+    podcast_type,
+    verbose,
+):
+    """Analysis workflow: transcribe + align + AI analysis (recommended)."""
+    click.echo("🤖 Running analysis workflow...")
+
+    ctx = click.get_current_context()
+    ctx.invoke(
+        run,
+        show=show,
+        rss_url=rss_url,
+        date=date,
+        title_contains=title_contains,
+        model=model,
+        compute=compute,
+        deepcast_model=deepcast_model,
+        verbose=verbose,
+        # Analysis workflow options
+        align=True,
+        deepcast=True,
+        extract_markdown=True,
+        # Not included
+        diarize=False,
+        notion=False,
+        clean=False,
+    )
+
+
+@main.command("publish")
+@click.option("--show", help="Podcast show name (iTunes search)")
+@click.option("--rss-url", help="Direct RSS feed URL (alternative to --show)")
+@click.option("--date", help="Episode date (YYYY-MM-DD)")
+@click.option("--title-contains", help="Substring to match in episode title")
+@click.option(
+    "--db",
+    "notion_db",
+    default=lambda: get_config().notion_db_id,
+    help="Notion database ID",
+)
+@click.option(
+    "--deepcast-model",
+    default=lambda: get_config().openai_model,
+    help="AI analysis model",
+)
+@click.option(
+    "--type",
+    "podcast_type",
+    type=click.Choice(
+        [
+            "interview",
+            "tech",
+            "business",
+            "news",
+            "educational",
+            "narrative",
+            "comedy",
+            "general",
+        ]
+    ),
+    help="Podcast type for specialized analysis",
+)
+@click.option("-v", "--verbose", is_flag=True, help="Print interstitial outputs")
+def publish(
+    show,
+    rss_url,
+    date,
+    title_contains,
+    notion_db,
+    deepcast_model,
+    podcast_type,
+    verbose,
+):
+    """Publishing workflow: full pipeline + Notion upload (complete)."""
+    click.echo("📝 Running publishing workflow...")
+
+    ctx = click.get_current_context()
+    # This is equivalent to the --full flag
+    ctx.invoke(
+        run,
+        show=show,
+        rss_url=rss_url,
+        date=date,
+        title_contains=title_contains,
+        notion_db=notion_db,
+        deepcast_model=deepcast_model,
+        verbose=verbose,
+        # Full pipeline
+        align=True,
+        deepcast=True,
+        extract_markdown=True,
+        notion=True,
+        clean=False,
+    )
+
+
+# Add utility commands
+@main.command("help")
+@click.argument("topic", required=False)
+@click.option("--examples", is_flag=True, help="Show usage examples")
+@click.option("--pipeline", is_flag=True, help="Show pipeline flow diagram")
+def help_command(topic, examples, pipeline):
+    """Enhanced help system with examples and pipeline diagrams."""
+    ctx = click.get_current_context()
+    ctx.invoke(help_cmd, examples=examples, pipeline=pipeline)
+
+
+@main.command("list")
+def list_commands():
+    """List all available commands and workflows."""
+    from rich.console import Console
+    from rich.table import Table
+
+    console = Console()
+
+    table = Table(title="🎙️ Podx Commands")
+    table.add_column("Command", style="cyan", no_wrap=True)
+    table.add_column("Type", style="magenta")
+    table.add_column("Description", style="white")
+
+    # Core workflow commands
+    table.add_row("run", "Core", "Complete customizable pipeline")
+    table.add_row("quick", "Workflow", "Fast transcription only")
+    table.add_row("analyze", "Workflow", "Transcription + AI analysis")
+    table.add_row("publish", "Workflow", "Full pipeline + Notion")
+
+    table.add_section()
+
+    # Individual commands
+    table.add_row("fetch", "Stage", "Download podcast episodes")
+    table.add_row("transcode", "Stage", "Convert audio formats")
+    table.add_row("transcribe", "Stage", "Speech-to-text conversion")
+    table.add_row("align", "Stage", "Word-level timing alignment")
+    table.add_row("diarize", "Stage", "Speaker identification")
+    table.add_row("export", "Stage", "Export to various formats")
+    table.add_row("deepcast", "Stage", "AI-powered analysis")
+    table.add_row("notion", "Stage", "Upload to Notion")
+
+    table.add_section()
+
+    # Utility commands
+    table.add_row("help", "Utility", "Enhanced help system")
+    table.add_row("list", "Utility", "Show this command list")
+    table.add_row("config", "Utility", "Configuration management")
+
+    console.print(table)
+
+    console.print("\n💡 [bold]Examples:[/bold]")
+    console.print("  [cyan]podx quick --show 'The Podcast' --date 2024-01-15[/cyan]")
+    console.print(
+        "  [cyan]podx analyze --show 'Tech Talk' --date 2024-01-15 --type tech[/cyan]"
+    )
+    console.print(
+        "  [cyan]podx publish --show 'Business Show' --date 2024-01-15[/cyan]"
+    )
+    console.print("  [cyan]podx help --examples[/cyan]")
+
+
+@main.command("config")
+@click.argument(
+    "action",
+    type=click.Choice(["show", "edit", "reset"]),
+    required=False,
+    default="show",
+)
+def config_command(action):
+    """Configuration management for podx."""
+    config = get_config()
+
+    if action == "show":
+        from rich.console import Console
+        from rich.table import Table
+
+        console = Console()
+        table = Table(title="🔧 Podx Configuration")
+        table.add_column("Setting", style="cyan")
+        table.add_column("Value", style="green")
+        table.add_column("Environment Variable", style="yellow")
+
+        # Show key configuration values
+        table.add_row("ASR Model", config.default_asr_model, "PODX_DEFAULT_MODEL")
+        table.add_row("Compute Type", config.default_compute, "PODX_DEFAULT_COMPUTE")
+        table.add_row("OpenAI Model", config.openai_model, "OPENAI_MODEL")
+        table.add_row(
+            "OpenAI Temperature", str(config.openai_temperature), "OPENAI_TEMPERATURE"
+        )
+        table.add_row("Log Level", config.log_level, "PODX_LOG_LEVEL")
+        table.add_row("Log Format", config.log_format, "PODX_LOG_FORMAT")
+        table.add_row("Max Retries", str(config.max_retries), "PODX_MAX_RETRIES")
+
+        # Show API keys status (without revealing them)
+        openai_status = "✅ Set" if config.openai_api_key else "❌ Not set"
+        notion_status = "✅ Set" if config.notion_token else "❌ Not set"
+
+        table.add_row("OpenAI API Key", openai_status, "OPENAI_API_KEY")
+        table.add_row("Notion Token", notion_status, "NOTION_TOKEN")
+        table.add_row(
+            "Notion DB ID", config.notion_db_id or "❌ Not set", "NOTION_DB_ID"
+        )
+
+        console.print(table)
+
+        console.print(
+            "\n💡 [bold]Tip:[/bold] Set environment variables in your shell or .env file"
+        )
+
+    elif action == "edit":
+        click.echo("📝 Opening configuration help...")
+        click.echo("\nTo configure podx, set these environment variables:")
+        click.echo("  export PODX_DEFAULT_MODEL=medium.en")
+        click.echo("  export OPENAI_API_KEY=your_key_here")
+        click.echo("  export NOTION_TOKEN=your_token_here")
+        click.echo("  export NOTION_DB_ID=your_db_id_here")
+        click.echo("\nOr create a .env file in your project directory.")
+
+    elif action == "reset":
+        from .config import reset_config
+
+        reset_config()
+        click.echo(
+            "✅ Configuration cache reset. New values will be loaded on next run."
+        )
 
 
 if __name__ == "__main__":
