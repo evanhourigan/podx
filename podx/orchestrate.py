@@ -17,6 +17,7 @@ from .errors import ValidationError
 from .fetch import _generate_workdir
 from .help import help_cmd
 from .logging import get_logger, setup_logging
+from .plugins import PluginManager, PluginType, get_registry
 from .progress import (
     PodxProgress,
     format_duration,
@@ -97,9 +98,10 @@ def main():
       fetch, transcode, transcribe, align, diarize, export, deepcast, notion
 
     UTILITIES:
-      help, list, config
+      help, list, config, plugin
 
     Use 'podx list' to see all commands or 'podx help --examples' for usage examples.
+    Use 'podx plugin list' to see available plugins.
     """
     pass
 
@@ -960,6 +962,27 @@ def list_commands():
         "  [cyan]podx publish --show 'Business Show' --date 2024-01-15[/cyan]"
     )
     console.print("  [cyan]podx help --examples[/cyan]")
+    console.print("  [cyan]podx plugin list[/cyan]")
+
+    # Show available plugins summary
+    manager = PluginManager()
+    manager.discover_plugins()
+    plugins = manager.get_available_plugins()
+
+    if plugins:
+        console.print(
+            f"\n🔌 [bold]Plugins Available:[/bold] {len(plugins)} plugins discovered"
+        )
+        type_counts = {}
+        for metadata in plugins.values():
+            type_name = metadata.plugin_type.value
+            type_counts[type_name] = type_counts.get(type_name, 0) + 1
+
+        plugin_summary = ", ".join(
+            [f"{t}: {c}" for t, c in sorted(type_counts.items())]
+        )
+        console.print(f"  {plugin_summary}")
+        console.print("  Use [cyan]podx plugin list[/cyan] for details")
 
 
 @main.command("config")
@@ -1026,6 +1049,232 @@ def config_command(action):
         click.echo(
             "✅ Configuration cache reset. New values will be loaded on next run."
         )
+
+
+@main.group("plugin")
+def plugin_group():
+    """Plugin management commands."""
+    pass
+
+
+@plugin_group.command("list")
+@click.option(
+    "--type",
+    "plugin_type",
+    type=click.Choice([t.value for t in PluginType]),
+    help="Filter by plugin type",
+)
+def list_plugins(plugin_type):
+    """List available plugins."""
+    from rich.console import Console
+    from rich.table import Table
+
+    console = Console()
+    manager = PluginManager()
+
+    # Auto-discover plugins
+    manager.discover_plugins()
+
+    # Filter by type if specified
+    filter_type = None
+    if plugin_type:
+        filter_type = PluginType(plugin_type)
+
+    plugins = manager.get_available_plugins(filter_type)
+
+    if not plugins:
+        console.print("No plugins found.")
+        return
+
+    table = Table(title="🔌 Available Plugins")
+    table.add_column("Name", style="cyan", no_wrap=True)
+    table.add_column("Type", style="magenta")
+    table.add_column("Version", style="green")
+    table.add_column("Description", style="white")
+    table.add_column("Status", style="yellow")
+
+    for name, metadata in plugins.items():
+        status = "✅ Enabled" if metadata.enabled else "❌ Disabled"
+        table.add_row(
+            name,
+            metadata.plugin_type.value,
+            metadata.version,
+            metadata.description,
+            status,
+        )
+
+    console.print(table)
+
+    # Show plugin type counts
+    type_counts = {}
+    for metadata in plugins.values():
+        type_name = metadata.plugin_type.value
+        type_counts[type_name] = type_counts.get(type_name, 0) + 1
+
+    console.print(f"\n📊 Found {len(plugins)} plugins across {len(type_counts)} types")
+    for plugin_type, count in sorted(type_counts.items()):
+        console.print(f"  {plugin_type}: {count}")
+
+
+@plugin_group.command("info")
+@click.argument("plugin_name")
+def plugin_info(plugin_name):
+    """Show detailed information about a plugin."""
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+
+    console = Console()
+    manager = PluginManager()
+    manager.discover_plugins()
+
+    registry = get_registry()
+    plugin = registry.get_plugin(plugin_name)
+
+    if not plugin:
+        console.print(f"❌ Plugin '{plugin_name}' not found")
+        return
+
+    metadata = plugin.metadata
+
+    # Create info panel
+    info_text = f"""**Name:** {metadata.name}
+**Version:** {metadata.version}  
+**Author:** {metadata.author}
+**Type:** {metadata.plugin_type.value}
+**Status:** {"✅ Enabled" if metadata.enabled else "❌ Disabled"}
+
+**Description:**
+{metadata.description}"""
+
+    if metadata.dependencies:
+        info_text += f"\n\n**Dependencies:**\n{', '.join(metadata.dependencies)}"
+
+    console.print(Panel(info_text, title=f"🔌 Plugin: {plugin_name}"))
+
+    # Show configuration schema if available
+    if metadata.config_schema:
+        table = Table(title="⚙️ Configuration Schema")
+        table.add_column("Parameter", style="cyan")
+        table.add_column("Type", style="magenta")
+        table.add_column("Required", style="red")
+        table.add_column("Default", style="green")
+
+        for param, schema in metadata.config_schema.items():
+            param_type = schema.get("type", "string")
+            required = "Yes" if schema.get("required", False) else "No"
+            default = str(schema.get("default", "N/A"))
+
+            table.add_row(param, param_type, required, default)
+
+        console.print(table)
+
+
+@plugin_group.command("discover")
+@click.option(
+    "--dir",
+    "plugin_dirs",
+    multiple=True,
+    help="Additional directories to scan for plugins",
+)
+def discover_plugins(plugin_dirs):
+    """Discover and load plugins from directories."""
+    from rich.console import Console
+
+    console = Console()
+    manager = PluginManager()
+
+    # Convert string paths to Path objects
+    extra_dirs = [Path(d) for d in plugin_dirs] if plugin_dirs else []
+
+    console.print("🔍 Discovering plugins...")
+
+    # Discover plugins
+    if extra_dirs:
+        manager.discover_plugins(extra_dirs)
+    else:
+        manager.discover_plugins()
+
+    plugins = manager.get_available_plugins()
+
+    console.print(f"✅ Discovered {len(plugins)} plugins")
+
+    # Show summary by type
+    type_counts = {}
+    for metadata in plugins.values():
+        type_name = metadata.plugin_type.value
+        type_counts[type_name] = type_counts.get(type_name, 0) + 1
+
+    for plugin_type, count in sorted(type_counts.items()):
+        console.print(f"  {plugin_type}: {count} plugins")
+
+
+@plugin_group.command("create")
+@click.argument("plugin_name")
+@click.argument("plugin_type", type=click.Choice([t.value for t in PluginType]))
+@click.option(
+    "--output-dir",
+    "-o",
+    type=click.Path(path_type=Path),
+    default=Path.cwd() / "plugins",
+    help="Output directory for plugin template",
+)
+def create_plugin(plugin_name, plugin_type, output_dir):
+    """Create a new plugin template."""
+    from rich.console import Console
+
+    from .plugins import create_plugin_template
+
+    console = Console()
+
+    # Ensure output directory exists
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create plugin template
+    plugin_type_enum = PluginType(plugin_type)
+    plugin_file = create_plugin_template(plugin_type_enum, plugin_name, output_dir)
+
+    console.print(f"✅ Plugin template created: {plugin_file}")
+    console.print(f"📝 Edit the file to implement your {plugin_type} plugin")
+    console.print(f"📚 See documentation for {plugin_type} plugin interface details")
+
+
+@plugin_group.command("test")
+@click.argument("plugin_name")
+def test_plugin(plugin_name):
+    """Test a plugin's basic functionality."""
+    from rich.console import Console
+
+    console = Console()
+    manager = PluginManager()
+    manager.discover_plugins()
+
+    registry = get_registry()
+    plugin = registry.get_plugin(plugin_name)
+
+    if not plugin:
+        console.print(f"❌ Plugin '{plugin_name}' not found")
+        return
+
+    console.print(f"🧪 Testing plugin: {plugin_name}")
+
+    # Test configuration validation
+    try:
+        config = {}  # Empty config for basic test
+        valid = plugin.validate_config(config)
+        status = "✅ Passed" if valid else "❌ Failed"
+        console.print(f"  Config validation: {status}")
+    except Exception as e:
+        console.print(f"  Config validation: ❌ Error - {e}")
+
+    # Test initialization (if config validation passed)
+    try:
+        plugin.initialize({})
+        console.print("  Initialization: ✅ Passed")
+    except Exception as e:
+        console.print(f"  Initialization: ❌ Error - {e}")
+
+    console.print(f"🏁 Plugin test completed for {plugin_name}")
 
 
 if __name__ == "__main__":
