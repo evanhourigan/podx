@@ -25,6 +25,14 @@ try:
 except ImportError:
     OpenAI = None  # type: ignore
 
+from .prompt_templates import (
+    ENHANCED_JSON_SCHEMA,
+    PodcastType,
+    build_enhanced_variant,
+    detect_podcast_type,
+    get_template,
+)
+
 
 # utils
 def read_stdin_or_file(inp: Optional[Path]) -> Dict[str, Any]:
@@ -222,8 +230,9 @@ def deepcast(
     temperature: float,
     max_chars_per_chunk: int,
     want_json: bool,
+    podcast_type: Optional[PodcastType] = None,
 ) -> Tuple[str, Optional[Dict[str, Any]]]:
-    """Main deepcast pipeline: map-reduce with OpenAI."""
+    """Enhanced deepcast pipeline with intelligent prompt selection."""
     segs = transcript.get("segments") or []
     has_time = any("start" in s and "end" in s for s in segs)
     has_spk = any("speaker" in s for s in segs)
@@ -235,27 +244,40 @@ def deepcast(
     if not text.strip():
         raise SystemExit("No transcript text found in input")
 
-    client = get_client()
-    system = SYSTEM_BASE + "\n" + build_prompt_variant(has_time, has_spk)
+    # Auto-detect podcast type if not specified
+    if podcast_type is None:
+        podcast_type = detect_podcast_type(transcript)
 
-    # Map phase
+    # Get enhanced prompts based on podcast type
+    template = get_template(podcast_type)
+    client = get_client()
+
+    # Use enhanced prompts
+    system = (
+        template.system_prompt
+        + "\n"
+        + build_enhanced_variant(has_time, has_spk, podcast_type)
+    )
+
+    # Map phase with enhanced instructions
     chunks = split_into_chunks(text, max_chars_per_chunk)
     map_notes = []
 
     for i, chunk in enumerate(chunks):
-        prompt = f"{MAP_INSTRUCTIONS}\n\nChunk {i+1}/{len(chunks)}:\n\n{chunk}"
+        prompt = f"{template.map_instructions}\n\nChunk {i+1}/{len(chunks)}:\n\n{chunk}"
         note = chat_once(
             client, model=model, system=system, user=prompt, temperature=temperature
         )
         map_notes.append(note)
         time.sleep(0.1)  # Rate limiting
 
-    # Reduce phase
-    reduce_prompt = f"{REDUCE_INSTRUCTIONS}\n\nChunk notes:\n\n" + "\n\n---\n\n".join(
-        map_notes
+    # Reduce phase with enhanced instructions
+    reduce_prompt = (
+        f"{template.reduce_instructions}\n\nChunk notes:\n\n"
+        + "\n\n---\n\n".join(map_notes)
     )
     if want_json:
-        reduce_prompt += f"\n\n{JSON_SCHEMA_HINT}"
+        reduce_prompt += f"\n\n{ENHANCED_JSON_SCHEMA}"
 
     final = chat_once(
         client, model=model, system=system, user=reduce_prompt, temperature=temperature
@@ -319,6 +341,12 @@ def deepcast(
     is_flag=True,
     help="Also write raw markdown to a separate .md file",
 )
+@click.option(
+    "--type",
+    "podcast_type_str",
+    type=click.Choice([t.value for t in PodcastType]),
+    help="Podcast type for specialized analysis (auto-detected if not specified)",
+)
 def main(
     inp: Optional[Path],
     output: Optional[Path],
@@ -326,6 +354,7 @@ def main(
     temperature: float,
     chunk_chars: int,
     extract_markdown: bool,
+    podcast_type_str: Optional[str],
 ):
     """
     podx-deepcast: turn transcripts into a polished Markdown brief (and optional JSON) with summaries key points quotes timestamps and speaker labels when available
@@ -337,7 +366,14 @@ def main(
     transcript = read_stdin_or_file(inp)
     want_json = True  # Always generate JSON for unified output
 
-    md, json_data = deepcast(transcript, model, temperature, chunk_chars, want_json)
+    # Convert podcast type string to enum
+    podcast_type = None
+    if podcast_type_str:
+        podcast_type = PodcastType(podcast_type_str)
+
+    md, json_data = deepcast(
+        transcript, model, temperature, chunk_chars, want_json, podcast_type
+    )
 
     # Unified JSON output
     unified = {

@@ -172,6 +172,11 @@ def main():
     is_flag=True,
     help="Append to page body in Notion instead of replacing (default: replace)",
 )
+@click.option(
+    "--full",
+    is_flag=True,
+    help="Enable full pipeline: --align --deepcast --extract-markdown --notion (convenience flag)",
+)
 @click.option("-v", "--verbose", is_flag=True, help="Print interstitial outputs")
 @click.option(
     "--clean",
@@ -203,11 +208,19 @@ def run(
     title_prop: str,
     date_prop: str,
     append_content: bool,
+    full: bool,
     verbose: bool,
     clean: bool,
     no_keep_audio: bool,
 ):
     """Orchestrate the complete podcast processing pipeline."""
+    # Handle convenience --full flag
+    if full:
+        align = True
+        deepcast = True
+        extract_markdown = True
+        notion = True
+
     # Print header and start progress tracking
     print_podx_header()
 
