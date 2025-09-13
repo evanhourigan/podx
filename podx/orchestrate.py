@@ -18,6 +18,14 @@ from .fetch import _generate_workdir
 from .help import help_cmd
 from .logging import get_logger, setup_logging
 from .plugins import PluginManager, PluginType, get_registry
+from .podcast_config import (
+    get_podcast_config,
+    get_podcast_config_manager,
+    create_predefined_configs,
+    PodcastAnalysisConfig,
+    PREDEFINED_CONFIGS
+)
+from .prompt_templates import PodcastType
 from .progress import (
     PodxProgress,
     format_duration,
@@ -301,6 +309,44 @@ def run(
         progress.complete_step(
             f"Episode fetched: {meta.get('episode_title', 'Unknown')}"
         )
+        
+        # Check for podcast-specific configuration after we have the show name
+        show_name = meta.get("show") or meta.get("show_name", "")
+        podcast_config = get_podcast_config(show_name) if show_name else None
+        
+        # Apply podcast-specific defaults if available and not overridden by user
+        if podcast_config:
+            logger.info("Found podcast-specific configuration", show=show_name, config_type=podcast_config.podcast_type.value)
+            
+            # Apply defaults only if user didn't explicitly set them (check if they're still default values)
+            config_flags = podcast_config.default_flags
+            
+            # These require checking if they were explicitly set vs default
+            # For now, we'll apply them if they're False (assume default)
+            if not align and config_flags.get("align", False):
+                align = True
+                logger.info("Applied podcast config: align = True")
+            if not diarize and config_flags.get("diarize", False):
+                diarize = True
+                logger.info("Applied podcast config: diarize = True")
+            if not deepcast and config_flags.get("deepcast", False):
+                deepcast = True
+                logger.info("Applied podcast config: deepcast = True")
+            if not extract_markdown and (config_flags.get("extract_markdown", False) or podcast_config.extract_markdown):
+                extract_markdown = True
+                logger.info("Applied podcast config: extract_markdown = True")
+            if not notion and (config_flags.get("notion", False) or podcast_config.notion_upload):
+                notion = True
+                logger.info("Applied podcast config: notion = True")
+            
+            # Apply model preferences if they match defaults (indicating user didn't override)
+            base_config = get_config()
+            if deepcast_model == base_config.openai_model and podcast_config.deepcast_model:
+                deepcast_model = podcast_config.deepcast_model
+                logger.info("Applied podcast config model", model=deepcast_model)
+            if abs(deepcast_temp - base_config.openai_temperature) < 0.001 and podcast_config.temperature:
+                deepcast_temp = podcast_config.temperature
+                logger.info("Applied podcast config temperature", temperature=deepcast_temp)
 
         # Determine workdir from metadata
         if workdir:
@@ -983,6 +1029,13 @@ def list_commands():
         )
         console.print(f"  {plugin_summary}")
         console.print("  Use [cyan]podx plugin list[/cyan] for details")
+        
+        console.print("\n📝 [bold]Podcast Configurations:[/bold]")
+        console.print("  [cyan]podx podcast list[/cyan]        - List saved podcast configurations")
+        console.print("  [cyan]podx podcast create[/cyan]      - Create podcast-specific settings")
+        console.print("  [cyan]podx podcast init[/cyan]        - Setup popular podcast configs")
+        console.print("  [cyan]podx podcast show <name>[/cyan] - Show detailed config")
+        console.print("\n  💡 Podcast configs auto-apply settings like --align --deepcast --notion")
 
 
 @main.command("config")
@@ -1275,6 +1328,170 @@ def test_plugin(plugin_name):
         console.print(f"  Initialization: ❌ Error - {e}")
 
     console.print(f"🏁 Plugin test completed for {plugin_name}")
+
+
+@main.group("podcast")
+def podcast_group():
+    """Manage podcast-specific configurations for customized analysis."""
+    pass
+
+
+@podcast_group.command("list")
+def podcast_list():
+    """List all podcast-specific configurations."""
+    from rich.console import Console
+    from rich.table import Table
+    
+    console = Console()
+    manager = get_podcast_config_manager()
+    configs = manager.list_configs()
+    
+    if not configs:
+        console.print("📭 No podcast configurations found.")
+        console.print("\n💡 [bold]Tip:[/bold] Create configurations with [cyan]podx podcast create[/cyan]")
+        return
+    
+    table = Table(title="🎙️ Podcast Configurations")
+    table.add_column("Show Name", style="cyan")
+    table.add_column("Type", style="yellow")
+    table.add_column("Default Flags", style="green")
+    table.add_column("Description", style="blue")
+    
+    for config in configs.values():
+        # Format default flags
+        flags = []
+        for flag, enabled in config.default_flags.items():
+            if enabled:
+                flags.append(flag)
+        flags_str = ", ".join(flags) if flags else "None"
+        
+        table.add_row(
+            config.show_name,
+            config.podcast_type.value,
+            flags_str,
+            config.description or "No description"
+        )
+    
+    console.print(table)
+
+
+@podcast_group.command("show")
+@click.argument("show_name")
+def podcast_show(show_name: str):
+    """Show detailed configuration for a specific podcast."""
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.json import JSON
+    
+    console = Console()
+    manager = get_podcast_config_manager()
+    config = manager.get_config(show_name)
+    
+    if not config:
+        console.print(f"❌ No configuration found for podcast: {show_name}")
+        console.print(f"\n💡 [bold]Tip:[/bold] Create one with [cyan]podx podcast create \"{show_name}\"[/cyan]")
+        return
+    
+    # Show configuration details
+    config_json = config.model_dump_json(indent=2)
+    
+    console.print(Panel(
+        JSON(config_json),
+        title=f"🎙️ Configuration for {config.show_name}",
+        border_style="blue"
+    ))
+
+
+@podcast_group.command("create")
+@click.argument("show_name")
+@click.option("--type", "podcast_type", type=click.Choice([t.value for t in PodcastType]), 
+              default="general", help="Podcast type for analysis")
+@click.option("--align/--no-align", default=False, help="Default align flag")
+@click.option("--diarize/--no-diarize", default=False, help="Default diarize flag")  
+@click.option("--deepcast/--no-deepcast", default=True, help="Default deepcast flag")
+@click.option("--extract-markdown/--no-extract-markdown", default=False, help="Default extract markdown flag")
+@click.option("--notion/--no-notion", default=False, help="Default notion upload flag")
+@click.option("--model", help="Preferred OpenAI model")
+@click.option("--temperature", type=float, help="Analysis temperature")
+@click.option("--description", help="Description of this configuration")
+def podcast_create(show_name: str, podcast_type: str, align: bool, diarize: bool, 
+                  deepcast: bool, extract_markdown: bool, notion: bool,
+                  model: Optional[str], temperature: Optional[float], description: Optional[str]):
+    """Create a new podcast-specific configuration."""
+    from rich.console import Console
+    
+    console = Console()
+    manager = get_podcast_config_manager()
+    
+    # Check if config already exists
+    if manager.get_config(show_name):
+        console.print(f"❌ Configuration for '{show_name}' already exists.")
+        console.print(f"💡 Use [cyan]podx podcast update \"{show_name}\"[/cyan] to modify it.")
+        return
+    
+    # Create configuration
+    config = PodcastAnalysisConfig(
+        show_name=show_name,
+        podcast_type=PodcastType(podcast_type),
+        deepcast_model=model,
+        temperature=temperature,
+        default_flags={
+            "align": align,
+            "diarize": diarize,
+            "deepcast": deepcast,
+            "extract_markdown": extract_markdown,
+            "notion": notion
+        },
+        extract_markdown=extract_markdown,
+        notion_upload=notion,
+        description=description
+    )
+    
+    manager.save_config(config)
+    console.print(f"✅ Created configuration for podcast: [cyan]{show_name}[/cyan]")
+    console.print(f"🎯 Type: [yellow]{podcast_type}[/yellow]")
+
+
+@podcast_group.command("delete")
+@click.argument("show_name")
+@click.option("--yes", is_flag=True, help="Skip confirmation prompt")
+def podcast_delete(show_name: str, yes: bool):
+    """Delete a podcast configuration."""
+    from rich.console import Console
+    
+    console = Console()
+    manager = get_podcast_config_manager()
+    
+    if not manager.get_config(show_name):
+        console.print(f"❌ No configuration found for podcast: {show_name}")
+        return
+    
+    if not yes:
+        if not click.confirm(f"Delete configuration for '{show_name}'?"):
+            console.print("Cancelled.")
+            return
+    
+    if manager.delete_config(show_name):
+        console.print(f"✅ Deleted configuration for: [cyan]{show_name}[/cyan]")
+    else:
+        console.print(f"❌ Failed to delete configuration for: {show_name}")
+
+
+@podcast_group.command("init")
+def podcast_init():
+    """Initialize predefined podcast configurations."""
+    from rich.console import Console
+    
+    console = Console()
+    console.print("🚀 Creating predefined podcast configurations...")
+    
+    create_predefined_configs()
+    
+    console.print("✅ Predefined configurations created:")
+    for show_name in PREDEFINED_CONFIGS.keys():
+        console.print(f"  • [cyan]{show_name}[/cyan]")
+    
+    console.print(f"\n💡 View all configs with [cyan]podx podcast list[/cyan]")
 
 
 if __name__ == "__main__":

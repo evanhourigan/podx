@@ -32,6 +32,7 @@ from .prompt_templates import (
     detect_podcast_type,
     get_template,
 )
+from .podcast_config import get_podcast_config
 
 
 # utils
@@ -237,6 +238,15 @@ def deepcast(
     has_time = any("start" in s and "end" in s for s in segs)
     has_spk = any("speaker" in s for s in segs)
 
+    # Calculate episode duration for adaptive scaling
+    episode_duration_minutes = None
+    if segs and has_time:
+        try:
+            last_segment = max(segs, key=lambda s: s.get("end", 0))
+            episode_duration_minutes = int(last_segment.get("end", 0) / 60)
+        except (ValueError, TypeError):
+            pass
+
     # Convert to plain text
     text = segments_to_plain_text(segs, has_time, has_spk)
     if not text.strip():
@@ -244,19 +254,32 @@ def deepcast(
     if not text.strip():
         raise SystemExit("No transcript text found in input")
 
-    # Auto-detect podcast type if not specified
+    # Check for podcast-specific configuration
+    show_name = transcript.get("show") or transcript.get("show_name", "")
+    podcast_config = get_podcast_config(show_name) if show_name else None
+    
+    # Auto-detect podcast type if not specified, with config override
     if podcast_type is None:
-        podcast_type = detect_podcast_type(transcript)
+        if podcast_config and podcast_config.podcast_type:
+            podcast_type = podcast_config.podcast_type
+        else:
+            podcast_type = detect_podcast_type(transcript)
 
     # Get enhanced prompts based on podcast type
     template = get_template(podcast_type)
     client = get_client()
 
-    # Use enhanced prompts
+    # Use enhanced prompts with duration-aware scaling
+    system_prompt = template.system_prompt
+    
+    # Add custom prompt additions from podcast config
+    if podcast_config and podcast_config.custom_prompt_additions:
+        system_prompt += f"\n\n{podcast_config.custom_prompt_additions}"
+    
     system = (
-        template.system_prompt
+        system_prompt
         + "\n"
-        + build_enhanced_variant(has_time, has_spk, podcast_type)
+        + build_enhanced_variant(has_time, has_spk, podcast_type, episode_duration_minutes)
     )
 
     # Map phase with enhanced instructions
