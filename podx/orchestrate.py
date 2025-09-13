@@ -11,7 +11,17 @@ from typing import Dict, List, Optional
 import click
 
 # Import individual command modules for CLI integration
-from . import align, browse, deepcast, diarize, export, fetch, notion, transcode, transcribe
+from . import (
+    align,
+    browse,
+    deepcast,
+    diarize,
+    export,
+    fetch,
+    notion,
+    transcode,
+    transcribe,
+)
 from .config import get_config
 from .errors import ValidationError
 from .fetch import _generate_workdir
