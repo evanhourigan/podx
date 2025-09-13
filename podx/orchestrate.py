@@ -338,6 +338,7 @@ def run(
         # Apply podcast-specific defaults (YAML takes precedence over JSON)
         active_config = yaml_config or json_config
         config_type = "YAML" if yaml_config else "JSON" if json_config else None
+        yaml_analysis_type = None  # Initialize for later use
 
         if active_config:
             # Determine config type and extract settings
@@ -382,6 +383,12 @@ def run(
                         deepcast_temp = yaml_config.analysis.temperature
                         logger.info(
                             "Applied YAML config temperature", temperature=deepcast_temp
+                        )
+                    # Store analysis type for later use in deepcast
+                    if yaml_config.analysis.type:
+                        yaml_analysis_type = yaml_config.analysis.type.value
+                        logger.info(
+                            "Applied YAML config analysis type", type=yaml_analysis_type
                         )
 
                 # Handle Notion database selection
@@ -642,6 +649,10 @@ def run(
                 # Add metadata file if it exists to fix "Unknown Show" issue
                 if meta_file.exists():
                     cmd.extend(["--meta", str(meta_file)])
+
+                # Add analysis type if configured in YAML
+                if yaml_analysis_type:
+                    cmd.extend(["--type", yaml_analysis_type])
 
                 if extract_markdown:
                     cmd.append("--extract-markdown")

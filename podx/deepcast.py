@@ -407,12 +407,20 @@ def main(
     if meta:
         episode_meta = json.loads(meta.read_text())
         # Merge metadata into transcript for show name, episode title, etc.
-        transcript.update({
-            "show": episode_meta.get("show", transcript.get("show")),
-            "episode_title": episode_meta.get("episode_title", transcript.get("episode_title")),
-            "episode_published": episode_meta.get("episode_published", transcript.get("episode_published")),
-            "episode_description": episode_meta.get("episode_description", transcript.get("episode_description")),
-        })
+        transcript.update(
+            {
+                "show": episode_meta.get("show", transcript.get("show")),
+                "episode_title": episode_meta.get(
+                    "episode_title", transcript.get("episode_title")
+                ),
+                "episode_published": episode_meta.get(
+                    "episode_published", transcript.get("episode_published")
+                ),
+                "episode_description": episode_meta.get(
+                    "episode_description", transcript.get("episode_description")
+                ),
+            }
+        )
 
     # Convert podcast type string to enum
     podcast_type = None
