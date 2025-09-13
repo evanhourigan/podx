@@ -11,7 +11,7 @@ from typing import Dict, List, Optional
 import click
 
 # Import individual command modules for CLI integration
-from . import align, deepcast, diarize, export, fetch, notion, transcode, transcribe
+from . import align, browse, deepcast, diarize, export, fetch, notion, transcode, transcribe
 from .config import get_config
 from .errors import ValidationError
 from .fetch import _generate_workdir
@@ -747,6 +747,22 @@ def run(
 # This provides a consistent interface: podx <command> instead of podx-<command>
 
 
+@main.command("browse")
+@click.pass_context
+def browse_cmd(ctx):
+    """Interactive episode browser for podcast discovery and selection."""
+    # Pass through to the browse.main() with sys.argv adjustments
+    import sys
+
+    # Remove 'podx browse' from sys.argv and call browse.main()
+    original_argv = sys.argv.copy()
+    sys.argv = ["podx-browse"] + sys.argv[2:]  # Keep original args after 'browse'
+    try:
+        browse.main()
+    finally:
+        sys.argv = original_argv
+
+
 @main.command("fetch")
 @click.pass_context
 def fetch_cmd(ctx):
@@ -1067,6 +1083,7 @@ def list_commands():
     table.add_column("Description", style="white")
 
     # Core workflow commands
+    table.add_row("browse", "Discovery", "Interactive episode browser")
     table.add_row("run", "Core", "Complete customizable pipeline")
     table.add_row("quick", "Workflow", "Fast transcription only")
     table.add_row("analyze", "Workflow", "Transcription + AI analysis")
@@ -1075,6 +1092,7 @@ def list_commands():
     table.add_section()
 
     # Individual commands
+    table.add_row("browse", "Discovery", "Interactive episode selection")
     table.add_row("fetch", "Stage", "Download podcast episodes")
     table.add_row("transcode", "Stage", "Convert audio formats")
     table.add_row("transcribe", "Stage", "Speech-to-text conversion")
