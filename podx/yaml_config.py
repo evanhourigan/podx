@@ -8,6 +8,7 @@ YAML-based configuration system for podx with support for:
 """
 
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -15,6 +16,30 @@ import yaml
 from pydantic import BaseModel, Field, validator
 
 from .prompt_templates import PodcastType
+
+
+def format_database_id(db_id: str) -> str:
+    """
+    Format a database ID to UUID format if it's a 32-character string.
+
+    Args:
+        db_id: Database ID (either UUID format or 32-character string)
+
+    Returns:
+        Properly formatted UUID string
+    """
+    if not db_id:
+        return db_id
+
+    # Remove any existing hyphens to normalize
+    clean_id = db_id.replace("-", "")
+
+    # If it's not 32 hex characters, return as-is
+    if len(clean_id) != 32 or not re.match(r"^[a-fA-F0-9]{32}$", clean_id):
+        return db_id
+
+    # Format as UUID: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+    return f"{clean_id[:8]}-{clean_id[8:12]}-{clean_id[12:16]}-{clean_id[16:20]}-{clean_id[20:]}"
 
 
 # Configure YAML to handle PodcastType enums
@@ -47,6 +72,11 @@ class NotionDatabase(BaseModel):
         default="Tags", description="Property name for tags/keywords"
     )
     description: Optional[str] = Field(default=None, description="Database description")
+
+    @validator("database_id")
+    def format_database_id_validator(cls, v):
+        """Format database ID to proper UUID format if needed."""
+        return format_database_id(v)
 
 
 class AnalysisConfig(BaseModel):
