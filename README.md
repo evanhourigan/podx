@@ -19,7 +19,7 @@ Composable podcast tooling with advanced AI analysis, YAML configuration, and mu
 # 1. Install globally
 pipx install -e ".[asr,whisperx,llm,notion]"
 
-# 2. Initialize configuration  
+# 2. Initialize configuration
 podx config init
 
 # 3. Process any podcast with one simple command
@@ -35,13 +35,13 @@ podx run --show "Lenny's Podcast" --date 2025-08-17
 
 ### Advanced Analysis Types
 
-| Analysis Type | Focus | Perfect For |
-|---------------|-------|-------------|
-| `interview_guest_focused` | Guest insights & expertise | Lenny's Podcast, Tim Ferriss Show |
-| `interview_host_focused` | Host questions & frameworks | Lex Fridman Podcast |
-| `business` | Strategy & market insights | Y Combinator, startup content |
-| `tech` | Technical depth & implementation | Developer podcasts |
-| `educational` | Learning concepts & frameworks | Academic content |
+| Analysis Type             | Focus                            | Perfect For                       |
+| ------------------------- | -------------------------------- | --------------------------------- |
+| `interview_guest_focused` | Guest insights & expertise       | Lenny's Podcast, Tim Ferriss Show |
+| `interview_host_focused`  | Host questions & frameworks      | Lex Fridman Podcast               |
+| `business`                | Strategy & market insights       | Y Combinator, startup content     |
+| `tech`                    | Technical depth & implementation | Developer podcasts                |
+| `educational`             | Learning concepts & frameworks   | Academic content                  |
 
 ### YAML Configuration Example
 
@@ -59,7 +59,7 @@ podcasts:
       align: true
       deepcast: true
       notion: true
-    notion_database: "work"  # Auto-routes to work DB
+    notion_database: "work" # Auto-routes to work DB
 ```
 
 ### Multiple Notion Databases
@@ -70,7 +70,7 @@ notion_databases:
     database_id: "personal-db-id"
     token: "personal-token"
   work:
-    database_id: "work-db-id" 
+    database_id: "work-db-id"
     token: "work-token"
 ```
 

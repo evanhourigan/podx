@@ -51,7 +51,7 @@ podx run --show "Lenny's Podcast" --date 2025-08-17
 ### Configuration Hierarchy
 
 1. **CLI Arguments** (highest priority)
-2. **YAML Configuration** 
+2. **YAML Configuration**
 3. **JSON Configuration** (legacy)
 4. **Environment Variables**
 5. **Built-in Defaults** (lowest priority)
@@ -60,7 +60,7 @@ podx run --show "Lenny's Podcast" --date 2025-08-17
 
 ```yaml
 version: "1.0"
-environment: "production"  # or "development", "staging"
+environment: "production" # or "development", "staging"
 
 # Global pipeline defaults
 defaults:
@@ -85,7 +85,7 @@ notion_databases:
     token: "your-personal-token"
     title_property: "Episode"
     date_property: "Date"
-    
+
   work:
     name: "Work Knowledge Base"
     database_id: "your-work-db-id"
@@ -112,17 +112,17 @@ podcasts:
 
 ### Supported Analysis Types
 
-| Type | Focus | Best For |
-|------|-------|----------|
-| `interview_guest_focused` | Guest insights & responses | Lenny's Podcast, Tim Ferriss |
-| `interview_host_focused` | Host questions & frameworks | Lex Fridman |
-| `interview` | Balanced host-guest | General interviews |
-| `business` | Business strategy & insights | Y Combinator, startup content |
-| `tech` | Technical depth & tools | Developer podcasts |
-| `educational` | Learning & concepts | Academic content |
-| `news` | Facts & current events | News podcasts |
-| `solo_commentary` | Host thoughts & opinions | Solo shows |
-| `panel_discussion` | Multiple perspectives | Panel formats |
+| Type                      | Focus                        | Best For                      |
+| ------------------------- | ---------------------------- | ----------------------------- |
+| `interview_guest_focused` | Guest insights & responses   | Lenny's Podcast, Tim Ferriss  |
+| `interview_host_focused`  | Host questions & frameworks  | Lex Fridman                   |
+| `interview`               | Balanced host-guest          | General interviews            |
+| `business`                | Business strategy & insights | Y Combinator, startup content |
+| `tech`                    | Technical depth & tools      | Developer podcasts            |
+| `educational`             | Learning & concepts          | Academic content              |
+| `news`                    | Facts & current events       | News podcasts                 |
+| `solo_commentary`         | Host thoughts & opinions     | Solo shows                    |
+| `panel_discussion`        | Multiple perspectives        | Panel formats                 |
 
 ### Example Podcast Configurations
 
@@ -130,13 +130,13 @@ podcasts:
 
 ```yaml
 lenny:
-  names: 
+  names:
     - "Lenny's Podcast"
     - "Lenny's Newsletter"
     - "Lenny Rachitsky"
   analysis:
     type: "interview_guest_focused"
-    temperature: 0.1  # Lower for factual content
+    temperature: 0.1 # Lower for factual content
     custom_prompts: |
       SPECIAL FOCUS for Lenny's Podcast:
       - Product management interview format
@@ -164,8 +164,8 @@ lex:
     - "Artificial Intelligence Podcast"
   analysis:
     type: "interview_host_focused"
-    temperature: 0.3  # Higher for creative insights
-    model: "gpt-4.1"  # Larger model for complex topics
+    temperature: 0.3 # Higher for creative insights
+    model: "gpt-4.1" # Larger model for complex topics
     custom_prompts: |
       SPECIAL FOCUS for Lex Fridman Podcast:
       - Capture Lex's thoughtful questions and philosophical frameworks
@@ -174,10 +174,10 @@ lex:
       - Include mathematical concepts and research references
   pipeline:
     align: true
-    diarize: true  # Multiple speakers
+    diarize: true # Multiple speakers
     deepcast: true
     extract_markdown: true
-    notion: false  # Too long for regular upload
+    notion: false # Too long for regular upload
   notion_database: "research"
   tags: ["ai", "philosophy", "science"]
 ```
@@ -222,7 +222,7 @@ notion_databases:
     date_property: "Published"
     tags_property: "Tags"
     description: "Personal podcast collection"
-  
+
   # Work-related content
   work:
     name: "Work Knowledge Base"
@@ -232,7 +232,7 @@ notion_databases:
     date_property: "Date Added"
     tags_property: "Keywords"
     description: "Professional development and work insights"
-  
+
   # Research and academic content
   research:
     name: "Research Database"
@@ -251,11 +251,11 @@ Podcasts automatically route to the specified database:
 ```yaml
 podcasts:
   lenny:
-    notion_database: "work"      # → Work Knowledge Base
+    notion_database: "work" # → Work Knowledge Base
   lex:
-    notion_database: "research"  # → Research Database
+    notion_database: "research" # → Research Database
   entertainment:
-    notion_database: "personal"  # → Personal Library
+    notion_database: "personal" # → Personal Library
 ```
 
 ### Security Features
@@ -271,11 +271,11 @@ podcasts:
 Content extraction automatically scales with episode length:
 
 | Episode Length | Key Insights | Gold Nuggets | Quotes | Outline Sections |
-|----------------|--------------|--------------|---------|------------------|
-| < 30 min | 8-15 | 4-8 | 3-6 | 6-12 |
-| 30-60 min | 12-20 | 6-12 | 4-8 | 10-15 |
-| 60-90 min | 15-25 | 8-15 | 6-10 | 12-18 |
-| 90+ min | 20-30+ | 10-18+ | 8-12+ | 15-22+ |
+| -------------- | ------------ | ------------ | ------ | ---------------- |
+| < 30 min       | 8-15         | 4-8          | 3-6    | 6-12             |
+| 30-60 min      | 12-20        | 6-12         | 4-8    | 10-15            |
+| 60-90 min      | 15-25        | 8-15         | 6-10   | 12-18            |
+| 90+ min        | 20-30+       | 10-18+       | 8-12+  | 15-22+           |
 
 ### Custom Prompt Templates
 
@@ -290,7 +290,7 @@ podcasts:
         - Note industry-specific terminology
         - Include regulatory or compliance mentions
         - Prioritize quantitative data and metrics
-        
+
         EXTRACTION PRIORITIES:
         1. Technical specifications and requirements
         2. Implementation strategies and best practices
@@ -305,17 +305,17 @@ Each podcast type has specialized analysis focus:
 
 ```yaml
 # Interview types
-interview_guest_focused:  # Focus on guest expertise
-interview_host_focused:   # Focus on host questions
-interview:               # Balanced approach
+interview_guest_focused: # Focus on guest expertise
+interview_host_focused: # Focus on host questions
+interview: # Balanced approach
 
-# Content types  
-business:     # Strategy, metrics, market analysis
-tech:         # Tools, implementation, trends
-educational:  # Concepts, frameworks, learning
-news:         # Facts, implications, analysis
-narrative:    # Story arc, themes, revelations
-comedy:       # Humor, social commentary
+# Content types
+business: # Strategy, metrics, market analysis
+tech: # Tools, implementation, trends
+educational: # Concepts, frameworks, learning
+news: # Facts, implications, analysis
+narrative: # Story arc, themes, revelations
+comedy: # Humor, social commentary
 ```
 
 ## CLI Configuration Management
@@ -356,7 +356,7 @@ $ podx config validate
 
 ```bash
 $ podx config databases
-                    🗃️ Configured Notion Databases                    
+                    🗃️ Configured Notion Databases
 ┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ Name     ┃ Database ID         ┃ Title Property ┃ Description                   ┃
 ┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
@@ -383,14 +383,14 @@ $ podx config databases
 
 ### JSON vs YAML Comparison
 
-| Feature | JSON Config | YAML Config |
-|---------|-------------|-------------|
-| **Readability** | ❌ Verbose | ✅ Clean, human-readable |
-| **Comments** | ❌ Not supported | ✅ Full comment support |
-| **Multi-line strings** | ❌ Escaped | ✅ Natural `\|` syntax |
-| **Multiple databases** | ❌ Single DB | ✅ Multiple with routing |
-| **Environment support** | ❌ Limited | ✅ Full environment configs |
-| **Validation** | ❌ Basic | ✅ Rich validation & errors |
+| Feature                 | JSON Config      | YAML Config                 |
+| ----------------------- | ---------------- | --------------------------- |
+| **Readability**         | ❌ Verbose       | ✅ Clean, human-readable    |
+| **Comments**            | ❌ Not supported | ✅ Full comment support     |
+| **Multi-line strings**  | ❌ Escaped       | ✅ Natural `\|` syntax      |
+| **Multiple databases**  | ❌ Single DB     | ✅ Multiple with routing    |
+| **Environment support** | ❌ Limited       | ✅ Full environment configs |
+| **Validation**          | ❌ Basic         | ✅ Rich validation & errors |
 
 ## Real-World Examples
 
@@ -429,6 +429,7 @@ podcasts:
 ```
 
 **Usage**:
+
 ```bash
 # Simple commands that auto-apply all settings
 podx run --show "Lenny's Podcast" --date 2025-08-17
@@ -450,14 +451,13 @@ defaults:
   notion: true
 
 analysis:
-  model: "gpt-4.1"        # Production: better model
-  temperature: 0.2        # Production: consistent results
+  model: "gpt-4.1" # Production: better model
+  temperature: 0.2 # Production: consistent results
 
 notion_databases:
   prod_db:
     database_id: "prod-db-id"
     token: "prod-token"
-
 # Development overrides (when environment: "development")
 # analysis:
 #   model: "gpt-4.1-mini"  # Development: cheaper model
@@ -484,7 +484,7 @@ podcasts:
       - "Conversations with Tyler"
     analysis:
       type: "interview_host_focused"
-      model: "gpt-4.1"  # Better for complex topics
+      model: "gpt-4.1" # Better for complex topics
       custom_prompts: |
         RESEARCH FOCUS:
         - Extract academic insights and research findings
@@ -496,7 +496,7 @@ podcasts:
       diarize: true
       deepcast: true
       extract_markdown: true
-      notion: false  # Manual review before upload
+      notion: false # Manual review before upload
     notion_database: "research"
 ```
 
@@ -528,18 +528,21 @@ export NOTION_DATE_PROP=Date
 ### Common Issues
 
 #### 1. Configuration Not Found
+
 ```bash
 ❌ No YAML configuration found.
 💡 Create one with podx config init
 ```
 
 #### 2. Invalid YAML Syntax
+
 ```bash
 ❌ Configuration validation failed: yaml.scanner.ScannerError
 💡 Check your YAML syntax and fix any errors
 ```
 
 #### 3. Missing Notion Database
+
 ```bash
 ❌ Notion database 'work' not found in configuration
 💡 Add database to notion_databases section

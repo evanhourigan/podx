@@ -62,7 +62,7 @@ podcasts:
       - "This is Product Management"
     analysis:
       type: "interview_guest_focused"
-      temperature: 0.1  # Lower for factual content
+      temperature: 0.1 # Lower for factual content
       custom_prompts: |
         PRODUCT MANAGEMENT FOCUS:
         - Extract frameworks, methodologies, and best practices
@@ -81,6 +81,7 @@ podcasts:
 ```
 
 **Usage**:
+
 ```bash
 # All these automatically use the same configuration
 podx run --show "Lenny's Podcast" --date 2025-08-17
@@ -115,9 +116,9 @@ podcasts:
       - "Conversations with Tyler"
       - "EconTalk"
     analysis:
-      type: "interview_host_focused"  # Focus on thoughtful questions
-      model: "gpt-4.1"  # Better model for complex topics
-      temperature: 0.3   # Higher for creative insights
+      type: "interview_host_focused" # Focus on thoughtful questions
+      model: "gpt-4.1" # Better model for complex topics
+      temperature: 0.3 # Higher for creative insights
       custom_prompts: |
         RESEARCH & LEARNING FOCUS:
         - Extract academic insights and research findings
@@ -127,10 +128,10 @@ podcasts:
         - Capture philosophical and ethical discussions
     pipeline:
       align: true
-      diarize: true      # Often multiple speakers
+      diarize: true # Often multiple speakers
       deepcast: true
       extract_markdown: true
-      notion: false      # Manual review before upload
+      notion: false # Manual review before upload
     notion_database: "research"
     tags: ["research", "learning", "academic"]
 
@@ -142,7 +143,7 @@ podcasts:
     analysis:
       type: "comedy"
     pipeline:
-      align: false       # Don't need precision for comedy
+      align: false # Don't need precision for comedy
       deepcast: true
       extract_markdown: true
       notion: true
@@ -156,7 +157,7 @@ podcasts:
 
 ```yaml
 version: "1.0"
-environment: "production"  # Change to "development" for dev settings
+environment: "production" # Change to "development" for dev settings
 
 # Production settings
 defaults:
@@ -164,18 +165,18 @@ defaults:
   deepcast: true
   extract_markdown: true
   notion: true
-  clean: true  # Clean up files in production
+  clean: true # Clean up files in production
 
 analysis:
-  model: "gpt-4.1"        # Better model for production
-  temperature: 0.2        # Consistent results
+  model: "gpt-4.1" # Better model for production
+  temperature: 0.2 # Consistent results
 
 # Development overrides (uncomment when environment: "development")
 # defaults:
 #   align: false           # Skip expensive alignment in dev
 #   notion: false          # Don't upload to Notion in dev
 #   clean: false           # Keep files for debugging
-# 
+#
 # analysis:
 #   model: "gpt-4.1-mini"  # Cheaper model for development
 #   temperature: 0.5       # More creative for experimentation
@@ -184,15 +185,15 @@ notion_databases:
   production:
     database_id: "prod-database-id"
     token: "prod-notion-token"
-  
+
   # development:
   #   database_id: "dev-database-id"
   #   token: "dev-notion-token"
 
 podcasts:
   all_podcasts:
-    names: ["*"]  # Catch-all pattern (future feature)
-    notion_database: "production"  # or "development"
+    names: ["*"] # Catch-all pattern (future feature)
+    notion_database: "production" # or "development"
 ```
 
 ## Advanced Usage Patterns
