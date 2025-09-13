@@ -472,55 +472,78 @@ def run(
         original_audio_path = Path(meta["audio_path"]) if "audio_path" in meta else None
 
         # 2) TRANSCODE → audio-meta.json
-        progress.start_step(f"Transcoding audio to {fmt}")
-        step_start = time.time()
-        audio = _run(
-            ["podx-transcode", "--to", fmt, "--outdir", str(wd)],
-            stdin_payload=meta,
-            verbose=verbose,
-            save_to=wd / "audio-meta.json",
-            label=None,  # Progress handles the display
-        )
-        step_duration = time.time() - step_start
-        progress.complete_step(f"Audio transcoded to {fmt}", step_duration)
+        audio_meta_file = wd / "audio-meta.json"
+        if audio_meta_file.exists():
+            logger.info("Found existing audio metadata, skipping transcode")
+            audio = json.loads(audio_meta_file.read_text())
+            progress.complete_step(f"Using existing {fmt} audio", 0)
+        else:
+            progress.start_step(f"Transcoding audio to {fmt}")
+            step_start = time.time()
+            audio = _run(
+                ["podx-transcode", "--to", fmt, "--outdir", str(wd)],
+                stdin_payload=meta,
+                verbose=verbose,
+                save_to=audio_meta_file,
+                label=None,  # Progress handles the display
+            )
+            step_duration = time.time() - step_start
+            progress.complete_step(f"Audio transcoded to {fmt}", step_duration)
 
         # Track transcoded audio path for cleanup
         transcoded_path = Path(audio["audio_path"])
 
         # 3) TRANSCRIBE → transcript.json
-        progress.start_step(f"Transcribing with {model} model")
-        step_start = time.time()
-        base = _run(
-            ["podx-transcribe", "--model", model, "--compute", compute],
-            stdin_payload=audio,
-            verbose=verbose,
-            save_to=wd / "transcript.json",
-            label=None,  # Progress handles the display
-        )
-        step_duration = time.time() - step_start
-        progress.complete_step(
-            f"Transcription complete - {len(base.get('segments', []))} segments",
-            step_duration,
-        )
+        transcript_file = wd / "transcript.json"
+        if transcript_file.exists():
+            logger.info("Found existing transcript, skipping transcription")
+            base = json.loads(transcript_file.read_text())
+            progress.complete_step(
+                f"Using existing transcript - {len(base.get('segments', []))} segments",
+                0,
+            )
+        else:
+            progress.start_step(f"Transcribing with {model} model")
+            step_start = time.time()
+            base = _run(
+                ["podx-transcribe", "--model", model, "--compute", compute],
+                stdin_payload=audio,
+                verbose=verbose,
+                save_to=transcript_file,
+                label=None,  # Progress handles the display
+            )
+            step_duration = time.time() - step_start
+            progress.complete_step(
+                f"Transcription complete - {len(base.get('segments', []))} segments",
+                step_duration,
+            )
 
         latest = base
         latest_name = "transcript"
 
         # 4) ALIGN (optional) → aligned-transcript.json
         if align:
-            progress.start_step("Aligning transcript with audio")
-            step_start = time.time()
-            aligned = _run(
-                ["podx-align", "--audio", audio["audio_path"]],
-                stdin_payload=base,
-                verbose=verbose,
-                save_to=wd / "aligned-transcript.json",
-                label=None,  # Progress handles the display
-            )
-            step_duration = time.time() - step_start
-            progress.complete_step("Audio alignment completed", step_duration)
-            latest = aligned
-            latest_name = "aligned-transcript"
+            aligned_file = wd / "aligned-transcript.json"
+            if aligned_file.exists():
+                logger.info("Found existing aligned transcript, skipping alignment")
+                aligned = json.loads(aligned_file.read_text())
+                progress.complete_step("Using existing aligned transcript", 0)
+                latest = aligned
+                latest_name = "aligned-transcript"
+            else:
+                progress.start_step("Aligning transcript with audio")
+                step_start = time.time()
+                aligned = _run(
+                    ["podx-align", "--audio", audio["audio_path"]],
+                    stdin_payload=base,
+                    verbose=verbose,
+                    save_to=aligned_file,
+                    label=None,  # Progress handles the display
+                )
+                step_duration = time.time() - step_start
+                progress.complete_step("Audio alignment completed", step_duration)
+                latest = aligned
+                latest_name = "aligned-transcript"
 
         # 5) DIARIZE (optional) → diarized-transcript.json
         if diarize:
@@ -589,36 +612,49 @@ def run(
 
         # 6) DEEPCAST (optional) → deepcast-brief.md / deepcast-brief.json
         if deepcast:
-            progress.start_step(f"Analyzing transcript with {deepcast_model}")
-            step_start = time.time()
-            inp = str(wd / "latest.json")
-            md_out = wd / "deepcast-brief.md"
             json_out = wd / "deepcast-brief.json"
+            md_out = wd / "deepcast-brief.md"
 
-            cmd = [
-                "podx-deepcast",
-                "--input",
-                inp,
-                "--output",
-                str(json_out),
-                "--model",
-                deepcast_model,
-                "--temperature",
-                str(deepcast_temp),
-            ]
+            if json_out.exists():
+                logger.info("Found existing deepcast analysis, skipping AI analysis")
+                progress.complete_step("Using existing AI analysis", 0)
+                results.update({"deepcast_json": str(json_out)})
+                if extract_markdown and md_out.exists():
+                    results.update({"deepcast_md": str(md_out)})
+            else:
+                progress.start_step(f"Analyzing transcript with {deepcast_model}")
+                step_start = time.time()
+                inp = str(wd / "latest.json")
+                meta_file = wd / "episode-meta.json"
 
-            if extract_markdown:
-                cmd.append("--extract-markdown")
+                cmd = [
+                    "podx-deepcast",
+                    "--input",
+                    inp,
+                    "--output",
+                    str(json_out),
+                    "--model",
+                    deepcast_model,
+                    "--temperature",
+                    str(deepcast_temp),
+                ]
 
-            _run(
-                cmd, verbose=verbose, save_to=None, label=None
-            )  # Progress handles the display
-            step_duration = time.time() - step_start
-            progress.complete_step("AI analysis completed", step_duration)
-            results.update({"deepcast_json": str(json_out)})
-            # Record markdown path when extracted
-            if extract_markdown and md_out.exists():
-                results.update({"deepcast_md": str(md_out)})
+                # Add metadata file if it exists to fix "Unknown Show" issue
+                if meta_file.exists():
+                    cmd.extend(["--meta", str(meta_file)])
+
+                if extract_markdown:
+                    cmd.append("--extract-markdown")
+
+                _run(
+                    cmd, verbose=verbose, save_to=None, label=None
+                )  # Progress handles the display
+                step_duration = time.time() - step_start
+                progress.complete_step("AI analysis completed", step_duration)
+                results.update({"deepcast_json": str(json_out)})
+                # Record markdown path when extracted
+                if extract_markdown and md_out.exists():
+                    results.update({"deepcast_md": str(md_out)})
 
         # 7) NOTION (optional) — requires DB id
         if notion:
