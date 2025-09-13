@@ -25,6 +25,8 @@ try:
 except ImportError:
     OpenAI = None  # type: ignore
 
+from .podcast_config import get_podcast_config
+from .yaml_config import get_podcast_yaml_config
 from .prompt_templates import (
     ENHANCED_JSON_SCHEMA,
     PodcastType,
@@ -32,7 +34,6 @@ from .prompt_templates import (
     detect_podcast_type,
     get_template,
 )
-from .podcast_config import get_podcast_config
 
 
 # utils
@@ -254,14 +255,17 @@ def deepcast(
     if not text.strip():
         raise SystemExit("No transcript text found in input")
 
-    # Check for podcast-specific configuration
+    # Check for podcast-specific configuration (YAML first, then JSON)
     show_name = transcript.get("show") or transcript.get("show_name", "")
-    podcast_config = get_podcast_config(show_name) if show_name else None
-    
-    # Auto-detect podcast type if not specified, with config override
+    yaml_config = get_podcast_yaml_config(show_name) if show_name else None
+    json_config = get_podcast_config(show_name) if show_name else None
+
+    # Auto-detect podcast type if not specified, with config override (YAML takes precedence)
     if podcast_type is None:
-        if podcast_config and podcast_config.podcast_type:
-            podcast_type = podcast_config.podcast_type
+        if yaml_config and yaml_config.analysis and yaml_config.analysis.type:
+            podcast_type = yaml_config.analysis.type
+        elif json_config and json_config.podcast_type:
+            podcast_type = json_config.podcast_type
         else:
             podcast_type = detect_podcast_type(transcript)
 
@@ -271,15 +275,19 @@ def deepcast(
 
     # Use enhanced prompts with duration-aware scaling
     system_prompt = template.system_prompt
-    
-    # Add custom prompt additions from podcast config
-    if podcast_config and podcast_config.custom_prompt_additions:
-        system_prompt += f"\n\n{podcast_config.custom_prompt_additions}"
-    
+
+    # Add custom prompt additions from config (YAML takes precedence)
+    if yaml_config and yaml_config.analysis and yaml_config.analysis.custom_prompts:
+        system_prompt += f"\n\n{yaml_config.analysis.custom_prompts}"
+    elif json_config and json_config.custom_prompt_additions:
+        system_prompt += f"\n\n{json_config.custom_prompt_additions}"
+
     system = (
         system_prompt
         + "\n"
-        + build_enhanced_variant(has_time, has_spk, podcast_type, episode_duration_minutes)
+        + build_enhanced_variant(
+            has_time, has_spk, podcast_type, episode_duration_minutes
+        )
     )
 
     # Map phase with enhanced instructions

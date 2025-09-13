@@ -39,9 +39,13 @@ class PodxConfig(BaseSettings):
     default_align: bool = Field(default=False, env="PODX_DEFAULT_ALIGN")
     default_diarize: bool = Field(default=False, env="PODX_DEFAULT_DIARIZE")
     default_deepcast: bool = Field(default=False, env="PODX_DEFAULT_DEEPCAST")
-    default_extract_markdown: bool = Field(default=False, env="PODX_DEFAULT_EXTRACT_MARKDOWN")
+    default_extract_markdown: bool = Field(
+        default=False, env="PODX_DEFAULT_EXTRACT_MARKDOWN"
+    )
     default_notion: bool = Field(default=False, env="PODX_DEFAULT_NOTION")
-    default_podcast_type: Optional[str] = Field(default=None, env="PODX_DEFAULT_PODCAST_TYPE")
+    default_podcast_type: Optional[str] = Field(
+        default=None, env="PODX_DEFAULT_PODCAST_TYPE"
+    )
 
     # Logging Configuration
     log_level: str = Field(default="INFO", env="PODX_LOG_LEVEL")

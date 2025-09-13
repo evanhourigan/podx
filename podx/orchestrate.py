@@ -19,13 +19,20 @@ from .help import help_cmd
 from .logging import get_logger, setup_logging
 from .plugins import PluginManager, PluginType, get_registry
 from .podcast_config import (
+    PREDEFINED_CONFIGS,
+    PodcastAnalysisConfig,
+    create_predefined_configs,
     get_podcast_config,
     get_podcast_config_manager,
-    create_predefined_configs,
-    PodcastAnalysisConfig,
-    PREDEFINED_CONFIGS
 )
-from .prompt_templates import PodcastType
+from .yaml_config import (
+    get_yaml_config_manager,
+    get_podcast_yaml_config,
+    get_notion_database_config,
+    load_yaml_config,
+    PodcastMapping,
+    NotionDatabase,
+)
 from .progress import (
     PodxProgress,
     format_duration,
@@ -33,6 +40,7 @@ from .progress import (
     print_podx_info,
     print_podx_success,
 )
+from .prompt_templates import PodcastType
 
 # Initialize logging
 setup_logging()
@@ -309,44 +317,104 @@ def run(
         progress.complete_step(
             f"Episode fetched: {meta.get('episode_title', 'Unknown')}"
         )
-        
+
         # Check for podcast-specific configuration after we have the show name
         show_name = meta.get("show") or meta.get("show_name", "")
-        podcast_config = get_podcast_config(show_name) if show_name else None
         
-        # Apply podcast-specific defaults if available and not overridden by user
-        if podcast_config:
-            logger.info("Found podcast-specific configuration", show=show_name, config_type=podcast_config.podcast_type.value)
+        # Try YAML config first, then fall back to JSON config
+        yaml_config = get_podcast_yaml_config(show_name) if show_name else None
+        json_config = get_podcast_config(show_name) if show_name else None
+        
+        # Apply podcast-specific defaults (YAML takes precedence over JSON)
+        active_config = yaml_config or json_config
+        config_type = "YAML" if yaml_config else "JSON" if json_config else None
+        
+        if active_config:
+            # Determine config type and extract settings
+            if yaml_config:
+                logger.info("Found YAML podcast configuration", show=show_name, config_type=config_type)
+                
+                # Apply YAML pipeline defaults
+                if yaml_config.pipeline:
+                    if not align and yaml_config.pipeline.align:
+                        align = True
+                        logger.info("Applied YAML config: align = True")
+                    if not diarize and yaml_config.pipeline.diarize:
+                        diarize = True
+                        logger.info("Applied YAML config: diarize = True")
+                    if not deepcast and yaml_config.pipeline.deepcast:
+                        deepcast = True
+                        logger.info("Applied YAML config: deepcast = True")
+                    if not extract_markdown and yaml_config.pipeline.extract_markdown:
+                        extract_markdown = True
+                        logger.info("Applied YAML config: extract_markdown = True")
+                    if not notion and yaml_config.pipeline.notion:
+                        notion = True
+                        logger.info("Applied YAML config: notion = True")
+                
+                # Apply YAML analysis settings
+                if yaml_config.analysis:
+                    base_config = get_config()
+                    if deepcast_model == base_config.openai_model and yaml_config.analysis.model:
+                        deepcast_model = yaml_config.analysis.model
+                        logger.info("Applied YAML config model", model=deepcast_model)
+                    if abs(deepcast_temp - base_config.openai_temperature) < 0.001 and yaml_config.analysis.temperature:
+                        deepcast_temp = yaml_config.analysis.temperature
+                        logger.info("Applied YAML config temperature", temperature=deepcast_temp)
+                
+                # Handle Notion database selection
+                if yaml_config.notion_database and notion:
+                    notion_db_config = get_notion_database_config(yaml_config.notion_database)
+                    if notion_db_config:
+                        notion_db = notion_db_config.database_id
+                        logger.info("Applied YAML Notion database", database=yaml_config.notion_database)
+                        # Could also set environment variables for the token
+                        import os
+                        os.environ["NOTION_TOKEN"] = notion_db_config.token
+                        os.environ["NOTION_TITLE_PROP"] = notion_db_config.title_property
+                        os.environ["NOTION_DATE_PROP"] = notion_db_config.date_property
             
-            # Apply defaults only if user didn't explicitly set them (check if they're still default values)
-            config_flags = podcast_config.default_flags
-            
-            # These require checking if they were explicitly set vs default
-            # For now, we'll apply them if they're False (assume default)
-            if not align and config_flags.get("align", False):
-                align = True
-                logger.info("Applied podcast config: align = True")
-            if not diarize and config_flags.get("diarize", False):
-                diarize = True
-                logger.info("Applied podcast config: diarize = True")
-            if not deepcast and config_flags.get("deepcast", False):
-                deepcast = True
-                logger.info("Applied podcast config: deepcast = True")
-            if not extract_markdown and (config_flags.get("extract_markdown", False) or podcast_config.extract_markdown):
-                extract_markdown = True
-                logger.info("Applied podcast config: extract_markdown = True")
-            if not notion and (config_flags.get("notion", False) or podcast_config.notion_upload):
-                notion = True
-                logger.info("Applied podcast config: notion = True")
-            
-            # Apply model preferences if they match defaults (indicating user didn't override)
-            base_config = get_config()
-            if deepcast_model == base_config.openai_model and podcast_config.deepcast_model:
-                deepcast_model = podcast_config.deepcast_model
-                logger.info("Applied podcast config model", model=deepcast_model)
-            if abs(deepcast_temp - base_config.openai_temperature) < 0.001 and podcast_config.temperature:
-                deepcast_temp = podcast_config.temperature
-                logger.info("Applied podcast config temperature", temperature=deepcast_temp)
+            elif json_config:
+                logger.info("Found JSON podcast configuration", show=show_name, config_type=json_config.podcast_type.value)
+                
+                # Apply JSON defaults (original logic)
+                config_flags = json_config.default_flags
+                
+                if not align and config_flags.get("align", False):
+                    align = True
+                    logger.info("Applied JSON config: align = True")
+                if not diarize and config_flags.get("diarize", False):
+                    diarize = True
+                    logger.info("Applied JSON config: diarize = True")
+                if not deepcast and config_flags.get("deepcast", False):
+                    deepcast = True
+                    logger.info("Applied JSON config: deepcast = True")
+                if not extract_markdown and (
+                    config_flags.get("extract_markdown", False)
+                    or json_config.extract_markdown
+                ):
+                    extract_markdown = True
+                    logger.info("Applied JSON config: extract_markdown = True")
+                if not notion and (
+                    config_flags.get("notion", False) or json_config.notion_upload
+                ):
+                    notion = True
+                    logger.info("Applied JSON config: notion = True")
+
+                # Apply model preferences
+                base_config = get_config()
+                if (
+                    deepcast_model == base_config.openai_model
+                    and json_config.deepcast_model
+                ):
+                    deepcast_model = json_config.deepcast_model
+                    logger.info("Applied JSON config model", model=deepcast_model)
+                if (
+                    abs(deepcast_temp - base_config.openai_temperature) < 0.001
+                    and json_config.temperature
+                ):
+                    deepcast_temp = json_config.temperature
+                    logger.info("Applied JSON config temperature", temperature=deepcast_temp)
 
         # Determine workdir from metadata
         if workdir:
@@ -1029,13 +1097,21 @@ def list_commands():
         )
         console.print(f"  {plugin_summary}")
         console.print("  Use [cyan]podx plugin list[/cyan] for details")
-        
+
         console.print("\n📝 [bold]Podcast Configurations:[/bold]")
-        console.print("  [cyan]podx podcast list[/cyan]        - List saved podcast configurations")
-        console.print("  [cyan]podx podcast create[/cyan]      - Create podcast-specific settings")
-        console.print("  [cyan]podx podcast init[/cyan]        - Setup popular podcast configs")
+        console.print(
+            "  [cyan]podx podcast list[/cyan]        - List saved podcast configurations"
+        )
+        console.print(
+            "  [cyan]podx podcast create[/cyan]      - Create podcast-specific settings"
+        )
+        console.print(
+            "  [cyan]podx podcast init[/cyan]        - Setup popular podcast configs"
+        )
         console.print("  [cyan]podx podcast show <name>[/cyan] - Show detailed config")
-        console.print("\n  💡 Podcast configs auto-apply settings like --align --deepcast --notion")
+        console.print(
+            "\n  💡 Podcast configs auto-apply settings like --align --deepcast --notion"
+        )
 
 
 @main.command("config")
@@ -1341,22 +1417,24 @@ def podcast_list():
     """List all podcast-specific configurations."""
     from rich.console import Console
     from rich.table import Table
-    
+
     console = Console()
     manager = get_podcast_config_manager()
     configs = manager.list_configs()
-    
+
     if not configs:
         console.print("📭 No podcast configurations found.")
-        console.print("\n💡 [bold]Tip:[/bold] Create configurations with [cyan]podx podcast create[/cyan]")
+        console.print(
+            "\n💡 [bold]Tip:[/bold] Create configurations with [cyan]podx podcast create[/cyan]"
+        )
         return
-    
+
     table = Table(title="🎙️ Podcast Configurations")
     table.add_column("Show Name", style="cyan")
     table.add_column("Type", style="yellow")
     table.add_column("Default Flags", style="green")
     table.add_column("Description", style="blue")
-    
+
     for config in configs.values():
         # Format default flags
         flags = []
@@ -1364,14 +1442,14 @@ def podcast_list():
             if enabled:
                 flags.append(flag)
         flags_str = ", ".join(flags) if flags else "None"
-        
+
         table.add_row(
             config.show_name,
             config.podcast_type.value,
             flags_str,
-            config.description or "No description"
+            config.description or "No description",
         )
-    
+
     console.print(table)
 
 
@@ -1380,55 +1458,79 @@ def podcast_list():
 def podcast_show(show_name: str):
     """Show detailed configuration for a specific podcast."""
     from rich.console import Console
-    from rich.panel import Panel
     from rich.json import JSON
-    
+    from rich.panel import Panel
+
     console = Console()
     manager = get_podcast_config_manager()
     config = manager.get_config(show_name)
-    
+
     if not config:
         console.print(f"❌ No configuration found for podcast: {show_name}")
-        console.print(f"\n💡 [bold]Tip:[/bold] Create one with [cyan]podx podcast create \"{show_name}\"[/cyan]")
+        console.print(
+            f'\n💡 [bold]Tip:[/bold] Create one with [cyan]podx podcast create "{show_name}"[/cyan]'
+        )
         return
-    
+
     # Show configuration details
     config_json = config.model_dump_json(indent=2)
-    
-    console.print(Panel(
-        JSON(config_json),
-        title=f"🎙️ Configuration for {config.show_name}",
-        border_style="blue"
-    ))
+
+    console.print(
+        Panel(
+            JSON(config_json),
+            title=f"🎙️ Configuration for {config.show_name}",
+            border_style="blue",
+        )
+    )
 
 
 @podcast_group.command("create")
 @click.argument("show_name")
-@click.option("--type", "podcast_type", type=click.Choice([t.value for t in PodcastType]), 
-              default="general", help="Podcast type for analysis")
+@click.option(
+    "--type",
+    "podcast_type",
+    type=click.Choice([t.value for t in PodcastType]),
+    default="general",
+    help="Podcast type for analysis",
+)
 @click.option("--align/--no-align", default=False, help="Default align flag")
-@click.option("--diarize/--no-diarize", default=False, help="Default diarize flag")  
+@click.option("--diarize/--no-diarize", default=False, help="Default diarize flag")
 @click.option("--deepcast/--no-deepcast", default=True, help="Default deepcast flag")
-@click.option("--extract-markdown/--no-extract-markdown", default=False, help="Default extract markdown flag")
+@click.option(
+    "--extract-markdown/--no-extract-markdown",
+    default=False,
+    help="Default extract markdown flag",
+)
 @click.option("--notion/--no-notion", default=False, help="Default notion upload flag")
 @click.option("--model", help="Preferred OpenAI model")
 @click.option("--temperature", type=float, help="Analysis temperature")
 @click.option("--description", help="Description of this configuration")
-def podcast_create(show_name: str, podcast_type: str, align: bool, diarize: bool, 
-                  deepcast: bool, extract_markdown: bool, notion: bool,
-                  model: Optional[str], temperature: Optional[float], description: Optional[str]):
+def podcast_create(
+    show_name: str,
+    podcast_type: str,
+    align: bool,
+    diarize: bool,
+    deepcast: bool,
+    extract_markdown: bool,
+    notion: bool,
+    model: Optional[str],
+    temperature: Optional[float],
+    description: Optional[str],
+):
     """Create a new podcast-specific configuration."""
     from rich.console import Console
-    
+
     console = Console()
     manager = get_podcast_config_manager()
-    
+
     # Check if config already exists
     if manager.get_config(show_name):
         console.print(f"❌ Configuration for '{show_name}' already exists.")
-        console.print(f"💡 Use [cyan]podx podcast update \"{show_name}\"[/cyan] to modify it.")
+        console.print(
+            f'💡 Use [cyan]podx podcast update "{show_name}"[/cyan] to modify it.'
+        )
         return
-    
+
     # Create configuration
     config = PodcastAnalysisConfig(
         show_name=show_name,
@@ -1440,13 +1542,13 @@ def podcast_create(show_name: str, podcast_type: str, align: bool, diarize: bool
             "diarize": diarize,
             "deepcast": deepcast,
             "extract_markdown": extract_markdown,
-            "notion": notion
+            "notion": notion,
         },
         extract_markdown=extract_markdown,
         notion_upload=notion,
-        description=description
+        description=description,
     )
-    
+
     manager.save_config(config)
     console.print(f"✅ Created configuration for podcast: [cyan]{show_name}[/cyan]")
     console.print(f"🎯 Type: [yellow]{podcast_type}[/yellow]")
@@ -1458,19 +1560,19 @@ def podcast_create(show_name: str, podcast_type: str, align: bool, diarize: bool
 def podcast_delete(show_name: str, yes: bool):
     """Delete a podcast configuration."""
     from rich.console import Console
-    
+
     console = Console()
     manager = get_podcast_config_manager()
-    
+
     if not manager.get_config(show_name):
         console.print(f"❌ No configuration found for podcast: {show_name}")
         return
-    
+
     if not yes:
         if not click.confirm(f"Delete configuration for '{show_name}'?"):
             console.print("Cancelled.")
             return
-    
+
     if manager.delete_config(show_name):
         console.print(f"✅ Deleted configuration for: [cyan]{show_name}[/cyan]")
     else:
@@ -1481,17 +1583,134 @@ def podcast_delete(show_name: str, yes: bool):
 def podcast_init():
     """Initialize predefined podcast configurations."""
     from rich.console import Console
-    
+
     console = Console()
     console.print("🚀 Creating predefined podcast configurations...")
-    
+
     create_predefined_configs()
-    
+
     console.print("✅ Predefined configurations created:")
     for show_name in PREDEFINED_CONFIGS.keys():
         console.print(f"  • [cyan]{show_name}[/cyan]")
-    
+
     console.print(f"\n💡 View all configs with [cyan]podx podcast list[/cyan]")
+
+
+@main.group("config")
+def config_group():
+    """Advanced YAML-based configuration management."""
+    pass
+
+
+@config_group.command("init")
+def config_init():
+    """Create an example YAML configuration file."""
+    from rich.console import Console
+    
+    console = Console()
+    manager = get_yaml_config_manager()
+    
+    # Check if config already exists
+    if manager.config_file.exists():
+        console.print(f"⚠️  Configuration file already exists at: {manager.config_file}")
+        if not click.confirm("Overwrite existing configuration?"):
+            console.print("Cancelled.")
+            return
+    
+    # Create example config
+    manager.create_example_config()
+    console.print(f"✅ Created example YAML configuration at: [cyan]{manager.config_file}[/cyan]")
+    console.print(f"\n📝 Edit this file to customize your podcast processing settings:")
+    console.print(f"   - Multiple Notion databases with different API keys")
+    console.print(f"   - Podcast-specific analysis types and prompts")
+    console.print(f"   - Global pipeline defaults")
+    console.print(f"   - Custom variables and advanced settings")
+
+
+@config_group.command("show")
+def config_show():
+    """Show current YAML configuration."""
+    from rich.console import Console
+    from rich.syntax import Syntax
+    
+    console = Console()
+    manager = get_yaml_config_manager()
+    
+    if not manager.config_file.exists():
+        console.print("❌ No YAML configuration found.")
+        console.print(f"💡 Create one with [cyan]podx config init[/cyan]")
+        return
+    
+    # Read and display config file
+    config_content = manager.config_file.read_text()
+    syntax = Syntax(config_content, "yaml", theme="monokai", line_numbers=True)
+    
+    console.print(f"📝 Configuration: [cyan]{manager.config_file}[/cyan]")
+    console.print(syntax)
+
+
+@config_group.command("validate")
+def config_validate():
+    """Validate YAML configuration syntax and settings."""
+    from rich.console import Console
+    
+    console = Console()
+    manager = get_yaml_config_manager()
+    
+    if not manager.config_file.exists():
+        console.print("❌ No YAML configuration found.")
+        return
+    
+    try:
+        config = manager.load_config()
+        console.print("✅ Configuration is valid!")
+        
+        # Show summary
+        if config.podcasts:
+            console.print(f"📋 Found {len(config.podcasts)} podcast mappings")
+        if config.notion_databases:
+            console.print(f"🗃️  Found {len(config.notion_databases)} Notion databases")
+        if config.defaults:
+            console.print(f"⚙️  Global defaults configured")
+            
+    except Exception as e:
+        console.print(f"❌ Configuration validation failed: {e}")
+        console.print(f"💡 Check your YAML syntax and fix any errors")
+
+
+@config_group.command("databases")
+def config_databases():
+    """List configured Notion databases."""
+    from rich.console import Console
+    from rich.table import Table
+    
+    console = Console()
+    manager = get_yaml_config_manager()
+    databases = manager.list_notion_databases()
+    
+    if not databases:
+        console.print("📭 No Notion databases configured.")
+        console.print(f"💡 Add them to your YAML config: [cyan]{manager.config_file}[/cyan]")
+        return
+    
+    table = Table(title="🗃️ Configured Notion Databases")
+    table.add_column("Name", style="cyan")
+    table.add_column("Database ID", style="yellow")
+    table.add_column("Title Property", style="green")
+    table.add_column("Description", style="blue")
+    
+    for name, db in databases.items():
+        # Mask the database ID for security
+        masked_id = db.database_id[:8] + "..." + db.database_id[-8:] if len(db.database_id) > 16 else db.database_id
+        
+        table.add_row(
+            name,
+            masked_id,
+            db.title_property,
+            db.description or "No description"
+        )
+    
+    console.print(table)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,264 @@
+# Podx YAML Configuration Example
+# This file demonstrates the powerful YAML-based configuration system
+# Copy to ~/.podx/config.yaml and customize for your needs
+
+version: "1.0"
+environment: "production"  # or "development", "staging", etc.
+
+# ========================
+# Global Default Settings
+# ========================
+defaults:
+  align: true              # Always align transcripts
+  deepcast: true          # Always run AI analysis
+  extract_markdown: true  # Always extract markdown
+  notion: false           # Don't auto-upload to Notion (podcast-specific overrides)
+  clean: false            # Keep intermediate files for debugging
+
+# ========================
+# Global Analysis Settings  
+# ========================
+analysis:
+  type: "general"         # Default podcast type
+  model: "gpt-4.1-mini"   # Default OpenAI model
+  temperature: 0.2        # Default temperature
+  chunk_size: 24000       # Default chunk size
+
+# ========================
+# Notion Database Configurations
+# Multiple databases for different purposes
+# ========================
+notion_databases:
+  
+  # Personal podcast library
+  personal:
+    name: "Personal Podcast Library"
+    database_id: "12345678-1234-1234-1234-123456789abc"
+    token: "secret_your_personal_notion_token_here"
+    title_property: "Episode"
+    date_property: "Published"
+    tags_property: "Tags"
+    description: "Personal podcast collection for learning and entertainment"
+  
+  # Work knowledge base
+  work:
+    name: "Work Knowledge Base"
+    database_id: "87654321-4321-4321-4321-cba987654321"
+    token: "secret_your_work_notion_token_here"
+    title_property: "Title"
+    date_property: "Date Added"
+    tags_property: "Keywords"
+    description: "Work-related podcast insights and learning materials"
+  
+  # Research database
+  research:
+    name: "Research & Academic"
+    database_id: "abcdef12-3456-7890-abcd-ef1234567890"
+    token: "secret_your_research_notion_token_here"
+    title_property: "Research Topic"
+    date_property: "Date"
+    tags_property: "Research Areas"
+    description: "Academic and research-focused podcast content"
+
+# ========================
+# Podcast-Specific Mappings
+# Map shows to specific analysis types and settings
+# ========================
+podcasts:
+
+  # ================
+  # Business & Product Management
+  # ================
+  lenny:
+    names:
+      - "Lenny's Podcast"
+      - "Lenny's Newsletter"
+      - "Lenny Rachitsky"
+    analysis:
+      type: "interview_guest_focused"  # Focus on guest insights
+      temperature: 0.1                 # Lower temp for factual content
+      custom_prompts: |
+        SPECIAL FOCUS for Lenny's Podcast:
+        - This is a product management interview show
+        - Prioritize guest insights about product strategy, growth tactics, and career advice
+        - Extract specific frameworks, metrics, and methodologies mentioned by guests
+        - Include concrete examples and case studies shared by guests
+        - Note any tools, books, or resources specifically recommended
+        - Focus on actionable advice for product managers and growth professionals
+    pipeline:
+      align: true
+      diarize: false        # Usually just host + guest
+      deepcast: true
+      extract_markdown: true
+      notion: true          # Auto-upload to work database
+    notion_database: "work"
+    description: "Product management interview podcast focusing on guest expertise"
+    tags: ["product", "growth", "strategy", "business"]
+
+  tim_ferriss:
+    names:
+      - "The Tim Ferriss Show"
+      - "Tim Ferriss"
+      - "Tim Ferris"
+    analysis:
+      type: "interview_guest_focused"
+      custom_prompts: |
+        SPECIAL FOCUS for Tim Ferriss Show:
+        - Focus heavily on guest's tactics, routines, and specific strategies
+        - Extract morning routines, productivity systems, and optimization techniques
+        - Prioritize actionable advice and concrete recommendations
+        - Note books, tools, and resources that guests swear by
+        - Include specific metrics, timeframes, and quantified results
+    pipeline:
+      align: true
+      deepcast: true
+      extract_markdown: true
+      notion: true
+    notion_database: "personal"
+    description: "Performance optimization interviews"
+    tags: ["productivity", "optimization", "performance", "tactics"]
+
+  # ================
+  # Technical & AI Content
+  # ================
+  lex_fridman:
+    names:
+      - "Lex Fridman Podcast"
+      - "Lex Fridman"
+      - "Artificial Intelligence Podcast"
+    analysis:
+      type: "interview_host_focused"    # Capture Lex's thoughtful questions
+      temperature: 0.3                  # Higher temp for creative insights
+      model: "gpt-4.1"                 # Use larger model for complex topics
+      custom_prompts: |
+        SPECIAL FOCUS for Lex Fridman Podcast:
+        - Academic/intellectual interview format with long-form discussions
+        - Capture Lex's thoughtful questions that reveal philosophical frameworks
+        - Balance deep technical discussions with human elements
+        - Note both technical insights and personal/philosophical reflections
+        - Include mathematical concepts, research references, and academic insights
+        - Focus on the intersection of technology, philosophy, and human nature
+    pipeline:
+      align: true
+      diarize: true         # Often multiple speakers in technical discussions
+      deepcast: true
+      extract_markdown: true
+      notion: false         # Episodes too long for regular upload
+    notion_database: "research"
+    description: "Long-form intellectual interviews"
+    tags: ["ai", "philosophy", "science", "technology", "research"]
+
+  # ================
+  # Startup & Entrepreneurship
+  # ================
+  yc_podcast:
+    names:
+      - "Y Combinator Podcast"
+      - "YC Podcast"
+      - "Y Combinator"
+    analysis:
+      type: "business"
+      custom_prompts: |
+        SPECIAL FOCUS for Y Combinator Podcast:
+        - Startup and entrepreneurship focus
+        - Extract specific business advice, funding insights, and growth strategies
+        - Note market analysis, competitive insights, and operational details
+        - Prioritize actionable business intelligence
+        - Include specific metrics, funding amounts, and growth numbers
+        - Focus on lessons learned and common startup mistakes
+    pipeline:
+      align: true
+      deepcast: true
+      extract_markdown: true
+      notion: true
+    notion_database: "work"
+    tags: ["startup", "entrepreneurship", "vc", "business", "funding"]
+
+  # ================
+  # News & Current Events
+  # ================
+  npr_shows:
+    names:
+      - "Planet Money"
+      - "NPR Politics Podcast"
+      - "The Daily"
+      - "Up First"
+    analysis:
+      type: "news"
+      temperature: 0.1      # Lower temp for factual reporting
+      custom_prompts: |
+        SPECIAL FOCUS for News Podcasts:
+        - Focus on key facts, developments, and their implications
+        - Extract expert analysis and commentary on current events
+        - Highlight predictions, trends, and forward-looking statements
+        - Note different perspectives on controversial topics
+        - Include specific dates, numbers, and factual details
+        - Summarize policy implications and market impacts
+    pipeline:
+      align: true
+      diarize: true         # Multiple reporters/interviews
+      deepcast: true
+      extract_markdown: true
+      notion: false         # News content gets stale quickly
+    notion_database: "personal"
+    tags: ["news", "politics", "economics", "current-events"]
+
+  # ================
+  # Educational Content
+  # ================
+  educational:
+    names:
+      - "Radiolab"
+      - "99% Invisible"
+      - "TED Radio Hour"
+      - "Science Vs"
+    analysis:
+      type: "educational"
+      custom_prompts: |
+        SPECIAL FOCUS for Educational Podcasts:
+        - Extract core concepts, frameworks, and learning objectives
+        - Identify step-by-step processes and methodologies
+        - Highlight examples, case studies, and practical applications
+        - Note resources for further learning and research
+        - Include scientific studies, research findings, and expert opinions
+        - Focus on educational value and knowledge transfer
+    pipeline:
+      align: true
+      diarize: true
+      deepcast: true
+      extract_markdown: true
+      notion: true
+    notion_database: "research"
+    tags: ["education", "science", "learning", "research"]
+
+# ========================
+# Custom Variables
+# For templating and future extensibility
+# ========================
+variables:
+  author: "Your Name"
+  organization: "Your Company"
+  default_language: "en"
+  transcription_model: "large-v2"
+  time_zone: "America/New_York"
+  
+  # Custom prompt snippets (can be referenced in podcast configs)
+  common_prompts:
+    extract_tools: "Pay special attention to tools, software, and resources mentioned"
+    extract_books: "Note any books, articles, or publications recommended"
+    extract_metrics: "Include specific numbers, percentages, and quantified results"
+    extract_frameworks: "Identify and explain any frameworks or methodologies discussed"
+
+# ========================
+# Environment-Specific Overrides
+# (Future feature - could have different configs per environment)
+# ========================
+# environments:
+#   development:
+#     analysis:
+#       model: "gpt-4.1-mini"  # Cheaper model for testing
+#       temperature: 0.5       # Higher temp for experimentation
+#   production:
+#     analysis:
+#       model: "gpt-4.1"       # Better model for final output
+#       temperature: 0.2       # Lower temp for consistency

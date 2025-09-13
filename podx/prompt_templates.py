@@ -65,8 +65,10 @@ Core principles:
 
 
 def build_enhanced_variant(
-    has_time: bool, has_speaker: bool, podcast_type: PodcastType = PodcastType.GENERAL,
-    episode_duration_minutes: Optional[int] = None
+    has_time: bool,
+    has_speaker: bool,
+    podcast_type: PodcastType = PodcastType.GENERAL,
+    episode_duration_minutes: Optional[int] = None,
 ) -> str:
     """Build context-aware analysis instructions with adaptive content scaling."""
 
@@ -154,9 +156,11 @@ def get_content_scaling(episode_duration_minutes: Optional[int]) -> str:
     """Get content scaling guidance based on episode length."""
     if not episode_duration_minutes:
         return "- Episode length unknown; use standard content density"
-    
+
     if episode_duration_minutes < 30:
-        return "- Short episode (<30min): Focus on the most essential insights, be concise"
+        return (
+            "- Short episode (<30min): Focus on the most essential insights, be concise"
+        )
     elif episode_duration_minutes < 60:
         return "- Medium episode (30-60min): Standard analysis depth with comprehensive coverage"
     elif episode_duration_minutes < 90:
@@ -169,7 +173,7 @@ def get_key_insights_target(episode_duration_minutes: Optional[int]) -> str:
     """Get target number of key insights based on episode length."""
     if not episode_duration_minutes:
         return "12-20"
-    
+
     # Scale roughly: 1 insight per 3-4 minutes, with reasonable bounds
     min_insights = max(8, episode_duration_minutes // 4)
     max_insights = max(15, episode_duration_minutes // 2.5)
@@ -180,7 +184,7 @@ def get_gold_nuggets_target(episode_duration_minutes: Optional[int]) -> str:
     """Get target number of gold nuggets based on episode length."""
     if not episode_duration_minutes:
         return "6-12"
-    
+
     # Scale roughly: 1 nugget per 8-10 minutes
     min_nuggets = max(4, episode_duration_minutes // 10)
     max_nuggets = max(8, episode_duration_minutes // 6)
@@ -191,7 +195,7 @@ def get_quotes_target(episode_duration_minutes: Optional[int]) -> str:
     """Get target number of quotes based on episode length."""
     if not episode_duration_minutes:
         return "4-8"
-    
+
     # Scale roughly: 1 quote per 12-15 minutes
     min_quotes = max(3, episode_duration_minutes // 15)
     max_quotes = max(6, episode_duration_minutes // 8)
@@ -202,7 +206,7 @@ def get_outline_target(episode_duration_minutes: Optional[int]) -> str:
     """Get target number of outline sections based on episode length."""
     if not episode_duration_minutes:
         return "10-15"
-    
+
     # Scale roughly: 1 section per 5-6 minutes
     min_sections = max(6, episode_duration_minutes // 6)
     max_sections = max(12, episode_duration_minutes // 4)
@@ -218,14 +222,12 @@ def get_type_specific_focus(podcast_type: PodcastType) -> str:
         - Highlight personal stories, career insights, and lessons learned
         - Focus on advice, frameworks, and methodologies shared
         - Note interesting background details that provide context""",
-        
         PodcastType.INTERVIEW_HOST_FOCUSED: """
         - Prioritize host questions, frameworks, and interviewing approach
         - Extract the host's insights, observations, and follow-up questions
         - Capture how the host frames topics and guides conversation
         - Note the host's commentary and synthesis between guest responses
         - Include host questions verbatim when they reveal important frameworks""",
-        
         PodcastType.INTERVIEW_GUEST_FOCUSED: """
         - Prioritize guest responses, expertise, and unique perspectives
         - Extract detailed guest insights, methodologies, and personal experiences
@@ -262,19 +264,16 @@ def get_type_specific_focus(podcast_type: PodcastType) -> str:
         - Extract social commentary embedded in humor
         - Highlight memorable jokes and comedic premises
         - Note genuine insights between the entertainment""",
-        
         PodcastType.SOLO_COMMENTARY: """
         - Focus on the host's personal insights, opinions, and frameworks
         - Extract thought processes, reasoning, and unique perspectives
         - Highlight personal experiences and lessons shared
         - Note commentary on current events or industry trends""",
-        
         PodcastType.PANEL_DISCUSSION: """
         - Capture different perspectives from multiple participants
         - Note agreements, disagreements, and synthesis between speakers
         - Extract unique contributions from each panel member
         - Highlight collaborative insights and group dynamics""",
-        
         PodcastType.GENERAL: """
         - Adapt analysis style to the content's natural structure
         - Focus on the most valuable and actionable information
@@ -384,7 +383,6 @@ TEMPLATES = {
         + "\n\nEmphasize: The value created through the host-guest interaction.",
         analysis_focus="Extract value from both host questions and guest responses, focusing on the conversation's insights.",
     ),
-    
     PodcastType.INTERVIEW_HOST_FOCUSED: PromptTemplate(
         system_prompt=ENHANCED_SYSTEM_BASE
         + "\n\nSpecialization: Host-focused interview analysis capturing interviewing excellence and host insights.",
@@ -395,7 +393,6 @@ TEMPLATES = {
         + "\n\nEmphasize: Host's interviewing approach, question quality, and insights. Show how host guides valuable conversation.",
         analysis_focus="Extract maximum value from the host's interviewing expertise and conversational guidance.",
     ),
-    
     PodcastType.INTERVIEW_GUEST_FOCUSED: PromptTemplate(
         system_prompt=ENHANCED_SYSTEM_BASE
         + "\n\nSpecialization: Guest-focused interview analysis prioritizing guest expertise and unique perspectives.",
@@ -432,7 +429,6 @@ TEMPLATES = {
         + "\n\nEmphasize: The host's unique perspective and thought processes.",
         analysis_focus="Extract value from the host's solo insights and commentary.",
     ),
-    
     PodcastType.PANEL_DISCUSSION: PromptTemplate(
         system_prompt=ENHANCED_SYSTEM_BASE
         + "\n\nSpecialization: Panel discussion analysis capturing multiple perspectives and group dynamics.",
@@ -442,7 +438,6 @@ TEMPLATES = {
         + "\n\nEmphasize: The diversity of perspectives and collaborative insights.",
         analysis_focus="Extract value from multiple perspectives and group dynamics.",
     ),
-    
     PodcastType.GENERAL: PromptTemplate(
         system_prompt=ENHANCED_SYSTEM_BASE,
         map_instructions=ENHANCED_MAP_INSTRUCTIONS,
