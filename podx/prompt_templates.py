@@ -93,6 +93,19 @@ def build_enhanced_variant(
     # Adaptive content scaling based on episode length
     content_scaling = get_content_scaling(episode_duration_minutes)
 
+    # Special Q&A section for guest-focused interviews
+    qa_section = ""
+    if podcast_type == PodcastType.INTERVIEW_GUEST_FOCUSED:
+        qa_section = f"""
+    ## 🎤 Key Q&A Exchanges
+    {get_qa_target(episode_duration_minutes)} most valuable question-answer exchanges:
+    - **Q:** [Host question verbatim or close paraphrase]
+    - **A:** [Guest response - capture the essence without filler, include specific examples, numbers, frameworks]
+    - Focus on exchanges where guest provides frameworks, specific advice, or unique insights
+    - Include timestamp if available
+    
+    """
+
     return textwrap.dedent(
         f"""
     Create a comprehensive yet concise analysis of this podcast transcript.
@@ -117,7 +130,7 @@ def build_enhanced_variant(
     - One clear insight or finding
     - 2-3 sentences with sufficient context
     - Actionable or intellectually valuable
-    
+    {qa_section}
     ## 💎 Gold Nuggets
     {get_gold_nuggets_target(episode_duration_minutes)} surprising, counterintuitive, or novel ideas that stood out. Include:
     - Why this insight is valuable or unexpected
@@ -211,6 +224,17 @@ def get_outline_target(episode_duration_minutes: Optional[int]) -> str:
     min_sections = max(6, episode_duration_minutes // 6)
     max_sections = max(12, episode_duration_minutes // 4)
     return f"{int(min_sections)}-{int(max_sections)}"
+
+
+def get_qa_target(episode_duration_minutes: Optional[int]) -> str:
+    """Get target number of Q&A exchanges based on episode length."""
+    if not episode_duration_minutes:
+        return "8-12"
+
+    # Scale roughly: 1 Q&A per 8-10 minutes
+    min_qa = max(5, episode_duration_minutes // 10)
+    max_qa = max(8, episode_duration_minutes // 6)
+    return f"{int(min_qa)}-{int(max_qa)}"
 
 
 def get_type_specific_focus(podcast_type: PodcastType) -> str:
