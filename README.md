@@ -1,6 +1,78 @@
 # podx
 
-Composable podcast tooling (Unix-style):
+🎙️ **Intelligent Podcast Processing Platform**
+
+Composable podcast tooling with advanced AI analysis, YAML configuration, and multi-database support.
+
+## ✨ Latest Features
+
+- **🎛️ YAML Configuration System** - Human-readable configs with podcast-specific settings
+- **🎯 Advanced Prompt Engineering** - Specialized analysis types (guest-focused, host-focused, etc.)
+- **🗃️ Multiple Notion Databases** - Route different podcasts to different databases automatically
+- **📏 Length-Adaptive Extraction** - More insights from longer episodes, concise summaries for short ones
+- **🔌 Plugin Architecture** - Extensible system for custom processing steps
+- **⚙️ Smart Defaults** - Eliminate repetitive CLI arguments with intelligent configuration
+
+## 🚀 Quick Start
+
+```bash
+# 1. Install globally
+pipx install -e ".[asr,whisperx,llm,notion]"
+
+# 2. Initialize configuration  
+podx config init
+
+# 3. Process any podcast with one simple command
+podx run --show "Lenny's Podcast" --date 2025-08-17
+# ↳ Automatically applies: --align --deepcast --extract-markdown --notion
+# ↳ Uses guest-focused analysis with product management prompts
+# ↳ Routes to work Notion database with work API token
+```
+
+**📖 [Complete Configuration Guide →](CONFIGURATION.md)**
+
+## 🎯 Intelligent Podcast Processing
+
+### Advanced Analysis Types
+
+| Analysis Type | Focus | Perfect For |
+|---------------|-------|-------------|
+| `interview_guest_focused` | Guest insights & expertise | Lenny's Podcast, Tim Ferriss Show |
+| `interview_host_focused` | Host questions & frameworks | Lex Fridman Podcast |
+| `business` | Strategy & market insights | Y Combinator, startup content |
+| `tech` | Technical depth & implementation | Developer podcasts |
+| `educational` | Learning concepts & frameworks | Academic content |
+
+### YAML Configuration Example
+
+```yaml
+# ~/.podx/config.yaml
+podcasts:
+  lenny:
+    names: ["Lenny's Podcast", "Lenny Rachitsky"]
+    analysis:
+      type: "interview_guest_focused"
+      custom_prompts: |
+        Focus on product management insights,
+        frameworks, and actionable advice...
+    pipeline:
+      align: true
+      deepcast: true
+      notion: true
+    notion_database: "work"  # Auto-routes to work DB
+```
+
+### Multiple Notion Databases
+
+```yaml
+notion_databases:
+  personal:
+    database_id: "personal-db-id"
+    token: "personal-token"
+  work:
+    database_id: "work-db-id" 
+    token: "work-token"
+```
 
 ## Installation
 
@@ -37,6 +109,16 @@ pip install -e ".[asr,whisperx,llm,notion]"
 - `podx-deepcast`: AI-powered transcript analysis and summarization
 - `podx-notion`: Upload Deepcast output to Notion as formatted pages
 - `podx run`: Convenience orchestrator that chains steps
+
+### 🎛️ Configuration Management
+
+- `podx config init`: Create example YAML configuration
+- `podx config show`: View current configuration (syntax highlighted)
+- `podx config validate`: Validate configuration syntax and settings
+- `podx config databases`: List configured Notion databases
+- `podx podcast list`: Show all podcast-specific configurations
+- `podx podcast create`: Create new podcast configuration
+- `podx plugin list`: Show available plugins
 
 ## Setup
 
