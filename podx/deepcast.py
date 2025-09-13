@@ -378,6 +378,11 @@ def deepcast(
     type=click.Choice([t.value for t in PodcastType]),
     help="Podcast type for specialized analysis (auto-detected if not specified)",
 )
+@click.option(
+    "--meta",
+    type=click.Path(exists=True, path_type=Path),
+    help="Episode metadata JSON file (to populate show name, episode title, date)",
+)
 def main(
     inp: Optional[Path],
     output: Optional[Path],
@@ -386,6 +391,7 @@ def main(
     chunk_chars: int,
     extract_markdown: bool,
     podcast_type_str: Optional[str],
+    meta: Optional[Path],
 ):
     """
     podx-deepcast: turn transcripts into a polished Markdown brief (and optional JSON) with summaries key points quotes timestamps and speaker labels when available
@@ -396,6 +402,17 @@ def main(
 
     transcript = read_stdin_or_file(inp)
     want_json = True  # Always generate JSON for unified output
+
+    # Load and merge episode metadata if provided
+    if meta:
+        episode_meta = json.loads(meta.read_text())
+        # Merge metadata into transcript for show name, episode title, etc.
+        transcript.update({
+            "show": episode_meta.get("show", transcript.get("show")),
+            "episode_title": episode_meta.get("episode_title", transcript.get("episode_title")),
+            "episode_published": episode_meta.get("episode_published", transcript.get("episode_published")),
+            "episode_description": episode_meta.get("episode_description", transcript.get("episode_description")),
+        })
 
     # Convert podcast type string to enum
     podcast_type = None
