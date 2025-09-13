@@ -268,30 +268,6 @@ def run(
     # Print header and start progress tracking
     print_podx_header()
 
-    # Show pipeline configuration
-    steps = ["fetch", "transcode", "transcribe"]
-    if align:
-        steps.append("align")
-    if diarize:
-        steps.append("diarize")
-    steps.extend(["export"])
-    if deepcast:
-        steps.append("deepcast")
-    if notion:
-        steps.append("notion")
-
-    logger.info(
-        "Starting pipeline",
-        steps=steps,
-        show=show,
-        rss_url=rss_url,
-        date=date,
-        model=model,
-        compute=compute,
-    )
-
-    print_podx_info(f"Pipeline: {' → '.join(steps)}")
-
     start_time = time.time()
 
     # Initialize results dictionary
@@ -458,6 +434,30 @@ def run(
                     logger.info(
                         "Applied JSON config temperature", temperature=deepcast_temp
                     )
+
+        # Show pipeline configuration (after YAML/JSON config is applied)
+        steps = ["fetch", "transcode", "transcribe"]
+        if align:
+            steps.append("align")
+        if diarize:
+            steps.append("diarize")
+        steps.extend(["export"])
+        if deepcast:
+            steps.append("deepcast")
+        if notion:
+            steps.append("notion")
+
+        logger.info(
+            "Starting pipeline",
+            steps=steps,
+            show=show,
+            rss_url=rss_url,
+            date=date,
+            model=model,
+            compute=compute,
+        )
+
+        print_podx_info(f"Pipeline: {' → '.join(steps)}")
 
         # Determine workdir from metadata
         if workdir:
