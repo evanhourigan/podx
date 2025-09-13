@@ -3,33 +3,32 @@
 # Copy to ~/.podx/config.yaml and customize for your needs
 
 version: "1.0"
-environment: "production"  # or "development", "staging", etc.
+environment: "production" # or "development", "staging", etc.
 
 # ========================
 # Global Default Settings
 # ========================
 defaults:
-  align: true              # Always align transcripts
-  deepcast: true          # Always run AI analysis
-  extract_markdown: true  # Always extract markdown
-  notion: false           # Don't auto-upload to Notion (podcast-specific overrides)
-  clean: false            # Keep intermediate files for debugging
+  align: true # Always align transcripts
+  deepcast: true # Always run AI analysis
+  extract_markdown: true # Always extract markdown
+  notion: false # Don't auto-upload to Notion (podcast-specific overrides)
+  clean: false # Keep intermediate files for debugging
 
 # ========================
-# Global Analysis Settings  
+# Global Analysis Settings
 # ========================
 analysis:
-  type: "general"         # Default podcast type
-  model: "gpt-4.1-mini"   # Default OpenAI model
-  temperature: 0.2        # Default temperature
-  chunk_size: 24000       # Default chunk size
+  type: "general" # Default podcast type
+  model: "gpt-4.1-mini" # Default OpenAI model
+  temperature: 0.2 # Default temperature
+  chunk_size: 24000 # Default chunk size
 
 # ========================
 # Notion Database Configurations
 # Multiple databases for different purposes
 # ========================
 notion_databases:
-  
   # Personal podcast library
   personal:
     name: "Personal Podcast Library"
@@ -39,7 +38,7 @@ notion_databases:
     date_property: "Published"
     tags_property: "Tags"
     description: "Personal podcast collection for learning and entertainment"
-  
+
   # Work knowledge base
   work:
     name: "Work Knowledge Base"
@@ -49,7 +48,7 @@ notion_databases:
     date_property: "Date Added"
     tags_property: "Keywords"
     description: "Work-related podcast insights and learning materials"
-  
+
   # Research database
   research:
     name: "Research & Academic"
@@ -65,7 +64,6 @@ notion_databases:
 # Map shows to specific analysis types and settings
 # ========================
 podcasts:
-
   # ================
   # Business & Product Management
   # ================
@@ -75,8 +73,8 @@ podcasts:
       - "Lenny's Newsletter"
       - "Lenny Rachitsky"
     analysis:
-      type: "interview_guest_focused"  # Focus on guest insights
-      temperature: 0.1                 # Lower temp for factual content
+      type: "interview_guest_focused" # Focus on guest insights
+      temperature: 0.1 # Lower temp for factual content
       custom_prompts: |
         SPECIAL FOCUS for Lenny's Podcast:
         - This is a product management interview show
@@ -87,10 +85,10 @@ podcasts:
         - Focus on actionable advice for product managers and growth professionals
     pipeline:
       align: true
-      diarize: false        # Usually just host + guest
+      diarize: false # Usually just host + guest
       deepcast: true
       extract_markdown: true
-      notion: true          # Auto-upload to work database
+      notion: true # Auto-upload to work database
     notion_database: "work"
     description: "Product management interview podcast focusing on guest expertise"
     tags: ["product", "growth", "strategy", "business"]
@@ -127,9 +125,9 @@ podcasts:
       - "Lex Fridman"
       - "Artificial Intelligence Podcast"
     analysis:
-      type: "interview_host_focused"    # Capture Lex's thoughtful questions
-      temperature: 0.3                  # Higher temp for creative insights
-      model: "gpt-4.1"                 # Use larger model for complex topics
+      type: "interview_host_focused" # Capture Lex's thoughtful questions
+      temperature: 0.3 # Higher temp for creative insights
+      model: "gpt-4.1" # Use larger model for complex topics
       custom_prompts: |
         SPECIAL FOCUS for Lex Fridman Podcast:
         - Academic/intellectual interview format with long-form discussions
@@ -140,10 +138,10 @@ podcasts:
         - Focus on the intersection of technology, philosophy, and human nature
     pipeline:
       align: true
-      diarize: true         # Often multiple speakers in technical discussions
+      diarize: true # Often multiple speakers in technical discussions
       deepcast: true
       extract_markdown: true
-      notion: false         # Episodes too long for regular upload
+      notion: false # Episodes too long for regular upload
     notion_database: "research"
     description: "Long-form intellectual interviews"
     tags: ["ai", "philosophy", "science", "technology", "research"]
@@ -185,7 +183,7 @@ podcasts:
       - "Up First"
     analysis:
       type: "news"
-      temperature: 0.1      # Lower temp for factual reporting
+      temperature: 0.1 # Lower temp for factual reporting
       custom_prompts: |
         SPECIAL FOCUS for News Podcasts:
         - Focus on key facts, developments, and their implications
@@ -196,10 +194,10 @@ podcasts:
         - Summarize policy implications and market impacts
     pipeline:
       align: true
-      diarize: true         # Multiple reporters/interviews
+      diarize: true # Multiple reporters/interviews
       deepcast: true
       extract_markdown: true
-      notion: false         # News content gets stale quickly
+      notion: false # News content gets stale quickly
     notion_database: "personal"
     tags: ["news", "politics", "economics", "current-events"]
 
@@ -241,14 +239,13 @@ variables:
   default_language: "en"
   transcription_model: "large-v2"
   time_zone: "America/New_York"
-  
+
   # Custom prompt snippets (can be referenced in podcast configs)
   common_prompts:
     extract_tools: "Pay special attention to tools, software, and resources mentioned"
     extract_books: "Note any books, articles, or publications recommended"
     extract_metrics: "Include specific numbers, percentages, and quantified results"
     extract_frameworks: "Identify and explain any frameworks or methodologies discussed"
-
 # ========================
 # Environment-Specific Overrides
 # (Future feature - could have different configs per environment)

@@ -26,7 +26,6 @@ except ImportError:
     OpenAI = None  # type: ignore
 
 from .podcast_config import get_podcast_config
-from .yaml_config import get_podcast_yaml_config
 from .prompt_templates import (
     ENHANCED_JSON_SCHEMA,
     PodcastType,
@@ -34,6 +33,7 @@ from .prompt_templates import (
     detect_podcast_type,
     get_template,
 )
+from .yaml_config import get_podcast_yaml_config
 
 
 # utils
