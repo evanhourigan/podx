@@ -374,7 +374,9 @@ def upsert_page(
 
     props = {
         podcast_prop: {"title": [{"type": "text", "text": {"content": podcast_name}}]},
-        episode_prop: {"rich_text": [{"type": "text", "text": {"content": episode_title}}]},
+        episode_prop: {
+            "rich_text": [{"type": "text", "text": {"content": episode_title}}]
+        },
     }
     if date_iso:
         props[date_prop] = {"date": {"start": date_iso}}
@@ -559,8 +561,22 @@ def main(
 
     if not date_iso:
         d = meta.get("episode_published") or meta.get("date")
-        if isinstance(d, str) and len(d) >= 10:
-            date_iso = d[:10]  # YYYY-MM-DD from ISO datetime
+        if isinstance(d, str):
+            # Handle different date formats
+            try:
+                from datetime import datetime
+
+                # Try parsing RFC 2822 format (e.g., "Sun, 17 Aug 2025 11:03:01 GMT")
+                if "," in d and len(d) > 20:
+                    dt = datetime.strptime(d, "%a, %d %b %Y %H:%M:%S %Z")
+                    date_iso = dt.strftime("%Y-%m-%d")
+                # Try ISO format
+                elif len(d) >= 10:
+                    date_iso = d[:10]  # YYYY-MM-DD from ISO datetime
+            except ValueError:
+                # Fallback: try to extract YYYY-MM-DD pattern
+                if len(d) >= 10:
+                    date_iso = d[:10]
 
     blocks = md_to_blocks(md)
 

@@ -703,7 +703,7 @@ def run(
                 "--markdown",
                 md_path,
                 "--meta",
-                str(wd / "latest.json"),
+                str(wd / "episode-meta.json"),
                 "--db",
                 notion_db,
                 "--podcast-prop",
