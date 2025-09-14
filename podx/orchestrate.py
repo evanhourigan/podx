@@ -202,14 +202,19 @@ def main():
     help="Notion database ID (required if --notion)",
 )
 @click.option(
-    "--title-prop",
-    default=lambda: get_config().notion_title_prop,
-    help="Notion property name for title",
+    "--podcast-prop",
+    default=lambda: get_config().notion_podcast_prop,
+    help="Notion property name for podcast name",
 )
 @click.option(
     "--date-prop",
     default=lambda: get_config().notion_date_prop,
     help="Notion property name for date",
+)
+@click.option(
+    "--episode-prop",
+    default=lambda: get_config().notion_episode_prop,
+    help="Notion property name for episode title",
 )
 @click.option(
     "--append-content",
@@ -249,8 +254,9 @@ def run(
     extract_markdown: bool,
     notion: bool,
     notion_db: Optional[str],
-    title_prop: str,
+    podcast_prop: str,
     date_prop: str,
+    episode_prop: str,
     append_content: bool,
     full: bool,
     verbose: bool,
@@ -382,10 +388,13 @@ def run(
                         import os
 
                         os.environ["NOTION_TOKEN"] = notion_db_config.token
-                        os.environ["NOTION_TITLE_PROP"] = (
-                            notion_db_config.title_property
+                        os.environ["NOTION_PODCAST_PROP"] = (
+                            notion_db_config.podcast_property
                         )
                         os.environ["NOTION_DATE_PROP"] = notion_db_config.date_property
+                        os.environ["NOTION_EPISODE_PROP"] = (
+                            notion_db_config.episode_property
+                        )
 
             elif json_config:
                 logger.info(
@@ -697,10 +706,12 @@ def run(
                 str(wd / "latest.json"),
                 "--db",
                 notion_db,
-                "--title-prop",
-                title_prop,
+                "--podcast-prop",
+                podcast_prop,
                 "--date-prop",
                 date_prop,
+                "--episode-prop",
+                episode_prop,
             ]
 
             if json_path:

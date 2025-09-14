@@ -41,61 +41,67 @@ def rt(s: str) -> List[Dict[str, Any]]:
     return [{"type": "text", "text": {"content": s}}]
 
 
-def _split_blocks_for_notion(blocks: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
+def _split_blocks_for_notion(
+    blocks: List[Dict[str, Any]],
+) -> List[List[Dict[str, Any]]]:
     """Split blocks into chunks that respect content boundaries and stay under 100 blocks."""
     if len(blocks) <= 100:
         return [blocks]
-    
+
     chunks = []
     current_chunk = []
-    
+
     for i, block in enumerate(blocks):
         current_chunk.append(block)
-        
+
         # Check if we need to split
         if len(current_chunk) >= 100:
             # Find optimal split point
-            optimal_split = _find_optimal_split_point(blocks, i - len(current_chunk) + 1, i + 1)
-            
+            optimal_split = _find_optimal_split_point(
+                blocks, i - len(current_chunk) + 1, i + 1
+            )
+
             # Split at the optimal point
             if optimal_split < len(current_chunk):
                 # Create chunk up to optimal split point
                 chunk = current_chunk[:optimal_split]
                 chunks.append(chunk)
-                
+
                 # Start new chunk from optimal split point
                 current_chunk = current_chunk[optimal_split:]
             else:
                 # No good split point found, use current chunk
                 chunks.append(current_chunk)
                 current_chunk = []
-    
+
     # Add any remaining blocks
     if current_chunk:
         chunks.append(current_chunk)
-    
+
     return chunks
 
 
-def _find_optimal_split_point(blocks: List[Dict[str, Any]], start_pos: int, target_end: int) -> int:
+def _find_optimal_split_point(
+    blocks: List[Dict[str, Any]], start_pos: int, target_end: int
+) -> int:
     """Find the optimal split point that keeps content together."""
     # Start from the target end and work backwards to find the best split
     best_split_pos = min(target_end, len(blocks))
-    
+
     # Look within a reasonable range around the target
     search_start = max(start_pos, target_end - 50)  # Look back up to 50 blocks
     search_end = min(len(blocks), target_end + 10)  # Look forward up to 10 blocks
-    
+
     for pos in range(search_start, search_end):
         if pos <= start_pos:
             continue
-            
+
         # Check if this is a good split point
         if _is_optimal_split_point(blocks, pos):
             # Update best_split_pos only if this position is closer to target_end
             if abs(pos - target_end) < abs(best_split_pos - target_end):
                 best_split_pos = pos
-    
+
     return best_split_pos
 
 
@@ -103,25 +109,28 @@ def _is_optimal_split_point(blocks: List[Dict[str, Any]], pos: int) -> bool:
     """Check if a position is an optimal split point."""
     if pos >= len(blocks):
         return False
-    
+
     current_block = blocks[pos]
-    
+
     # If this is a heading, it's a great split point
-    if current_block.get('type', '').startswith('heading'):
+    if current_block.get("type", "").startswith("heading"):
         return True
-    
+
     # If this is a paragraph, analyze the content
-    if current_block.get('type') == 'paragraph':
-        rich_text = current_block.get('paragraph', {}).get('rich_text', [])
+    if current_block.get("type") == "paragraph":
+        rich_text = current_block.get("paragraph", {}).get("rich_text", [])
         if rich_text and len(rich_text) > 0:
-            content = rich_text[0].get('text', {}).get('content', '')
-            
+            content = rich_text[0].get("text", {}).get("content", "")
+
             # Check if this looks like a speaker label or section break
-            is_section_break = any(marker in content.upper() for marker in ['##', '###', 'SPEAKER', ':', '---'])
-            
+            is_section_break = any(
+                marker in content.upper()
+                for marker in ["##", "###", "SPEAKER", ":", "---"]
+            )
+
             if is_section_break:
                 return True
-    
+
     return False
 
 
@@ -341,27 +350,32 @@ def _set_page_cover(client: Client, page_id: str, cover_url: str) -> None:
 def upsert_page(
     client: Client,
     db_id: str,
-    title: str,
+    podcast_name: str,
+    episode_title: str,
     date_iso: Optional[str],
-    title_prop: str = "Name",
+    podcast_prop: str = "Podcast",
+    episode_prop: str = "Episode",
     date_prop: str = "Date",
     props_extra: Optional[Dict[str, Any]] = None,
     blocks: Optional[List[Dict[str, Any]]] = None,
     replace_content: bool = False,
 ) -> str:
     """
-    Try to find an existing page (by exact title and optionally date), else create.
+    Try to find an existing page (by podcast name, episode title and optionally date), else create.
     Returns the page ID.
     """
-    # Query by title (Notion filter on Title property)
-    filt = {"and": [{"property": title_prop, "title": {"equals": title}}]}
+    # Query by episode title (Notion filter on Episode property)
+    filt = {"and": [{"property": episode_prop, "rich_text": {"equals": episode_title}}]}
 
     if date_iso:
         filt["and"].append({"property": date_prop, "date": {"equals": date_iso}})
 
     q = client.databases.query(database_id=db_id, filter=filt)
 
-    props = {title_prop: {"title": [{"type": "text", "text": {"content": title}}]}}
+    props = {
+        podcast_prop: {"title": [{"type": "text", "text": {"content": podcast_name}}]},
+        episode_prop: {"rich_text": [{"type": "text", "text": {"content": episode_title}}]},
+    }
     if date_iso:
         props[date_prop] = {"date": {"start": date_iso}}
 
@@ -376,7 +390,7 @@ def upsert_page(
         if blocks is not None:
             if replace_content:
                 _clear_children(client, page_id)
-            
+
             # Handle chunking for large block lists
             if len(blocks) > 100:
                 chunks = _split_blocks_for_notion(blocks)
@@ -391,17 +405,17 @@ def upsert_page(
         if blocks and len(blocks) > 100:
             # Handle chunking for large block lists
             chunks = _split_blocks_for_notion(blocks)
-            
+
             # Create page with first chunk
             resp = client.pages.create(
                 parent={"database_id": db_id}, properties=props, children=chunks[0]
             )
             page_id = resp["id"]
-            
+
             # Append remaining chunks
             for chunk in chunks[1:]:
                 client.blocks.children.append(block_id=page_id, children=chunk)
-            
+
             return page_id
         else:
             # Small content, create normally
@@ -447,14 +461,19 @@ def upsert_page(
     help="Episode metadata JSON (to derive title/date)",
 )
 @click.option(
-    "--title-prop",
-    default=lambda: os.getenv("NOTION_TITLE_PROP", "Name"),
-    help="Notion property name for title",
+    "--podcast-prop",
+    default=lambda: os.getenv("NOTION_PODCAST_PROP", "Podcast"),
+    help="Notion property name for podcast name",
 )
 @click.option(
     "--date-prop",
     default=lambda: os.getenv("NOTION_DATE_PROP", "Date"),
     help="Notion property name for date",
+)
+@click.option(
+    "--episode-prop",
+    default=lambda: os.getenv("NOTION_EPISODE_PROP", "Episode"),
+    help="Notion property name for episode title",
 )
 @click.option(
     "--append-content",
@@ -477,8 +496,9 @@ def main(
     md_path: Optional[Path],
     json_path: Optional[Path],
     meta_path: Optional[Path],
-    title_prop: str,
+    podcast_prop: str,
     date_prop: str,
+    episode_prop: str,
     append_content: bool,
     cover_image: bool,
     dry_run: bool,
@@ -531,9 +551,11 @@ def main(
         if json_path:
             js = json.loads(json_path.read_text(encoding="utf-8"))
 
-    # Derive title and date
+    # Derive podcast name, episode title and date
+    podcast_name = meta.get("show") or "Unknown Podcast"
     if not title:
         title = meta.get("episode_title") or meta.get("title") or "Podcast Notes"
+    episode_title = title
 
     if not date_iso:
         d = meta.get("episode_published") or meta.get("date")
@@ -565,9 +587,11 @@ def main(
     if dry_run:
         payload = {
             "db_id": db_id,
-            "title_prop": title_prop,
+            "podcast_prop": podcast_prop,
+            "episode_prop": episode_prop,
             "date_prop": date_prop,
-            "title": title,
+            "podcast_name": podcast_name,
+            "episode_title": episode_title,
             "date_iso": date_iso,
             "replace_content": not append_content,
             "cover_image": cover_url is not None,
@@ -582,9 +606,11 @@ def main(
     page_id = upsert_page(
         client=client,
         db_id=db_id,
-        title=title,
+        podcast_name=podcast_name,
+        episode_title=episode_title,
         date_iso=date_iso,
-        title_prop=title_prop,
+        podcast_prop=podcast_prop,
+        episode_prop=episode_prop,
         date_prop=date_prop,
         props_extra=props_extra,
         blocks=blocks,
