@@ -83,14 +83,16 @@ notion_databases:
     name: "Personal Library"
     database_id: "your-personal-db-id"
     token: "your-personal-token"
-    title_property: "Episode"
+    podcast_property: "Podcast"
+    episode_property: "Episode"
     date_property: "Date"
 
   work:
     name: "Work Knowledge Base"
     database_id: "your-work-db-id"
     token: "your-work-token"
-    title_property: "Title"
+    podcast_property: "Podcast"
+    episode_property: "Episode"
     date_property: "Published"
 
 # Podcast-specific mappings
@@ -218,9 +220,10 @@ notion_databases:
     name: "Personal Podcast Library"
     database_id: "12345678-1234-1234-1234-123456789abc"
     token: "secret_your_personal_notion_token"
-    title_property: "Episode"
-    date_property: "Published"
-    tags_property: "Tags"
+    podcast_property: "Podcast"      # Notion property for podcast name (title type)
+    episode_property: "Episode"      # Notion property for episode title (rich_text type)
+    date_property: "Published"       # Notion property for episode date (date type)
+    tags_property: "Tags"            # Notion property for tags (multi_select type)
     description: "Personal podcast collection"
 
   # Work-related content
@@ -228,9 +231,10 @@ notion_databases:
     name: "Work Knowledge Base"
     database_id: "87654321-4321-4321-4321-cba987654321"
     token: "secret_your_work_notion_token"
-    title_property: "Title"
-    date_property: "Date Added"
-    tags_property: "Keywords"
+    podcast_property: "Podcast"      # Notion property for podcast name (title type)
+    episode_property: "Episode"      # Notion property for episode title (rich_text type)
+    date_property: "Date Added"      # Notion property for episode date (date type)
+    tags_property: "Keywords"        # Notion property for tags (multi_select type)
     description: "Professional development and work insights"
 
   # Research and academic content
@@ -238,9 +242,10 @@ notion_databases:
     name: "Research Database"
     database_id: "abcdef12-3456-7890-abcd-ef1234567890"
     token: "secret_your_research_notion_token"
-    title_property: "Research Topic"
-    date_property: "Date"
-    tags_property: "Research Areas"
+    podcast_property: "Podcast"      # Notion property for podcast name (title type)
+    episode_property: "Research Topic" # Notion property for episode title (rich_text type)
+    date_property: "Date"            # Notion property for episode date (date type)
+    tags_property: "Research Areas"  # Notion property for tags (multi_select type)
     description: "Academic and research content"
 ```
 
@@ -257,6 +262,31 @@ podcasts:
   entertainment:
     notion_database: "personal" # → Personal Library
 ```
+
+### Notion Database Schema
+
+Your Notion database should have these properties:
+
+| Property Name | Type | Purpose | Example |
+|---------------|------|---------|---------|
+| **Podcast** | Title | Main page title, contains podcast name | "Lenny's Podcast" |
+| **Episode** | Rich Text | Episode title | "Why ChatGPT will be the next big growth channel" |
+| **Date** | Date | Episode publication date | 2025-08-17 |
+| **Tags** | Multi-select | Keywords/categories | ["AI", "Growth", "Product"] |
+
+#### Property Type Requirements
+
+- **`podcast_property`**: Must be a **Title** property (Notion's main page title)
+- **`episode_property`**: Must be a **Rich Text** property 
+- **`date_property`**: Must be a **Date** property
+- **`tags_property`**: Should be a **Multi-select** property (optional)
+
+#### Creating Your Database
+
+1. Create a new database in Notion
+2. Add the required properties with correct types
+3. Share the database with your integration
+4. Copy the database ID from the URL
 
 ### Security Features
 
@@ -473,7 +503,9 @@ notion_databases:
   research:
     database_id: "research-db-id"
     token: "research-token"
-    title_property: "Research Topic"
+    podcast_property: "Podcast"
+    episode_property: "Research Topic"
+    date_property: "Date"
     tags_property: "Research Areas"
 
 podcasts:
