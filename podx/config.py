@@ -27,8 +27,9 @@ class PodxConfig(BaseSettings):
     # Notion Configuration
     notion_token: Optional[str] = Field(default=None, env="NOTION_TOKEN")
     notion_db_id: Optional[str] = Field(default=None, env="NOTION_DB_ID")
-    notion_title_prop: str = Field(default="Name", env="NOTION_TITLE_PROP")
+    notion_podcast_prop: str = Field(default="Podcast", env="NOTION_PODCAST_PROP")
     notion_date_prop: str = Field(default="Date", env="NOTION_DATE_PROP")
+    notion_episode_prop: str = Field(default="Episode", env="NOTION_EPISODE_PROP")
 
     # Pipeline Configuration
     max_retries: int = Field(default=3, env="PODX_MAX_RETRIES")

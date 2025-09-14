@@ -62,11 +62,14 @@ class NotionDatabase(BaseModel):
     name: str = Field(..., description="Friendly name for this database")
     database_id: str = Field(..., description="Notion database ID")
     token: str = Field(..., description="Notion integration token")
-    title_property: str = Field(
-        default="Name", description="Property name for episode title"
+    podcast_property: str = Field(
+        default="Podcast", description="Property name for podcast name"
     )
     date_property: str = Field(
         default="Date", description="Property name for episode date"
+    )
+    episode_property: str = Field(
+        default="Episode", description="Property name for episode title"
     )
     tags_property: Optional[str] = Field(
         default="Tags", description="Property name for tags/keywords"
@@ -300,8 +303,9 @@ class YamlConfigManager:
                     name="Personal Podcast Library",
                     database_id="your-personal-db-id-here",
                     token="your-personal-notion-token",
-                    title_property="Name",
+                    podcast_property="Podcast",
                     date_property="Date",
+                    episode_property="Episode",
                     tags_property="Tags",
                     description="Personal podcast collection",
                 ),
@@ -309,8 +313,9 @@ class YamlConfigManager:
                     name="Work Knowledge Base",
                     database_id="your-work-db-id-here",
                     token="your-work-notion-token",
-                    title_property="Title",
-                    date_property="Published",
+                    podcast_property="Podcast",
+                    date_property="Date",
+                    episode_property="Episode",
                     tags_property="Keywords",
                     description="Work-related podcast insights",
                 ),
