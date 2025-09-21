@@ -41,6 +41,89 @@ def rt(s: str) -> List[Dict[str, Any]]:
     return [{"type": "text", "text": {"content": s}}]
 
 
+def parse_inline_markdown(text: str) -> List[Dict[str, Any]]:
+    """Parse inline markdown formatting (bold, italic, code) into Notion rich text objects."""
+    if not text:
+        return [{"type": "text", "text": {"content": ""}}]
+    
+    rich_text = []
+    i = 0
+    
+    while i < len(text):
+        # Handle bold text: **text**
+        if text[i:i+2] == '**' and i + 2 < len(text):
+            end_bold = text.find('**', i + 2)
+            if end_bold != -1:
+                rich_text.append({
+                    "type": "text",
+                    "text": {"content": text[i+2:end_bold]},
+                    "annotations": {"bold": True}
+                })
+                i = end_bold + 2
+                continue
+        
+        # Handle italic text: *text* (but not **)
+        elif text[i] == '*' and i + 1 < len(text) and text[i:i+2] != '**':
+            end_italic = text.find('*', i + 1)
+            # Make sure we don't match ** inside
+            while end_italic != -1 and end_italic + 1 < len(text) and text[end_italic + 1] == '*':
+                end_italic = text.find('*', end_italic + 2)
+            if end_italic != -1:
+                rich_text.append({
+                    "type": "text",
+                    "text": {"content": text[i+1:end_italic]},
+                    "annotations": {"italic": True}
+                })
+                i = end_italic + 1
+                continue
+        
+        # Handle code: `text`
+        elif text[i] == '`' and i + 1 < len(text):
+            end_code = text.find('`', i + 1)
+            if end_code != -1:
+                rich_text.append({
+                    "type": "text",
+                    "text": {"content": text[i+1:end_code]},
+                    "annotations": {"code": True}
+                })
+                i = end_code + 1
+                continue
+        
+        # Regular text - find next special character
+        else:
+            # Find the next special character
+            next_special = len(text)
+            for special in ['**', '*', '`']:
+                pos = text.find(special, i)
+                if pos != -1 and pos < next_special:
+                    next_special = pos
+            
+            if next_special == len(text):
+                # No more special characters, add remaining text
+                remaining_text = text[i:]
+                if remaining_text:
+                    rich_text.append({
+                        "type": "text",
+                        "text": {"content": remaining_text}
+                    })
+                break
+            else:
+                # Add text up to next special character
+                text_before_special = text[i:next_special]
+                if text_before_special:
+                    rich_text.append({
+                        "type": "text",
+                        "text": {"content": text_before_special}
+                    })
+                i = next_special
+    
+    # If no rich text was created, return the original text
+    if not rich_text:
+        return [{"type": "text", "text": {"content": text}}]
+    
+    return rich_text
+
+
 def _split_blocks_for_notion(
     blocks: List[Dict[str, Any]],
 ) -> List[List[Dict[str, Any]]]:
@@ -200,7 +283,7 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
                     {
                         "object": "block",
                         "type": "heading_1",
-                        "heading_1": {"rich_text": rt(text)},
+                        "heading_1": {"rich_text": parse_inline_markdown(text)},
                     }
                 )
             elif level == 2:
@@ -208,7 +291,7 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
                     {
                         "object": "block",
                         "type": "heading_2",
-                        "heading_2": {"rich_text": rt(text)},
+                        "heading_2": {"rich_text": parse_inline_markdown(text)},
                     }
                 )
             else:
@@ -216,7 +299,7 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
                     {
                         "object": "block",
                         "type": "heading_3",
-                        "heading_3": {"rich_text": rt(text)},
+                        "heading_3": {"rich_text": parse_inline_markdown(text)},
                     }
                 )
             continue
@@ -228,7 +311,7 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
                 {
                     "object": "block",
                     "type": "quote",
-                    "quote": {"rich_text": rt(qm.group(1))},
+                    "quote": {"rich_text": parse_inline_markdown(qm.group(1))},
                 }
             )
             continue
@@ -240,7 +323,7 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
                 {
                     "object": "block",
                     "type": "bulleted_list_item",
-                    "bulleted_list_item": {"rich_text": rt(bm.group(1))},
+                    "bulleted_list_item": {"rich_text": parse_inline_markdown(bm.group(1))},
                 }
             )
             continue
@@ -252,7 +335,7 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
                 {
                     "object": "block",
                     "type": "numbered_list_item",
-                    "numbered_list_item": {"rich_text": rt(nm.group(2))},
+                    "numbered_list_item": {"rich_text": parse_inline_markdown(nm.group(2))},
                 }
             )
             continue
@@ -263,11 +346,15 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
                 {"object": "block", "type": "paragraph", "paragraph": {"rich_text": []}}
             )
         else:
+            # Parse inline formatting and handle long text
+            rich_text = parse_inline_markdown(line)
+            # If text is very long, we might need to chunk it
+            # For now, just use the parsed rich text directly
             blocks.append(
                 {
                     "object": "block",
                     "type": "paragraph",
-                    "paragraph": {"rich_text": list(chunk_rich_text(line))},
+                    "paragraph": {"rich_text": rich_text},
                 }
             )
 
