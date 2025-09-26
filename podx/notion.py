@@ -11,6 +11,18 @@ from typing import Any, Dict, List, Optional
 import click
 import requests
 
+# Optional rich UI (similar feel to podx-browse)
+try:
+    from rich.console import Console
+    from rich.table import Table
+    from rich.panel import Panel
+
+    _HAS_RICH = True
+    _console = Console()
+except Exception:  # pragma: no cover
+    _HAS_RICH = False
+    _console = None  # type: ignore
+
 from .cli_shared import read_stdin_json
 from .info import get_episode_workdir
 
@@ -230,16 +242,21 @@ def _is_optimal_split_point(blocks: List[Dict[str, Any]], pos: int) -> bool:
 # Interactive helpers (MVP)
 # -------------------------
 
+
 def _detect_shows(root: Path) -> List[str]:
-    """Detect shows by scanning top-level directories that contain date subfolders (YYYY-MM-DD)."""
+    """Detect shows that already have deepcast analyses (actionable for Notion)."""
     shows: List[str] = []
     try:
         for entry in root.iterdir():
             if not entry.is_dir():
                 continue
-            # Look for at least one date-like subdirectory
-            has_date = any(re.match(r"^\d{4}-\d{2}-\d{2}$", p.name) for p in entry.iterdir() if p.is_dir())
-            if has_date:
+            actionable = False
+            for p in entry.iterdir():
+                if p.is_dir() and re.match(r"^\d{4}-\d{2}-\d{2}$", p.name):
+                    if list((entry / p.name).glob("deepcast-brief-*.json")):
+                        actionable = True
+                        break
+            if actionable:
                 shows.append(entry.name)
     except FileNotFoundError:
         pass
@@ -247,14 +264,15 @@ def _detect_shows(root: Path) -> List[str]:
 
 
 def _list_episode_dates(root: Path, show: str) -> List[str]:
-    """List episode dates for a show, sorted descending."""
+    """List episode dates for a show that have deepcast analyses, sorted desc."""
     dates: List[str] = []
     show_dir = root / show
     if not show_dir.exists():
         return dates
     for entry in show_dir.iterdir():
         if entry.is_dir() and re.match(r"^\d{4}-\d{2}-\d{2}$", entry.name):
-            dates.append(entry.name)
+            if list(entry.glob("deepcast-brief-*.json")):
+                dates.append(entry.name)
     # Newest first
     return sorted(dates, reverse=True)
 
@@ -279,20 +297,50 @@ def _list_deepcast_models(workdir: Path) -> List[str]:
 
 
 def _prompt_numbered_choice(title: str, items: List[str]) -> Optional[str]:
-    """Prompt user to choose one item by number; supports q to quit."""
-    click.echo("")
-    click.echo(title)
-    for idx, item in enumerate(items, start=1):
-        click.echo(f"  {idx}. {item}")
+    """Prompt user to choose one item by number; supports q to quit and /filter.
+
+    Uses Rich tables if available for a nicer UI similar to podx-browse.
+    """
+    current = list(items)
+    filter_note = ""
     while True:
-        choice = click.prompt("Select # (or q to quit)", default="q", show_default=False)
-        if isinstance(choice, str) and choice.lower() == "q":
-            return None
+        if _HAS_RICH and _console is not None:
+            tbl = Table(show_header=True, header_style="bold cyan", box=None)
+            tbl.add_column("#", style="dim", width=4)
+            tbl.add_column(title + (f" {filter_note}" if filter_note else ""))
+            for idx, item in enumerate(current, start=1):
+                tbl.add_row(str(idx), item)
+            _console.print(tbl)
+            _console.print(Panel.fit("1-9 select  •  /text filter  •  q quit", style="dim"))
+        else:
+            click.echo("")
+            click.echo(title + (f" {filter_note}" if filter_note else ""))
+            for idx, item in enumerate(current, start=1):
+                click.echo(f"  {idx}. {item}")
+            click.echo("\nHelp: 1-9 select • /text filter • q quit")
+
+        choice = click.prompt("Select", default="q", show_default=False)
+        if isinstance(choice, str):
+            s = choice.strip()
+            if s.lower() == "q":
+                return None
+            if s.startswith("/"):
+                term = s[1:].strip()
+                if not term:
+                    term = click.prompt("Filter contains", default="", show_default=False)
+                term_l = term.lower()
+                current = [it for it in items if term_l in it.lower()]
+                filter_note = f"(filtered: '{term}')" if term else ""
+                if not current:
+                    click.echo("No matches. Clearing filter.")
+                    current = list(items)
+                    filter_note = ""
+                continue
         try:
             num = int(choice)
-            if 1 <= num <= len(items):
-                return items[num - 1]
-        except ValueError:
+            if 1 <= num <= len(current):
+                return current[num - 1]
+        except (ValueError, TypeError):
             pass
         click.echo("Invalid selection. Try again.")
 
@@ -306,15 +354,19 @@ def _interactive_flow(db_id: Optional[str]) -> Optional[Dict[str, str]]:
 
     # Ensure DB
     if not db_id:
-        db_id = click.prompt("Enter Notion Database ID (or set NOTION_DB_ID)", default="", show_default=False)
+        db_id = click.prompt(
+            "Enter Notion Database ID (or set NOTION_DB_ID)",
+            default="",
+            show_default=False,
+        )
         if not db_id:
             click.echo("No database ID provided. Exiting.")
             return None
 
-    # Choose show
+    # Choose show (only those with deepcasts available)
     shows = _detect_shows(root)
     if not shows:
-        click.echo("No shows detected in current directory. Exiting.")
+        click.echo("No shows with deepcasts detected in current directory. Exiting.")
         return None
     show = _prompt_numbered_choice("Select a show:", shows)
     if not show:
@@ -325,7 +377,9 @@ def _interactive_flow(db_id: Optional[str]) -> Optional[Dict[str, str]]:
     if not dates:
         click.echo("No episode dates found for this show. Exiting.")
         return None
-    episode_date = _prompt_numbered_choice(f"Select an episode date for '{show}':", dates)
+    episode_date = _prompt_numbered_choice(
+        f"Select an episode date for '{show}':", dates
+    )
     if not episode_date:
         return None
 
