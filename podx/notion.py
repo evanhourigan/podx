@@ -226,6 +226,164 @@ def _is_optimal_split_point(blocks: List[Dict[str, Any]], pos: int) -> bool:
     return False
 
 
+# -------------------------
+# Interactive helpers (MVP)
+# -------------------------
+
+def _detect_shows(root: Path) -> List[str]:
+    """Detect shows by scanning top-level directories that contain date subfolders (YYYY-MM-DD)."""
+    shows: List[str] = []
+    try:
+        for entry in root.iterdir():
+            if not entry.is_dir():
+                continue
+            # Look for at least one date-like subdirectory
+            has_date = any(re.match(r"^\d{4}-\d{2}-\d{2}$", p.name) for p in entry.iterdir() if p.is_dir())
+            if has_date:
+                shows.append(entry.name)
+    except FileNotFoundError:
+        pass
+    return sorted(shows, key=lambda s: s.lower())
+
+
+def _list_episode_dates(root: Path, show: str) -> List[str]:
+    """List episode dates for a show, sorted descending."""
+    dates: List[str] = []
+    show_dir = root / show
+    if not show_dir.exists():
+        return dates
+    for entry in show_dir.iterdir():
+        if entry.is_dir() and re.match(r"^\d{4}-\d{2}-\d{2}$", entry.name):
+            dates.append(entry.name)
+    # Newest first
+    return sorted(dates, reverse=True)
+
+
+def _list_deepcast_models(workdir: Path) -> List[str]:
+    """List available deepcast models for an episode workdir based on filenames."""
+    models: List[str] = []
+    files = list(workdir.glob("deepcast-brief-*.json"))
+    for f in files:
+        suffix = f.stem.split("-")[-1].replace("_", ".")
+        models.append(suffix)
+    # Preserve order by modified time (newest first) while deduping
+    files_sorted = sorted(files, key=lambda p: p.stat().st_mtime, reverse=True)
+    ordered_unique: List[str] = []
+    seen = set()
+    for f in files_sorted:
+        m = f.stem.split("-")[-1].replace("_", ".")
+        if m not in seen:
+            seen.add(m)
+            ordered_unique.append(m)
+    return ordered_unique
+
+
+def _prompt_numbered_choice(title: str, items: List[str]) -> Optional[str]:
+    """Prompt user to choose one item by number; supports q to quit."""
+    click.echo("")
+    click.echo(title)
+    for idx, item in enumerate(items, start=1):
+        click.echo(f"  {idx}. {item}")
+    while True:
+        choice = click.prompt("Select # (or q to quit)", default="q", show_default=False)
+        if isinstance(choice, str) and choice.lower() == "q":
+            return None
+        try:
+            num = int(choice)
+            if 1 <= num <= len(items):
+                return items[num - 1]
+        except ValueError:
+            pass
+        click.echo("Invalid selection. Try again.")
+
+
+def _interactive_flow(db_id: Optional[str]) -> Optional[Dict[str, str]]:
+    """Run a minimal interactive flow for podx-notion selection.
+
+    Returns dict with keys: show, episode_date, select_model, dry_run ("true"|"false").
+    """
+    root = Path.cwd()
+
+    # Ensure DB
+    if not db_id:
+        db_id = click.prompt("Enter Notion Database ID (or set NOTION_DB_ID)", default="", show_default=False)
+        if not db_id:
+            click.echo("No database ID provided. Exiting.")
+            return None
+
+    # Choose show
+    shows = _detect_shows(root)
+    if not shows:
+        click.echo("No shows detected in current directory. Exiting.")
+        return None
+    show = _prompt_numbered_choice("Select a show:", shows)
+    if not show:
+        return None
+
+    # Choose date
+    dates = _list_episode_dates(root, show)
+    if not dates:
+        click.echo("No episode dates found for this show. Exiting.")
+        return None
+    episode_date = _prompt_numbered_choice(f"Select an episode date for '{show}':", dates)
+    if not episode_date:
+        return None
+
+    # Choose model (if available)
+    workdir = get_episode_workdir(show, episode_date)
+    models = _list_deepcast_models(workdir)
+    select_model = None
+    if models:
+        default_model = models[0]
+        click.echo("")
+        click.echo("Available deepcast models (newest first):")
+        for idx, m in enumerate(models, start=1):
+            click.echo(f"  {idx}. {m}")
+        resp = click.prompt(
+            f"Select model # (or ENTER for newest: {default_model})",
+            default="",
+            show_default=False,
+        )
+        if resp.strip():
+            try:
+                mi = int(resp)
+                if 1 <= mi <= len(models):
+                    select_model = models[mi - 1]
+            except ValueError:
+                # Fallback to text match if typed
+                if resp in models:
+                    select_model = resp
+        if not select_model:
+            select_model = default_model
+    else:
+        click.echo("No deepcast analyses found in this episode directory. Exiting.")
+        return None
+
+    # Dry-run toggle
+    dry = click.prompt("Dry-run first? (y/N)", default="y")
+    dry_run = "true" if str(dry).strip().lower() in {"y", "yes"} else "false"
+
+    # Preview
+    click.echo("")
+    click.echo("Will run:")
+    click.echo(
+        f"podx-notion --show \"{show}\" --episode-date \"{episode_date}\" --select-model \"{select_model}\" --db {db_id} {'--dry-run' if dry_run == 'true' else ''}"
+    )
+
+    # Confirm
+    ok = click.prompt("Proceed? (Y/n)", default="Y")
+    if str(ok).strip().lower() in {"n", "no"}:
+        return None
+
+    return {
+        "show": show,
+        "episode_date": episode_date,
+        "select_model": select_model,
+        "dry_run": dry_run,
+        "db_id": db_id,
+    }
+
+
 def md_to_blocks(md: str) -> List[Dict[str, Any]]:
     """
     Very small, block-level Markdown → Notion converter:
@@ -639,6 +797,11 @@ def upsert_page(
 @click.option(
     "--dry-run", is_flag=True, help="Parse and print Notion payload (don't write)"
 )
+@click.option(
+    "--interactive",
+    is_flag=True,
+    help="Interactive selection flow (show → date → model → run)",
+)
 def main(
     db_id: Optional[str],
     show: Optional[str],
@@ -660,11 +823,25 @@ def main(
     append_content: bool,
     cover_image: bool,
     dry_run: bool,
+    interactive: bool,
 ):
     """
     Create or update a Notion page from Markdown (+ optional JSON props).
     Upsert by Title (+ Date if provided).
     """
+
+    # Interactive flow (MVP)
+    if interactive:
+        params = _interactive_flow(db_id)
+        if not params:
+            return
+
+        # Inject selected parameters
+        db_id = params["db_id"]
+        show = params["show"]
+        episode_date = params["episode_date"]
+        select_model = params["select_model"]
+        dry_run = params["dry_run"] == "true"
 
     # Auto-detect workdir and files if --show and --episode-date provided
     if show and episode_date:
