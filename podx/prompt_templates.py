@@ -197,11 +197,11 @@ def get_gold_nuggets_target(episode_duration_minutes: Optional[int]) -> str:
 def get_quotes_target(episode_duration_minutes: Optional[int]) -> str:
     """Get target number of quotes based on episode length."""
     if not episode_duration_minutes:
-        return "4-8"
+        return "10-20"
 
-    # Scale roughly: 1 quote per 12-15 minutes
-    min_quotes = max(3, episode_duration_minutes // 15)
-    max_quotes = max(6, episode_duration_minutes // 8)
+    # Scale roughly: 1 quote per 5-6 minutes (increased from 12-15 for 2.5x more quotes)
+    min_quotes = max(8, episode_duration_minutes // 6)
+    max_quotes = max(15, episode_duration_minutes // 3)
     return f"{int(min_quotes)}-{int(max_quotes)}"
 
 

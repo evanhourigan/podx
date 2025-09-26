@@ -165,7 +165,7 @@ Extract key information from this transcript CHUNK.
 Return:
 - 3-6 Key Points
 - 2-5 Gold Nuggets  
-- 1-4 Notable Quotes
+- 3-10 Notable Quotes (increased to capture more key insights and gold nuggets)
 - Any Action Items / Resources
 
 Return a tight Markdown; do not include a global summary—chunk only.
