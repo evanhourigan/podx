@@ -107,6 +107,7 @@ def main(model, compute, input, output):
     out = {
         "audio_path": str(audio),
         "language": detected_language,
+        "asr_model": model,
         "segments": segs,
         "text": "\n".join(text_lines).strip(),
     }

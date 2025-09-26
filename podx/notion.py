@@ -12,6 +12,7 @@ import click
 import requests
 
 from .cli_shared import read_stdin_json
+from .info import get_episode_workdir
 
 try:
     from notion_client import Client
@@ -45,82 +46,90 @@ def parse_inline_markdown(text: str) -> List[Dict[str, Any]]:
     """Parse inline markdown formatting (bold, italic, code) into Notion rich text objects."""
     if not text:
         return [{"type": "text", "text": {"content": ""}}]
-    
+
     rich_text = []
     i = 0
-    
+
     while i < len(text):
         # Handle bold text: **text**
-        if text[i:i+2] == '**' and i + 2 < len(text):
-            end_bold = text.find('**', i + 2)
+        if text[i : i + 2] == "**" and i + 2 < len(text):
+            end_bold = text.find("**", i + 2)
             if end_bold != -1:
-                rich_text.append({
-                    "type": "text",
-                    "text": {"content": text[i+2:end_bold]},
-                    "annotations": {"bold": True}
-                })
+                rich_text.append(
+                    {
+                        "type": "text",
+                        "text": {"content": text[i + 2 : end_bold]},
+                        "annotations": {"bold": True},
+                    }
+                )
                 i = end_bold + 2
                 continue
-        
+
         # Handle italic text: *text* (but not **)
-        elif text[i] == '*' and i + 1 < len(text) and text[i:i+2] != '**':
-            end_italic = text.find('*', i + 1)
+        elif text[i] == "*" and i + 1 < len(text) and text[i : i + 2] != "**":
+            end_italic = text.find("*", i + 1)
             # Make sure we don't match ** inside
-            while end_italic != -1 and end_italic + 1 < len(text) and text[end_italic + 1] == '*':
-                end_italic = text.find('*', end_italic + 2)
+            while (
+                end_italic != -1
+                and end_italic + 1 < len(text)
+                and text[end_italic + 1] == "*"
+            ):
+                end_italic = text.find("*", end_italic + 2)
             if end_italic != -1:
-                rich_text.append({
-                    "type": "text",
-                    "text": {"content": text[i+1:end_italic]},
-                    "annotations": {"italic": True}
-                })
+                rich_text.append(
+                    {
+                        "type": "text",
+                        "text": {"content": text[i + 1 : end_italic]},
+                        "annotations": {"italic": True},
+                    }
+                )
                 i = end_italic + 1
                 continue
-        
+
         # Handle code: `text`
-        elif text[i] == '`' and i + 1 < len(text):
-            end_code = text.find('`', i + 1)
+        elif text[i] == "`" and i + 1 < len(text):
+            end_code = text.find("`", i + 1)
             if end_code != -1:
-                rich_text.append({
-                    "type": "text",
-                    "text": {"content": text[i+1:end_code]},
-                    "annotations": {"code": True}
-                })
+                rich_text.append(
+                    {
+                        "type": "text",
+                        "text": {"content": text[i + 1 : end_code]},
+                        "annotations": {"code": True},
+                    }
+                )
                 i = end_code + 1
                 continue
-        
+
         # Regular text - find next special character
         else:
             # Find the next special character
             next_special = len(text)
-            for special in ['**', '*', '`']:
+            for special in ["**", "*", "`"]:
                 pos = text.find(special, i)
                 if pos != -1 and pos < next_special:
                     next_special = pos
-            
+
             if next_special == len(text):
                 # No more special characters, add remaining text
                 remaining_text = text[i:]
                 if remaining_text:
-                    rich_text.append({
-                        "type": "text",
-                        "text": {"content": remaining_text}
-                    })
+                    rich_text.append(
+                        {"type": "text", "text": {"content": remaining_text}}
+                    )
                 break
             else:
                 # Add text up to next special character
                 text_before_special = text[i:next_special]
                 if text_before_special:
-                    rich_text.append({
-                        "type": "text",
-                        "text": {"content": text_before_special}
-                    })
+                    rich_text.append(
+                        {"type": "text", "text": {"content": text_before_special}}
+                    )
                 i = next_special
-    
+
     # If no rich text was created, return the original text
     if not rich_text:
         return [{"type": "text", "text": {"content": text}}]
-    
+
     return rich_text
 
 
@@ -323,7 +332,9 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
                 {
                     "object": "block",
                     "type": "bulleted_list_item",
-                    "bulleted_list_item": {"rich_text": parse_inline_markdown(bm.group(1))},
+                    "bulleted_list_item": {
+                        "rich_text": parse_inline_markdown(bm.group(1))
+                    },
                 }
             )
             continue
@@ -335,7 +346,9 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
                 {
                     "object": "block",
                     "type": "numbered_list_item",
-                    "numbered_list_item": {"rich_text": parse_inline_markdown(nm.group(2))},
+                    "numbered_list_item": {
+                        "rich_text": parse_inline_markdown(nm.group(2))
+                    },
                 }
             )
             continue
@@ -443,6 +456,10 @@ def upsert_page(
     podcast_prop: str = "Podcast",
     episode_prop: str = "Episode",
     date_prop: str = "Date",
+    model_prop: str = "Model",
+    asr_prop: str = "ASR Model",
+    deepcast_model: Optional[str] = None,
+    asr_model: Optional[str] = None,
     props_extra: Optional[Dict[str, Any]] = None,
     blocks: Optional[List[Dict[str, Any]]] = None,
     replace_content: bool = False,
@@ -451,11 +468,17 @@ def upsert_page(
     Try to find an existing page (by podcast name, episode title and optionally date), else create.
     Returns the page ID.
     """
-    # Query by episode title (Notion filter on Episode property)
+    # Query by episode title and model (to allow multiple analyses per episode)
     filt = {"and": [{"property": episode_prop, "rich_text": {"equals": episode_title}}]}
 
     if date_iso:
         filt["and"].append({"property": date_prop, "date": {"equals": date_iso}})
+
+    # Include model in the filter to allow separate rows for different models
+    if deepcast_model and model_prop:
+        filt["and"].append(
+            {"property": model_prop, "rich_text": {"equals": deepcast_model}}
+        )
 
     q = client.databases.query(database_id=db_id, filter=filt)
 
@@ -467,6 +490,16 @@ def upsert_page(
     }
     if date_iso:
         props[date_prop] = {"date": {"start": date_iso}}
+
+    if deepcast_model and model_prop:
+        props[model_prop] = {
+            "rich_text": [{"type": "text", "text": {"content": deepcast_model}}]
+        }
+
+    if asr_model and asr_prop:
+        props[asr_prop] = {
+            "rich_text": [{"type": "text", "text": {"content": asr_model}}]
+        }
 
     if props_extra:
         props.update(props_extra)
@@ -521,6 +554,17 @@ def upsert_page(
     default=lambda: os.getenv("NOTION_DB_ID"),
     help="Target Notion database ID",
 )
+@click.option(
+    "--show", help="Podcast show name (auto-detect workdir, files, and models)"
+)
+@click.option(
+    "--episode-date",
+    help="Episode date YYYY-MM-DD (auto-detect workdir, files, and models)",
+)
+@click.option(
+    "--select-model",
+    help="If multiple deepcast models exist, specify which to use (e.g., 'gpt-4.1')",
+)
 @click.option("--title", help="Page title (or derive from --meta)")
 @click.option(
     "--date", "date_iso", help="ISO date (YYYY-MM-DD) (or derive from --meta)"
@@ -565,6 +609,24 @@ def upsert_page(
     help="Notion property name for episode title",
 )
 @click.option(
+    "--model-prop",
+    default="Model",
+    help="Notion property name for deepcast model",
+)
+@click.option(
+    "--asr-prop",
+    default="ASR Model",
+    help="Notion property name for ASR model",
+)
+@click.option(
+    "--deepcast-model",
+    help="Deepcast model name to store in Notion",
+)
+@click.option(
+    "--asr-model",
+    help="ASR model name to store in Notion",
+)
+@click.option(
     "--append-content",
     is_flag=True,
     help="Append to page body in Notion instead of replacing (default: replace)",
@@ -579,6 +641,9 @@ def upsert_page(
 )
 def main(
     db_id: Optional[str],
+    show: Optional[str],
+    episode_date: Optional[str],
+    select_model: Optional[str],
     title: Optional[str],
     date_iso: Optional[str],
     input: Optional[Path],
@@ -588,6 +653,10 @@ def main(
     podcast_prop: str,
     date_prop: str,
     episode_prop: str,
+    model_prop: str,
+    asr_prop: str,
+    deepcast_model: Optional[str],
+    asr_model: Optional[str],
     append_content: bool,
     cover_image: bool,
     dry_run: bool,
@@ -596,6 +665,87 @@ def main(
     Create or update a Notion page from Markdown (+ optional JSON props).
     Upsert by Title (+ Date if provided).
     """
+
+    # Auto-detect workdir and files if --show and --episode-date provided
+    if show and episode_date:
+        workdir = get_episode_workdir(show, episode_date)
+        if not workdir.exists():
+            raise SystemExit(f"Episode directory not found: {workdir}")
+
+        # Auto-detect the most recent deepcast analysis if not specified
+        if not input and not md_path:
+            deepcast_files = list(workdir.glob("deepcast-brief-*.json"))
+            if deepcast_files:
+                if select_model:
+                    # Filter for specific model
+                    model_suffix = select_model.replace(".", "_").replace("-", "_")
+                    matching_files = [
+                        f for f in deepcast_files if f.stem.endswith(f"-{model_suffix}")
+                    ]
+                    if matching_files:
+                        # Sort by modification time, newest first
+                        input = max(matching_files, key=lambda p: p.stat().st_mtime)
+                        click.echo(
+                            f"📄 Selected deepcast file for {select_model}: {input.name}"
+                        )
+                    else:
+                        available_models = [
+                            f.stem.split("-")[-1].replace("_", ".")
+                            for f in deepcast_files
+                        ]
+                        raise SystemExit(
+                            f"No deepcast analysis found for model '{select_model}'. Available: {', '.join(set(available_models))}"
+                        )
+                else:
+                    # Sort by modification time, newest first
+                    input = max(deepcast_files, key=lambda p: p.stat().st_mtime)
+                    model_from_filename = input.stem.split("-")[-1].replace("_", ".")
+                    click.echo(
+                        f"📄 Auto-detected deepcast file: {input.name} (model: {model_from_filename})"
+                    )
+                    if len(deepcast_files) > 1:
+                        available_models = [
+                            f.stem.split("-")[-1].replace("_", ".")
+                            for f in deepcast_files
+                        ]
+                        click.echo(
+                            f"💡 Multiple models available: {', '.join(set(available_models))}. Use --select-model to choose."
+                        )
+            else:
+                raise SystemExit(f"No deepcast analysis found in {workdir}")
+
+        # Auto-detect meta file if not specified
+        if not meta_path:
+            episode_meta = workdir / "episode-meta.json"
+            if episode_meta.exists():
+                meta_path = episode_meta
+                click.echo(f"📋 Auto-detected metadata: {episode_meta.name}")
+
+        # Auto-detect models from files if not specified
+        if input and not deepcast_model:
+            try:
+                deepcast_data = json.loads(input.read_text())
+                auto_deepcast_model = deepcast_data.get("deepcast_metadata", {}).get(
+                    "model"
+                )
+                if auto_deepcast_model:
+                    deepcast_model = auto_deepcast_model
+                    click.echo(f"🤖 Auto-detected deepcast model: {deepcast_model}")
+            except (json.JSONDecodeError, FileNotFoundError):
+                pass
+
+        if not asr_model:
+            transcript_file = workdir / "transcript.json"
+            if transcript_file.exists():
+                try:
+                    transcript_data = json.loads(transcript_file.read_text())
+                    auto_asr_model = transcript_data.get("asr_model")
+                    if auto_asr_model:
+                        asr_model = auto_asr_model
+                        click.echo(f"🎤 Auto-detected ASR model: {asr_model}")
+                except (json.JSONDecodeError, FileNotFoundError):
+                    pass
+
     if not db_id:
         raise SystemExit("Please pass --db or set NOTION_DB_ID environment variable")
 
@@ -618,6 +768,12 @@ def main(
 
         # Extract metadata if available
         meta = deepcast_data.get("metadata", {})
+
+        # Merge episode metadata if available (from smart detection)
+        if meta_path and meta_path.exists():
+            episode_meta = json.loads(meta_path.read_text())
+            # Merge episode metadata with transcript metadata, episode takes priority
+            meta = {**meta, **episode_meta}
 
         # Extract structured data for Notion properties
         js = deepcast_data  # The whole deepcast output
@@ -646,6 +802,48 @@ def main(
         title = meta.get("episode_title") or meta.get("title") or "Podcast Notes"
     episode_title = title
 
+    # Auto-detect deepcast model from available data if not provided via CLI
+    if not deepcast_model:
+        # Try to extract from deepcast metadata in meta (from unified JSON)
+        if hasattr(meta, "get") and meta.get("deepcast_metadata"):
+            auto_deepcast_model = meta["deepcast_metadata"].get("model")
+            if auto_deepcast_model:
+                deepcast_model = auto_deepcast_model
+                click.echo(f"🤖 Auto-detected deepcast model: {deepcast_model}")
+        # Try to extract from separate JSON properties file
+        elif hasattr(js, "get") and js.get("deepcast_metadata"):
+            auto_deepcast_model = js["deepcast_metadata"].get("model")
+            if auto_deepcast_model:
+                deepcast_model = auto_deepcast_model
+                click.echo(f"🤖 Auto-detected deepcast model: {deepcast_model}")
+
+    # Extract ASR model if not provided via CLI
+    if not asr_model:
+        # First try deepcast metadata (preferred source)
+        if hasattr(js, "get") and js.get("deepcast_metadata"):
+            auto_asr_model = js["deepcast_metadata"].get("asr_model")
+            if auto_asr_model:
+                asr_model = auto_asr_model
+                click.echo(f"🎤 Auto-detected ASR model from deepcast: {asr_model}")
+
+        # Fallback to original transcript metadata
+        if not asr_model and hasattr(meta, "get"):
+            asr_model = meta.get("asr_model")
+
+        # Last resort: try loading transcript.json from same directory
+        if not asr_model and meta_path:
+            transcript_path = meta_path.parent / "transcript.json"
+            if transcript_path.exists():
+                try:
+                    transcript_data = json.loads(transcript_path.read_text())
+                    asr_model = transcript_data.get("asr_model")
+                    if asr_model:
+                        click.echo(
+                            f"🎤 Auto-detected ASR model from transcript: {asr_model}"
+                        )
+                except (json.JSONDecodeError, FileNotFoundError):
+                    pass
+
     if not date_iso:
         d = meta.get("episode_published") or meta.get("date")
         if isinstance(d, str):
@@ -653,10 +851,16 @@ def main(
             try:
                 from datetime import datetime
 
-                # Try parsing RFC 2822 format (e.g., "Sun, 17 Aug 2025 11:03:01 GMT")
+                # Try parsing RFC 2822 format (e.g., "Wed, 11 Jun 2025 14:18:45 +0000")
                 if "," in d and len(d) > 20:
-                    dt = datetime.strptime(d, "%a, %d %b %Y %H:%M:%S %Z")
-                    date_iso = dt.strftime("%Y-%m-%d")
+                    # Try with UTC offset format first
+                    try:
+                        dt = datetime.strptime(d, "%a, %d %b %Y %H:%M:%S %z")
+                        date_iso = dt.strftime("%Y-%m-%d")
+                    except ValueError:
+                        # Fallback to timezone name format (e.g., GMT)
+                        dt = datetime.strptime(d, "%a, %d %b %Y %H:%M:%S %Z")
+                        date_iso = dt.strftime("%Y-%m-%d")
                 # Try ISO format
                 elif len(d) >= 10:
                     date_iso = d[:10]  # YYYY-MM-DD from ISO datetime
@@ -670,15 +874,78 @@ def main(
     # Extra Notion properties from JSON
     props_extra: Dict[str, Any] = {}
     if js:
-        # You can map structured fields to Notion properties here if desired.
-        # Example: add a multi-select "Tags" from key_points (top 3)
-        key_points = (js.get("key_points") or [])[:3]
-        if key_points:
-            props_extra["Tags"] = {
-                "multi_select": [
-                    {"name": kp[:50]} for kp in key_points
-                ]  # Notion name limit
-            }
+        # Generate meaningful tags from episode metadata and analysis
+        tags = []
+
+        # Add model information as tags
+        deepcast_meta = js.get("deepcast_metadata", {})
+        if deepcast_meta.get("model"):
+            tags.append(f"AI-{deepcast_meta['model']}")
+        if deepcast_meta.get("asr_model"):
+            tags.append(f"ASR-{deepcast_meta['asr_model']}")
+
+        # Add podcast type if available
+        podcast_type = deepcast_meta.get("podcast_type")
+        if podcast_type and podcast_type != "general":
+            tags.append(f"Type-{podcast_type}")
+
+        # Extract technology/topic keywords from key points (limit to avoid clutter)
+        key_points = (js.get("key_points") or [])[:5]
+        tech_keywords = set()
+
+        # Common technology terms to extract as tags
+        tech_terms = [
+            "AI",
+            "machine learning",
+            "ChatGPT",
+            "Claude",
+            "OpenAI",
+            "agents",
+            "automation",
+            "engineering",
+            "coding",
+            "development",
+            "API",
+            "workflow",
+            "productivity",
+            "software",
+            "platform",
+            "tool",
+            "framework",
+            "algorithm",
+            "model",
+            "data",
+            "Python",
+            "JavaScript",
+            "React",
+            "Node",
+            "Docker",
+            "cloud",
+            "AWS",
+            "database",
+        ]
+
+        for kp in key_points:
+            for term in tech_terms:
+                if term.lower() in kp.lower() and len(tech_keywords) < 3:
+                    tech_keywords.add(term)
+
+        # Add technology tags
+        for tech in tech_keywords:
+            tags.append(tech)
+
+        # Convert to Notion format
+        if tags:
+            cleaned_tags = []
+            for tag in tags[:6]:  # Limit to 6 tags total
+                clean_tag = (
+                    tag.replace(",", "").replace(".", "").replace(";", "")[:50].strip()
+                )
+                if clean_tag:
+                    cleaned_tags.append({"name": clean_tag})
+
+            if cleaned_tags:
+                props_extra["Tags"] = {"multi_select": cleaned_tags}
 
     # Handle cover image
     cover_url = None
@@ -715,6 +982,10 @@ def main(
         podcast_prop=podcast_prop,
         episode_prop=episode_prop,
         date_prop=date_prop,
+        model_prop=model_prop,
+        asr_prop=asr_prop,
+        deepcast_model=deepcast_model,
+        asr_model=asr_model,
         props_extra=props_extra,
         blocks=blocks,
         replace_content=not append_content,

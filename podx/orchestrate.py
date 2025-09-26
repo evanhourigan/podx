@@ -18,6 +18,7 @@ from . import (
     diarize,
     export,
     fetch,
+    info,
     notion,
     transcode,
     transcribe,
@@ -135,6 +136,9 @@ def main():
 @main.command("run", help="Orchestrate the complete podcast processing pipeline.")
 @click.option("--show", help="Podcast show name (iTunes search)")
 @click.option("--rss-url", help="Direct RSS feed URL (alternative to --show)")
+@click.option(
+    "--youtube-url", help="YouTube video URL (alternative to --show and --rss-url)"
+)
 @click.option("--date", help="Episode date (YYYY-MM-DD)")
 @click.option("--title-contains", help="Substring to match in episode title")
 @click.option(
@@ -217,6 +221,16 @@ def main():
     help="Notion property name for episode title",
 )
 @click.option(
+    "--model-prop",
+    default="Model",
+    help="Notion property name for deepcast model",
+)
+@click.option(
+    "--asr-prop",
+    default="ASR Model",
+    help="Notion property name for ASR model",
+)
+@click.option(
     "--append-content",
     is_flag=True,
     help="Append to page body in Notion instead of replacing (default: replace)",
@@ -240,6 +254,7 @@ def main():
 def run(
     show: Optional[str],
     rss_url: Optional[str],
+    youtube_url: Optional[str],
     date: Optional[str],
     title_contains: Optional[str],
     workdir: Optional[Path],
@@ -257,6 +272,8 @@ def run(
     podcast_prop: str,
     date_prop: str,
     episode_prop: str,
+    model_prop: str,
+    asr_prop: str,
     append_content: bool,
     full: bool,
     verbose: bool,
@@ -285,30 +302,63 @@ def run(
         wd = None  # Will be set after fetch
 
         # 1) FETCH → meta.json
-        fetch_cmd = ["podx-fetch"]
-        if show:
-            fetch_cmd.extend(["--show", show])
-        elif rss_url:
-            fetch_cmd.extend(["--rss-url", rss_url])
+        if youtube_url:
+            # Handle YouTube URLs directly
+            from .youtube import (
+                fetch_youtube_episode,
+                get_youtube_metadata,
+                is_youtube_url,
+            )
+
+            if not is_youtube_url(youtube_url):
+                raise ValidationError(f"Invalid YouTube URL: {youtube_url}")
+
+            progress.start_step("Fetching YouTube video metadata")
+
+            # Get metadata first to determine workdir
+            youtube_metadata = get_youtube_metadata(youtube_url)
+
+            # Create temporary meta for workdir determination
+            temp_meta = {
+                "show": youtube_metadata["channel"],
+                "episode_title": youtube_metadata["title"],
+                "episode_published": youtube_metadata.get("upload_date", ""),
+            }
+
+            # Now we can call fetch_youtube_episode with proper workdir
+            meta = temp_meta  # Will be replaced by full fetch
+
+            progress.complete_step(
+                f"YouTube metadata fetched: {meta.get('episode_title', 'Unknown')[:80]}"
+            )
         else:
-            raise ValidationError("Either --show or --rss-url must be provided.")
+            # Handle RSS/podcast URLs
+            fetch_cmd = ["podx-fetch"]
+            if show:
+                fetch_cmd.extend(["--show", show])
+            elif rss_url:
+                fetch_cmd.extend(["--rss-url", rss_url])
+            else:
+                raise ValidationError(
+                    "Either --show, --rss-url, or --youtube-url must be provided."
+                )
 
-        if date:
-            fetch_cmd.extend(["--date", date])
-        if title_contains:
-            fetch_cmd.extend(["--title-contains", title_contains])
+            if date:
+                fetch_cmd.extend(["--date", date])
+            if title_contains:
+                fetch_cmd.extend(["--title-contains", title_contains])
 
-        # Run fetch first to get metadata, then determine workdir
-        progress.start_step("Fetching episode metadata")
-        meta = _run(
-            fetch_cmd,
-            verbose=verbose,
-            save_to=None,  # Don't save yet, we'll save after determining workdir
-            label=None,  # Progress handles the display
-        )
-        progress.complete_step(
-            f"Episode fetched: {meta.get('episode_title', 'Unknown')}"
-        )
+            # Run fetch first to get metadata, then determine workdir
+            progress.start_step("Fetching episode metadata")
+            meta = _run(
+                fetch_cmd,
+                verbose=verbose,
+                save_to=None,  # Don't save yet, we'll save after determining workdir
+                label=None,  # Progress handles the display
+            )
+            progress.complete_step(
+                f"Episode fetched: {meta.get('episode_title', 'Unknown')}"
+            )
 
         # Check for podcast-specific configuration after we have the show name
         show_name = meta.get("show") or meta.get("show_name", "")
@@ -481,6 +531,12 @@ def run(
             logger.debug("Using smart workdir", workdir=str(wd))
 
         wd.mkdir(parents=True, exist_ok=True)
+
+        # For YouTube URLs, now do the full fetch with proper workdir
+        if youtube_url:
+            progress.start_step("Downloading YouTube audio")
+            meta = fetch_youtube_episode(youtube_url, wd)
+            progress.complete_step(f"YouTube audio downloaded: {wd / '*.mp3'}")
         # Save metadata to the determined workdir
         (wd / "episode-meta.json").write_text(json.dumps(meta, indent=2))
 
@@ -626,10 +682,12 @@ def run(
         else:
             results["latest_srt"] = str(wd / f"{latest_name}.srt")
 
-        # 6) DEEPCAST (optional) → deepcast-brief.md / deepcast-brief.json
+        # 6) DEEPCAST (optional) → deepcast-brief-{model}.md / deepcast-brief-{model}.json
         if deepcast:
-            json_out = wd / "deepcast-brief.json"
-            md_out = wd / "deepcast-brief.md"
+            # Use model-specific filenames to allow multiple analyses
+            model_suffix = deepcast_model.replace(".", "_").replace("-", "_")
+            json_out = wd / f"deepcast-brief-{model_suffix}.json"
+            md_out = wd / f"deepcast-brief-{model_suffix}.md"
 
             if json_out.exists():
                 logger.info("Found existing deepcast analysis, skipping AI analysis")
@@ -685,37 +743,76 @@ def run(
 
             progress.start_step("Uploading to Notion")
             step_start = time.time()
-            # Prefer brief.md from deepcast, fallback to latest.txt
-            # Prefer deepcast outputs; fallback to latest.txt
-            md_path = (
-                str(wd / "deepcast-brief.md")
-                if (wd / "deepcast-brief.md").exists()
-                else str(wd / "latest.txt")
-            )
-            json_path = (
-                str(wd / "deepcast-brief.json")
-                if (wd / "deepcast-brief.json").exists()
-                else None
-            )
+            # Prefer model-specific deepcast outputs, fallback to latest.txt
+            model_suffix = deepcast_model.replace(".", "_").replace("-", "_")
+            model_specific_md = wd / f"deepcast-brief-{model_suffix}.md"
+            model_specific_json = wd / f"deepcast-brief-{model_suffix}.json"
 
-            cmd = [
-                "podx-notion",
-                "--markdown",
-                md_path,
-                "--meta",
-                str(wd / "episode-meta.json"),
-                "--db",
-                notion_db,
-                "--podcast-prop",
-                podcast_prop,
-                "--date-prop",
-                date_prop,
-                "--episode-prop",
-                episode_prop,
-            ]
+            # Find any deepcast files if model-specific ones don't exist
+            deepcast_files = list(wd.glob("deepcast-brief-*.md"))
+            fallback_md = deepcast_files[0] if deepcast_files else None
 
-            if json_path:
-                cmd += ["--json", json_path]
+            # Prefer unified JSON mode if no separate markdown file exists
+            if model_specific_json.exists() and not model_specific_md.exists():
+                # Use unified JSON mode (deepcast JSON contains markdown)
+                cmd = [
+                    "podx-notion",
+                    "--input",
+                    str(model_specific_json),
+                    "--db",
+                    notion_db,
+                    "--podcast-prop",
+                    podcast_prop,
+                    "--date-prop",
+                    date_prop,
+                    "--episode-prop",
+                    episode_prop,
+                    "--model-prop",
+                    model_prop,
+                    "--asr-prop",
+                    asr_prop,
+                    "--deepcast-model",
+                    deepcast_model,
+                    "--asr-model",
+                    model,  # The ASR model from transcription
+                ]
+            else:
+                # Use separate markdown + JSON mode
+                md_path = (
+                    str(model_specific_md)
+                    if model_specific_md.exists()
+                    else str(fallback_md) if fallback_md else str(wd / "latest.txt")
+                )
+                json_path = (
+                    str(model_specific_json) if model_specific_json.exists() else None
+                )
+
+                cmd = [
+                    "podx-notion",
+                    "--markdown",
+                    md_path,
+                    "--meta",
+                    str(wd / "episode-meta.json"),
+                    "--db",
+                    notion_db,
+                    "--podcast-prop",
+                    podcast_prop,
+                    "--date-prop",
+                    date_prop,
+                    "--episode-prop",
+                    episode_prop,
+                    "--model-prop",
+                    model_prop,
+                    "--asr-prop",
+                    asr_prop,
+                    "--deepcast-model",
+                    deepcast_model,
+                    "--asr-model",
+                    model,  # The ASR model from transcription
+                ]
+
+                if json_path:
+                    cmd += ["--json", json_path]
 
             if append_content:
                 cmd += ["--append-content"]
@@ -740,12 +837,13 @@ def run(
                 wd / "latest.json",
                 wd / f"{latest_name}.txt",
                 wd / f"{latest_name}.srt",
-                wd / "deepcast-brief.md",
-                wd / "deepcast-brief.json",
                 wd / "notion.out.json",
                 wd / "episode-meta.json",
                 wd / "audio-meta.json",
             }
+            # Keep all deepcast files (model-specific)
+            keep.update(wd.glob("deepcast-brief-*.json"))
+            keep.update(wd.glob("deepcast-brief-*.md"))
 
             cleaned_files = 0
             # Remove intermediate JSON files
@@ -827,6 +925,22 @@ def browse_cmd(ctx):
     sys.argv = ["podx-browse"] + sys.argv[2:]  # Keep original args after 'browse'
     try:
         browse.main()
+    finally:
+        sys.argv = original_argv
+
+
+@main.command("info")
+@click.pass_context
+def info_cmd(ctx):
+    """Show episode information and processing status."""
+    # Pass through to the info.main() with sys.argv adjustments
+    import sys
+
+    # Remove 'podx info' from sys.argv and call info.main()
+    original_argv = sys.argv.copy()
+    sys.argv = ["podx-info"] + sys.argv[2:]  # Keep original args after 'info'
+    try:
+        info.main()
     finally:
         sys.argv = original_argv
 
@@ -949,6 +1063,9 @@ def notion_cmd(ctx):
 @main.command("quick")
 @click.option("--show", help="Podcast show name (iTunes search)")
 @click.option("--rss-url", help="Direct RSS feed URL (alternative to --show)")
+@click.option(
+    "--youtube-url", help="YouTube video URL (alternative to --show and --rss-url)"
+)
 @click.option("--date", help="Episode date (YYYY-MM-DD)")
 @click.option("--title-contains", help="Substring to match in episode title")
 @click.option(
@@ -961,7 +1078,7 @@ def notion_cmd(ctx):
     help="Compute type",
 )
 @click.option("-v", "--verbose", is_flag=True, help="Print interstitial outputs")
-def quick(show, rss_url, date, title_contains, model, compute, verbose):
+def quick(show, rss_url, youtube_url, date, title_contains, model, compute, verbose):
     """Quick workflow: fetch + transcribe only (fastest option)."""
     click.echo("🚀 Running quick transcription workflow...")
 
@@ -971,6 +1088,7 @@ def quick(show, rss_url, date, title_contains, model, compute, verbose):
         run,
         show=show,
         rss_url=rss_url,
+        youtube_url=youtube_url,
         date=date,
         title_contains=title_contains,
         model=model,
@@ -983,12 +1101,16 @@ def quick(show, rss_url, date, title_contains, model, compute, verbose):
         notion=False,
         extract_markdown=False,
         clean=False,
+        model_prop="Model",
     )
 
 
 @main.command("analyze")
 @click.option("--show", help="Podcast show name (iTunes search)")
 @click.option("--rss-url", help="Direct RSS feed URL (alternative to --show)")
+@click.option(
+    "--youtube-url", help="YouTube video URL (alternative to --show and --rss-url)"
+)
 @click.option("--date", help="Episode date (YYYY-MM-DD)")
 @click.option("--title-contains", help="Substring to match in episode title")
 @click.option(
@@ -1026,6 +1148,7 @@ def quick(show, rss_url, date, title_contains, model, compute, verbose):
 def analyze(
     show,
     rss_url,
+    youtube_url,
     date,
     title_contains,
     model,
@@ -1042,6 +1165,7 @@ def analyze(
         run,
         show=show,
         rss_url=rss_url,
+        youtube_url=youtube_url,
         date=date,
         title_contains=title_contains,
         model=model,
@@ -1056,12 +1180,16 @@ def analyze(
         diarize=False,
         notion=False,
         clean=False,
+        model_prop="Model",
     )
 
 
 @main.command("publish")
 @click.option("--show", help="Podcast show name (iTunes search)")
 @click.option("--rss-url", help="Direct RSS feed URL (alternative to --show)")
+@click.option(
+    "--youtube-url", help="YouTube video URL (alternative to --show and --rss-url)"
+)
 @click.option("--date", help="Episode date (YYYY-MM-DD)")
 @click.option("--title-contains", help="Substring to match in episode title")
 @click.option(
@@ -1096,6 +1224,7 @@ def analyze(
 def publish(
     show,
     rss_url,
+    youtube_url,
     date,
     title_contains,
     notion_db,
@@ -1112,6 +1241,7 @@ def publish(
         run,
         show=show,
         rss_url=rss_url,
+        youtube_url=youtube_url,
         date=date,
         title_contains=title_contains,
         notion_db=notion_db,
@@ -1123,6 +1253,7 @@ def publish(
         extract_markdown=True,
         notion=True,
         clean=False,
+        model_prop="Model",
     )
 
 

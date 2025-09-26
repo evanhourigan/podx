@@ -136,6 +136,9 @@ class Transcript(BaseModel):
 
     audio_path: Optional[str] = Field(None, description="Path to source audio")
     language: Optional[str] = Field(None, description="Detected language")
+    asr_model: Optional[str] = Field(
+        None, description="ASR model used for transcription"
+    )
     text: Optional[str] = Field(None, description="Full transcript text")
     segments: List[Segment] = Field(
         default_factory=list, description="Transcript segments"

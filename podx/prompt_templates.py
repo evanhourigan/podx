@@ -93,18 +93,9 @@ def build_enhanced_variant(
     # Adaptive content scaling based on episode length
     content_scaling = get_content_scaling(episode_duration_minutes)
 
-    # Special Q&A section for guest-focused interviews
-    qa_section = ""
-    if podcast_type == PodcastType.INTERVIEW_GUEST_FOCUSED:
-        qa_section = f"""
-    ## 🎤 Key Q&A Exchanges
-    {get_qa_target(episode_duration_minutes)} most valuable question-answer exchanges:
-    - **Q:** [Host question verbatim or close paraphrase]
-    - **A:** [Guest response - capture the essence without filler, include specific examples, numbers, frameworks]
-    - Focus on exchanges where guest provides frameworks, specific advice, or unique insights
-    - Include timestamp if available
-    
-    """
+    # Get Q&A target for interview-focused templates
+    qa_target = get_qa_target(episode_duration_minutes)
+    quotes_target = get_quotes_target(episode_duration_minutes)
 
     return textwrap.dedent(
         f"""
@@ -130,7 +121,6 @@ def build_enhanced_variant(
     - One clear insight or finding
     - 2-3 sentences with sufficient context
     - Actionable or intellectually valuable
-    {qa_section}
     ## 💎 Gold Nuggets
     {get_gold_nuggets_target(episode_duration_minutes)} surprising, counterintuitive, or novel ideas that stood out. Include:
     - Why this insight is valuable or unexpected
@@ -418,13 +408,77 @@ TEMPLATES = {
         analysis_focus="Extract maximum value from the host's interviewing expertise and conversational guidance.",
     ),
     PodcastType.INTERVIEW_GUEST_FOCUSED: PromptTemplate(
-        system_prompt=ENHANCED_SYSTEM_BASE
-        + "\n\nSpecialization: Guest-focused interview analysis prioritizing guest expertise and unique perspectives.",
-        map_instructions=ENHANCED_MAP_INSTRUCTIONS
-        + "\n\nPrioritize: Guest responses, insights, methodologies, and personal experiences. Include host questions only when essential for context.",
-        reduce_instructions=ENHANCED_REDUCE_INSTRUCTIONS
-        + "\n\nEmphasize: Guest's unique expertise, actionable advice, and distinctive perspectives.",
-        analysis_focus="Extract maximum value from the guest's expertise while capturing their authentic voice and terminology.",
+        system_prompt="""You are an expert at analyzing interview-style podcasts to extract maximum value from guest insights.
+
+Your goal is to create a comprehensive, scannable analysis that captures the guest's unique expertise, tactical advice, and key insights while filtering out fluff and repetitive content.
+
+Focus on:
+- Actionable insights and frameworks shared by the guest
+- Specific examples, case studies, and real-world applications
+- Contrarian or counterintuitive perspectives
+- Tactical advice that can be implemented
+- The host's strategic questions that unlock valuable responses
+- Length-adaptive content based on episode duration""",
+        map_instructions="""Extract guest insights, host questions, frameworks, examples, and tactical advice from this transcript segment.
+
+Focus on substance over fluff:
+- Guest's unique perspectives, methodologies, and lessons learned
+- Specific examples with context and outcomes
+- Tactical advice and actionable frameworks
+- Host questions that reveal important angles or unlock valuable responses
+- Contrarian views or surprising insights
+- Real numbers, metrics, or concrete details when mentioned
+
+Ignore filler, small talk, and repetitive content.""",
+        reduce_instructions="""Create a comprehensive interview analysis with the following structure:
+
+# [Episode Title] - Interview Analysis
+
+## Executive Summary
+Write 3-4 sentences capturing the main value, key themes, and why this interview matters.
+
+## Guest Profile
+- **Name**: [Guest name and title]
+- **Background**: [Company, role, relevant expertise]  
+- **Why Listen**: [What makes this person's perspective valuable]
+
+## Core Insights & Tactical Advice
+Organize the most valuable insights by theme. For each insight:
+- Provide specific, actionable details
+- Include context and examples when available
+- Focus on what's unique or counterintuitive
+- Scale content based on episode length - longer episodes should have more detailed insights
+
+## Key Q&A Exchanges
+Extract the most valuable question-answer pairs based on episode length:
+
+**Q:** [Host's exact question - these often reveal common challenges or important angles]
+**Key Points:**
+- [Primary insight or advice from the answer]
+- [Specific example, framework, or tactic mentioned]
+- [Any counterintuitive or contrarian perspective]
+- [Concrete details, numbers, or metrics if mentioned]
+
+*Continue this pattern for each valuable exchange. Include more Q&A pairs for longer episodes.*
+
+## Frameworks & Mental Models
+List any specific frameworks, processes, methodologies, or mental models the guest shared, with brief explanations.
+
+## Examples & Case Studies
+Document real examples shared by the guest with:
+- Situation/context
+- Actions taken
+- Results/outcomes
+- Key lessons
+
+## Quotable Moments
+Extract the most insightful or memorable quotes with context (more for longer episodes).
+
+## Actionable Takeaways
+Specific things listeners can implement, tools mentioned, or resources referenced.
+
+Structure the content to be scannable and reference-worthy. Scale detail based on episode length.""",
+        analysis_focus="Extract maximum value from guest expertise through detailed tactical insights, frameworks, and real-world examples.",
     ),
     PodcastType.TECH: PromptTemplate(
         system_prompt=ENHANCED_SYSTEM_BASE

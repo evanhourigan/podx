@@ -15,6 +15,7 @@ import os
 import sys
 import textwrap
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -435,6 +436,13 @@ def main(
     unified = {
         "markdown": md,
         "metadata": transcript,  # Original transcript metadata
+        "deepcast_metadata": {
+            "model": model,
+            "temperature": temperature,
+            "podcast_type": podcast_type.value if podcast_type else "general",
+            "processed_at": datetime.now(timezone.utc).isoformat(),
+            "asr_model": transcript.get("asr_model"),  # Store ASR model from transcript
+        }
     }
     if json_data:
         unified.update(json_data)  # Merge structured analysis

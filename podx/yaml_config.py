@@ -74,6 +74,9 @@ class NotionDatabase(BaseModel):
     tags_property: Optional[str] = Field(
         default="Tags", description="Property name for tags/keywords"
     )
+    model_property: Optional[str] = Field(
+        default="Model", description="Property name for deepcast model used"
+    )
     description: Optional[str] = Field(default=None, description="Database description")
 
     @validator("database_id")

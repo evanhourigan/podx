@@ -4,6 +4,7 @@ Interactive episode browser for podcast discovery and selection.
 Provides paginated episode listing with interactive selection.
 """
 
+import json
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -21,17 +22,15 @@ from .fetch import find_feed_for_show
 
 
 def format_duration(seconds: Optional[int]) -> str:
-    """Format duration in seconds to human readable format."""
+    """Format duration in seconds to HH:MM:SS format."""
     if not seconds:
         return "Unknown"
 
     hours = seconds // 3600
     minutes = (seconds % 3600) // 60
+    secs = seconds % 60
 
-    if hours > 0:
-        return f"{hours}h {minutes}m"
-    else:
-        return f"{minutes}m"
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
 
 def format_date(date_str: str) -> str:
@@ -111,34 +110,35 @@ class EpisodeBrowser:
                 audio_url = None
                 duration = None
 
+                # Extract duration from iTunes tags first (more reliable)
+                if hasattr(entry, "itunes_duration"):
+                    try:
+                        duration_str = entry.itunes_duration
+                        # Check if it's already in seconds (pure number)
+                        try:
+                            duration = int(duration_str)
+                        except ValueError:
+                            # Parse HH:MM:SS or MM:SS format
+                            parts = duration_str.split(":")
+                            if len(parts) == 3:  # HH:MM:SS
+                                duration = (
+                                    int(parts[0]) * 3600
+                                    + int(parts[1]) * 60
+                                    + int(parts[2])
+                                )
+                            elif len(parts) == 2:  # MM:SS
+                                duration = int(parts[0]) * 60 + int(parts[1])
+                    except (ValueError, AttributeError):
+                        pass
+
                 if hasattr(entry, "enclosures") and entry.enclosures:
                     for enclosure in entry.enclosures:
                         if enclosure.type and "audio" in enclosure.type:
                             audio_url = enclosure.href
-                            # Try to get duration
-                            if hasattr(enclosure, "length"):
-                                try:
-                                    duration = int(enclosure.length)
-                                except (ValueError, TypeError):
-                                    pass
+                            # Don't use enclosure.length for duration (it's file size in bytes)
                             break
 
-                # Extract duration from iTunes tags if not found
-                if not duration and hasattr(entry, "itunes_duration"):
-                    try:
-                        duration_str = entry.itunes_duration
-                        # Parse HH:MM:SS or MM:SS format
-                        parts = duration_str.split(":")
-                        if len(parts) == 3:  # HH:MM:SS
-                            duration = (
-                                int(parts[0]) * 3600
-                                + int(parts[1]) * 60
-                                + int(parts[2])
-                            )
-                        elif len(parts) == 2:  # MM:SS
-                            duration = int(parts[0]) * 60 + int(parts[1])
-                    except (ValueError, AttributeError):
-                        pass
+                # No fallback to enclosure.length since it's file size, not duration
 
                 episode = {
                     "title": entry.title,
@@ -370,7 +370,9 @@ def main(
         episode_date = format_date(selected_episode["published"])
         output = Path(f"{safe_show}_{episode_date}_episode.json")
 
-    output.write_text(print_json(episode_meta, return_string=True), encoding="utf-8")
+    output.write_text(
+        json.dumps(episode_meta, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     browser.console.print(f"💾 Episode metadata saved to: [cyan]{output}[/cyan]")
 
     # Process episode if requested
