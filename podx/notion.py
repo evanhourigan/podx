@@ -14,8 +14,8 @@ import requests
 # Optional rich UI (similar feel to podx-browse)
 try:
     from rich.console import Console
-    from rich.table import Table
     from rich.panel import Panel
+    from rich.table import Table
 
     _HAS_RICH = True
     _console = Console()
@@ -304,14 +304,25 @@ def _prompt_numbered_choice(title: str, items: List[str]) -> Optional[str]:
     current = list(items)
     filter_note = ""
     while True:
+        # Clear screen before re-render to keep UI anchored
+        try:
+            if _HAS_RICH and _console is not None:
+                _console.clear()
+            else:
+                click.clear()
+        except Exception:
+            pass
+
         if _HAS_RICH and _console is not None:
             tbl = Table(show_header=True, header_style="bold cyan", box=None)
-            tbl.add_column("#", style="dim", width=4)
-            tbl.add_column(title + (f" {filter_note}" if filter_note else ""))
+            tbl.add_column("#", style="cyan dim", width=4)
+            tbl.add_column(title + (f" {filter_note}" if filter_note else ""), style="white")
             for idx, item in enumerate(current, start=1):
                 tbl.add_row(str(idx), item)
             _console.print(tbl)
-            _console.print(Panel.fit("1-9 select  •  /text filter  •  q quit", style="dim"))
+            _console.print(
+                Panel.fit("1-9 select  •  /text filter  •  q quit", style="dim")
+            )
         else:
             click.echo("")
             click.echo(title + (f" {filter_note}" if filter_note else ""))
@@ -327,7 +338,9 @@ def _prompt_numbered_choice(title: str, items: List[str]) -> Optional[str]:
             if s.startswith("/"):
                 term = s[1:].strip()
                 if not term:
-                    term = click.prompt("Filter contains", default="", show_default=False)
+                    term = click.prompt(
+                        "Filter contains", default="", show_default=False
+                    )
                 term_l = term.lower()
                 current = [it for it in items if term_l in it.lower()]
                 filter_note = f"(filtered: '{term}')" if term else ""
