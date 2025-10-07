@@ -103,8 +103,8 @@ pip install -e ".[asr,whisperx,llm,notion]"
 - `podx-fetch`: Find & download an episode by show/date/title or RSS URL (supports `--interactive` for browsing)
 - `podx-transcode`: `ffmpeg` to `wav` (16k mono) / `mp3` / `aac` (supports `--interactive` for browsing downloaded episodes)
 - `podx-transcribe`: `faster-whisper` (fast pass) (supports `--interactive` with model selection)
-- `podx-align`: `WhisperX` alignment (word-level timings)
-- `podx-diarize`: `WhisperX` diarization (speaker labels)
+- `podx-align`: `WhisperX` alignment (word-level timings) (supports `--interactive` for browsing transcripts)
+- `podx-diarize`: `WhisperX` diarization (speaker labels) (supports `--interactive` for browsing aligned transcripts)
 - `podx-export`: Write `SRT`/`VTT`/`TXT`/`MD`
 - `podx-deepcast`: AI-powered transcript analysis and summarization
 - `podx-notion`: Upload Deepcast output to Notion as formatted pages
@@ -200,6 +200,46 @@ Features:
 - Model selection shows recommendations and prevents accidental re-transcription
 - Saves to `transcript-{model}.json` (e.g., `transcript-large-v3.json`)
 - Each model creates a separate transcript file - no overwriting!
+
+### Interactive Alignment
+
+Browse existing transcripts and align them with audio for word-level timings:
+
+```bash
+# Browse all transcripts (transcript-{model}.json files)
+podx-align --interactive
+
+# Scan a specific directory
+podx-align --interactive --scan-dir /path/to/podcasts
+```
+
+Features:
+
+- Shows all existing transcripts with their ASR models
+- Displays alignment status (✓ if `aligned-transcript-{model}.json` exists)
+- Confirmation prompt when re-aligning existing aligned transcripts
+- Saves to `aligned-transcript-{model}.json` in episode directory
+- Multiple transcripts per episode (one per ASR model)
+
+### Interactive Diarization
+
+Browse aligned transcripts and add speaker identification:
+
+```bash
+# Browse all aligned transcripts (aligned-transcript-{model}.json files)
+podx-diarize --interactive
+
+# Scan a specific directory
+podx-diarize --interactive --scan-dir /path/to/podcasts
+```
+
+Features:
+
+- Shows all existing aligned transcripts with their ASR models
+- Displays diarization status (✓ if `diarized-transcript-{model}.json` exists)
+- Confirmation prompt when re-diarizing existing diarized transcripts
+- Saves to `diarized-transcript-{model}.json` in episode directory
+- Multiple transcripts per episode (one per ASR model)
 
 ### Unix-style pipeline (JSON on stdout/stdin):
 
