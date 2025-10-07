@@ -50,7 +50,6 @@ dev = [
 ]
 
 [project.scripts]
-podx-browse = "podx.browse:main"
 podx-fetch = "podx.fetch:main"
 podx-transcode = "podx.transcode:main"
 podx-transcribe = "podx.transcribe:main"
