@@ -127,50 +127,77 @@ class DiarizeBrowser:
             end_idx = min(start_idx + self.items_per_page, len(self.transcripts))
             page_items = self.transcripts[start_idx:end_idx]
 
-            # Create header
-            title = f"Episodes Available for Transcription Diarization (Page {self.current_page + 1}/{self.total_pages})"
-            console.print(Panel(title, style="bold cyan"))
-            console.print()
+            # Create title with emoji
+            title = f"🎙️ Episodes Available for Transcription Diarization (Page {self.current_page + 1}/{self.total_pages})"
 
             # Create table
-            table = Table(show_header=True, header_style="bold magenta")
-            table.add_column("#", style="cyan", width=6, justify="right")
-            table.add_column("Status", style="yellow", width=15)
-            table.add_column("Show", style="green", width=25)
+            table = Table(show_header=True, header_style="bold magenta", title=title)
+            table.add_column("#", style="cyan", width=3, justify="right")
+            table.add_column("Status", style="yellow", width=25)
+            table.add_column("Show", style="green", width=18)
             table.add_column("Date", style="blue", width=12)
-            table.add_column("Title", style="white")
+            table.add_column("Title", style="white", width=45)
 
             for idx, item in enumerate(page_items, start=start_idx + 1):
                 episode_meta = item["episode_meta"]
                 asr_model = item["asr_model"]
                 status = f"✓ {asr_model}" if item["is_diarized"] else f"○ {asr_model}"
 
-                show = _truncate_text(episode_meta.get("show", "Unknown"), 25)
-                date = episode_meta.get("episode_published", "")[:10]
-                title = _truncate_text(episode_meta.get("episode_title", "Unknown"), 40)
+                show = _truncate_text(episode_meta.get("show", "Unknown"), 18)
 
-                table.add_row(str(idx), status, show, date, title)
+                # Format date like transcribe does
+                date_str = episode_meta.get("episode_published", "")
+                if date_str:
+                    try:
+                        from dateutil import parser as dtparse
+
+                        parsed = dtparse.parse(date_str)
+                        date = parsed.strftime("%Y-%m-%d")
+                    except Exception:
+                        date = date_str[:10] if len(date_str) >= 10 else date_str
+                else:
+                    # Try to extract from directory name
+                    parts = str(item["directory"]).split("/")
+                    date = parts[-1] if parts else "Unknown"
+
+                title_text = _truncate_text(
+                    episode_meta.get("episode_title", "Unknown"), 45
+                )
+
+                table.add_row(str(idx), status, show, date, title_text)
 
             console.print(table)
-            console.print()
 
-            # Show options
-            options = (
-                f"[cyan]1-{len(self.transcripts)}:[/cyan] Select episode to diarize"
+            # Show navigation options in Panel
+            options = []
+            options.append(
+                f"[cyan]1-{len(self.transcripts)}[/cyan]: Select episode to diarize"
             )
-            if self.total_pages > 1:
-                options += " • [cyan]N:[/cyan] Next page"
-            options += " • [cyan]Q:[/cyan] Quit"
-            console.print(options)
-            console.print()
+
+            if self.current_page < self.total_pages - 1:
+                options.append("[yellow]N[/yellow]: Next page")
+
+            if self.current_page > 0:
+                options.append("[yellow]P[/yellow]: Previous page")
+
+            options.append("[red]Q[/red]: Quit")
+
+            options_text = " • ".join(options)
+            panel = Panel(
+                options_text, title="Options", border_style="blue", padding=(0, 1)
+            )
+            console.print(panel)
 
             # Get user input
-            choice = input("👉 Your choice: ").strip().upper()
+            choice = input("\n👉 Your choice: ").strip().upper()
 
-            if choice in ["Q", "QUIT"]:
+            if choice in ["Q", "QUIT", "EXIT"]:
+                console.print("👋 Goodbye!")
                 return None
-            elif choice == "N" and self.total_pages > 1:
-                self.current_page = (self.current_page + 1) % self.total_pages
+            elif choice == "N" and self.current_page < self.total_pages - 1:
+                self.current_page += 1
+            elif choice == "P" and self.current_page > 0:
+                self.current_page -= 1
             else:
                 try:
                     selection = int(choice)
@@ -178,12 +205,10 @@ class DiarizeBrowser:
                         return self.transcripts[selection - 1]
                     else:
                         console.print(
-                            f"[red]❌ Invalid choice. Please select 1-{len(self.transcripts)}[/red]"
+                            f"❌ Invalid episode number. Please choose 1-{len(self.transcripts)}"
                         )
-                        input("Press Enter to continue...")
                 except ValueError:
-                    console.print("[red]❌ Invalid input. Please enter a number.[/red]")
-                    input("Press Enter to continue...")
+                    console.print("❌ Invalid input. Please try again.")
 
 
 @click.command()
@@ -296,7 +321,6 @@ def main(audio, input, output, interactive, scan_dir):
         audio = audio.resolve()
 
     # Suppress WhisperX debug output that contaminates stdout
-    import sys
     from contextlib import redirect_stderr, redirect_stdout
 
     from whisperx import diarize
