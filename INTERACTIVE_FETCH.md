@@ -2,14 +2,13 @@
 
 ## Overview
 
-The `--interactive` (or `-i`) flag for `podx-fetch` provides a browsing interface to visually select episodes before downloading them. This combines the episode discovery UI from `podx-browse` with the download functionality of `podx-fetch`.
+The `--interactive` flag for `podx-fetch` provides a browsing interface to visually select episodes before downloading them. This provides a unified experience for discovering and fetching podcast episodes.
 
 ## Why Use Interactive Mode?
 
 **Before**: You had to either:
 
 - Know the exact date of the episode you wanted
-- Use `podx-browse` to find it, then manually copy the date to `podx-fetch`
 - Browse on a website to find the episode date
 
 **Now**: Browse and download in one command!
@@ -172,7 +171,7 @@ If not installed, you'll get a helpful error message.
 
 3. **Quick Selection**: Episodes are numbered globally, so episode #42 is always #42 regardless of what page you're on
 
-4. **Pipeline Ready**: The output is immediately usable in pipelines, unlike `podx-browse` which outputs a different format
+4. **Pipeline Ready**: The output is saved as `episode-meta.json` in the episode directory, making it immediately usable in subsequent processing steps
 
 5. **Directory Structure**: Episodes are automatically organized in `<SHOW>/<DATE>` format, making them easy to find later
 

@@ -42,6 +42,9 @@ def main(audio, input, output):
             "input must contain AlignedTranscript JSON with 'segments' field"
         )
 
+    # Preserve ASR model from input for filename
+    asr_model = aligned.get("asr_model")
+
     # Suppress WhisperX debug output that contaminates stdout
     import sys
     from contextlib import redirect_stderr, redirect_stdout
@@ -57,8 +60,20 @@ def main(audio, input, output):
 
     final["audio_path"] = str(audio)
 
-    # Save to file if requested
-    if output:
+    # Preserve ASR model in output
+    if asr_model:
+        final["asr_model"] = asr_model
+
+    # Handle output with model-specific filename if available
+    if asr_model and not output:
+        # Use model-specific filename in same directory as audio
+        audio_dir = Path(audio).parent
+        output = audio_dir / f"diarized-transcript-{asr_model}.json"
+        output.write_text(
+            json.dumps(final, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+    elif output:
+        # Explicit output file specified
         output.write_text(json.dumps(final, indent=2))
 
     # Always print to stdout

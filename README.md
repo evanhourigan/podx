@@ -102,7 +102,7 @@ pip install -e ".[asr,whisperx,llm,notion]"
 
 - `podx-fetch`: Find & download an episode by show/date/title or RSS URL (supports `--interactive` for browsing)
 - `podx-transcode`: `ffmpeg` to `wav` (16k mono) / `mp3` / `aac` (supports `--interactive` for browsing downloaded episodes)
-- `podx-transcribe`: `faster-whisper` (fast pass)
+- `podx-transcribe`: `faster-whisper` (fast pass) (supports `--interactive` with model selection)
 - `podx-align`: `WhisperX` alignment (word-level timings)
 - `podx-diarize`: `WhisperX` diarization (speaker labels)
 - `podx-export`: Write `SRT`/`VTT`/`TXT`/`MD`
@@ -179,6 +179,27 @@ podx-transcode --interactive --scan-dir /path/to/podcasts
 ```
 
 This shows all episodes with `episode-meta.json`, indicates which have already been transcoded (✓ Done vs ○ New), and saves the transcoded audio and `audio-meta.json` in the episode directory.
+
+### Interactive Transcription
+
+Browse transcoded episodes and select ASR model for transcription:
+
+```bash
+# Browse all transcoded episodes and select model interactively
+podx-transcribe --interactive
+
+# Scan a specific directory
+podx-transcribe --interactive --scan-dir /path/to/podcasts
+```
+
+Features:
+
+- Shows all transcoded episodes (with `audio-meta.json`)
+- Displays which models have already been used (e.g., "✓ base, large-v3")
+- Two-step selection: choose episode, then choose ASR model
+- Model selection shows recommendations and prevents accidental re-transcription
+- Saves to `transcript-{model}.json` (e.g., `transcript-large-v3.json`)
+- Each model creates a separate transcript file - no overwriting!
 
 ### Unix-style pipeline (JSON on stdout/stdin):
 

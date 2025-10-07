@@ -13,7 +13,6 @@ import click
 # Import individual command modules for CLI integration
 from . import (
     align,
-    browse,
     deepcast,
     diarize,
     export,
@@ -565,16 +564,66 @@ def run(
         # Track transcoded audio path for cleanup
         transcoded_path = Path(audio["audio_path"])
 
-        # 3) TRANSCRIBE → transcript.json
-        transcript_file = wd / "transcript.json"
+        # 3) TRANSCRIBE → transcript-{model}.json
+        # First check if transcript already exists for this model
+        transcript_file = wd / f"transcript-{model}.json"
+
+        # Also check for legacy transcript.json and other model variants
+        existing_transcripts = {}
+        for asr_model in [
+            "tiny",
+            "base",
+            "small",
+            "medium",
+            "large",
+            "large-v2",
+            "large-v3",
+        ]:
+            model_file = wd / f"transcript-{asr_model}.json"
+            if model_file.exists():
+                existing_transcripts[asr_model] = model_file
+
+        # Check legacy transcript.json
+        legacy_transcript = wd / "transcript.json"
+        if legacy_transcript.exists():
+            try:
+                legacy_data = json.loads(legacy_transcript.read_text())
+                legacy_model = legacy_data.get("asr_model", "unknown")
+                existing_transcripts[legacy_model] = legacy_transcript
+            except Exception:
+                existing_transcripts["unknown"] = legacy_transcript
+
         if transcript_file.exists():
-            logger.info("Found existing transcript, skipping transcription")
+            # Use existing transcript for this specific model
+            logger.info(
+                f"Found existing transcript for model {model}, skipping transcription"
+            )
             base = json.loads(transcript_file.read_text())
             progress.complete_step(
-                f"Using existing transcript - {len(base.get('segments', []))} segments",
+                f"Using existing transcript ({model}) - {len(base.get('segments', []))} segments",
+                0,
+            )
+        elif existing_transcripts:
+            # Found transcripts with other models - use most sophisticated one
+            available_models = list(existing_transcripts.keys())
+            best_model = None
+            for check_model in reversed(
+                ["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"]
+            ):
+                if check_model in available_models:
+                    best_model = check_model
+                    break
+            if not best_model:
+                best_model = available_models[0]
+
+            logger.info(f"Found existing transcript with model {best_model}, using it")
+            base = json.loads(existing_transcripts[best_model].read_text())
+            progress.complete_step(
+                f"Using existing transcript ({best_model}) - {len(base.get('segments', []))} segments",
                 0,
             )
         else:
+            # No existing transcript, create new one
             progress.start_step(f"Transcribing with {model} model")
             step_start = time.time()
             base = _run(
@@ -591,14 +640,29 @@ def run(
             )
 
         latest = base
-        latest_name = "transcript"
+        latest_name = f"transcript-{model}"
 
-        # 4) ALIGN (optional) → aligned-transcript.json
+        # 4) ALIGN (optional) → aligned-transcript-{model}.json
         if align:
-            aligned_file = wd / "aligned-transcript.json"
+            # Get model from base transcript
+            used_model = base.get("asr_model", model)
+            aligned_file = wd / f"aligned-transcript-{used_model}.json"
+
+            # Also check legacy filename
+            legacy_aligned = wd / "aligned-transcript.json"
             if aligned_file.exists():
-                logger.info("Found existing aligned transcript, skipping alignment")
+                logger.info(
+                    f"Found existing aligned transcript ({used_model}), skipping alignment"
+                )
                 aligned = json.loads(aligned_file.read_text())
+                progress.complete_step(
+                    f"Using existing aligned transcript ({used_model})", 0
+                )
+                latest = aligned
+                latest_name = f"aligned-transcript-{used_model}"
+            elif legacy_aligned.exists():
+                logger.info("Found existing legacy aligned transcript, using it")
+                aligned = json.loads(legacy_aligned.read_text())
                 progress.complete_step("Using existing aligned transcript", 0)
                 latest = aligned
                 latest_name = "aligned-transcript"
@@ -615,29 +679,52 @@ def run(
                 step_duration = time.time() - step_start
                 progress.complete_step("Audio alignment completed", step_duration)
                 latest = aligned
-                latest_name = "aligned-transcript"
+                latest_name = f"aligned-transcript-{used_model}"
 
-        # 5) DIARIZE (optional) → diarized-transcript.json
+        # 5) DIARIZE (optional) → diarized-transcript-{model}.json
         if diarize:
-            progress.start_step("Identifying speakers")
-            step_start = time.time()
-            # Debug: Check what we're passing to diarize
-            if verbose:
-                click.secho(
-                    f"Debug: Passing {latest_name} JSON to diarize with {len(latest.get('segments', []))} segments",
-                    fg="yellow",
+            # Get model from latest transcript
+            used_model = latest.get("asr_model", model)
+            diarized_file = wd / f"diarized-transcript-{used_model}.json"
+
+            # Check if already exists
+            legacy_diarized = wd / "diarized-transcript.json"
+            if diarized_file.exists():
+                logger.info(
+                    f"Found existing diarized transcript ({used_model}), skipping diarization"
                 )
-            diar = _run(
-                ["podx-diarize", "--audio", audio["audio_path"]],
-                stdin_payload=latest,
-                verbose=verbose,
-                save_to=wd / "diarized-transcript.json",
-                label=None,  # Progress handles the display
-            )
-            step_duration = time.time() - step_start
-            progress.complete_step("Speaker diarization completed", step_duration)
-            latest = diar
-            latest_name = "diarized-transcript"
+                diar = json.loads(diarized_file.read_text())
+                progress.complete_step(
+                    f"Using existing diarized transcript ({used_model})", 0
+                )
+                latest = diar
+                latest_name = f"diarized-transcript-{used_model}"
+            elif legacy_diarized.exists():
+                logger.info("Found existing legacy diarized transcript, using it")
+                diar = json.loads(legacy_diarized.read_text())
+                progress.complete_step("Using existing diarized transcript", 0)
+                latest = diar
+                latest_name = "diarized-transcript"
+            else:
+                progress.start_step("Identifying speakers")
+                step_start = time.time()
+                # Debug: Check what we're passing to diarize
+                if verbose:
+                    click.secho(
+                        f"Debug: Passing {latest_name} JSON to diarize with {len(latest.get('segments', []))} segments",
+                        fg="yellow",
+                    )
+                diar = _run(
+                    ["podx-diarize", "--audio", audio["audio_path"]],
+                    stdin_payload=latest,
+                    verbose=verbose,
+                    save_to=diarized_file,
+                    label=None,  # Progress handles the display
+                )
+                step_duration = time.time() - step_start
+                progress.complete_step("Speaker diarization completed", step_duration)
+                latest = diar
+                latest_name = f"diarized-transcript-{used_model}"
 
         # Always keep a pointer to the latest JSON/SRT/TXT for convenience
         (wd / "latest.json").write_text(json.dumps(latest, indent=2), encoding="utf-8")
@@ -846,21 +933,26 @@ def run(
             keep.update(wd.glob("deepcast-brief-*.md"))
 
             cleaned_files = 0
-            # Remove intermediate JSON files
-            for p in [
-                wd / "transcript.json",
-                wd / "aligned-transcript.json",
-                wd / "diarized-transcript.json",
-            ]:
-                if p.exists() and p not in keep:
-                    try:
-                        p.unlink()
-                        cleaned_files += 1
-                        logger.debug("Cleaned intermediate file", file=str(p))
-                    except Exception as e:
-                        logger.warning(
-                            "Failed to clean file", file=str(p), error=str(e)
-                        )
+            # Remove intermediate JSON files (both legacy and model-specific)
+            cleanup_patterns = [
+                "transcript.json",
+                "transcript-*.json",
+                "aligned-transcript.json",
+                "aligned-transcript-*.json",
+                "diarized-transcript.json",
+                "diarized-transcript-*.json",
+            ]
+            for pattern in cleanup_patterns:
+                for p in wd.glob(pattern):
+                    if p.exists() and p not in keep:
+                        try:
+                            p.unlink()
+                            cleaned_files += 1
+                            logger.debug("Cleaned intermediate file", file=str(p))
+                        except Exception as e:
+                            logger.warning(
+                                "Failed to clean file", file=str(p), error=str(e)
+                            )
 
             # Remove audio files if not keeping them
             if no_keep_audio:
@@ -911,22 +1003,6 @@ def run(
 
 # Add individual commands as subcommands to main CLI group
 # This provides a consistent interface: podx <command> instead of podx-<command>
-
-
-@main.command("browse")
-@click.pass_context
-def browse_cmd(ctx):
-    """Interactive episode browser for podcast discovery and selection."""
-    # Pass through to the browse.main() with sys.argv adjustments
-    import sys
-
-    # Remove 'podx browse' from sys.argv and call browse.main()
-    original_argv = sys.argv.copy()
-    sys.argv = ["podx-browse"] + sys.argv[2:]  # Keep original args after 'browse'
-    try:
-        browse.main()
-    finally:
-        sys.argv = original_argv
 
 
 @main.command("info")
