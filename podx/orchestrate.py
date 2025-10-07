@@ -670,7 +670,7 @@ def run(
                 progress.start_step("Aligning transcript with audio")
                 step_start = time.time()
                 aligned = _run(
-                    ["podx-align", "--audio", audio["audio_path"]],
+                    ["podx-align"],  # Audio path comes from transcript JSON
                     stdin_payload=base,
                     verbose=verbose,
                     save_to=aligned_file,
@@ -715,7 +715,7 @@ def run(
                         fg="yellow",
                     )
                 diar = _run(
-                    ["podx-diarize", "--audio", audio["audio_path"]],
+                    ["podx-diarize"],  # Audio path comes from aligned transcript JSON
                     stdin_payload=latest,
                     verbose=verbose,
                     save_to=diarized_file,

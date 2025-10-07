@@ -13,7 +13,8 @@ from .cli_shared import print_json, read_stdin_json
 @click.option(
     "--audio",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    required=True,
+    required=False,
+    help="Audio file path (optional if specified in aligned transcript JSON)",
 )
 @click.option(
     "--input",
@@ -46,6 +47,19 @@ def main(audio, input, output):
     asr_model = aligned.get("asr_model")
     language = aligned.get("language", "en")
 
+    # Get audio path from --audio flag or from JSON
+    if not audio:
+        if "audio_path" not in aligned:
+            raise SystemExit(
+                "--audio flag required when aligned transcript JSON has no 'audio_path' field"
+            )
+        audio = Path(aligned["audio_path"])
+        if not audio.exists():
+            raise SystemExit(f"Audio file not found: {audio}")
+
+    # Ensure we use absolute path
+    audio = audio.resolve()
+
     # Suppress WhisperX debug output that contaminates stdout
     import sys
     from contextlib import redirect_stderr, redirect_stdout
@@ -59,8 +73,8 @@ def main(audio, input, output):
         diarized = dia(str(audio))
         final = diarize.assign_word_speakers(diarized, aligned)
 
-    # Preserve metadata from input transcript
-    final["audio_path"] = str(audio)
+    # Preserve metadata from input transcript (always use absolute path)
+    final["audio_path"] = str(audio)  # Already resolved to absolute path above
     final["language"] = language
     if asr_model:
         final["asr_model"] = asr_model

@@ -640,7 +640,7 @@ def main(show, rss_url, date, title_contains, outdir, output, interactive):
         "feed": feed_url,
         "episode_title": ep.get("title", ""),
         "episode_published": (ep.get("published") or ep.get("updated") or ""),
-        "audio_path": str(audio_path),
+        "audio_path": str(audio_path.resolve()),  # Always use absolute path
     }
 
     # Add image URL if available from feed

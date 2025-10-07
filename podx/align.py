@@ -13,7 +13,8 @@ from .cli_shared import print_json, read_stdin_json
 @click.option(
     "--audio",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    required=True,
+    required=False,
+    help="Audio file path (optional if specified in transcript JSON)",
 )
 @click.option(
     "--input",
@@ -45,6 +46,19 @@ def main(audio, input, output):
     # Preserve ASR model from input for filename
     asr_model = base.get("asr_model")
 
+    # Get audio path from --audio flag or from JSON
+    if not audio:
+        if "audio_path" not in base:
+            raise SystemExit(
+                "--audio flag required when transcript JSON has no 'audio_path' field"
+            )
+        audio = Path(base["audio_path"])
+        if not audio.exists():
+            raise SystemExit(f"Audio file not found: {audio}")
+
+    # Ensure we use absolute path
+    audio = audio.resolve()
+
     # Suppress WhisperX debug output that contaminates stdout
     import sys
     from contextlib import redirect_stderr, redirect_stdout
@@ -55,8 +69,8 @@ def main(audio, input, output):
         model_a, metadata = whisperx.load_align_model(language_code=lang, device="cpu")
         aligned = whisperx.align(segs, model_a, metadata, str(audio), device="cpu")
 
-    # Preserve metadata from input transcript
-    aligned["audio_path"] = str(audio)
+    # Preserve metadata from input transcript (always use absolute path)
+    aligned["audio_path"] = str(audio)  # Already resolved to absolute path above
     aligned["language"] = lang
     if asr_model:
         aligned["asr_model"] = asr_model

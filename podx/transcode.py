@@ -392,7 +392,7 @@ def main(fmt, bitrate, outdir, input, output, interactive, scan_dir):
     if fmt == "wav16":
         wav = to_wav16(src, dst)
         out: AudioMeta = {
-            "audio_path": str(wav),
+            "audio_path": str(wav.resolve()),  # Always use absolute path
             "sample_rate": 16000,
             "channels": 1,
             "format": "wav16",
@@ -403,12 +403,20 @@ def main(fmt, bitrate, outdir, input, output, interactive, scan_dir):
             ["-y", "-i", str(src), "-codec:a", "libmp3lame", "-b:a", bitrate, str(dst)]
         )
         probed = ffprobe_audio_meta(dst)
-        out = {"audio_path": str(dst), "format": "mp3", **probed}
+        out = {
+            "audio_path": str(dst.resolve()),
+            "format": "mp3",
+            **probed,
+        }  # Absolute path
     else:
         dst = dst.with_suffix(".m4a")
         ffmpeg(["-y", "-i", str(src), "-c:a", "aac", "-b:a", bitrate, str(dst)])
         probed = ffprobe_audio_meta(dst)
-        out = {"audio_path": str(dst), "format": "aac", **probed}
+        out = {
+            "audio_path": str(dst.resolve()),
+            "format": "aac",
+            **probed,
+        }  # Absolute path
 
     # Handle output based on interactive mode
     if interactive:
