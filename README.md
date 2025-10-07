@@ -100,7 +100,7 @@ pip install -e ".[asr,whisperx,llm,notion]"
 
 **Note**: With Option 1 (pipx), all `podx-*` commands will be available globally. With Option 2, you need to activate the virtual environment or be in the project directory.
 
-- `podx-fetch`: Find & download an episode by show/date/title or RSS URL
+- `podx-fetch`: Find & download an episode by show/date/title or RSS URL (supports `--interactive` for browsing)
 - `podx-transcode`: `ffmpeg` to `wav` (16k mono) / `mp3` / `aac`
 - `podx-transcribe`: `faster-whisper` (fast pass)
 - `podx-align`: `WhisperX` alignment (word-level timings)
@@ -152,6 +152,19 @@ pip install -e ".[notion]"
 ```
 
 ## Quick start
+
+### Interactive Episode Selection
+
+Browse and download episodes with a visual interface:
+
+```bash
+# Interactive browsing - shows paginated episode list, saves to <SHOW>/<DATE>/
+podx-fetch --show "The Podcast" --interactive
+```
+
+This saves both the audio file and `episode-meta.json` to the episode directory.
+
+**📖 [Interactive Fetch Guide →](INTERACTIVE_FETCH.md)**
 
 ### Unix-style pipeline (JSON on stdout/stdin):
 
