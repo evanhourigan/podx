@@ -101,7 +101,7 @@ pip install -e ".[asr,whisperx,llm,notion]"
 **Note**: With Option 1 (pipx), all `podx-*` commands will be available globally. With Option 2, you need to activate the virtual environment or be in the project directory.
 
 - `podx-fetch`: Find & download an episode by show/date/title or RSS URL (supports `--interactive` for browsing)
-- `podx-transcode`: `ffmpeg` to `wav` (16k mono) / `mp3` / `aac`
+- `podx-transcode`: `ffmpeg` to `wav` (16k mono) / `mp3` / `aac` (supports `--interactive` for browsing downloaded episodes)
 - `podx-transcribe`: `faster-whisper` (fast pass)
 - `podx-align`: `WhisperX` alignment (word-level timings)
 - `podx-diarize`: `WhisperX` diarization (speaker labels)
@@ -165,6 +165,20 @@ podx-fetch --show "The Podcast" --interactive
 This saves both the audio file and `episode-meta.json` to the episode directory.
 
 **📖 [Interactive Fetch Guide →](INTERACTIVE_FETCH.md)**
+
+### Interactive Transcoding
+
+Browse downloaded episodes and transcode them:
+
+```bash
+# Browse all episodes in current directory and subdirectories
+podx-transcode --interactive
+
+# Scan a specific directory
+podx-transcode --interactive --scan-dir /path/to/podcasts
+```
+
+This shows all episodes with `episode-meta.json`, indicates which have already been transcoded (✓ Done vs ○ New), and saves the transcoded audio and `audio-meta.json` in the episode directory.
 
 ### Unix-style pipeline (JSON on stdout/stdin):
 
