@@ -55,9 +55,9 @@ def main(audio, input, output):
         model_a, metadata = whisperx.load_align_model(language_code=lang, device="cpu")
         aligned = whisperx.align(segs, model_a, metadata, str(audio), device="cpu")
 
+    # Preserve metadata from input transcript
     aligned["audio_path"] = str(audio)
-
-    # Preserve ASR model in output
+    aligned["language"] = lang
     if asr_model:
         aligned["asr_model"] = asr_model
 

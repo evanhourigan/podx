@@ -42,8 +42,9 @@ def main(audio, input, output):
             "input must contain AlignedTranscript JSON with 'segments' field"
         )
 
-    # Preserve ASR model from input for filename
+    # Preserve metadata from input aligned transcript
     asr_model = aligned.get("asr_model")
+    language = aligned.get("language", "en")
 
     # Suppress WhisperX debug output that contaminates stdout
     import sys
@@ -58,9 +59,9 @@ def main(audio, input, output):
         diarized = dia(str(audio))
         final = diarize.assign_word_speakers(diarized, aligned)
 
+    # Preserve metadata from input transcript
     final["audio_path"] = str(audio)
-
-    # Preserve ASR model in output
+    final["language"] = language
     if asr_model:
         final["asr_model"] = asr_model
 
