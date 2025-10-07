@@ -427,14 +427,14 @@ def main(model, compute, input, output, interactive, scan_dir):
 
         if not selected:
             logger.info("User cancelled episode selection")
-            return
+            sys.exit(0)
 
         # Select ASR model
         selected_model = select_asr_model(selected, console)
 
         if not selected_model:
             logger.info("User cancelled model selection")
-            return
+            sys.exit(0)
 
         # Override model parameter with user selection
         model = selected_model
