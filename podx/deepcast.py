@@ -226,6 +226,73 @@ def chat_once(
     return resp.choices[0].message.content or ""
 
 
+def _build_prompt_display(
+    system: str, template: Any, chunks: List[str], want_json: bool, mode: str = "all"
+) -> str:
+    """Build a formatted display of prompts that would be sent to the LLM.
+
+    Args:
+        system: The system prompt
+        template: The prompt template
+        chunks: List of text chunks
+        want_json: Whether JSON output is requested
+        mode: Display mode - "all" shows all prompts, "system_only" shows only system prompt
+
+    Returns:
+        Formatted string displaying the requested prompts
+    """
+    lines = []
+    lines.append("=" * 80)
+    lines.append("SYSTEM PROMPT (used for all API calls)")
+    lines.append("=" * 80)
+    lines.append(system)
+    lines.append("")
+
+    # If system_only mode, stop here
+    if mode == "system_only":
+        lines.append("=" * 80)
+        lines.append("END OF PROMPTS")
+        lines.append("=" * 80)
+        return "\n".join(lines)
+
+    # Otherwise, show all prompts (mode == "all")
+    lines.append("=" * 80)
+    lines.append(f"MAP PHASE PROMPTS ({len(chunks)} chunks)")
+    lines.append("=" * 80)
+    lines.append("")
+
+    for i, chunk in enumerate(chunks):
+        lines.append("-" * 80)
+        lines.append(f"MAP PROMPT {i+1}/{len(chunks)}")
+        lines.append("-" * 80)
+        prompt = f"{template.map_instructions}\n\nChunk {i+1}/{len(chunks)}:\n\n{chunk}"
+        lines.append(prompt)
+        lines.append("")
+
+    lines.append("=" * 80)
+    lines.append("REDUCE PHASE PROMPT")
+    lines.append("=" * 80)
+    lines.append("")
+    lines.append(f"{template.reduce_instructions}\n\nChunk notes:\n\n")
+    lines.append(
+        "[NOTE: In actual execution, this would contain the LLM responses from all map phase calls]"
+    )
+    lines.append("")
+
+    if want_json:
+        lines.append("")
+        lines.append("JSON SCHEMA REQUEST:")
+        lines.append("-" * 80)
+        lines.append(ENHANCED_JSON_SCHEMA)
+
+    lines.append("")
+    lines.append("=" * 80)
+    lines.append("END OF PROMPTS")
+    lines.append("=" * 80)
+
+    return "\n".join(lines)
+
+
 # main pipeline
 def deepcast(
     transcript: Dict[str, Any],
@@ -234,8 +301,22 @@ def deepcast(
     max_chars_per_chunk: int,
     want_json: bool,
     podcast_type: Optional[PodcastType] = None,
+    show_prompt_only: Optional[str] = None,
 ) -> Tuple[str, Optional[Dict[str, Any]]]:
-    """Enhanced deepcast pipeline with intelligent prompt selection."""
+    """Enhanced deepcast pipeline with intelligent prompt selection.
+
+    Args:
+        transcript: Transcript data to analyze
+        model: OpenAI model name
+        temperature: Model temperature
+        max_chars_per_chunk: Max characters per chunk for map phase
+        want_json: Whether to request JSON output
+        podcast_type: Type of podcast for specialized analysis
+        show_prompt_only: If set to "all" or "system_only", return prompts without calling API
+
+    Returns:
+        Tuple of (markdown_output, json_data) or (prompts_display, None) if show_prompt_only is set
+    """
     segs = transcript.get("segments") or []
     has_time = any("start" in s and "end" in s for s in segs)
     has_spk = any("speaker" in s for s in segs)
@@ -272,7 +353,6 @@ def deepcast(
 
     # Get enhanced prompts based on podcast type
     template = get_template(podcast_type)
-    client = get_client()
 
     # Use enhanced prompts with duration-aware scaling
     system_prompt = template.system_prompt
@@ -293,6 +373,16 @@ def deepcast(
 
     # Map phase with enhanced instructions
     chunks = split_into_chunks(text, max_chars_per_chunk)
+
+    # If show_prompt_only, build and return prompts without calling API
+    if show_prompt_only is not None:
+        prompt_display = _build_prompt_display(
+            system, template, chunks, want_json, show_prompt_only
+        )
+        return prompt_display, None
+
+    # Normal flow: call the API
+    client = get_client()
     map_notes = []
 
     for i, chunk in enumerate(chunks):
@@ -384,6 +474,15 @@ def deepcast(
     type=click.Path(exists=True, path_type=Path),
     help="Episode metadata JSON file (to populate show name, episode title, date)",
 )
+@click.option(
+    "--show-prompt",
+    type=click.Choice(["all", "system_only"], case_sensitive=False),
+    is_flag=False,
+    flag_value="all",
+    default=None,
+    help="Display the LLM prompts that would be sent (without actually calling the LLM) and exit. "
+    "Options: 'all' (default, shows all prompts) or 'system_only' (shows only system prompt)",
+)
 def main(
     inp: Optional[Path],
     output: Optional[Path],
@@ -393,13 +492,14 @@ def main(
     extract_markdown: bool,
     podcast_type_str: Optional[str],
     meta: Optional[Path],
+    show_prompt: Optional[str],
 ):
     """
     podx-deepcast: turn transcripts into a polished Markdown brief (and optional JSON) with summaries key points quotes timestamps and speaker labels when available
     """
     # Validate arguments
-    if not output:
-        raise SystemExit("--output must be provided")
+    if show_prompt is None and not output:
+        raise SystemExit("--output must be provided (unless using --show-prompt)")
 
     transcript = read_stdin_or_file(inp)
     want_json = True  # Always generate JSON for unified output
@@ -428,6 +528,21 @@ def main(
     if podcast_type_str:
         podcast_type = PodcastType(podcast_type_str)
 
+    # Handle --show-prompt mode: display prompts and exit
+    if show_prompt is not None:
+        prompt_display, _ = deepcast(
+            transcript,
+            model,
+            temperature,
+            chunk_chars,
+            want_json,
+            podcast_type,
+            show_prompt_only=show_prompt,
+        )
+        print(prompt_display)
+        return
+
+    # Normal execution mode
     md, json_data = deepcast(
         transcript, model, temperature, chunk_chars, want_json, podcast_type
     )
@@ -442,7 +557,7 @@ def main(
             "podcast_type": podcast_type.value if podcast_type else "general",
             "processed_at": datetime.now(timezone.utc).isoformat(),
             "asr_model": transcript.get("asr_model"),  # Store ASR model from transcript
-        }
+        },
     }
     if json_data:
         unified.update(json_data)  # Merge structured analysis
