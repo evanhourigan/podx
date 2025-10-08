@@ -1,6 +1,8 @@
 import json
 import os
 import sys
+import threading
+import time
 from contextlib import redirect_stderr
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -21,6 +23,47 @@ try:
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
+
+
+class LiveTimer:
+    """Display a live timer that updates every second in the console."""
+
+    def __init__(self, message: str = "Running"):
+        self.message = message
+        self.start_time = None
+        self.stop_flag = threading.Event()
+        self.thread = None
+
+    def _format_time(self, seconds: int) -> str:
+        """Format seconds as M:SS."""
+        minutes = seconds // 60
+        secs = seconds % 60
+        return f"{minutes}:{secs:02d}"
+
+    def _run(self):
+        """Run the timer loop."""
+        while not self.stop_flag.is_set():
+            elapsed = int(time.time() - self.start_time)
+            # Use \r to overwrite the line
+            print(f"\r{self.message} ({self._format_time(elapsed)})", end="", flush=True)
+            time.sleep(1)
+
+    def start(self):
+        """Start the timer."""
+        self.start_time = time.time()
+        self.stop_flag.clear()
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+
+    def stop(self) -> float:
+        """Stop the timer and return elapsed time."""
+        elapsed = time.time() - self.start_time
+        self.stop_flag.set()
+        if self.thread:
+            self.thread.join(timeout=2)
+        # Clear the line
+        print("\r" + " " * 80 + "\r", end="", flush=True)
+        return elapsed
 
 
 def _truncate_text(text: str, max_length: int = 50) -> str:
@@ -325,12 +368,27 @@ def main(audio, input, output, interactive, scan_dir):
 
     from whisperx import diarize
 
-    with redirect_stdout(open(os.devnull, "w")), redirect_stderr(open(os.devnull, "w")):
-        dia = diarize.DiarizationPipeline(
-            use_auth_token=os.getenv("HUGGINGFACE_TOKEN"), device="cpu"
-        )
-        diarized = dia(str(audio))
-        final = diarize.assign_word_speakers(diarized, aligned)
+    # Start live timer in interactive mode
+    timer = None
+    if interactive and RICH_AVAILABLE:
+        console = Console()
+        timer = LiveTimer("Diarizing")
+        timer.start()
+
+    try:
+        with redirect_stdout(open(os.devnull, "w")), redirect_stderr(open(os.devnull, "w")):
+            dia = diarize.DiarizationPipeline(
+                use_auth_token=os.getenv("HUGGINGFACE_TOKEN"), device="cpu"
+            )
+            diarized = dia(str(audio))
+            final = diarize.assign_word_speakers(diarized, aligned)
+    finally:
+        # Stop timer and show completion message in interactive mode
+        if timer:
+            elapsed = timer.stop()
+            minutes = int(elapsed // 60)
+            seconds = int(elapsed % 60)
+            console.print(f"[green]✓ Diarize completed in {minutes}:{seconds:02d}[/green]")
 
     # Preserve metadata from input transcript (always use absolute path)
     final["audio_path"] = str(
