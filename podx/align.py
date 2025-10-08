@@ -106,11 +106,16 @@ def scan_alignable_transcripts(scan_dir: Path) -> List[Dict[str, Any]]:
             if not audio_path.exists():
                 continue
 
-            # Check if aligned version exists
-            aligned_file = (
+            # Check if aligned version exists (new format first, then legacy)
+            aligned_file_new = (
+                transcript_file.parent / f"transcript-aligned-{asr_model}.json"
+            )
+            aligned_file_legacy = (
                 transcript_file.parent / f"aligned-transcript-{asr_model}.json"
             )
-            is_aligned = aligned_file.exists()
+            is_aligned = aligned_file_new.exists() or aligned_file_legacy.exists()
+            # Use new format for output
+            aligned_file = aligned_file_new
 
             # Try to get episode metadata for better display
             episode_meta_file = transcript_file.parent / "episode-meta.json"
@@ -407,7 +412,7 @@ def main(audio, input, output, interactive, scan_dir):
 
     # Handle output based on interactive mode
     if interactive:
-        # In interactive mode, save to file (already set to aligned-transcript-{model}.json)
+        # In interactive mode, save to file (new format: transcript-aligned-{model}.json)
         output.write_text(
             json.dumps(aligned, indent=2, ensure_ascii=False), encoding="utf-8"
         )
@@ -415,9 +420,9 @@ def main(audio, input, output, interactive, scan_dir):
     else:
         # Non-interactive mode
         if asr_model and not output:
-            # Use model-specific filename in same directory as audio
+            # Use model-specific filename in same directory as audio (new format)
             audio_dir = Path(audio).parent
-            output = audio_dir / f"aligned-transcript-{asr_model}.json"
+            output = audio_dir / f"transcript-aligned-{asr_model}.json"
             output.write_text(
                 json.dumps(aligned, indent=2, ensure_ascii=False), encoding="utf-8"
             )
