@@ -308,6 +308,171 @@ def scan_deepcastable_episodes(scan_dir: Path) -> List[Dict[str, Any]]:
     return episodes_list
 
 
+def flatten_episodes_to_rows(episodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Flatten episodes structure into rows for table display.
+    Each row represents one (Episode, ASR Model, AI Model) combination.
+    """
+    rows = []
+    
+    for episode in episodes:
+        # If no ASR models, create one row with blanks
+        if not episode["asr_models"]:
+            rows.append({
+                "episode": episode,
+                "asr_model": "",
+                "asr_variant": "",
+                "ai_model": "",
+                "deepcast_types": [],
+                "transcript_file": None,
+            })
+            continue
+        
+        # For each ASR model
+        for asr_model, asr_data in episode["asr_models"].items():
+            variant_suffix = ""
+            if asr_data["variant"] == "diarized":
+                variant_suffix = ", D"
+            elif asr_data["variant"] == "aligned":
+                variant_suffix = ", A"
+            
+            # If no deepcasts, create one row
+            if not asr_data["deepcasts"]:
+                rows.append({
+                    "episode": episode,
+                    "asr_model": asr_model + variant_suffix,
+                    "asr_model_raw": asr_model,
+                    "asr_variant": asr_data["variant"],
+                    "ai_model": "",
+                    "deepcast_types": [],
+                    "transcript_file": asr_data["file"],
+                })
+            else:
+                # For each AI model with deepcasts
+                for ai_model, types in asr_data["deepcasts"].items():
+                    rows.append({
+                        "episode": episode,
+                        "asr_model": asr_model + variant_suffix,
+                        "asr_model_raw": asr_model,
+                        "asr_variant": asr_data["variant"],
+                        "ai_model": ai_model,
+                        "deepcast_types": types,
+                        "transcript_file": asr_data["file"],
+                    })
+    
+    return rows
+
+
+class DeepcastBrowser:
+    """Interactive browser for selecting episodes to deepcast."""
+
+    def __init__(self, rows: List[Dict[str, Any]], items_per_page: int = 10):
+        self.rows = rows
+        self.items_per_page = items_per_page
+        self.current_page = 0
+        self.total_pages = max(1, (len(rows) + items_per_page - 1) // items_per_page)
+
+    def browse(self) -> Optional[Dict[str, Any]]:
+        """Display interactive browser and return selected row."""
+        if not RICH_AVAILABLE:
+            return None
+
+        console = Console()
+
+        while True:
+            console.clear()
+
+            # Calculate page bounds
+            start_idx = self.current_page * self.items_per_page
+            end_idx = min(start_idx + self.items_per_page, len(self.rows))
+            page_items = self.rows[start_idx:end_idx]
+
+            # Create title with emoji
+            title = f"🎙️ Episodes Available for Deepcast (Page {self.current_page + 1}/{self.total_pages})"
+
+            # Create table - calculate max deepcast types column width
+            max_type_width = max(
+                (max(len(t) for t in row["deepcast_types"]) if row["deepcast_types"] else 0)
+                for row in self.rows
+            )
+            max_type_width = max(max_type_width, 24)  # At least 24 for "interview_guest_focused"
+
+            table = Table(show_header=True, header_style="bold magenta", title=title)
+            table.add_column("#", style="cyan", width=3, justify="right")
+            table.add_column("ASR Model", style="yellow", width=12)
+            table.add_column("AI Model", style="green", width=15)
+            table.add_column("Deepcast Types", style="white", width=max_type_width)
+            table.add_column("Show", style="green", width=18)
+            table.add_column("Date", style="blue", width=12)
+            table.add_column("Title", style="white", width=35)
+
+            for idx, row in enumerate(page_items, start=start_idx + 1):
+                episode = row["episode"]
+                
+                # Format deepcast types as multi-line
+                types_str = "\n".join(row["deepcast_types"]) if row["deepcast_types"] else ""
+                
+                show = _truncate_text(episode["show"], 18)
+                date = episode["date"]
+                title = _truncate_text(episode["title"], 35)
+
+                table.add_row(
+                    str(idx),
+                    row["asr_model"] or "",
+                    row["ai_model"] or "",
+                    types_str,
+                    show,
+                    date,
+                    title
+                )
+
+            console.print(table)
+
+            # Show navigation options in Panel
+            options = []
+            options.append(
+                f"[cyan]1-{len(self.rows)}[/cyan]: Select episode to deepcast"
+            )
+
+            if self.current_page < self.total_pages - 1:
+                options.append("[yellow]N[/yellow]: Next page")
+
+            if self.current_page > 0:
+                options.append("[yellow]P[/yellow]: Previous page")
+
+            options.append("[red]Q[/red]: Quit")
+
+            options_text = " • ".join(options)
+            panel = Panel(
+                options_text, title="Options", border_style="blue", padding=(0, 1)
+            )
+            console.print(panel)
+
+            # Get user input
+            choice = input("\n👉 Your choice: ").strip().upper()
+
+            if choice in ["Q", "QUIT", "EXIT"]:
+                console.print("👋 Goodbye!")
+                return None
+            elif choice == "N" and self.current_page < self.total_pages - 1:
+                self.current_page += 1
+            elif choice == "P" and self.current_page > 0:
+                self.current_page -= 1
+            else:
+                try:
+                    selection = int(choice)
+                    if 1 <= selection <= len(self.rows):
+                        return self.rows[selection - 1]
+                    else:
+                        console.print(
+                            f"❌ Invalid episode number. Please choose 1-{len(self.rows)}"
+                        )
+                        input("\nPress Enter to continue...")
+                except ValueError:
+                    console.print("❌ Invalid input. Please try again.")
+                    input("\nPress Enter to continue...")
+
+
 def read_stdin_or_file(inp: Optional[Path]) -> Dict[str, Any]:
     if inp:
         raw = inp.read_text(encoding="utf-8")
@@ -494,6 +659,71 @@ def chat_once(
         ],
     )
     return resp.choices[0].message.content or ""
+
+
+def select_deepcast_type(row: Dict[str, Any], console: Console) -> Optional[str]:
+    """Prompt user to select deepcast type."""
+    # Get default type from config if available
+    episode = row["episode"]
+    show_name = episode.get("show", "")
+    default_type = None
+    
+    # Try to get default from podcast config
+    try:
+        from .podcast_config import get_podcast_config
+        config = get_podcast_config(show_name)
+        if config and hasattr(config, 'default_type'):
+            default_type = config.default_type
+    except Exception:
+        pass
+    
+    # If no config default, use "general"
+    if not default_type:
+        default_type = "general"
+    
+    # List all deepcast types
+    all_types = [t.value for t in PodcastType]
+    
+    console.print("\n[bold cyan]Select a deepcast type:[/bold cyan]")
+    for idx, dtype in enumerate(all_types, start=1):
+        marker = " ← Default" if dtype == default_type else ""
+        console.print(f"  {idx:2}  {dtype}{marker}")
+    console.print("  [red]Q[/red]   Quit")
+    
+    choice = input(f"\n👉 Your choice (1-{len(all_types)}, Q to quit, or press Enter for default): ").strip()
+    
+    if choice.upper() in ["Q", "QUIT", "EXIT"]:
+        return None
+    
+    if not choice:
+        return default_type
+    
+    try:
+        selection = int(choice)
+        if 1 <= selection <= len(all_types):
+            return all_types[selection - 1]
+        else:
+            console.print(f"[red]Invalid choice. Using default: {default_type}[/red]")
+            return default_type
+    except ValueError:
+        console.print(f"[red]Invalid input. Using default: {default_type}[/red]")
+        return default_type
+
+
+def select_ai_model(console: Console) -> Optional[str]:
+    """Prompt user to select AI model."""
+    default_model = "gpt-4.1-mini"
+    
+    console.print(f"\n[bold cyan]Select AI model (default: {default_model}):[/bold cyan]")
+    console.print("  Press Enter for default, or type model name (e.g., gpt-4o, claude-3-sonnet)")
+    console.print("  [red]Q[/red] to quit")
+    
+    choice = input("\n👉 Your choice: ").strip()
+    
+    if choice.upper() in ["Q", "QUIT", "EXIT"]:
+        return None
+    
+    return choice if choice else default_model
 
 
 def _build_prompt_display(
@@ -753,6 +983,17 @@ def deepcast(
     help="Display the LLM prompts that would be sent (without actually calling the LLM) and exit. "
     "Options: 'all' (default, shows all prompts) or 'system_only' (shows only system prompt)",
 )
+@click.option(
+    "--interactive",
+    is_flag=True,
+    help="Interactive browser to select episodes for deepcast",
+)
+@click.option(
+    "--scan-dir",
+    type=click.Path(exists=True, path_type=Path),
+    default=".",
+    help="Directory to scan for episodes (default: current directory)",
+)
 def main(
     inp: Optional[Path],
     output: Optional[Path],
@@ -763,15 +1004,94 @@ def main(
     podcast_type_str: Optional[str],
     meta: Optional[Path],
     show_prompt: Optional[str],
+    interactive: bool,
+    scan_dir: Path,
 ):
     """
     podx-deepcast: turn transcripts into a polished Markdown brief (and optional JSON) with summaries key points quotes timestamps and speaker labels when available
     """
-    # Validate arguments
-    if show_prompt is None and not output:
-        raise SystemExit("--output must be provided (unless using --show-prompt)")
+    # Handle interactive mode
+    if interactive:
+        if not RICH_AVAILABLE:
+            raise SystemExit(
+                "Interactive mode requires rich library. Install with: pip install rich"
+            )
 
-    transcript = read_stdin_or_file(inp)
+        console = Console()
+
+        # Scan for episodes
+        console.print(f"[dim]Scanning for episodes in: {scan_dir}[/dim]")
+        episodes = scan_deepcastable_episodes(Path(scan_dir))
+
+        if not episodes:
+            console.print(f"[red]No episodes found in {scan_dir}[/red]")
+            raise SystemExit("No episodes with transcripts found")
+
+        console.print(f"[dim]Found {len(episodes)} episodes[/dim]\n")
+
+        # Flatten to rows and browse
+        rows = flatten_episodes_to_rows(episodes)
+        browser = DeepcastBrowser(rows, items_per_page=10)
+        selected_row = browser.browse()
+
+        if not selected_row:
+            console.print("[dim]Cancelled[/dim]")
+            sys.exit(0)
+
+        # Step 2: Select deepcast type
+        deepcast_type = select_deepcast_type(selected_row, console)
+        if not deepcast_type:
+            console.print("[dim]Cancelled[/dim]")
+            sys.exit(0)
+
+        # Step 3: Select AI model
+        ai_model = select_ai_model(console)
+        if not ai_model:
+            console.print("[dim]Cancelled[/dim]")
+            sys.exit(0)
+        model = ai_model  # Override the default model parameter
+
+        # Step 4: Check if deepcast already exists and confirm overwrite
+        episode_dir = selected_row["episode"]["directory"]
+        asr_model_raw = selected_row.get("asr_model_raw", "unknown")
+        output_filename = generate_deepcast_filename(asr_model_raw, ai_model, deepcast_type, "json")
+        output = episode_dir / output_filename
+
+        if output.exists():
+            console.print(f"\n[yellow]⚠ Deepcast already exists: {output.name}[/yellow]")
+            confirm = input("Re-run deepcast anyway? (yes/no, Q to quit): ").strip().lower()
+            if confirm in ["q", "quit", "exit"]:
+                console.print("[dim]Cancelled[/dim]")
+                sys.exit(0)
+            if confirm not in ["yes", "y"]:
+                console.print("[dim]Deepcast cancelled.[/dim]")
+                sys.exit(0)
+
+        # Step 5: Ask about markdown generation
+        console.print(f"\n[bold cyan]Generate markdown output file?[/bold cyan]")
+        md_choice = input("(yes/no, default: no, Q to quit): ").strip().lower()
+        if md_choice in ["q", "quit", "exit"]:
+            console.print("[dim]Cancelled[/dim]")
+            sys.exit(0)
+        extract_markdown = md_choice in ["yes", "y"]
+
+        # Load the transcript file
+        transcript_file = selected_row["transcript_file"]
+        if not transcript_file or not transcript_file.exists():
+            console.print(f"[red]Transcript file not found[/red]")
+            sys.exit(1)
+
+        transcript = json.loads(transcript_file.read_text(encoding="utf-8"))
+        podcast_type_str = deepcast_type
+
+        # Set inp to None since we loaded the transcript directly
+        inp = None
+    else:
+        # Non-interactive mode: validate arguments
+        if show_prompt is None and not output:
+            raise SystemExit("--output must be provided (unless using --show-prompt or --interactive)")
+
+        transcript = read_stdin_or_file(inp)
     want_json = True  # Always generate JSON for unified output
 
     # Load and merge episode metadata if provided
@@ -813,9 +1133,28 @@ def main(
         return
 
     # Normal execution mode
-    md, json_data = deepcast(
-        transcript, model, temperature, chunk_chars, want_json, podcast_type
-    )
+    # Start live timer in interactive mode
+    timer = None
+    if interactive and RICH_AVAILABLE:
+        console = Console()
+        timer = LiveTimer("Generating deepcast")
+        timer.start()
+    
+    try:
+        md, json_data = deepcast(
+            transcript, model, temperature, chunk_chars, want_json, podcast_type
+        )
+    except Exception as e:
+        if timer:
+            timer.stop()
+        raise
+    
+    # Stop timer and show completion message in interactive mode
+    if timer:
+        elapsed = timer.stop()
+        minutes = int(elapsed // 60)
+        seconds = int(elapsed % 60)
+        console.print(f"[green]✓ Deepcast completed in {minutes}:{seconds:02d}[/green]")
 
     # Determine transcript variant (diarized > aligned > base)
     transcript_variant = "base"
