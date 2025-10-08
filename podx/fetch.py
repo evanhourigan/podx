@@ -220,7 +220,7 @@ class EpisodeBrowser:
         # Create table
         table = Table(show_header=True, header_style="bold magenta", title=title)
         table.add_column("#", style="cyan", width=3, justify="right")
-        table.add_column("Date", style="green", width=12)
+        table.add_column("Date", style="green", width=15)
         table.add_column("Duration", style="yellow", width=8, justify="right")
         table.add_column("Title", style="white")
 
@@ -231,7 +231,16 @@ class EpisodeBrowser:
             duration = _format_duration(episode["duration"])
             title_text = _truncate_text(episode["title"], 60)
 
-            table.add_row(str(episode_num), date, duration, title_text)
+            # Check if episode is already fetched
+            episode_dir = _generate_workdir(self.show_name, episode["published"])
+            episode_meta_file = episode_dir / "episode-meta.json"
+            is_fetched = episode_meta_file.exists()
+
+            # Add status indicator: ✓ for fetched, blank for not fetched
+            status_indicator = "✓" if is_fetched else " "
+            date_display = f"{status_indicator} {date}"
+
+            table.add_row(str(episode_num), date_display, duration, title_text)
 
         self.console.print(table)
 
