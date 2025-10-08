@@ -28,11 +28,13 @@ except ImportError:
 class LiveTimer:
     """Display a live timer that updates every second in the console."""
 
-    def __init__(self, message: str = "Running"):
+    def __init__(self, message: str = "Running", output_stream=None):
         self.message = message
         self.start_time = None
         self.stop_flag = threading.Event()
         self.thread = None
+        # Save reference to output stream (defaults to sys.stdout)
+        self.output_stream = output_stream or sys.stdout
 
     def _format_time(self, seconds: int) -> str:
         """Format seconds as M:SS."""
@@ -44,8 +46,9 @@ class LiveTimer:
         """Run the timer loop."""
         while not self.stop_flag.is_set():
             elapsed = int(time.time() - self.start_time)
-            # Use \r to overwrite the line
-            print(f"\r{self.message} ({self._format_time(elapsed)})", end="", flush=True)
+            # Use \r to overwrite the line - write directly to saved output stream
+            self.output_stream.write(f"\r{self.message} ({self._format_time(elapsed)})")
+            self.output_stream.flush()
             time.sleep(1)
 
     def start(self):
@@ -62,7 +65,8 @@ class LiveTimer:
         if self.thread:
             self.thread.join(timeout=2)
         # Clear the line
-        print("\r" + " " * 80 + "\r", end="", flush=True)
+        self.output_stream.write("\r" + " " * 80 + "\r")
+        self.output_stream.flush()
         return elapsed
 
 
@@ -369,10 +373,12 @@ def main(audio, input, output, interactive, scan_dir):
     from whisperx import diarize
 
     # Start live timer in interactive mode
+    # Save original stdout before redirecting, so timer can still display
     timer = None
+    original_stdout = sys.stdout
     if interactive and RICH_AVAILABLE:
         console = Console()
-        timer = LiveTimer("Diarizing")
+        timer = LiveTimer("Diarizing", output_stream=original_stdout)
         timer.start()
 
     try:
@@ -382,13 +388,17 @@ def main(audio, input, output, interactive, scan_dir):
             )
             diarized = dia(str(audio))
             final = diarize.assign_word_speakers(diarized, aligned)
-    finally:
-        # Stop timer and show completion message in interactive mode
+    except Exception as e:
         if timer:
-            elapsed = timer.stop()
-            minutes = int(elapsed // 60)
-            seconds = int(elapsed % 60)
-            console.print(f"[green]✓ Diarize completed in {minutes}:{seconds:02d}[/green]")
+            timer.stop()
+        raise SystemExit(f"Diarization failed: {e}") from e
+
+    # Stop timer and show completion message in interactive mode
+    if timer:
+        elapsed = timer.stop()
+        minutes = int(elapsed // 60)
+        seconds = int(elapsed % 60)
+        console.print(f"[green]✓ Diarize completed in {minutes}:{seconds:02d}[/green]")
 
     # Preserve metadata from input transcript (always use absolute path)
     final["audio_path"] = str(
