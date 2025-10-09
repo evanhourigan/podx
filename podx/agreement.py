@@ -53,8 +53,14 @@ def main(input_a: Optional[Path], input_b: Optional[Path], model: str, interacti
         for idx, p in enumerate(deepcasts, start=1):
             table.add_row(str(idx), p.name)
         console.print(table)
-        choice1 = input(f"\n👉 Select first analysis (1-{len(deepcasts)}): ").strip()
-        choice2 = input(f"👉 Select second analysis (1-{len(deepcasts)}): ").strip()
+        choice1 = input(f"\n👉 Select first analysis (1-{len(deepcasts)}) or Q to cancel: ").strip().upper()
+        if choice1 in ["Q", "QUIT", "EXIT"]:
+            console.print("[dim]Cancelled[/dim]")
+            raise SystemExit(0)
+        choice2 = input(f"👉 Select second analysis (1-{len(deepcasts)}) or Q to cancel: ").strip().upper()
+        if choice2 in ["Q", "QUIT", "EXIT"]:
+            console.print("[dim]Cancelled[/dim]")
+            raise SystemExit(0)
         try:
             i1 = int(choice1); i2 = int(choice2)
             pa = deepcasts[i1 - 1]; pb = deepcasts[i2 - 1]

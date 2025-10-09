@@ -136,9 +136,24 @@ def main(input_file: Optional[Path], output_file: Optional[Path], do_merge: bool
             asr = item.get("asr_model", "?")
             meta = item.get("episode_meta", {})
             show = meta.get("show", "Unknown")
-            date = meta.get("episode_published", "Unknown")
+            # Format date as YYYY-MM-DD when possible
+            date_val = meta.get("episode_published", "")
+            if date_val:
+                try:
+                    from dateutil import parser as dtparse
+                    parsed = dtparse.parse(date_val)
+                    date = parsed.strftime("%Y-%m-%d")
+                except Exception:
+                    date = date_val[:10] if len(date_val) >= 10 else date_val
+            else:
+                # Fallback to directory name
+                try:
+                    dir_name = item.get("directory").name  # type: ignore[attr-defined]
+                    date = dir_name if dir_name else "Unknown"
+                except Exception:
+                    date = "Unknown"
             title = meta.get("episode_title", "Unknown")
-            table.add_row(str(idx), asr, show, date[:10], title)
+            table.add_row(str(idx), asr, show, date, title)
 
         console.print(table)
         choice = input(f"\n👉 Select transcript (1-{len(transcripts)}) or Q to cancel: ").strip().upper()
