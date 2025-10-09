@@ -224,7 +224,8 @@ def main():
     help="Fidelity 1-5: 1=deepcast only, 2=recall+preprocess+restore+deepcast, 3=precision+preprocess+restore+deepcast, 4=balanced+preprocess+restore+deepcast, 5=dual (precision+recall)+preprocess+restore+deepcast",
 )
 @click.option(
-    "--interactive-select",
+    "--interactive",
+    "interactive_select",
     is_flag=True,
     help="Browse existing episodes and select one to process",
 )
@@ -232,12 +233,12 @@ def main():
     "--scan-dir",
     type=click.Path(exists=True, path_type=Path),
     default=".",
-    help="Directory to scan for episodes when using --interactive-select",
+    help="Directory to scan for episodes when using --interactive",
 )
 @click.option(
     "--fetch-new",
     is_flag=True,
-    help="When used with --interactive-select and --show, open fetch browser to add new episodes before selection",
+    help="When used with --interactive and --show, open fetch browser to add new episodes before selection",
 )
 @click.option(
     "--dual",
