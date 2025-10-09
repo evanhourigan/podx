@@ -1027,45 +1027,49 @@ def run(
 
         # 4) PREPROCESS (optional or implied by --dual) → transcript-preprocessed-*.json
         if preprocess or dual:
-            used_model = base.get("asr_model", model)
-            pre_file = wd / f"transcript-preprocessed-{_sanitize(used_model)}.json"
             progress.start_step("Preprocessing transcript (merge/normalize)")
             step_start = time.time()
-            cmd = [
-                "podx-preprocess",
-                "--output",
-                str(pre_file),
-                "--merge",
-                "--normalize",
-            ]
-            if restore:
-                cmd.append("--restore")
-            # For dual, preprocess both precision & recall
+
+            # Build base command (output path will be set per case)
+            def build_cmd(out_path: Path) -> List[str]:
+                c = [
+                    "podx-preprocess",
+                    "--output",
+                    str(out_path),
+                    "--merge",
+                    "--normalize",
+                ]
+                if restore:
+                    c.append("--restore")
+                return c
+
             if dual:
+                # Preprocess both precision & recall
                 safe_model = _sanitize(model)
                 t_prec = wd / f"transcript-{safe_model}-precision.json"
                 t_rec = wd / f"transcript-{safe_model}-recall.json"
                 pre_prec = wd / f"transcript-preprocessed-{safe_model}-precision.json"
                 pre_rec = wd / f"transcript-preprocessed-{safe_model}-recall.json"
 
-                cmdp = cmd + ["--input", str(t_prec)]
-                out_prec = _run(cmdp, stdin_payload=None, verbose=verbose, save_to=pre_prec)
-                cmdr = cmd + ["--input", str(t_rec)]
-                out_rec = _run(cmdr, stdin_payload=None, verbose=verbose, save_to=pre_rec)
+                out_prec = _run(build_cmd(pre_prec) + ["--input", str(t_prec)], stdin_payload=None, verbose=verbose, save_to=pre_prec)
+                out_rec = _run(build_cmd(pre_rec) + ["--input", str(t_rec)], stdin_payload=None, verbose=verbose, save_to=pre_rec)
                 latest = out_rec
                 latest_name = f"transcript-preprocessed-{safe_model}-recall"
             else:
+                # Single-track: preprocess the latest transcript
+                used_model = (latest or {}).get("asr_model", model) if isinstance(latest, dict) else model
+                pre_file = wd / f"transcript-preprocessed-{_sanitize(used_model)}.json"
                 latest = _run(
-                cmd,
-                stdin_payload=base,
-                verbose=verbose,
-                save_to=pre_file,
-                label=None,
+                    build_cmd(pre_file),
+                    stdin_payload=latest,  # latest contains the base transcript JSON
+                    verbose=verbose,
+                    save_to=pre_file,
+                    label=None,
                 )
+                latest_name = f"transcript-preprocessed-{used_model}"
+
             step_duration = time.time() - step_start
             progress.complete_step("Preprocessing completed", step_duration)
-            if not dual:
-                latest_name = f"transcript-preprocessed-{used_model}"
         else:
             latest = base
             latest_name = f"transcript-{base.get('asr_model', model)}"
