@@ -87,6 +87,10 @@ def scan_alignable_transcripts(scan_dir: Path) -> List[Dict[str, Any]]:
     # Find all transcript-{model}.json files
     for transcript_file in scan_dir.rglob("transcript-*.json"):
         try:
+            # Skip aligned transcripts (they are outputs, not inputs)
+            if transcript_file.stem.startswith("transcript-aligned-"):
+                continue
+
             # Load transcript data
             transcript_data = json.loads(transcript_file.read_text(encoding="utf-8"))
 
