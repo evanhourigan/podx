@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Dict
 
 from pydantic import BaseModel, Field, validator
 
@@ -138,6 +138,15 @@ class Transcript(BaseModel):
     language: Optional[str] = Field(None, description="Detected language")
     asr_model: Optional[str] = Field(
         None, description="ASR model used for transcription"
+    )
+    asr_provider: Optional[Literal["local", "openai", "hf"]] = Field(
+        None, description="ASR provider backend"
+    )
+    preset: Optional[Literal["balanced", "precision", "recall"]] = Field(
+        None, description="High-level preset guiding decoder options"
+    )
+    decoder_options: Optional[Dict[str, str]] = Field(
+        default=None, description="Advanced decoder/provider options"
     )
     text: Optional[str] = Field(None, description="Full transcript text")
     segments: List[Segment] = Field(

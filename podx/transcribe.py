@@ -777,6 +777,7 @@ def main(model, compute, input, output, interactive, scan_dir, asr_provider):
         "audio_path": str(audio.resolve()),  # Always use absolute path
         "language": detected_language,
         "asr_model": model,
+        "asr_provider": provider,
         "segments": segments,
         "text": "\n".join(full_text_lines).strip(),
     }
