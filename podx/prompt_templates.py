@@ -526,8 +526,16 @@ Structure the content to be scannable and reference-worthy. Scale detail based o
 
 
 def get_template(podcast_type: PodcastType = PodcastType.GENERAL) -> PromptTemplate:
-    """Get the appropriate template for the podcast type."""
-    return TEMPLATES.get(podcast_type, TEMPLATES[PodcastType.GENERAL])
+    """Get the appropriate template for the podcast type.
+
+    Internally canonicalizes to one of three core templates:
+      - interview_guest_focused
+      - panel_discussion (multi_guest_panel)
+      - solo_commentary (host_analysis_mode)
+      - general (fallback)
+    """
+    canonical = map_to_canonical(podcast_type)
+    return TEMPLATES.get(canonical, TEMPLATES[PodcastType.GENERAL])
 
 
 def detect_podcast_type(transcript: Dict[str, Any]) -> PodcastType:
@@ -571,4 +579,34 @@ def detect_podcast_type(transcript: Dict[str, Any]) -> PodcastType:
     elif any(word in combined_text for word in ["comedy", "humor", "funny", "laugh"]):
         return PodcastType.COMEDY
 
+    return PodcastType.GENERAL
+
+
+def map_to_canonical(podcast_type: PodcastType) -> PodcastType:
+    """Map various types onto three canonical templates.
+
+    - interview_guest_focused (guest-led interviews)
+    - panel_discussion (multi-guest panel)
+    - solo_commentary (host analysis mode)
+    - general (everything else)
+    """
+    if podcast_type in (
+        PodcastType.INTERVIEW_GUEST_FOCUSED,
+        PodcastType.INTERVIEW,
+    ):
+        return PodcastType.INTERVIEW_GUEST_FOCUSED
+
+    if podcast_type in (
+        PodcastType.PANEL_DISCUSSION,
+    ):
+        return PodcastType.PANEL_DISCUSSION
+
+    if podcast_type in (
+        PodcastType.INTERVIEW_HOST_FOCUSED,
+        PodcastType.SOLO_COMMENTARY,
+    ):
+        # Use solo_commentary template for host-analysis-mode
+        return PodcastType.SOLO_COMMENTARY
+
+    # All other specialized types map to GENERAL
     return PodcastType.GENERAL

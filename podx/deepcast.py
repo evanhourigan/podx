@@ -45,6 +45,7 @@ from .prompt_templates import (
     build_enhanced_variant,
     detect_podcast_type,
     get_template,
+    map_to_canonical,
 )
 from .yaml_config import get_podcast_yaml_config
 
@@ -846,7 +847,8 @@ def deepcast(
         else:
             podcast_type = detect_podcast_type(transcript)
 
-    # Get enhanced prompts based on podcast type
+    # Canonicalize type to one of the three core templates
+    podcast_type = map_to_canonical(podcast_type)
     template = get_template(podcast_type)
 
     # Use enhanced prompts with duration-aware scaling
