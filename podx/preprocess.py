@@ -9,6 +9,14 @@ from .cli_shared import print_json, read_stdin_json
 from .logging import get_logger
 from .schemas import Segment, Transcript
 from .validation import validate_output
+from .align import scan_alignable_transcripts
+
+try:
+    from rich.console import Console
+    from rich.table import Table
+    RICH_AVAILABLE = True
+except Exception:
+    RICH_AVAILABLE = False
 
 logger = get_logger(__name__)
 
@@ -98,13 +106,61 @@ def _semantic_restore_segments(texts: List[str], model: str, batch_size: int = 2
 @click.option("--restore", "do_restore", is_flag=True, help="Semantic restore text using an LLM (preserve meaning, fix grammar)")
 @click.option("--restore-model", default="gpt-4.1-mini", help="Model for semantic restore (when --restore)")
 @click.option("--restore-batch-size", type=int, default=20, help="Segments per restore request")
+@click.option("--interactive", is_flag=True, help="Interactive browser to select transcripts for preprocessing")
+@click.option("--scan-dir", type=click.Path(exists=True, path_type=Path), default=".", help="Directory to scan for transcripts (default: current directory)")
 @validate_output(Transcript)
-def main(input_file: Optional[Path], output_file: Optional[Path], do_merge: bool, do_normalize: bool, max_gap: float, max_len: int, do_restore: bool, restore_model: str, restore_batch_size: int):
+def main(input_file: Optional[Path], output_file: Optional[Path], do_merge: bool, do_normalize: bool, max_gap: float, max_len: int, do_restore: bool, restore_model: str, restore_batch_size: int, interactive: bool, scan_dir: Path):
     """
     Preprocess a Transcript JSON by merging segments and normalizing text.
     This is a non-destructive cleanup step before downstream analysis.
     """
-    raw = json.loads(input_file.read_text()) if input_file else read_stdin_json()
+    # Interactive mode: browse transcripts and select one
+    if interactive:
+        if not RICH_AVAILABLE:
+            raise SystemExit("Interactive mode requires rich library. Install with: pip install rich")
+        console = Console()
+        console.print(f"[dim]Scanning for transcripts in: {scan_dir}[/dim]")
+        transcripts = scan_alignable_transcripts(Path(scan_dir))
+        if not transcripts:
+            console.print(f"[red]No transcripts found in {scan_dir}[/red]")
+            raise SystemExit("No transcript-*.json files found")
+
+        table = Table(show_header=True, header_style="bold magenta", title="🎙️ Transcripts Available for Preprocess")
+        table.add_column("#", style="cyan", width=3, justify="right")
+        table.add_column("ASR", style="yellow", width=10)
+        table.add_column("Show", style="green", width=18)
+        table.add_column("Date", style="blue", width=12)
+        table.add_column("Title", style="white", width=45)
+
+        for idx, item in enumerate(transcripts, start=1):
+            asr = item.get("asr_model", "?")
+            meta = item.get("episode_meta", {})
+            show = meta.get("show", "Unknown")
+            date = meta.get("episode_published", "Unknown")
+            title = meta.get("episode_title", "Unknown")
+            table.add_row(str(idx), asr, show, date[:10], title)
+
+        console.print(table)
+        choice = input(f"\n👉 Select transcript (1-{len(transcripts)}) or Q to cancel: ").strip().upper()
+        if choice in ["Q", "QUIT", "EXIT"]:
+            console.print("[dim]Cancelled[/dim]")
+            raise SystemExit(0)
+        try:
+            sel = int(choice)
+            if not (1 <= sel <= len(transcripts)):
+                raise ValueError("out of range")
+        except Exception:
+            console.print("[red]Invalid selection[/red]")
+            raise SystemExit(1)
+
+        selected = transcripts[sel - 1]
+        raw = selected.get("transcript_data")
+        # Choose output next to transcript
+        outdir = selected.get("directory")
+        asr = selected.get("asr_model", "model")
+        output_file = outdir / f"transcript-preprocessed-{asr}.json"
+    else:
+        raw = json.loads(input_file.read_text()) if input_file else read_stdin_json()
     if not raw or "segments" not in raw:
         raise SystemExit("input must contain Transcript JSON with 'segments' field")
 
