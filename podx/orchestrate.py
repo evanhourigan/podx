@@ -200,6 +200,11 @@ def main():
     help="Run LLM summarization (default: no AI analysis)",
 )
 @click.option(
+    "--dual",
+    is_flag=True,
+    help="Run precision+recall QA: two ASR tracks (precision & recall) + preprocess(+restore) + deepcast both + agreement",
+)
+@click.option(
     "--deepcast-model",
     default=lambda: get_config().openai_model,
     help="OpenAI model for AI analysis",
@@ -289,6 +294,7 @@ def run(
     restore: bool,
     diarize: bool,
     deepcast: bool,
+    dual: bool,
     deepcast_model: str,
     deepcast_temp: float,
     extract_markdown: bool,
@@ -590,7 +596,7 @@ def run(
         # Track transcoded audio path for cleanup
         transcoded_path = Path(audio["audio_path"])
 
-        # 3) TRANSCRIBE → transcript-{model}.json
+        # 3) TRANSCRIBE → transcript-{model}.json (or dual precision/recall)
         # Prefer JSON content over filename to determine asr_model
         def _discover_transcripts(dir_path: Path) -> Dict[str, Path]:
             found: Dict[str, Path] = {}
@@ -631,7 +637,7 @@ def run(
             except Exception:
                 existing_transcripts["unknown"] = legacy_transcript
 
-        if transcript_file.exists():
+        if not dual and transcript_file.exists():
             # Use existing transcript for this specific model
             logger.info(
                 f"Found existing transcript for model {model}, skipping transcription"
@@ -641,7 +647,7 @@ def run(
                 f"Using existing transcript ({model}) - {len(base.get('segments', []))} segments",
                 0,
             )
-        elif existing_transcripts:
+        elif not dual and existing_transcripts:
             # Found transcripts with other models - pick the most sophisticated among known order
             order = ["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"]
             available = list(existing_transcripts.keys())
@@ -659,33 +665,65 @@ def run(
                 0,
             )
         else:
-            # No existing transcript, create new one
-            progress.start_step(f"Transcribing with {model} model")
-            step_start = time.time()
-            transcribe_cmd = ["podx-transcribe", "--model", model, "--compute", compute]
-            if asr_provider and asr_provider != "auto":
-                transcribe_cmd += ["--asr-provider", asr_provider]
-            if preset:
-                transcribe_cmd += ["--preset", preset]
+            if not dual:
+                # Single track transcription
+                progress.start_step(f"Transcribing with {model} model")
+                step_start = time.time()
+                transcribe_cmd = ["podx-transcribe", "--model", model, "--compute", compute]
+                if asr_provider and asr_provider != "auto":
+                    transcribe_cmd += ["--asr-provider", asr_provider]
+                if preset:
+                    transcribe_cmd += ["--preset", preset]
+                base = _run(
+                    transcribe_cmd,
+                    stdin_payload=audio,
+                    verbose=verbose,
+                    save_to=transcript_file,
+                    label=None,
+                )
+                step_duration = time.time() - step_start
+                progress.complete_step(
+                    f"Transcription complete - {len(base.get('segments', []))} segments",
+                    step_duration,
+                )
+                latest = base
+                latest_name = f"transcript-{model}"
+            else:
+                # Dual QA: precision & recall tracks
+                progress.start_step(f"Dual QA: transcribing precision & recall with {model}")
+                step_start = time.time()
+                safe_model = _sanitize(model)
+                # Precision
+                t_prec = wd / f"transcript-{safe_model}-precision.json"
+                cmd_prec = [
+                    "podx-transcribe", "--model", model, "--compute", compute,
+                    "--preset", "precision",
+                ]
+                if asr_provider and asr_provider != "auto":
+                    cmd_prec += ["--asr-provider", asr_provider]
+                prec = _run(cmd_prec, stdin_payload=audio, verbose=verbose, save_to=t_prec)
 
-            base = _run(
-                transcribe_cmd,
-                stdin_payload=audio,
-                verbose=verbose,
-                save_to=transcript_file,
-                label=None,  # Progress handles the display
-            )
-            step_duration = time.time() - step_start
-            progress.complete_step(
-                f"Transcription complete - {len(base.get('segments', []))} segments",
-                step_duration,
-            )
+                # Recall
+                t_rec = wd / f"transcript-{safe_model}-recall.json"
+                cmd_rec = [
+                    "podx-transcribe", "--model", model, "--compute", compute,
+                    "--preset", "recall",
+                ]
+                if asr_provider and asr_provider != "auto":
+                    cmd_rec += ["--asr-provider", asr_provider]
+                rec = _run(cmd_rec, stdin_payload=audio, verbose=verbose, save_to=t_rec)
 
-        latest = base
-        latest_name = f"transcript-{model}"
+                step_duration = time.time() - step_start
+                progress.complete_step(
+                    f"Dual transcription completed (precision: {len(prec.get('segments', []))} segs; recall: {len(rec.get('segments', []))} segs)",
+                    step_duration,
+                )
+                # Set latest to recall by default
+                latest = rec
+                latest_name = f"transcript-{safe_model}-recall"
 
-        # 4) PREPROCESS (optional) → transcript-preprocessed-{model}.json
-        if preprocess:
+        # 4) PREPROCESS (optional or implied by --dual) → transcript-preprocessed-*.json
+        if preprocess or dual:
             used_model = base.get("asr_model", model)
             pre_file = wd / f"transcript-preprocessed-{_sanitize(used_model)}.json"
             progress.start_step("Preprocessing transcript (merge/normalize)")
@@ -699,22 +737,38 @@ def run(
             ]
             if restore:
                 cmd.append("--restore")
-            latest = _run(
+            # For dual, preprocess both precision & recall
+            if dual:
+                safe_model = _sanitize(model)
+                t_prec = wd / f"transcript-{safe_model}-precision.json"
+                t_rec = wd / f"transcript-{safe_model}-recall.json"
+                pre_prec = wd / f"transcript-preprocessed-{safe_model}-precision.json"
+                pre_rec = wd / f"transcript-preprocessed-{safe_model}-recall.json"
+
+                cmdp = cmd + ["--input", str(t_prec)]
+                out_prec = _run(cmdp, stdin_payload=None, verbose=verbose, save_to=pre_prec)
+                cmdr = cmd + ["--input", str(t_rec)]
+                out_rec = _run(cmdr, stdin_payload=None, verbose=verbose, save_to=pre_rec)
+                latest = out_rec
+                latest_name = f"transcript-preprocessed-{safe_model}-recall"
+            else:
+                latest = _run(
                 cmd,
                 stdin_payload=base,
                 verbose=verbose,
                 save_to=pre_file,
                 label=None,
-            )
+                )
             step_duration = time.time() - step_start
             progress.complete_step("Preprocessing completed", step_duration)
-            latest_name = f"transcript-preprocessed-{used_model}"
+            if not dual:
+                latest_name = f"transcript-preprocessed-{used_model}"
         else:
             latest = base
             latest_name = f"transcript-{base.get('asr_model', model)}"
 
-        # 5) ALIGN (optional) → transcript-aligned-{model}.json
-        if align:
+        # 5) ALIGN (optional) → transcript-aligned-{model}.json (skip in dual per-track for now)
+        if align and not dual:
             # Get model from base transcript
             used_model = latest.get("asr_model", model)
             aligned_file = wd / f"transcript-aligned-{_sanitize(used_model)}.json"
@@ -759,8 +813,8 @@ def run(
                 latest = aligned
                 latest_name = f"transcript-aligned-{used_model}"
 
-        # 6) DIARIZE (optional) → transcript-diarized-{model}.json
-        if diarize:
+        # 6) DIARIZE (optional) → transcript-diarized-{model}.json (skip in dual per-track for now)
+        if diarize and not dual:
             # Get model from latest transcript
             used_model = latest.get("asr_model", model)
             diarized_file = wd / f"transcript-diarized-{_sanitize(used_model)}.json"
@@ -854,60 +908,95 @@ def run(
         else:
             results["latest_srt"] = str(wd / f"{latest_name}.srt")
 
-        # 7) DEEPCAST (optional) → deepcast-brief-{model}.md / deepcast-brief-{model}.json
-        if deepcast:
+        # 7) DEEPCAST (optional) or implied by dual → deepcast for one or both
+        if deepcast or dual:
             # Use model-specific filenames to allow multiple analyses
             model_suffix = deepcast_model.replace(".", "_").replace("-", "_")
             json_out = wd / f"deepcast-brief-{model_suffix}.json"
             md_out = wd / f"deepcast-brief-{model_suffix}.md"
 
-            if json_out.exists():
+            if json_out.exists() and not dual:
                 logger.info("Found existing deepcast analysis, skipping AI analysis")
                 progress.complete_step("Using existing AI analysis", 0)
                 results.update({"deepcast_json": str(json_out)})
                 if extract_markdown and md_out.exists():
                     results.update({"deepcast_md": str(md_out)})
             else:
-                progress.start_step(f"Analyzing transcript with {deepcast_model}")
-                step_start = time.time()
-                inp = str(wd / "latest.json")
-                meta_file = wd / "episode-meta.json"
+                if not dual:
+                    progress.start_step(f"Analyzing transcript with {deepcast_model}")
+                    step_start = time.time()
+                    inp = str(wd / "latest.json")
+                    meta_file = wd / "episode-meta.json"
 
-                cmd = [
-                    "podx-deepcast",
-                    "--input",
-                    inp,
-                    "--output",
-                    str(json_out),
-                    "--model",
-                    deepcast_model,
-                    "--temperature",
-                    str(deepcast_temp),
-                ]
+                    cmd = [
+                        "podx-deepcast",
+                        "--input",
+                        inp,
+                        "--output",
+                        str(json_out),
+                        "--model",
+                        deepcast_model,
+                        "--temperature",
+                        str(deepcast_temp),
+                    ]
+                    if meta_file.exists():
+                        cmd.extend(["--meta", str(meta_file)])
+                    if yaml_analysis_type:
+                        cmd.extend(["--type", yaml_analysis_type])
+                    if extract_markdown:
+                        cmd.append("--extract-markdown")
+                    _run(cmd, verbose=verbose, save_to=None, label=None)
+                    step_duration = time.time() - step_start
+                    progress.complete_step("AI analysis completed", step_duration)
+                    results.update({"deepcast_json": str(json_out)})
+                    if extract_markdown and md_out.exists():
+                        results.update({"deepcast_md": str(md_out)})
+                else:
+                    # Dual: deepcast precision & recall
+                    progress.start_step(f"Analyzing precision & recall with {deepcast_model}")
+                    step_start = time.time()
+                    safe_model = _sanitize(model)
+                    pre_prec = wd / f"transcript-preprocessed-{safe_model}-precision.json"
+                    pre_rec = wd / f"transcript-preprocessed-{safe_model}-recall.json"
+                    meta_file = wd / "episode-meta.json"
 
-                # Add metadata file if it exists to fix "Unknown Show" issue
-                if meta_file.exists():
-                    cmd.extend(["--meta", str(meta_file)])
+                    def run_dc(inp_path: Path, suffix: str) -> Path:
+                        out = wd / f"deepcast-{safe_model}-{deepcast_model.replace('.', '_')}-{suffix}.json"
+                        cmd = [
+                            "podx-deepcast", "--input", str(inp_path), "--output", str(out),
+                            "--model", deepcast_model, "--temperature", str(deepcast_temp)
+                        ]
+                        if meta_file.exists():
+                            cmd.extend(["--meta", str(meta_file)])
+                        if yaml_analysis_type:
+                            cmd.extend(["--type", yaml_analysis_type])
+                        if extract_markdown:
+                            cmd.append("--extract-markdown")
+                        _run(cmd, verbose=verbose, save_to=None, label=None)
+                        return out
 
-                # Add analysis type if configured in YAML
-                if yaml_analysis_type:
-                    cmd.extend(["--type", yaml_analysis_type])
+                    dc_prec = run_dc(pre_prec, "precision")
+                    dc_rec = run_dc(pre_rec, "recall")
+                    step_duration = time.time() - step_start
+                    progress.complete_step("Dual deepcast analyses completed", step_duration)
+                    results.update({
+                        "deepcast_precision": str(dc_prec),
+                        "deepcast_recall": str(dc_rec),
+                    })
 
-                if extract_markdown:
-                    cmd.append("--extract-markdown")
-
-                _run(
-                    cmd, verbose=verbose, save_to=None, label=None
-                )  # Progress handles the display
-                step_duration = time.time() - step_start
-                progress.complete_step("AI analysis completed", step_duration)
-                results.update({"deepcast_json": str(json_out)})
-                # Record markdown path when extracted
-                if extract_markdown and md_out.exists():
-                    results.update({"deepcast_md": str(md_out)})
+                    # Agreement
+                    progress.start_step("Computing agreement between analyses")
+                    agr_out = wd / f"agreement-{safe_model}-{deepcast_model.replace('.', '_')}.json"
+                    _run(
+                        ["podx-agreement", "--a", str(dc_prec), "--b", str(dc_rec), "--model", deepcast_model],
+                        verbose=verbose,
+                        save_to=agr_out,
+                    )
+                    progress.complete_step("Agreement computed", 0)
+                    results.update({"agreement": str(agr_out)})
 
         # 7) NOTION (optional) — requires DB id
-        if notion:
+        if notion and not dual:
             if not notion_db:
                 raise SystemExit(
                     "Please pass --db or set NOTION_DB_ID environment variable"
