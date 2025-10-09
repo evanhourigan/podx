@@ -60,6 +60,7 @@ logger = get_logger(__name__)
 try:
     from rich.console import Console
     from rich.table import Table
+    from rich.panel import Panel
     RICH_AVAILABLE = True
 except Exception:
     RICH_AVAILABLE = False
@@ -554,8 +555,22 @@ def run(
                 except Exception:
                     console.print("[red]Invalid selection[/red]")
                     input("Press Enter to continue...")
-            # Optional: quick fidelity choice
-            fchoice = input("\nFidelity (1-5): 1=deepcast only, 2=recall, 3=precision, 4=balanced, 5=dual QA. Enter=keep current flags, Q=cancel: ").strip()
+            # Optional: quick fidelity choice with detailed help
+            current_flags = (
+                f"preset={preset or '-'}  align={align}  diarize={diarize}  "
+                f"preprocess={preprocess}  restore={restore}  deepcast={deepcast}  dual={dual}"
+            )
+            help_text = (
+                "1: Deepcast only — use latest transcript; skip preprocess/restore/align/diarize (fastest)\n"
+                "2: Recall — transcribe with recall preset; preprocess+restore; deepcast (higher recall)\n"
+                "3: Precision — transcribe with precision preset; preprocess+restore; deepcast (higher precision)\n"
+                "4: Balanced — transcribe with balanced preset; preprocess+restore; deepcast (recommended single-track)\n"
+                "5: Dual QA — run precision & recall; preprocess+restore both; deepcast both; compute agreement (best)\n\n"
+                f"Current flags: {current_flags}\n"
+                "Press Enter to keep current flags unchanged, or choose 1-5 to override. Q cancels."
+            )
+            console.print(Panel(help_text, title="Fidelity Levels", border_style="blue"))
+            fchoice = input("\nChoose fidelity [1-5] (Enter=keep current flags, Q=cancel): ").strip()
             if fchoice.upper() in {"Q", "QUIT", "EXIT"}:
                 console.print("[dim]Cancelled[/dim]")
                 raise SystemExit(0)
