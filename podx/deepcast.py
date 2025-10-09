@@ -57,13 +57,22 @@ def sanitize_model_name(model: str) -> str:
 
 
 def generate_deepcast_filename(
-    asr_model: str, ai_model: str, deepcast_type: str, extension: str = "json"
+    asr_model: str,
+    ai_model: str,
+    deepcast_type: str,
+    extension: str = "json",
+    with_timestamp: bool = True,
 ) -> str:
-    """Generate deepcast filename in new format: deepcast-{asr}-{ai}-{type}.{ext}"""
+    """Generate deepcast filename: deepcast-{asr}-{ai}-{type}[-YYYYMMDD-HHMMSS].{ext}"""
     asr_safe = asr_model.replace(".", "_").replace("-", "_")
     ai_safe = sanitize_model_name(ai_model)
     type_safe = deepcast_type.replace(".", "_").replace("-", "_")
-    return f"deepcast-{asr_safe}-{ai_safe}-{type_safe}.{extension}"
+    ts = (
+        "-" + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        if with_timestamp
+        else ""
+    )
+    return f"deepcast-{asr_safe}-{ai_safe}-{type_safe}{ts}.{extension}"
 
 
 class LiveTimer:
@@ -1051,7 +1060,7 @@ def main(
         # Step 4: Check if deepcast already exists and confirm overwrite
         episode_dir = selected_row["episode"]["directory"]
         asr_model_raw = selected_row.get("asr_model_raw", "unknown")
-        output_filename = generate_deepcast_filename(asr_model_raw, ai_model, deepcast_type, "json")
+        output_filename = generate_deepcast_filename(asr_model_raw, ai_model, deepcast_type, "json", with_timestamp=True)
         output = episode_dir / output_filename
 
         if output.exists():
@@ -1213,7 +1222,7 @@ def main(
     if extract_markdown:
         asr_model_str = transcript.get("asr_model", "unknown")
         deepcast_type_str = podcast_type.value if podcast_type else "general"
-        md_filename = generate_deepcast_filename(asr_model_str, model, deepcast_type_str, "md")
+        md_filename = generate_deepcast_filename(asr_model_str, model, deepcast_type_str, "md", with_timestamp=True)
         markdown_file = json_output.parent / md_filename if json_output.parent.name else Path(md_filename)
         # Add metadata as HTML comment at the top
         metadata_comment = f"<!-- Metadata: ASR={asr_model_str}, AI={model}, Type={deepcast_type_str}, Transcript={transcript_variant} -->\n\n"
