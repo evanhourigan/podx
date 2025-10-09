@@ -80,10 +80,19 @@ def scan_episode_files(workdir: Path) -> Dict[str, any]:
         except json.JSONDecodeError:
             pass
 
-    # Scan for deepcast analyses
-    deepcast_files = list(workdir.glob("deepcast-brief-*.json"))
+    # Scan for deepcast analyses (both new and legacy formats)
+    deepcast_files = list(workdir.glob("deepcast-*.json"))
     for file_path in deepcast_files:
-        model_name = file_path.stem.replace("deepcast-brief-", "")
+        # Extract model name from filename (handle both formats)
+        stem = file_path.stem
+        if stem.startswith("deepcast-brief-"):
+            model_name = stem.replace("deepcast-brief-", "")
+        elif stem.count("-") >= 3:
+            # New format: deepcast-{asr}-{ai}-{type}
+            parts = stem.split("-")
+            model_name = parts[2] if len(parts) >= 3 else "unknown"
+        else:
+            model_name = stem.replace("deepcast-", "")
         try:
             with open(file_path, "r") as f:
                 data = json.load(f)
@@ -96,7 +105,7 @@ def scan_episode_files(workdir: Path) -> Dict[str, any]:
                         "modified": file_path.stat().st_mtime,
                         "metadata": metadata,
                         "has_markdown": (
-                            workdir / f"deepcast-brief-{model_name}.md"
+                            workdir / f"{file_path.stem}.md"
                         ).exists(),
                     }
                 )

@@ -253,7 +253,8 @@ def _detect_shows(root: Path) -> List[str]:
             actionable = False
             for p in entry.iterdir():
                 if p.is_dir() and re.match(r"^\d{4}-\d{2}-\d{2}$", p.name):
-                    if list((entry / p.name).glob("deepcast-brief-*.json")):
+                    # Check for both new and legacy deepcast formats
+                    if list((entry / p.name).glob("deepcast-*.json")):
                         actionable = True
                         break
             if actionable:
@@ -271,7 +272,8 @@ def _list_episode_dates(root: Path, show: str) -> List[str]:
         return dates
     for entry in show_dir.iterdir():
         if entry.is_dir() and re.match(r"^\d{4}-\d{2}-\d{2}$", entry.name):
-            if list(entry.glob("deepcast-brief-*.json")):
+            # Check for both new and legacy deepcast formats
+            if list(entry.glob("deepcast-*.json")):
                 dates.append(entry.name)
     # Newest first
     return sorted(dates, reverse=True)
@@ -280,20 +282,31 @@ def _list_episode_dates(root: Path, show: str) -> List[str]:
 def _list_deepcast_models(workdir: Path) -> List[str]:
     """List available deepcast models for an episode workdir based on filenames."""
     models: List[str] = []
-    files = list(workdir.glob("deepcast-brief-*.json"))
+    # Check for both new and legacy deepcast formats
+    files = list(workdir.glob("deepcast-*.json"))
     for f in files:
-        suffix = f.stem.split("-")[-1].replace("_", ".")
-        models.append(suffix)
-    # Preserve order by modified time (newest first) while deduping
-    files_sorted = sorted(files, key=lambda p: p.stat().st_mtime, reverse=True)
-    ordered_unique: List[str] = []
-    seen = set()
-    for f in files_sorted:
-        m = f.stem.split("-")[-1].replace("_", ".")
-        if m not in seen:
-            seen.add(m)
-            ordered_unique.append(m)
-    return ordered_unique
+        # Try to extract AI model from filename
+        # New format: deepcast-{asr}-{ai}-{type}.json -> extract {ai}
+        # Legacy format: deepcast-{ai}.json or deepcast-brief-{ai}.json -> extract {ai}
+        stem = f.stem
+        if stem.startswith("deepcast-brief-"):
+            # Legacy: deepcast-brief-{ai}
+            suffix = stem[len("deepcast-brief-"):].replace("_", ".")
+            models.append(suffix)
+        elif stem.count("-") >= 3:
+            # New format: deepcast-{asr}-{ai}-{type}
+            parts = stem.split("-")
+            if len(parts) >= 3:
+                ai_model = parts[2].replace("_", ".")
+                if ai_model not in models:
+                    models.append(ai_model)
+        elif stem.startswith("deepcast-"):
+            # Legacy: deepcast-{ai}
+            suffix = stem[len("deepcast-"):].replace("_", ".")
+            if suffix not in models:
+                models.append(suffix)
+    # Deduplicate and return unique models
+    return list(dict.fromkeys(models))  # Preserve order while deduplicating
 
 
 def _prompt_numbered_choice(title: str, items: List[str]) -> Optional[str]:
@@ -918,7 +931,8 @@ def main(
 
         # Auto-detect the most recent deepcast analysis if not specified
         if not input and not md_path:
-            deepcast_files = list(workdir.glob("deepcast-brief-*.json"))
+            # Check for both new and legacy deepcast formats
+            deepcast_files = list(workdir.glob("deepcast-*.json"))
             if deepcast_files:
                 if select_model:
                     # Filter for specific model

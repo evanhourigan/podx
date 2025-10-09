@@ -688,9 +688,8 @@ def select_deepcast_type(row: Dict[str, Any], console: Console) -> Optional[str]
     for idx, dtype in enumerate(all_types, start=1):
         marker = " ← Default" if dtype == default_type else ""
         console.print(f"  {idx:2}  {dtype}{marker}")
-    console.print("  [red]Q[/red]   Quit")
     
-    choice = input(f"\n👉 Your choice (1-{len(all_types)}, Q to quit, or press Enter for default): ").strip()
+    choice = input(f"\n👉 Select deepcast type (1-{len(all_types)}) or Q to cancel: ").strip()
     
     if choice.upper() in ["Q", "QUIT", "EXIT"]:
         return None
@@ -714,11 +713,7 @@ def select_ai_model(console: Console) -> Optional[str]:
     """Prompt user to select AI model."""
     default_model = "gpt-4.1-mini"
     
-    console.print(f"\n[bold cyan]Select AI model (default: {default_model}):[/bold cyan]")
-    console.print("  Press Enter for default, or type model name (e.g., gpt-4o, claude-3-sonnet)")
-    console.print("  [red]Q[/red] to quit")
-    
-    choice = input("\n👉 Your choice: ").strip()
+    choice = input(f"\n👉 Select AI model (e.g. gpt-4.1, gpt-4o, claude-4-sonnet; default: {default_model}) or Q to cancel: ").strip()
     
     if choice.upper() in ["Q", "QUIT", "EXIT"]:
         return None
@@ -1068,8 +1063,7 @@ def main(
                 sys.exit(0)
 
         # Step 5: Ask about markdown generation
-        console.print(f"\n[bold cyan]Generate markdown output file?[/bold cyan]")
-        md_choice = input("(yes/no, default: no, Q to quit): ").strip().lower()
+        md_choice = input("\n👉 Generate markdown output file? y/N or Q to cancel: ").strip().lower()
         if md_choice in ["q", "quit", "exit"]:
             console.print("[dim]Cancelled[/dim]")
             sys.exit(0)
@@ -1132,6 +1126,14 @@ def main(
         print(prompt_display)
         return
 
+    # Check for OpenAI library before proceeding
+    if OpenAI is None:
+        if interactive and RICH_AVAILABLE:
+            console = Console()
+            console.print("\n[red]❌ Error: OpenAI library not installed[/red]")
+            console.print("[yellow]Install with: pip install openai[/yellow]")
+        raise SystemExit("Install OpenAI: pip install openai")
+    
     # Normal execution mode
     # Start live timer in interactive mode
     timer = None
@@ -1144,9 +1146,15 @@ def main(
         md, json_data = deepcast(
             transcript, model, temperature, chunk_chars, want_json, podcast_type
         )
+    except SystemExit as e:
+        if timer:
+            timer.stop()
+        raise
     except Exception as e:
         if timer:
             timer.stop()
+        if interactive and RICH_AVAILABLE:
+            console.print(f"\n[red]❌ Error during deepcast generation: {e}[/red]")
         raise
     
     # Stop timer and show completion message in interactive mode
@@ -1210,8 +1218,16 @@ def main(
         markdown_with_metadata = metadata_comment + md
         markdown_file.write_text(markdown_with_metadata, encoding="utf-8")
 
-    # Always print to stdout (for pipelines)
-    print(json.dumps(unified, ensure_ascii=False))
+    # Print to stdout (for pipelines) - but not in interactive mode
+    if not interactive:
+        print(json.dumps(unified, ensure_ascii=False))
+    else:
+        # In interactive mode, just show a success message
+        if RICH_AVAILABLE:
+            console = Console()
+            console.print(f"\n[green]✅ Deepcast saved to: {json_output.name}[/green]")
+            if extract_markdown:
+                console.print(f"[green]✅ Markdown saved to: {markdown_file.name}[/green]")
 
 
 if __name__ == "__main__":

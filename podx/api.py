@@ -278,6 +278,10 @@ def has_markdown(
     if p.exists():
         return str(p)
 
-    # Legacy fallback
-    legacy = out_path / f"deepcast-brief-{model_suffix}.md"
-    return str(legacy) if legacy.exists() else None
+    # Legacy fallback - check for any deepcast markdown files
+    deepcast_files = list(out_path.glob("deepcast-*.md"))
+    if deepcast_files:
+        # Return most recent one
+        latest = max(deepcast_files, key=lambda p: p.stat().st_mtime)
+        return str(latest)
+    return None

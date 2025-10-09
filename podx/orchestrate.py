@@ -642,13 +642,14 @@ def run(
         latest = base
         latest_name = f"transcript-{model}"
 
-        # 4) ALIGN (optional) → aligned-transcript-{model}.json
+        # 4) ALIGN (optional) → transcript-aligned-{model}.json
         if align:
             # Get model from base transcript
             used_model = base.get("asr_model", model)
-            aligned_file = wd / f"aligned-transcript-{used_model}.json"
+            aligned_file = wd / f"transcript-aligned-{used_model}.json"
 
-            # Also check legacy filename
+            # Also check legacy filenames
+            legacy_aligned_new = wd / f"aligned-transcript-{used_model}.json"
             legacy_aligned = wd / "aligned-transcript.json"
             if aligned_file.exists():
                 logger.info(
@@ -659,13 +660,19 @@ def run(
                     f"Using existing aligned transcript ({used_model})", 0
                 )
                 latest = aligned
-                latest_name = f"aligned-transcript-{used_model}"
+                latest_name = f"transcript-aligned-{used_model}"
+            elif legacy_aligned_new.exists():
+                logger.info(f"Found existing legacy aligned transcript ({used_model}), using it")
+                aligned = json.loads(legacy_aligned_new.read_text())
+                progress.complete_step("Using existing aligned transcript", 0)
+                latest = aligned
+                latest_name = f"transcript-aligned-{used_model}"
             elif legacy_aligned.exists():
                 logger.info("Found existing legacy aligned transcript, using it")
                 aligned = json.loads(legacy_aligned.read_text())
                 progress.complete_step("Using existing aligned transcript", 0)
                 latest = aligned
-                latest_name = "aligned-transcript"
+                latest_name = "transcript-aligned"
             else:
                 progress.start_step("Aligning transcript with audio")
                 step_start = time.time()
@@ -679,15 +686,16 @@ def run(
                 step_duration = time.time() - step_start
                 progress.complete_step("Audio alignment completed", step_duration)
                 latest = aligned
-                latest_name = f"aligned-transcript-{used_model}"
+                latest_name = f"transcript-aligned-{used_model}"
 
-        # 5) DIARIZE (optional) → diarized-transcript-{model}.json
+        # 5) DIARIZE (optional) → transcript-diarized-{model}.json
         if diarize:
             # Get model from latest transcript
             used_model = latest.get("asr_model", model)
-            diarized_file = wd / f"diarized-transcript-{used_model}.json"
+            diarized_file = wd / f"transcript-diarized-{used_model}.json"
 
-            # Check if already exists
+            # Check if already exists (also check legacy filenames)
+            legacy_diarized_new = wd / f"diarized-transcript-{used_model}.json"
             legacy_diarized = wd / "diarized-transcript.json"
             if diarized_file.exists():
                 logger.info(
@@ -698,13 +706,19 @@ def run(
                     f"Using existing diarized transcript ({used_model})", 0
                 )
                 latest = diar
-                latest_name = f"diarized-transcript-{used_model}"
+                latest_name = f"transcript-diarized-{used_model}"
+            elif legacy_diarized_new.exists():
+                logger.info(f"Found existing legacy diarized transcript ({used_model}), using it")
+                diar = json.loads(legacy_diarized_new.read_text())
+                progress.complete_step("Using existing diarized transcript", 0)
+                latest = diar
+                latest_name = f"transcript-diarized-{used_model}"
             elif legacy_diarized.exists():
                 logger.info("Found existing legacy diarized transcript, using it")
                 diar = json.loads(legacy_diarized.read_text())
                 progress.complete_step("Using existing diarized transcript", 0)
                 latest = diar
-                latest_name = "diarized-transcript"
+                latest_name = "transcript-diarized"
             else:
                 progress.start_step("Identifying speakers")
                 step_start = time.time()
@@ -724,7 +738,7 @@ def run(
                 step_duration = time.time() - step_start
                 progress.complete_step("Speaker diarization completed", step_duration)
                 latest = diar
-                latest_name = f"diarized-transcript-{used_model}"
+                latest_name = f"transcript-diarized-{used_model}"
 
         # Always keep a pointer to the latest JSON/SRT/TXT for convenience
         (wd / "latest.json").write_text(json.dumps(latest, indent=2), encoding="utf-8")
@@ -836,7 +850,8 @@ def run(
             model_specific_json = wd / f"deepcast-brief-{model_suffix}.json"
 
             # Find any deepcast files if model-specific ones don't exist
-            deepcast_files = list(wd.glob("deepcast-brief-*.md"))
+            # Check for both new and legacy formats
+            deepcast_files = list(wd.glob("deepcast-*.md"))
             fallback_md = deepcast_files[0] if deepcast_files else None
 
             # Prefer unified JSON mode if no separate markdown file exists
@@ -928,19 +943,25 @@ def run(
                 wd / "episode-meta.json",
                 wd / "audio-meta.json",
             }
-            # Keep all deepcast files (model-specific)
-            keep.update(wd.glob("deepcast-brief-*.json"))
-            keep.update(wd.glob("deepcast-brief-*.md"))
+            # Keep all deepcast files (both new and legacy formats)
+            keep.update(wd.glob("deepcast-*.json"))
+            keep.update(wd.glob("deepcast-*.md"))
 
             cleaned_files = 0
             # Remove intermediate JSON files (both legacy and model-specific)
             cleanup_patterns = [
                 "transcript.json",
                 "transcript-*.json",
+                # Legacy align/diarize formats (old)
                 "aligned-transcript.json",
                 "aligned-transcript-*.json",
                 "diarized-transcript.json",
                 "diarized-transcript-*.json",
+                # New align/diarize formats
+                "transcript-aligned.json",
+                "transcript-aligned-*.json",
+                "transcript-diarized.json",
+                "transcript-diarized-*.json",
             ]
             for pattern in cleanup_patterns:
                 for p in wd.glob(pattern):
