@@ -7,6 +7,7 @@ import click
 
 from .cli_shared import read_stdin_json
 from .logging import get_logger
+from .deepcast import parse_deepcast_metadata
 
 logger = get_logger(__name__)
 
@@ -42,28 +43,69 @@ def main(input_a: Optional[Path], input_b: Optional[Path], model: str, interacti
         if not RICH_AVAILABLE:
             raise SystemExit("Interactive mode requires rich library. Install with: pip install rich")
         console = Console()
-        deepcasts = list(Path(scan_dir).rglob("deepcast-*.json"))
-        if not deepcasts:
+        deepcast_files = list(Path(scan_dir).rglob("deepcast-*.json"))
+        if not deepcast_files:
             console.print(f"[red]No deepcast files found in {scan_dir}[/red]")
             raise SystemExit(1)
 
+        # Build rich metadata rows like podx-deepcast --interactive
+        rows = []
+        for p in deepcast_files:
+            try:
+                meta = parse_deepcast_metadata(p)
+            except Exception:
+                meta = {"asr_model": "unknown", "ai_model": "unknown", "deepcast_type": "unknown"}
+            # Episode-level metadata
+            episode_dir = p.parent
+            show = "Unknown"
+            date = "Unknown"
+            title = "Unknown"
+            try:
+                em = json.loads((episode_dir / "episode-meta.json").read_text(encoding="utf-8"))
+                show = em.get("show", show)
+                date_val = em.get("episode_published", "")
+                if date_val:
+                    try:
+                        from dateutil import parser as dtparse
+                        parsed = dtparse.parse(date_val)
+                        date = parsed.strftime("%Y-%m-%d")
+                    except Exception:
+                        date = date_val[:10] if len(date_val) >= 10 else date_val
+                title = em.get("episode_title", title)
+            except Exception:
+                pass
+            rows.append({
+                "path": p,
+                "asr": meta.get("asr_model", "unknown"),
+                "ai": meta.get("ai_model", "unknown"),
+                "dtype": meta.get("deepcast_type", "unknown"),
+                "show": show,
+                "date": date,
+                "title": title,
+            })
+
+        # Display table
         table = Table(show_header=True, header_style="bold magenta", title="🤖 Deepcast Analyses")
         table.add_column("#", style="cyan", width=3, justify="right")
-        table.add_column("File", style="white")
-        for idx, p in enumerate(deepcasts, start=1):
-            table.add_row(str(idx), p.name)
+        table.add_column("ASR Model", style="yellow", width=14)
+        table.add_column("Type", style="white", width=24)
+        table.add_column("Show", style="green", width=18)
+        table.add_column("Date", style="blue", width=12)
+        table.add_column("Title", style="white", width=45)
+        for idx, r in enumerate(rows, start=1):
+            table.add_row(str(idx), r["asr"], r["dtype"], r["show"], r["date"], r["title"])
         console.print(table)
-        choice1 = input(f"\n👉 Select first analysis (1-{len(deepcasts)}) or Q to cancel: ").strip().upper()
+        choice1 = input(f"\n👉 Select first analysis (1-{len(rows)}) or Q to cancel: ").strip().upper()
         if choice1 in ["Q", "QUIT", "EXIT"]:
             console.print("[dim]Cancelled[/dim]")
             raise SystemExit(0)
-        choice2 = input(f"👉 Select second analysis (1-{len(deepcasts)}) or Q to cancel: ").strip().upper()
+        choice2 = input(f"👉 Select second analysis (1-{len(rows)}) or Q to cancel: ").strip().upper()
         if choice2 in ["Q", "QUIT", "EXIT"]:
             console.print("[dim]Cancelled[/dim]")
             raise SystemExit(0)
         try:
             i1 = int(choice1); i2 = int(choice2)
-            pa = deepcasts[i1 - 1]; pb = deepcasts[i2 - 1]
+            pa = rows[i1 - 1]["path"]; pb = rows[i2 - 1]["path"]
         except Exception:
             console.print("[red]Invalid selection[/red]")
             raise SystemExit(1)
