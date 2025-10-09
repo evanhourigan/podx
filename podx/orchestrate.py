@@ -507,18 +507,18 @@ def run(
                 console.clear()
                 start = page * per_page
                 end = min(start + per_page, len(eps_sorted))
-            table = Table(show_header=True, header_style="bold magenta", title=f"🎙️ Episodes (Page {page+1}/{total_pages})", expand=True)
-            table.add_column("#", style="cyan", width=3, justify="right")
-            table.add_column("Show", style="green", width=18, no_wrap=True)
-            table.add_column("Date", style="blue", width=12, no_wrap=True)
-            # Title column flexes; keep one line with ellipsis
-            table.add_column("Title", style="white", no_wrap=True, overflow="ellipsis")
-            table.add_column("ASR", style="yellow", width=6, no_wrap=True)
-            table.add_column("Align", style="yellow", width=5, no_wrap=True)
-            table.add_column("Diar", style="yellow", width=5, no_wrap=True)
-            table.add_column("Deepcast", style="yellow", width=8, no_wrap=True)
-            table.add_column("Proc", style="yellow", width=12, no_wrap=True)
-            table.add_column("Last Run", style="white", width=16, no_wrap=True)
+                table = Table(show_header=True, header_style="bold magenta", title=f"🎙️ Episodes (Page {page+1}/{total_pages})", expand=True)
+                table.add_column("#", style="cyan", width=3, justify="right")
+                table.add_column("Show", style="green", width=18, no_wrap=True)
+                table.add_column("Date", style="blue", width=12, no_wrap=True)
+                # Title column flexes; keep one line with ellipsis
+                table.add_column("Title", style="white", no_wrap=True, overflow="ellipsis")
+                table.add_column("ASR", style="yellow", width=6, no_wrap=True)
+                table.add_column("Align", style="yellow", width=5, no_wrap=True)
+                table.add_column("Diar", style="yellow", width=5, no_wrap=True)
+                table.add_column("Deepcast", style="yellow", width=8, no_wrap=True)
+                table.add_column("Proc", style="yellow", width=12, no_wrap=True)
+                table.add_column("Last Run", style="white", width=16, no_wrap=True)
                 for idx, e in enumerate(eps_sorted[start:end], start=start + 1):
                     asr_count_val = len(e["transcripts"]) if e["transcripts"] else 0
                     asr_count = f"[dim]-[/dim]" if asr_count_val == 0 else str(asr_count_val)

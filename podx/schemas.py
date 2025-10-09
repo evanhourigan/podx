@@ -145,7 +145,7 @@ class Transcript(BaseModel):
     preset: Optional[Literal["balanced", "precision", "recall"]] = Field(
         None, description="High-level preset guiding decoder options"
     )
-    decoder_options: Optional[Dict[str, str]] = Field(
+    decoder_options: Optional[Dict[str, str | int | float | bool]] = Field(
         default=None, description="Advanced decoder/provider options"
     )
     text: Optional[str] = Field(None, description="Full transcript text")
