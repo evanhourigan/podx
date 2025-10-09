@@ -10,12 +10,21 @@ from .logging import get_logger
 
 logger = get_logger(__name__)
 
+try:
+    from rich.console import Console
+    from rich.table import Table
+    RICH_AVAILABLE = True
+except Exception:
+    RICH_AVAILABLE = False
+
 
 @click.command()
 @click.option("--a", "input_a", type=click.Path(exists=True, path_type=Path), help="First deepcast JSON/MD (JSON preferred)")
 @click.option("--b", "input_b", type=click.Path(exists=True, path_type=Path), help="Second deepcast JSON/MD (JSON preferred)")
 @click.option("--model", default="gpt-4.1", help="OpenAI model for comparison")
-def main(input_a: Optional[Path], input_b: Optional[Path], model: str):
+@click.option("--interactive", is_flag=True, help="Interactive browser to select two analyses to compare")
+@click.option("--scan-dir", type=click.Path(exists=True, path_type=Path), default=".", help="Directory to scan for deepcast files")
+def main(input_a: Optional[Path], input_b: Optional[Path], model: str, interactive: bool, scan_dir: Path):
     """
     Compare two deepcast analyses and output a structured agreement report.
     If JSON inputs are provided, extracts markdown internally.
@@ -28,6 +37,31 @@ def main(input_a: Optional[Path], input_b: Optional[Path], model: str):
             return data.get("markdown") or text
         except Exception:
             return text
+
+    if interactive:
+        if not RICH_AVAILABLE:
+            raise SystemExit("Interactive mode requires rich library. Install with: pip install rich")
+        console = Console()
+        deepcasts = list(Path(scan_dir).rglob("deepcast-*.json"))
+        if not deepcasts:
+            console.print(f"[red]No deepcast files found in {scan_dir}[/red]")
+            raise SystemExit(1)
+
+        table = Table(show_header=True, header_style="bold magenta", title="🤖 Deepcast Analyses")
+        table.add_column("#", style="cyan", width=3, justify="right")
+        table.add_column("File", style="white")
+        for idx, p in enumerate(deepcasts, start=1):
+            table.add_row(str(idx), p.name)
+        console.print(table)
+        choice1 = input(f"\n👉 Select first analysis (1-{len(deepcasts)}): ").strip()
+        choice2 = input(f"👉 Select second analysis (1-{len(deepcasts)}): ").strip()
+        try:
+            i1 = int(choice1); i2 = int(choice2)
+            pa = deepcasts[i1 - 1]; pb = deepcasts[i2 - 1]
+        except Exception:
+            console.print("[red]Invalid selection[/red]")
+            raise SystemExit(1)
+        input_a = pa; input_b = pb
 
     if input_a and input_b:
         a_text = load_content(input_a)
