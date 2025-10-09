@@ -157,6 +157,18 @@ def main():
     help="ASR transcription model",
 )
 @click.option(
+    "--asr-provider",
+    type=click.Choice(["auto", "local", "openai", "hf"]),
+    default="auto",
+    help="ASR provider (auto-detect by model prefix/alias if 'auto')",
+)
+@click.option(
+    "--preset",
+    type=click.Choice(["balanced", "precision", "recall"]),
+    default=None,
+    help="High-level decoding preset for transcribe",
+)
+@click.option(
     "--compute",
     default=lambda: get_config().default_compute,
     type=click.Choice(["int8", "int8_float16", "float16", "float32"]),
@@ -260,6 +272,8 @@ def run(
     fmt: str,
     model: str,
     compute: str,
+    asr_provider: str,
+    preset: str | None,
     align: bool,
     diarize: bool,
     deepcast: bool,
@@ -636,8 +650,14 @@ def run(
             # No existing transcript, create new one
             progress.start_step(f"Transcribing with {model} model")
             step_start = time.time()
+            transcribe_cmd = ["podx-transcribe", "--model", model, "--compute", compute]
+            if asr_provider and asr_provider != "auto":
+                transcribe_cmd += ["--asr-provider", asr_provider]
+            if preset:
+                transcribe_cmd += ["--preset", preset]
+
             base = _run(
-                ["podx-transcribe", "--model", model, "--compute", compute],
+                transcribe_cmd,
                 stdin_payload=audio,
                 verbose=verbose,
                 save_to=transcript_file,
@@ -1179,13 +1199,25 @@ def notion_cmd(ctx):
     "--model", default=lambda: get_config().default_asr_model, help="ASR model"
 )
 @click.option(
+    "--asr-provider",
+    type=click.Choice(["auto", "local", "openai", "hf"]),
+    default="auto",
+    help="ASR provider for transcribe",
+)
+@click.option(
+    "--preset",
+    type=click.Choice(["balanced", "precision", "recall"]),
+    default=None,
+    help="Decoding preset for transcribe",
+)
+@click.option(
     "--compute",
     default=lambda: get_config().default_compute,
     type=click.Choice(["int8", "int8_float16", "float16", "float32"]),
     help="Compute type",
 )
 @click.option("-v", "--verbose", is_flag=True, help="Print interstitial outputs")
-def quick(show, rss_url, youtube_url, date, title_contains, model, compute, verbose):
+def quick(show, rss_url, youtube_url, date, title_contains, model, asr_provider, preset, compute, verbose):
     """Quick workflow: fetch + transcribe only (fastest option)."""
     click.echo("🚀 Running quick transcription workflow...")
 
@@ -1200,6 +1232,8 @@ def quick(show, rss_url, youtube_url, date, title_contains, model, compute, verb
         title_contains=title_contains,
         model=model,
         compute=compute,
+        asr_provider=asr_provider,
+        preset=preset,
         verbose=verbose,
         # All other options default to False/None
         align=False,
@@ -1222,6 +1256,18 @@ def quick(show, rss_url, youtube_url, date, title_contains, model, compute, verb
 @click.option("--title-contains", help="Substring to match in episode title")
 @click.option(
     "--model", default=lambda: get_config().default_asr_model, help="ASR model"
+)
+@click.option(
+    "--asr-provider",
+    type=click.Choice(["auto", "local", "openai", "hf"]),
+    default="auto",
+    help="ASR provider for transcribe",
+)
+@click.option(
+    "--preset",
+    type=click.Choice(["balanced", "precision", "recall"]),
+    default=None,
+    help="Decoding preset for transcribe",
 )
 @click.option(
     "--compute",
@@ -1259,6 +1305,8 @@ def analyze(
     date,
     title_contains,
     model,
+    asr_provider,
+    preset,
     compute,
     deepcast_model,
     podcast_type,
@@ -1277,6 +1325,8 @@ def analyze(
         title_contains=title_contains,
         model=model,
         compute=compute,
+        asr_provider=asr_provider,
+        preset=preset,
         deepcast_model=deepcast_model,
         verbose=verbose,
         # Analysis workflow options
