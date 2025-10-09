@@ -506,6 +506,32 @@ def select_asr_model(
     help="ASR provider (auto-detect by model prefix/alias if 'auto')",
 )
 @click.option(
+    "--preset",
+    type=click.Choice(["balanced", "precision", "recall"]),
+    default=None,
+    help="High-level decoding preset (defaults to balanced behavior)",
+)
+@click.option(
+    "--expert",
+    is_flag=True,
+    help="Show and enable expert decoder flags (for advanced users)",
+)
+@click.option(
+    "--vad-filter/--no-vad",
+    default=None,
+    help="Enable/disable VAD filtering (overrides preset)",
+)
+@click.option(
+    "--condition-on-previous-text/--no-condition-on-previous-text",
+    default=None,
+    help="Condition decoding on previous text (overrides preset; local only)",
+)
+@click.option(
+    "--decode-option",
+    multiple=True,
+    help="Advanced k=v options to pass to decoder (local provider only)",
+)
+@click.option(
     "--compute",
     default=lambda: get_config().default_compute,
     type=click.Choice(["int8", "int8_float16", "float16", "float32"]),
@@ -535,7 +561,20 @@ def select_asr_model(
     help="Directory to scan for episodes (default: current directory)",
 )
 @validate_output(Transcript)
-def main(model, compute, input, output, interactive, scan_dir, asr_provider):
+def main(
+    model,
+    compute,
+    input,
+    output,
+    interactive,
+    scan_dir,
+    asr_provider,
+    preset,
+    expert,
+    vad_filter,
+    condition_on_previous_text,
+    decode_option,
+):
     """
     Read AudioMeta JSON on stdin -> run faster-whisper -> print Transcript JSON to stdout.
 
@@ -651,10 +690,40 @@ def main(model, compute, input, output, interactive, scan_dir, asr_provider):
             timer = LiveTimer("Transcribing")
             timer.start()
         
+        # Determine decode parameters (preset -> defaults -> explicit overrides)
+        # Defaults emulate current behavior
+        use_vad = True if vad_filter is None else bool(vad_filter)
+        use_condition = None if condition_on_previous_text is None else bool(condition_on_previous_text)
+        if preset:
+            if preset == "balanced":
+                use_vad = True if vad_filter is None else use_vad
+                use_condition = True if condition_on_previous_text is None else use_condition
+            elif preset == "precision":
+                use_vad = True if vad_filter is None else use_vad
+                use_condition = True if condition_on_previous_text is None else use_condition
+            elif preset == "recall":
+                use_vad = False if vad_filter is None else use_vad
+                use_condition = False if condition_on_previous_text is None else use_condition
+
+        # Parse additional decode options
+        extra_kwargs: Dict[str, Any] = {}
+        for opt in decode_option or ():
+            if "=" in opt:
+                k, v = opt.split("=", 1)
+                extra_kwargs[k.strip()] = v.strip()
+
         try:
-            seg_iter, info = asr.transcribe(
-                str(audio), vad_filter=True, vad_parameters={"min_silence_duration_ms": 500}
-            )
+            transcribe_kwargs: Dict[str, Any] = {
+                "vad_filter": use_vad,
+                "vad_parameters": {"min_silence_duration_ms": 500},
+            }
+            if use_condition is not None:
+                transcribe_kwargs["condition_on_previous_text"] = use_condition
+            # Add expert options if provided
+            if expert and extra_kwargs:
+                transcribe_kwargs.update(extra_kwargs)
+
+            seg_iter, info = asr.transcribe(str(audio), **transcribe_kwargs)
         except Exception as e:
             if timer:
                 timer.stop()
@@ -794,6 +863,8 @@ def main(model, compute, input, output, interactive, scan_dir, asr_provider):
         "language": detected_language,
         "asr_model": model,
         "asr_provider": provider,
+        "preset": preset,
+        "decoder_options": {"vad_filter": use_vad} if provider == "local" else None,
         "segments": segments,
         "text": "\n".join(full_text_lines).strip(),
     }
