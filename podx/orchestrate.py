@@ -225,6 +225,11 @@ def main():
     help="Directory to scan for episodes when using --interactive-select",
 )
 @click.option(
+    "--fetch-new",
+    is_flag=True,
+    help="When used with --interactive-select and --show, open fetch browser to add new episodes before selection",
+)
+@click.option(
     "--dual",
     is_flag=True,
     help="Run precision+recall QA: two ASR tracks (precision & recall) + preprocess(+restore) + deepcast both + agreement",
@@ -323,6 +328,7 @@ def run(
     dual: bool,
     interactive_select: bool,
     scan_dir: Path,
+    fetch_new: bool,
     deepcast_model: str,
     deepcast_temp: float,
     extract_markdown: bool,
@@ -497,11 +503,28 @@ def run(
                     notion_ok = "✓" if e["notion"] else "○"
                     table.add_row(str(idx), e["show"], e["date"], e["title"], asr_count, align_ok, diar_ok, dc_count, notion_ok, e["last_run"])
                 console.print(table)
-                console.print("[dim]Enter 1-{end} to select • N next • P prev • Q quit[/dim]".replace("{end}", str(end)))
+                extra = " • F fetch new" if show else ""
+                console.print(("[dim]Enter 1-{end} to select • N next • P prev • Q quit" + extra + "[/dim]").replace("{end}", str(end)))
                 choice = input("\n👉 Select: ").strip().upper()
                 if choice in ["Q", "QUIT", "EXIT"]:
                     console.print("[dim]Cancelled[/dim]")
                     raise SystemExit(0)
+                if choice == "F" and show:
+                    # Open fetch browser to add episodes, then re-scan
+                    console.print(f"[dim]Opening fetch browser for show '{show}'...[/dim]")
+                    try:
+                        _run(["podx-fetch", "--show", show, "--interactive"], verbose=verbose, save_to=None)
+                    except Exception:
+                        console.print("[red]Fetch cancelled or failed[/red]")
+                    # Re-scan and continue
+                    eps = _scan_episode_status(Path(scan_dir))
+                    if show:
+                        s_l = show.lower()
+                        eps = [e for e in eps if s_l in (e.get("show", "").lower())]
+                    eps_sorted = sorted(eps, key=lambda x: (x["date"], x["show"]), reverse=True)
+                    total_pages = max(1, (len(eps_sorted) + per_page - 1) // per_page)
+                    page = min(page, total_pages - 1)
+                    continue
                 if choice == "N" and page < total_pages - 1:
                     page += 1
                     continue
