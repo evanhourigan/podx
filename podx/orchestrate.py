@@ -56,6 +56,14 @@ from .yaml_config import (
 setup_logging()
 logger = get_logger(__name__)
 
+# Optional rich for interactive select UI
+try:
+    from rich.console import Console
+    from rich.table import Table
+    RICH_AVAILABLE = True
+except Exception:
+    RICH_AVAILABLE = False
+
 
 def _run(
     cmd: List[str],
@@ -206,6 +214,17 @@ def main():
     help="Shortcut levels: 5=dual+preprocess+restore+deepcast, 4=balanced+preprocess+restore+deepcast, 3=precision+preprocess+restore+deepcast, 2=recall+preprocess+restore+deepcast, 1=deepcast only",
 )
 @click.option(
+    "--interactive-select",
+    is_flag=True,
+    help="Browse existing episodes and select one to process",
+)
+@click.option(
+    "--scan-dir",
+    type=click.Path(exists=True, path_type=Path),
+    default=".",
+    help="Directory to scan for episodes when using --interactive-select",
+)
+@click.option(
     "--dual",
     is_flag=True,
     help="Run precision+recall QA: two ASR tracks (precision & recall) + preprocess(+restore) + deepcast both + agreement",
@@ -302,6 +321,8 @@ def run(
     deepcast: bool,
     fidelity: str | None,
     dual: bool,
+    interactive_select: bool,
+    scan_dir: Path,
     deepcast_model: str,
     deepcast_temp: float,
     extract_markdown: bool,
@@ -376,8 +397,107 @@ def run(
         # We'll determine the actual workdir after fetching metadata
         wd = None  # Will be set after fetch
 
+        # Helper: scan episodes for interactive select
+        def _scan_episode_status(root: Path):
+            episodes = []
+            for meta_path in root.rglob("episode-meta.json"):
+                try:
+                    em = json.loads(meta_path.read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+                ep_dir = meta_path.parent
+                show_val = em.get("show", "Unknown")
+                date_val = em.get("episode_published", "")
+                # Format date YYYY-MM-DD when possible
+                if date_val:
+                    try:
+                        from dateutil import parser as dtparse
+                        parsed = dtparse.parse(date_val)
+                        date_fmt = parsed.strftime("%Y-%m-%d")
+                    except Exception:
+                        date_fmt = date_val[:10] if len(date_val) >= 10 else date_val
+                else:
+                    date_fmt = ep_dir.name
+                title_val = em.get("episode_title", "Unknown")
+
+                audio_meta = (ep_dir / "audio-meta.json").exists()
+                transcripts = list(ep_dir.glob("transcript-*.json"))
+                aligned = list(ep_dir.glob("transcript-aligned-*.json")) or list(ep_dir.glob("aligned-transcript-*.json"))
+                diarized = list(ep_dir.glob("transcript-diarized-*.json")) or list(ep_dir.glob("diarized-transcript-*.json"))
+                deepcasts = list(ep_dir.glob("deepcast-*.json"))
+                notion_out = (ep_dir / "notion.out.json").exists()
+                # Newest file time as last run
+                try:
+                    newest = max([p.stat().st_mtime for p in transcripts + aligned + diarized + deepcasts] or [meta_path.stat().st_mtime])
+                    last_run = time.strftime("%Y-%m-%d %H:%M", time.localtime(newest))
+                except Exception:
+                    last_run = "" 
+                episodes.append({
+                    "meta_path": meta_path,
+                    "directory": ep_dir,
+                    "show": show_val,
+                    "date": date_fmt,
+                    "title": title_val,
+                    "audio_meta": audio_meta,
+                    "transcripts": transcripts,
+                    "aligned": aligned,
+                    "diarized": diarized,
+                    "deepcasts": deepcasts,
+                    "notion": notion_out,
+                    "last_run": last_run,
+                })
+            return episodes
+
+        # Interactive selection: choose existing episode to process
+        selected_meta = None
+        if interactive_select:
+            if not RICH_AVAILABLE:
+                raise SystemExit("Interactive select requires rich. Install with: pip install rich")
+            console = Console()
+            eps = _scan_episode_status(Path(scan_dir))
+            if not eps:
+                console.print(f"[red]No episodes found in {scan_dir}[/red]")
+                raise SystemExit(1)
+            table = Table(show_header=True, header_style="bold magenta", title="🎙️ Episodes")
+            table.add_column("#", style="cyan", width=3, justify="right")
+            table.add_column("Show", style="green", width=18)
+            table.add_column("Date", style="blue", width=12)
+            table.add_column("Title", style="white", width=36)
+            table.add_column("ASR", style="yellow", width=8)
+            table.add_column("Align", style="yellow", width=5)
+            table.add_column("Diar", style="yellow", width=5)
+            table.add_column("Deepcast", style="yellow", width=9)
+            table.add_column("Notion", style="yellow", width=6)
+            table.add_column("Last Run", style="white", width=16)
+            for idx, e in enumerate(sorted(eps, key=lambda x: (x["date"], x["show"]), reverse=True), start=1):
+                asr_count = str(len(e["transcripts"])) if e["transcripts"] else "0"
+                align_ok = "✓" if e["aligned"] else "○"
+                diar_ok = "✓" if e["diarized"] else "○"
+                dc_count = str(len(e["deepcasts"])) if e["deepcasts"] else "0"
+                notion_ok = "✓" if e["notion"] else "○"
+                table.add_row(str(idx), e["show"], e["date"], e["title"], asr_count, align_ok, diar_ok, dc_count, notion_ok, e["last_run"])
+            console.print(table)
+            choice = input(f"\n👉 Select episode (1-{len(eps)}) or Q to cancel: ").strip().upper()
+            if choice in ["Q", "QUIT", "EXIT"]:
+                console.print("[dim]Cancelled[/dim]")
+                raise SystemExit(0)
+            try:
+                sel = int(choice)
+                selected = sorted(eps, key=lambda x: (x["date"], x["show"]), reverse=True)[sel - 1]
+            except Exception:
+                console.print("[red]Invalid selection[/red]")
+                raise SystemExit(1)
+            # Optional: quick fidelity choice
+            fchoice = input("\nFidelity [5-1] (Enter=keep flags): ").strip()
+            if fchoice in {"5","4","3","2","1"}:
+                fidelity = fchoice
+            # Load meta and set workdir
+            meta = json.loads(selected["meta_path"].read_text(encoding="utf-8"))
+            wd = selected["directory"]
+            # Skip fetch stage
+        
         # 1) FETCH → meta.json
-        if youtube_url:
+        if not interactive_select and youtube_url:
             # Handle YouTube URLs directly
             from .youtube import (
                 fetch_youtube_episode,
@@ -406,7 +526,7 @@ def run(
             progress.complete_step(
                 f"YouTube metadata fetched: {meta.get('episode_title', 'Unknown')[:80]}"
             )
-        else:
+        elif not interactive_select:
             # Handle RSS/podcast URLs
             fetch_cmd = ["podx-fetch"]
             if show:
