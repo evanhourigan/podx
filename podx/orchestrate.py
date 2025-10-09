@@ -116,6 +116,15 @@ def _run(
     return data
 
 
+def _run_passthrough(cmd: List[str]) -> int:
+    """Run a CLI tool in passthrough mode (inherit stdio). Returns returncode.
+
+    Use this for interactive child processes so the user sees the UI and can interact.
+    """
+    proc = subprocess.run(cmd)
+    return proc.returncode
+
+
 @click.group()
 def main():
     """Podx: Composable podcast processing pipeline
@@ -211,7 +220,7 @@ def main():
     "--fidelity",
     type=click.Choice(["5", "4", "3", "2", "1"]),
     default=None,
-    help="Shortcut levels: 5=dual+preprocess+restore+deepcast, 4=balanced+preprocess+restore+deepcast, 3=precision+preprocess+restore+deepcast, 2=recall+preprocess+restore+deepcast, 1=deepcast only",
+    help="Fidelity 1-5: 1=deepcast only, 2=recall+preprocess+restore+deepcast, 3=precision+preprocess+restore+deepcast, 4=balanced+preprocess+restore+deepcast, 5=dual (precision+recall)+preprocess+restore+deepcast",
 )
 @click.option(
     "--interactive-select",
@@ -353,35 +362,14 @@ def run(
         extract_markdown = True
         notion = True
 
-    # Map --fidelity to flags (highest to lowest)
-    # 5: dual + preprocess + restore + deepcast
-    # 4: balanced + preprocess + restore + deepcast
-    # 3: precision + preprocess + restore + deepcast
-    # 2: recall + preprocess + restore + deepcast
+    # Map --fidelity to flags (lowest→highest)
     # 1: deepcast only (use latest transcript)
+    # 2: recall + preprocess + restore + deepcast
+    # 3: precision + preprocess + restore + deepcast
+    # 4: balanced + preprocess + restore + deepcast
+    # 5: dual (precision+recall) + preprocess + restore + deepcast
     if fidelity:
-        if fidelity == "5":
-            dual = True
-            preprocess = True
-            restore = True
-            deepcast = True
-            preset = preset or "balanced"
-        elif fidelity == "4":
-            preset = preset or "balanced"
-            preprocess = True
-            restore = True
-            deepcast = True
-        elif fidelity == "3":
-            preset = preset or "precision"
-            preprocess = True
-            restore = True
-            deepcast = True
-        elif fidelity == "2":
-            preset = preset or "recall"
-            preprocess = True
-            restore = True
-            deepcast = True
-        elif fidelity == "1":
+        if fidelity == "1":
             # Deepcast only; keep other flags off
             align = False
             diarize = False
@@ -389,6 +377,30 @@ def run(
             dual = False
             # deepcast flag will trigger analysis on latest
             deepcast = True
+        elif fidelity == "2":
+            preset = preset or "recall"
+            preprocess = True
+            restore = True
+            deepcast = True
+            dual = False
+        elif fidelity == "3":
+            preset = preset or "precision"
+            preprocess = True
+            restore = True
+            deepcast = True
+            dual = False
+        elif fidelity == "4":
+            preset = preset or "balanced"
+            preprocess = True
+            restore = True
+            deepcast = True
+            dual = False
+        elif fidelity == "5":
+            dual = True
+            preprocess = True
+            restore = True
+            deepcast = True
+            preset = preset or "balanced"
 
     # Print header and start progress tracking
     print_podx_header()
@@ -513,7 +525,9 @@ def run(
                     # Open fetch browser to add episodes, then re-scan
                     console.print(f"[dim]Opening fetch browser for show '{show}'...[/dim]")
                     try:
-                        _run(["podx-fetch", "--show", show, "--interactive"], verbose=verbose, save_to=None)
+                        rc = _run_passthrough(["podx-fetch", "--show", show, "--interactive"])
+                        if rc != 0:
+                            console.print("[red]Fetch cancelled or failed[/red]")
                     except Exception:
                         console.print("[red]Fetch cancelled or failed[/red]")
                     # Re-scan and continue
@@ -541,12 +555,23 @@ def run(
                     console.print("[red]Invalid selection[/red]")
                     input("Press Enter to continue...")
             # Optional: quick fidelity choice
-            fchoice = input("\nFidelity [5-1] (Enter=keep flags, Q=cancel): ").strip()
+            fchoice = input("\nFidelity (1-5): 1=deepcast only, 2=recall, 3=precision, 4=balanced, 5=dual QA. Enter=keep current flags, Q=cancel: ").strip()
             if fchoice.upper() in {"Q", "QUIT", "EXIT"}:
                 console.print("[dim]Cancelled[/dim]")
                 raise SystemExit(0)
             if fchoice in {"5","4","3","2","1"}:
                 fidelity = fchoice
+                # Apply fidelity mapping immediately (same logic as above)
+                if fidelity == "1":
+                    align = False; diarize = False; preprocess = False; dual = False; deepcast = True
+                elif fidelity == "2":
+                    preset = "recall"; preprocess = True; restore = True; deepcast = True; dual = False
+                elif fidelity == "3":
+                    preset = "precision"; preprocess = True; restore = True; deepcast = True; dual = False
+                elif fidelity == "4":
+                    preset = "balanced"; preprocess = True; restore = True; deepcast = True; dual = False
+                elif fidelity == "5":
+                    dual = True; preprocess = True; restore = True; deepcast = True; preset = preset or "balanced"
             # Load meta and set workdir
             meta = json.loads(selected["meta_path"].read_text(encoding="utf-8"))
             wd = selected["directory"]
