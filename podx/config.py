@@ -15,7 +15,7 @@ class PodxConfig(BaseSettings):
     """Main configuration for podx pipeline."""
 
     # ASR Configuration
-    default_asr_model: str = Field(default="small.en", env="PODX_DEFAULT_MODEL")
+    default_asr_model: str = Field(default="large-v3-turbo", env="PODX_DEFAULT_MODEL")
     default_compute: str = Field(default="int8", env="PODX_DEFAULT_COMPUTE")
 
     # OpenAI Configuration
