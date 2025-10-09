@@ -458,37 +458,60 @@ def run(
             if not eps:
                 console.print(f"[red]No episodes found in {scan_dir}[/red]")
                 raise SystemExit(1)
-            table = Table(show_header=True, header_style="bold magenta", title="🎙️ Episodes")
-            table.add_column("#", style="cyan", width=3, justify="right")
-            table.add_column("Show", style="green", width=18)
-            table.add_column("Date", style="blue", width=12)
-            table.add_column("Title", style="white", width=36)
-            table.add_column("ASR", style="yellow", width=8)
-            table.add_column("Align", style="yellow", width=5)
-            table.add_column("Diar", style="yellow", width=5)
-            table.add_column("Deepcast", style="yellow", width=9)
-            table.add_column("Notion", style="yellow", width=6)
-            table.add_column("Last Run", style="white", width=16)
-            for idx, e in enumerate(sorted(eps, key=lambda x: (x["date"], x["show"]), reverse=True), start=1):
-                asr_count = str(len(e["transcripts"])) if e["transcripts"] else "0"
-                align_ok = "✓" if e["aligned"] else "○"
-                diar_ok = "✓" if e["diarized"] else "○"
-                dc_count = str(len(e["deepcasts"])) if e["deepcasts"] else "0"
-                notion_ok = "✓" if e["notion"] else "○"
-                table.add_row(str(idx), e["show"], e["date"], e["title"], asr_count, align_ok, diar_ok, dc_count, notion_ok, e["last_run"])
-            console.print(table)
-            choice = input(f"\n👉 Select episode (1-{len(eps)}) or Q to cancel: ").strip().upper()
-            if choice in ["Q", "QUIT", "EXIT"]:
+            # Sort newest first
+            eps_sorted = sorted(eps, key=lambda x: (x["date"], x["show"]), reverse=True)
+            page = 0
+            per_page = 10
+            total_pages = max(1, (len(eps_sorted) + per_page - 1) // per_page)
+            selected = None
+            while True:
+                console.clear()
+                start = page * per_page
+                end = min(start + per_page, len(eps_sorted))
+                table = Table(show_header=True, header_style="bold magenta", title=f"🎙️ Episodes (Page {page+1}/{total_pages})")
+                table.add_column("#", style="cyan", width=3, justify="right")
+                table.add_column("Show", style="green", width=18)
+                table.add_column("Date", style="blue", width=12)
+                table.add_column("Title", style="white", width=36)
+                table.add_column("ASR", style="yellow", width=8)
+                table.add_column("Align", style="yellow", width=5)
+                table.add_column("Diar", style="yellow", width=5)
+                table.add_column("Deepcast", style="yellow", width=9)
+                table.add_column("Notion", style="yellow", width=6)
+                table.add_column("Last Run", style="white", width=16)
+                for idx, e in enumerate(eps_sorted[start:end], start=start + 1):
+                    asr_count = str(len(e["transcripts"])) if e["transcripts"] else "0"
+                    align_ok = "✓" if e["aligned"] else "○"
+                    diar_ok = "✓" if e["diarized"] else "○"
+                    dc_count = str(len(e["deepcasts"])) if e["deepcasts"] else "0"
+                    notion_ok = "✓" if e["notion"] else "○"
+                    table.add_row(str(idx), e["show"], e["date"], e["title"], asr_count, align_ok, diar_ok, dc_count, notion_ok, e["last_run"])
+                console.print(table)
+                console.print("[dim]Enter 1-{end} to select • N next • P prev • Q quit[/dim]".replace("{end}", str(end)))
+                choice = input("\n👉 Select: ").strip().upper()
+                if choice in ["Q", "QUIT", "EXIT"]:
+                    console.print("[dim]Cancelled[/dim]")
+                    raise SystemExit(0)
+                if choice == "N" and page < total_pages - 1:
+                    page += 1
+                    continue
+                if choice == "P" and page > 0:
+                    page -= 1
+                    continue
+                try:
+                    sel = int(choice)
+                    if not (start + 1) <= sel <= end:
+                        raise ValueError
+                    selected = eps_sorted[sel - 1]
+                    break
+                except Exception:
+                    console.print("[red]Invalid selection[/red]")
+                    input("Press Enter to continue...")
+            # Optional: quick fidelity choice
+            fchoice = input("\nFidelity [5-1] (Enter=keep flags, Q=cancel): ").strip()
+            if fchoice.upper() in {"Q", "QUIT", "EXIT"}:
                 console.print("[dim]Cancelled[/dim]")
                 raise SystemExit(0)
-            try:
-                sel = int(choice)
-                selected = sorted(eps, key=lambda x: (x["date"], x["show"]), reverse=True)[sel - 1]
-            except Exception:
-                console.print("[red]Invalid selection[/red]")
-                raise SystemExit(1)
-            # Optional: quick fidelity choice
-            fchoice = input("\nFidelity [5-1] (Enter=keep flags): ").strip()
             if fchoice in {"5","4","3","2","1"}:
                 fidelity = fchoice
             # Load meta and set workdir
