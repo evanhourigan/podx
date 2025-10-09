@@ -7,7 +7,7 @@ Composable podcast tooling with advanced AI analysis, YAML configuration, and mu
 ## ✨ Latest Features
 
 - **🎛️ YAML Configuration System** - Human-readable configs with podcast-specific settings
-- **🎯 Advanced Prompt Engineering** - Specialized analysis types (guest-focused, host-focused, etc.)
+- **🎯 Canonical Prompt Templates** - Unified types: `interview_guest_focused`, `panel_discussion` (multi-guest), `solo_commentary` (host analysis), and `general`
 - **🗃️ Multiple Notion Databases** - Route different podcasts to different databases automatically
 - **📏 Length-Adaptive Extraction** - More insights from longer episodes, concise summaries for short ones
 - **🔌 Plugin Architecture** - Extensible system for custom processing steps
@@ -33,15 +33,14 @@ podx run --show "Lenny's Podcast" --date 2025-08-17
 
 ## 🎯 Intelligent Podcast Processing
 
-### Advanced Analysis Types
+### Canonical Analysis Types
 
-| Analysis Type             | Focus                            | Perfect For                       |
-| ------------------------- | -------------------------------- | --------------------------------- |
-| `interview_guest_focused` | Guest insights & expertise       | Lenny's Podcast, Tim Ferriss Show |
-| `interview_host_focused`  | Host questions & frameworks      | Lex Fridman Podcast               |
-| `business`                | Strategy & market insights       | Y Combinator, startup content     |
-| `tech`                    | Technical depth & implementation | Developer podcasts                |
-| `educational`             | Learning concepts & frameworks   | Academic content                  |
+| Canonical Type              | Focus                                  | Examples                                   |
+| --------------------------- | -------------------------------------- | ------------------------------------------ |
+| `interview_guest_focused`   | Guest insights & expertise             | Lenny's Podcast, Tim Ferriss               |
+| `panel_discussion`          | Multi-guest perspective synthesis      | Roundtables, panels                        |
+| `solo_commentary`           | Host analysis and frameworks           | Solo shows, host-led deep dives            |
+| `general`                   | Reasonable defaults for other formats  | News/tech/business/educational (fallback)  |
 
 ### YAML Configuration Example
 
@@ -107,6 +106,8 @@ pip install -e ".[asr,whisperx,llm,notion]"
 - `podx-diarize`: `WhisperX` diarization (speaker labels) (supports `--interactive` for browsing aligned transcripts)
 - `podx-export`: Write `SRT`/`VTT`/`TXT`/`MD`
 - `podx-deepcast`: AI-powered transcript analysis and summarization
+- `podx-preprocess`: Merge/normalize (and optional semantic restore) for transcripts
+- `podx-agreement`: Compare two analyses and return a structured diff
 - `podx-notion`: Upload Deepcast output to Notion as formatted pages
 - `podx run`: Convenience orchestrator that chains steps
 
@@ -241,7 +242,7 @@ Features:
 - Saves to `diarized-transcript-{model}.json` in episode directory
 - Multiple transcripts per episode (one per ASR model)
 
-### Unix-style pipeline (JSON on stdout/stdin):
+### Unix-style pipeline (JSON on stdout/stdin)
 
 ```bash
 # Using show name (iTunes search) - files stay organized in smart directories
@@ -259,7 +260,7 @@ podx-fetch --rss-url "https://feeds.example.com/podcast.xml" --date 2024-10-02 \
 | podx-export --txt "The Podcast/2024-10-02/base.txt" --srt "The Podcast/2024-10-02/base.srt"
 ```
 
-### Add alignment/diarization only when needed:
+### Add alignment/diarization only when needed
 
 ```bash
 cat "The Podcast/2024-10-02/base.json" \
@@ -270,7 +271,7 @@ cat "The Podcast/2024-10-02/base.json" \
 | podx-export --srt "The Podcast/2024-10-02/episode.srt" --vtt "The Podcast/2024-10-02/episode.vtt" --txt "The Podcast/2024-10-02/episode.txt"
 ```
 
-### One-shot convenience:
+### One-shot convenience
 
 ```bash
 # Using show name (iTunes search)
@@ -310,7 +311,7 @@ podx-notion --input work/brief.json --meta work/latest.json \
   --db "$NOTION_DB_ID" --append-content --cover-image
 ```
 
-### AI-powered analysis with deepcast:
+### AI-powered analysis with deepcast
 
 ```bash
 # Fast pass → deepcast (no alignment/diarization)
@@ -329,7 +330,45 @@ cat work/base.json \
 | podx-deepcast --output work/brief.json
 ```
 
-### Complete workflow:
+### ASR Providers & Presets
+
+```bash
+# Local (default)
+podx-transcribe --model large-v3 --preset balanced < audio-meta.json
+
+# OpenAI Whisper (requires OPENAI_API_KEY)
+OPENAI_API_KEY=sk-... podx-transcribe --model openai:large-v3-turbo < audio-meta.json
+
+# Hugging Face DistilWhisper
+podx-transcribe --model hf:distil-large-v3 < audio-meta.json
+
+# Recall preset (maximize coverage)
+podx-transcribe --model large-v3 --preset recall < audio-meta.json
+
+# Expert flags (local only)
+podx-transcribe --expert --vad-filter --condition-on-previous-text < audio-meta.json
+```
+
+### Preprocess & Semantic Restore
+
+```bash
+# Standalone
+podx-preprocess --merge --normalize -i transcript.json -o transcript-preprocessed.json
+
+# With semantic restore (uses OPENAI_API_KEY)
+podx-preprocess --merge --normalize --restore -i transcript.json -o transcript-restored.json
+
+# Orchestrator
+podx run --rss-url "..." --date YYYY-MM-DD --preprocess --restore --align --deepcast
+```
+
+### Agreement Check
+
+```bash
+podx-agreement --a deepcast-brief-large_v3.json --b deepcast-brief-tiny.json
+```
+
+### Complete workflow
 
 ```bash
 # Run everything and then deepcast
@@ -362,11 +401,11 @@ podx-deepcast --input work/latest.json --output work/brief.json
 - **Aligned (timecodes available)**: Quotes include `[HH:MM:SS]`.
 - **Diarized (speakers present)**: Quotes include both `[HH:MM:SS] Speaker: "..."`.
 
-## Notion Integration
+## Notion Integration (overview)
 
 The `podx-notion` tool takes Deepcast output and creates beautifully formatted Notion pages.
 
-### Setup
+### Setup (Notion)
 
 1. **Install Notion dependencies:**
 
@@ -390,9 +429,9 @@ The `podx-notion` tool takes Deepcast output and creates beautifully formatted N
    - Share your target database with the integration
    - Copy the database ID from the URL to `NOTION_DB_ID`
 
-### Usage
+### Usage (Notion)
 
-#### After Deepcast (aligned/diarized optional):
+#### After Deepcast (aligned/diarized optional)
 
 ```bash
 # assumes work/brief.md (+ optional brief.json) already exist
@@ -410,7 +449,7 @@ This will:
 - If `brief.json` is provided, map top 3 key points to a `Tags` multi-select property
 - Use `--dry-run` to preview the payload without writing to Notion
 
-#### Full pipeline in one line:
+#### Full pipeline in one line (Notion)
 
 ```bash
 podx run --show "The Podcast" --date 2024-10-02 --align --diarize --workdir work/ \
@@ -418,7 +457,7 @@ podx run --show "The Podcast" --date 2024-10-02 --align --diarize --workdir work
 && podx-notion --input work/brief.json --meta work/latest.json --db "$NOTION_DB_ID"
 ```
 
-#### Justfile helpers:
+#### Justfile helpers
 
 ```bash
 just notion-dry    # Preview what would be uploaded
@@ -527,7 +566,7 @@ podx run --rss-url "https://example.com/feed.xml"
 
 ## Project Structure
 
-```
+```text
 podx/
 ├── podx/                    # Main package
 │   ├── __init__.py
