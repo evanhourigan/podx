@@ -518,7 +518,8 @@ def run(
                 fixed_cols = 3 + 18 + 10 + 3 + 5 + 5 + 8 + 4 + 16
                 # Extra allowance for table borders/padding/separators
                 borders_allowance = 20
-                title_width = max(30, console_width - fixed_cols - borders_allowance)
+                # Let Title shrink further on small terminals so other headers aren't truncated
+                title_width = max(10, console_width - fixed_cols - borders_allowance)
 
                 table = Table(
                     show_header=True,
@@ -532,9 +533,9 @@ def run(
                 # Title column flexes; keep one line with ellipsis
                 table.add_column("Title", style="white", width=title_width, no_wrap=True, overflow="ellipsis")
                 table.add_column("ASR", style="yellow", width=3, no_wrap=True)
-                table.add_column("Align", style="yellow", width=5, no_wrap=True)
-                table.add_column("Diar", style="yellow", width=5, no_wrap=True)
-                table.add_column("Deepcast", style="yellow", width=8, no_wrap=True)
+                table.add_column("A", style="yellow", width=2, no_wrap=True)
+                table.add_column("Di", style="yellow", width=2, no_wrap=True)
+                table.add_column("Deep", style="yellow", width=4, no_wrap=True)
                 table.add_column("Proc", style="yellow", width=4, no_wrap=True)
                 table.add_column("Last Run", style="white", width=16, no_wrap=True)
 
