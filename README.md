@@ -330,6 +330,34 @@ cat work/base.json \
 | podx-deepcast --output work/brief.json
 ```
 
+### Fidelity shortcuts and dual QA
+
+```bash
+# Highest fidelity with QA (precision + recall + preprocess + restore + deepcast)
+podx run --rss-url "https://feeds.example.com/podcast.xml" --date 2025-05-02 \
+  --model large-v3 --fidelity 5
+
+# Balanced single-pass (preprocess + restore + deepcast)
+podx run --rss-url "https://feeds.example.com/podcast.xml" --date 2025-05-02 \
+  --model large-v3 --fidelity 4
+
+# Precision single-pass (clean phrasing)
+podx run --rss-url "https://feeds.example.com/podcast.xml" --date 2025-05-02 \
+  --model large-v3 --fidelity 3
+
+# Recall single-pass (maximum coverage)
+podx run --rss-url "https://feeds.example.com/podcast.xml" --date 2025-05-02 \
+  --model large-v3 --fidelity 2
+
+# Deepcast only (fastest)
+podx run --rss-url "https://feeds.example.com/podcast.xml" --date 2025-05-02 \
+  --model gpt-4.1 --fidelity 1
+
+# Explicit dual (equivalent to fidelity 5 but more explicit control)
+podx run --rss-url "https://feeds.example.com/podcast.xml" --date 2025-05-02 \
+  --model large-v3 --dual --preprocess --restore --deepcast
+```
+
 ### ASR Providers & Presets
 
 ```bash
