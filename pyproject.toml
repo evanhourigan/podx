@@ -59,6 +59,7 @@ podx-export = "podx.export:main"
 podx-deepcast = "podx.deepcast:main"
 podx-info = "podx.info:main"
 podx-notion = "podx.notion:main"
+podx-preprocess = "podx.preprocess:main"
 podx = "podx.orchestrate:main"
 
 [tool.setuptools.packages.find]

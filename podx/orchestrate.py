@@ -180,6 +180,11 @@ def main():
     help="Run WhisperX alignment (default: no alignment)",
 )
 @click.option(
+    "--preprocess/--no-preprocess",
+    default=False,
+    help="Run preprocessing (merge/normalize) before alignment/deepcast",
+)
+@click.option(
     "--diarize",
     is_flag=True,
     help="Run diarization (default: no diarization)",
@@ -275,6 +280,7 @@ def run(
     asr_provider: str,
     preset: str | None,
     align: bool,
+    preprocess: bool,
     diarize: bool,
     deepcast: bool,
     deepcast_model: str,
@@ -672,10 +678,36 @@ def run(
         latest = base
         latest_name = f"transcript-{model}"
 
-        # 4) ALIGN (optional) → transcript-aligned-{model}.json
+        # 4) PREPROCESS (optional) → transcript-preprocessed-{model}.json
+        if preprocess:
+            used_model = base.get("asr_model", model)
+            pre_file = wd / f"transcript-preprocessed-{_sanitize(used_model)}.json"
+            progress.start_step("Preprocessing transcript (merge/normalize)")
+            step_start = time.time()
+            latest = _run(
+                [
+                    "podx-preprocess",
+                    "--output",
+                    str(pre_file),
+                    "--merge",
+                    "--normalize",
+                ],
+                stdin_payload=base,
+                verbose=verbose,
+                save_to=pre_file,
+                label=None,
+            )
+            step_duration = time.time() - step_start
+            progress.complete_step("Preprocessing completed", step_duration)
+            latest_name = f"transcript-preprocessed-{used_model}"
+        else:
+            latest = base
+            latest_name = f"transcript-{base.get('asr_model', model)}"
+
+        # 5) ALIGN (optional) → transcript-aligned-{model}.json
         if align:
             # Get model from base transcript
-            used_model = base.get("asr_model", model)
+            used_model = latest.get("asr_model", model)
             aligned_file = wd / f"transcript-aligned-{_sanitize(used_model)}.json"
 
             # Also check legacy filenames
@@ -708,7 +740,7 @@ def run(
                 step_start = time.time()
                 aligned = _run(
                     ["podx-align"],  # Audio path comes from transcript JSON
-                    stdin_payload=base,
+                    stdin_payload=latest,
                     verbose=verbose,
                     save_to=aligned_file,
                     label=None,  # Progress handles the display
@@ -718,7 +750,7 @@ def run(
                 latest = aligned
                 latest_name = f"transcript-aligned-{used_model}"
 
-        # 5) DIARIZE (optional) → transcript-diarized-{model}.json
+        # 6) DIARIZE (optional) → transcript-diarized-{model}.json
         if diarize:
             # Get model from latest transcript
             used_model = latest.get("asr_model", model)
@@ -813,7 +845,7 @@ def run(
         else:
             results["latest_srt"] = str(wd / f"{latest_name}.srt")
 
-        # 6) DEEPCAST (optional) → deepcast-brief-{model}.md / deepcast-brief-{model}.json
+        # 7) DEEPCAST (optional) → deepcast-brief-{model}.md / deepcast-brief-{model}.json
         if deepcast:
             # Use model-specific filenames to allow multiple analyses
             model_suffix = deepcast_model.replace(".", "_").replace("-", "_")
