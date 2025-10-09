@@ -381,12 +381,12 @@ def _interactive_flow(db_id: Optional[str]) -> Optional[Dict[str, str]]:
     # Ensure DB
     if not db_id:
         db_id = click.prompt(
-            "Enter Notion Database ID (or set NOTION_DB_ID)",
+            "Enter Notion Database ID (or set NOTION_DB_ID) [q to cancel]",
             default="",
             show_default=False,
         )
-        if not db_id:
-            click.echo("No database ID provided. Exiting.")
+        if not db_id or str(db_id).strip().lower() in {"q", "quit", "exit"}:
+            click.echo("Cancelled.")
             return None
 
     # Choose show (only those with deepcasts available)
@@ -420,10 +420,12 @@ def _interactive_flow(db_id: Optional[str]) -> Optional[Dict[str, str]]:
         for idx, m in enumerate(models, start=1):
             click.echo(f"  {idx}. {m}")
         resp = click.prompt(
-            f"Select model # (or ENTER for newest: {default_model})",
+            f"Select model # (or ENTER for newest: {default_model}, q to cancel)",
             default="",
             show_default=False,
         )
+        if str(resp).strip().lower() in {"q", "quit", "exit"}:
+            return None
         if resp.strip():
             try:
                 mi = int(resp)
@@ -440,7 +442,9 @@ def _interactive_flow(db_id: Optional[str]) -> Optional[Dict[str, str]]:
         return None
 
     # Dry-run toggle
-    dry = click.prompt("Dry-run first? (y/N)", default="y")
+    dry = click.prompt("Dry-run first? (y/N, q to cancel)", default="y")
+    if str(dry).strip().lower() in {"q", "quit", "exit"}:
+        return None
     dry_run = "true" if str(dry).strip().lower() in {"y", "yes"} else "false"
 
     # Preview
@@ -451,8 +455,8 @@ def _interactive_flow(db_id: Optional[str]) -> Optional[Dict[str, str]]:
     )
 
     # Confirm
-    ok = click.prompt("Proceed? (Y/n)", default="Y")
-    if str(ok).strip().lower() in {"n", "no"}:
+    ok = click.prompt("Proceed? (Y/n, q to cancel)", default="Y")
+    if str(ok).strip().lower() in {"n", "no", "q", "quit", "exit"}:
         return None
 
     return {
