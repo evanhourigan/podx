@@ -520,10 +520,10 @@ def run(
                 table.add_column("Date", style="blue", width=10, no_wrap=True)
                 # Title column flexes; keep one line with ellipsis
                 table.add_column("Title", style="white", no_wrap=True, overflow="ellipsis")
-                table.add_column("ASR", style="yellow", width=3, no_wrap=True, justify="right")
+                table.add_column("ASR", style="yellow", width=3, no_wrap=True)
                 table.add_column("Align", style="yellow", width=5, no_wrap=True)
                 table.add_column("Diar", style="yellow", width=5, no_wrap=True)
-                table.add_column("Deepcast", style="yellow", width=8, no_wrap=True, justify="right")
+                table.add_column("Deepcast", style="yellow", width=8, no_wrap=True)
                 table.add_column("Proc", style="yellow", width=4, no_wrap=True)
                 table.add_column("Last Run", style="white", width=16, no_wrap=True)
 
