@@ -565,23 +565,35 @@ def run(
         transcoded_path = Path(audio["audio_path"])
 
         # 3) TRANSCRIBE → transcript-{model}.json
-        # First check if transcript already exists for this model
-        transcript_file = wd / f"transcript-{model}.json"
+        # Prefer JSON content over filename to determine asr_model
+        def _discover_transcripts(dir_path: Path) -> Dict[str, Path]:
+            found: Dict[str, Path] = {}
+            for path in dir_path.glob("transcript-*.json"):
+                try:
+                    data = json.loads(path.read_text())
+                    asr_model_val = data.get("asr_model") or "unknown"
+                    found[asr_model_val] = path
+                except Exception:
+                    continue
+            # Legacy transcript.json
+            legacy = dir_path / "transcript.json"
+            if legacy.exists():
+                try:
+                    data = json.loads(legacy.read_text())
+                    asr_model_val = data.get("asr_model") or "unknown"
+                    found[asr_model_val] = legacy
+                except Exception:
+                    found["unknown"] = legacy
+            return found
 
-        # Also check for legacy transcript.json and other model variants
-        existing_transcripts = {}
-        for asr_model in [
-            "tiny",
-            "base",
-            "small",
-            "medium",
-            "large",
-            "large-v2",
-            "large-v3",
-        ]:
-            model_file = wd / f"transcript-{asr_model}.json"
-            if model_file.exists():
-                existing_transcripts[asr_model] = model_file
+        existing_transcripts = _discover_transcripts(wd)
+
+        # Proposed output filename (sanitized model to avoid colons/spaces)
+        def _sanitize(name: str) -> str:
+            import re as _re
+            return _re.sub(r"[^A-Za-z0-9._-]", "_", name)
+
+        transcript_file = wd / f"transcript-{_sanitize(model)}.json"
 
         # Check legacy transcript.json
         legacy_transcript = wd / "transcript.json"
@@ -604,17 +616,15 @@ def run(
                 0,
             )
         elif existing_transcripts:
-            # Found transcripts with other models - use most sophisticated one
-            available_models = list(existing_transcripts.keys())
-            best_model = None
-            for check_model in reversed(
-                ["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"]
-            ):
-                if check_model in available_models:
-                    best_model = check_model
+            # Found transcripts with other models - pick the most sophisticated among known order
+            order = ["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"]
+            available = list(existing_transcripts.keys())
+            best = None
+            for m in reversed(order):
+                if m in available:
+                    best = m
                     break
-            if not best_model:
-                best_model = available_models[0]
+            best_model = best or available[0]
 
             logger.info(f"Found existing transcript with model {best_model}, using it")
             base = json.loads(existing_transcripts[best_model].read_text())
@@ -646,7 +656,7 @@ def run(
         if align:
             # Get model from base transcript
             used_model = base.get("asr_model", model)
-            aligned_file = wd / f"transcript-aligned-{used_model}.json"
+            aligned_file = wd / f"transcript-aligned-{_sanitize(used_model)}.json"
 
             # Also check legacy filenames
             legacy_aligned_new = wd / f"aligned-transcript-{used_model}.json"
@@ -692,7 +702,7 @@ def run(
         if diarize:
             # Get model from latest transcript
             used_model = latest.get("asr_model", model)
-            diarized_file = wd / f"transcript-diarized-{used_model}.json"
+            diarized_file = wd / f"transcript-diarized-{_sanitize(used_model)}.json"
 
             # Check if already exists (also check legacy filenames)
             legacy_diarized_new = wd / f"diarized-transcript-{used_model}.json"

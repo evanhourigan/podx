@@ -394,6 +394,10 @@ class TranscribeBrowser:
 
             # Non-empty dict means episode selected
             return result
+def sanitize_for_filename(name: str) -> str:
+    """Sanitize a model/provider name for safe filename usage."""
+    return re.sub(r"[^A-Za-z0-9._-]", "_", name)
+
 
 
 def select_asr_model(
@@ -578,8 +582,9 @@ def main(model, compute, input, output, interactive, scan_dir, asr_provider):
         audio = selected["audio_path"]
         episode_dir = selected["directory"]
 
-        # Force output to transcript-{model}.json in episode directory
-        output = episode_dir / f"transcript-{model}.json"
+        # Force output to transcript-{safe_model}.json in episode directory
+        safe_model = sanitize_for_filename(model)
+        output = episode_dir / f"transcript-{safe_model}.json"
 
         # Load audio metadata
         try:
@@ -805,7 +810,8 @@ def main(model, compute, input, output, interactive, scan_dir, asr_provider):
         if model and not output:
             # Try to determine episode directory from audio path
             audio_dir = audio.parent
-            output = audio_dir / f"transcript-{model}.json"
+            safe_model = sanitize_for_filename(model)
+            output = audio_dir / f"transcript-{safe_model}.json"
             output.write_text(
                 json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8"
             )
