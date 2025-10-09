@@ -451,6 +451,17 @@ def run(
                     last_run = time.strftime("%Y-%m-%d %H:%M", time.localtime(newest))
                 except Exception:
                     last_run = "" 
+                # Build processing flags summary from artifacts
+                proc_flags = []
+                if list(ep_dir.glob("transcript-preprocessed-*.json")):
+                    proc_flags.append("P")
+                if aligned:
+                    proc_flags.append("A")
+                if diarized:
+                    proc_flags.append("D")
+                if list(ep_dir.glob("agreement-*.json")):
+                    proc_flags.append("Q")
+
                 episodes.append({
                     "meta_path": meta_path,
                     "directory": ep_dir,
@@ -464,6 +475,7 @@ def run(
                     "deepcasts": deepcasts,
                     "notion": notion_out,
                     "last_run": last_run,
+                    "processing_flags": "".join(proc_flags),
                 })
             return episodes
 
@@ -495,17 +507,18 @@ def run(
                 console.clear()
                 start = page * per_page
                 end = min(start + per_page, len(eps_sorted))
-                table = Table(show_header=True, header_style="bold magenta", title=f"🎙️ Episodes (Page {page+1}/{total_pages})")
-                table.add_column("#", style="cyan", width=3, justify="right")
-                table.add_column("Show", style="green", width=18)
-                table.add_column("Date", style="blue", width=12)
-                table.add_column("Title", style="white", width=36)
-                table.add_column("ASR", style="yellow", width=8)
-                table.add_column("Align", style="yellow", width=5)
-                table.add_column("Diar", style="yellow", width=5)
-                table.add_column("Deepcast", style="yellow", width=9)
-                table.add_column("Notion", style="yellow", width=6)
-                table.add_column("Last Run", style="white", width=16)
+            table = Table(show_header=True, header_style="bold magenta", title=f"🎙️ Episodes (Page {page+1}/{total_pages})", expand=True)
+            table.add_column("#", style="cyan", width=3, justify="right")
+            table.add_column("Show", style="green", width=18, no_wrap=True)
+            table.add_column("Date", style="blue", width=12, no_wrap=True)
+            # Title column flexes; keep one line with ellipsis
+            table.add_column("Title", style="white", no_wrap=True, overflow="ellipsis")
+            table.add_column("ASR", style="yellow", width=6, no_wrap=True)
+            table.add_column("Align", style="yellow", width=5, no_wrap=True)
+            table.add_column("Diar", style="yellow", width=5, no_wrap=True)
+            table.add_column("Deepcast", style="yellow", width=8, no_wrap=True)
+            table.add_column("Proc", style="yellow", width=12, no_wrap=True)
+            table.add_column("Last Run", style="white", width=16, no_wrap=True)
                 for idx, e in enumerate(eps_sorted[start:end], start=start + 1):
                     asr_count_val = len(e["transcripts"]) if e["transcripts"] else 0
                     asr_count = f"[dim]-[/dim]" if asr_count_val == 0 else str(asr_count_val)
@@ -514,7 +527,8 @@ def run(
                     dc_count_val = len(e["deepcasts"]) if e["deepcasts"] else 0
                     dc_count = f"[dim]-[/dim]" if dc_count_val == 0 else str(dc_count_val)
                     notion_ok = "✓" if e["notion"] else "○"
-                    table.add_row(str(idx), e["show"], e["date"], e["title"], asr_count, align_ok, diar_ok, dc_count, notion_ok, e["last_run"])
+                    proc = e.get("processing_flags", "")
+                    table.add_row(str(idx), e["show"], e["date"], e["title"], asr_count, align_ok, diar_ok, dc_count, proc, e["last_run"])
                 console.print(table)
                 extra = " • F fetch new" if show else ""
                 console.print(("[dim]Enter 1-{end} to select • N next • P prev • Q quit" + extra + "[/dim]").replace("{end}", str(end)))
