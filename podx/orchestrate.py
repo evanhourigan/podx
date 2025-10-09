@@ -200,6 +200,12 @@ def main():
     help="Run LLM summarization (default: no AI analysis)",
 )
 @click.option(
+    "--fidelity",
+    type=click.Choice(["5", "4", "3", "2", "1"]),
+    default=None,
+    help="Shortcut levels: 5=dual+preprocess+restore+deepcast, 4=balanced+preprocess+restore+deepcast, 3=precision+preprocess+restore+deepcast, 2=recall+preprocess+restore+deepcast, 1=deepcast only",
+)
+@click.option(
     "--dual",
     is_flag=True,
     help="Run precision+recall QA: two ASR tracks (precision & recall) + preprocess(+restore) + deepcast both + agreement",
@@ -294,6 +300,7 @@ def run(
     restore: bool,
     diarize: bool,
     deepcast: bool,
+    fidelity: str | None,
     dual: bool,
     deepcast_model: str,
     deepcast_temp: float,
@@ -318,6 +325,43 @@ def run(
         deepcast = True
         extract_markdown = True
         notion = True
+
+    # Map --fidelity to flags (highest to lowest)
+    # 5: dual + preprocess + restore + deepcast
+    # 4: balanced + preprocess + restore + deepcast
+    # 3: precision + preprocess + restore + deepcast
+    # 2: recall + preprocess + restore + deepcast
+    # 1: deepcast only (use latest transcript)
+    if fidelity:
+        if fidelity == "5":
+            dual = True
+            preprocess = True
+            restore = True
+            deepcast = True
+            preset = preset or "balanced"
+        elif fidelity == "4":
+            preset = preset or "balanced"
+            preprocess = True
+            restore = True
+            deepcast = True
+        elif fidelity == "3":
+            preset = preset or "precision"
+            preprocess = True
+            restore = True
+            deepcast = True
+        elif fidelity == "2":
+            preset = preset or "recall"
+            preprocess = True
+            restore = True
+            deepcast = True
+        elif fidelity == "1":
+            # Deepcast only; keep other flags off
+            align = False
+            diarize = False
+            preprocess = False
+            dual = False
+            # deepcast flag will trigger analysis on latest
+            deepcast = True
 
     # Print header and start progress tracking
     print_podx_header()
