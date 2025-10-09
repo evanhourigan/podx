@@ -185,6 +185,11 @@ def main():
     help="Run preprocessing (merge/normalize) before alignment/deepcast",
 )
 @click.option(
+    "--restore/--no-restore",
+    default=False,
+    help="When preprocessing, attempt semantic restore using an LLM",
+)
+@click.option(
     "--diarize",
     is_flag=True,
     help="Run diarization (default: no diarization)",
@@ -281,6 +286,7 @@ def run(
     preset: str | None,
     align: bool,
     preprocess: bool,
+    restore: bool,
     diarize: bool,
     deepcast: bool,
     deepcast_model: str,
@@ -684,14 +690,17 @@ def run(
             pre_file = wd / f"transcript-preprocessed-{_sanitize(used_model)}.json"
             progress.start_step("Preprocessing transcript (merge/normalize)")
             step_start = time.time()
+            cmd = [
+                "podx-preprocess",
+                "--output",
+                str(pre_file),
+                "--merge",
+                "--normalize",
+            ]
+            if restore:
+                cmd.append("--restore")
             latest = _run(
-                [
-                    "podx-preprocess",
-                    "--output",
-                    str(pre_file),
-                    "--merge",
-                    "--normalize",
-                ],
+                cmd,
                 stdin_payload=base,
                 verbose=verbose,
                 save_to=pre_file,

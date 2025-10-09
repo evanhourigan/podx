@@ -44,6 +44,50 @@ def normalize_segments(segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return segments
 
 
+def _semantic_restore_segments(texts: List[str], model: str, batch_size: int = 20) -> List[str]:
+    # Best-effort import: support both new and legacy OpenAI SDKs
+    try:
+        from openai import OpenAI  # type: ignore
+        client = OpenAI()
+        use_new = True
+    except Exception:
+        import openai  # type: ignore
+        use_new = False
+
+    prompt = (
+        "You are cleaning up noisy ASR transcript text.\n"
+        "- Fix grammar and punctuation.\n"
+        "- Preserve every idea and clause, even incomplete ones.\n"
+        "- Do NOT remove filler words that imply transitions.\n"
+        "Return only the cleaned text."
+    )
+
+    out: List[str] = []
+    for i in range(0, len(texts), batch_size):
+        chunk = texts[i : i + batch_size]
+        for text in chunk:
+            if use_new:
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": prompt},
+                        {"role": "user", "content": text},
+                    ],
+                )
+                cleaned = resp.choices[0].message.content or ""
+            else:
+                resp = openai.ChatCompletion.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": prompt},
+                        {"role": "user", "content": text},
+                    ],
+                )
+                cleaned = resp.choices[0].message.get("content") or ""
+            out.append(cleaned)
+    return out
+
+
 @click.command()
 @click.option("--input", "input_file", type=click.Path(exists=True, path_type=Path), help="Read Transcript JSON from file instead of stdin")
 @click.option("--output", "output_file", type=click.Path(path_type=Path), help="Write processed Transcript JSON to file (also prints to stdout)")
@@ -51,8 +95,11 @@ def normalize_segments(segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 @click.option("--normalize", "do_normalize", is_flag=True, help="Normalize whitespace and punctuation in text")
 @click.option("--max-gap", type=float, default=1.0, help="Max gap (sec) to merge segments")
 @click.option("--max-len", type=int, default=800, help="Max merged text length (chars)")
+@click.option("--restore", "do_restore", is_flag=True, help="Semantic restore text using an LLM (preserve meaning, fix grammar)")
+@click.option("--restore-model", default="gpt-4.1-mini", help="Model for semantic restore (when --restore)")
+@click.option("--restore-batch-size", type=int, default=20, help="Segments per restore request")
 @validate_output(Transcript)
-def main(input_file: Optional[Path], output_file: Optional[Path], do_merge: bool, do_normalize: bool, max_gap: float, max_len: int):
+def main(input_file: Optional[Path], output_file: Optional[Path], do_merge: bool, do_normalize: bool, max_gap: float, max_len: int, do_restore: bool, restore_model: str, restore_batch_size: int):
     """
     Preprocess a Transcript JSON by merging segments and normalizing text.
     This is a non-destructive cleanup step before downstream analysis.
@@ -76,6 +123,14 @@ def main(input_file: Optional[Path], output_file: Optional[Path], do_merge: bool
         segs = merge_segments(segs, max_gap=max_gap, max_len=max_len)
     if do_normalize:
         segs = normalize_segments(segs)
+
+    if do_restore and segs:
+        try:
+            restored_texts = _semantic_restore_segments([s.get("text", "") for s in segs], restore_model, batch_size=restore_batch_size)
+            for i, txt in enumerate(restored_texts):
+                segs[i]["text"] = txt
+        except Exception as e:
+            logger.warning("Semantic restore failed; continuing without it", error=str(e))
 
     # Validate segments
     validated_segments: List[Dict[str, Any]] = []
