@@ -556,9 +556,14 @@ def main(show, rss_url, date, title_contains, outdir, output, interactive):
 
     # Validate that either show or rss_url is provided
     if not show and not rss_url:
-        raise ValidationError("Either --show or --rss-url must be provided.")
+        # For interactive mode, exit cleanly with a friendly message
+        if interactive:
+            click.echo("Error: --interactive requires either --show or --rss-url.", err=True)
+            raise SystemExit(2)
+        # For non-interactive, surface a usage error (no traceback)
+        raise click.UsageError("Either --show or --rss-url must be provided.")
     if show and rss_url:
-        raise ValidationError("Provide either --show or --rss-url, not both.")
+        raise click.UsageError("Provide either --show or --rss-url, not both.")
 
     # Handle interactive mode
     if interactive:
