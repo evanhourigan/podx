@@ -59,6 +59,16 @@ def get_examples() -> Dict[str, List[str]]:
             "# Expert flags (local only)",
             "podx-transcribe --expert --vad-filter --condition-on-previous-text < audio-meta.json",
         ],
+        "Preprocess & Agreement": [
+            "# Preprocess transcript (merge + normalize)",
+            "podx-preprocess --merge --normalize -i transcript.json -o transcript-preprocessed.json",
+            "",
+            "# Run with orchestrator",
+            "podx run --rss-url '...' --date 2024-01-15 --preprocess --align --deepcast",
+            "",
+            "# Agreement check between two analyses",
+            "podx-agreement --a deepcast-brief-large_v3.json --b deepcast-brief-tiny.json",
+        ],
     }
 
 
