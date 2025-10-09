@@ -516,14 +516,14 @@ def run(
                 )
                 table.add_column("#", style="cyan", width=3, justify="right")
                 table.add_column("Show", style="green", width=18, no_wrap=True)
-                table.add_column("Date", style="blue", width=12, no_wrap=True)
+                table.add_column("Date", style="blue", width=10, no_wrap=True)
                 # Title column flexes; keep one line with ellipsis
                 table.add_column("Title", style="white", no_wrap=True, overflow="ellipsis")
-                table.add_column("ASR", style="yellow", width=6, no_wrap=True)
+                table.add_column("ASR", style="yellow", width=3, no_wrap=True, justify="right")
                 table.add_column("Align", style="yellow", width=5, no_wrap=True)
                 table.add_column("Diar", style="yellow", width=5, no_wrap=True)
-                table.add_column("Deepcast", style="yellow", width=8, no_wrap=True)
-                table.add_column("Proc", style="yellow", width=12, no_wrap=True)
+                table.add_column("Deepcast", style="yellow", width=8, no_wrap=True, justify="right")
+                table.add_column("Proc", style="yellow", width=4, no_wrap=True)
                 table.add_column("Last Run", style="white", width=16, no_wrap=True)
 
                 for idx, e in enumerate(eps_sorted[start:end], start=start + 1):
@@ -624,6 +624,20 @@ def run(
                     preset = "balanced"; preprocess = True; restore = True; deepcast = True; dual = False
                 elif fidelity == "5":
                     dual = True; preprocess = True; restore = True; deepcast = True; preset = preset or "balanced"
+            # Optional: allow user to adjust ASR and AI models interactively
+            # Only prompt for ASR if we'll transcribe (dual or preset set or no transcripts)
+            will_transcribe = dual or preset is not None or not any(selected.get("transcripts"))
+            if will_transcribe:
+                prompt_asr = input(f"\nASR model (Enter to keep '{model}', or type e.g. large-v3, small.en; Q=cancel): ").strip()
+                if prompt_asr.upper() in {"Q","QUIT","EXIT"}: raise SystemExit(0)
+                if prompt_asr:
+                    model = prompt_asr
+            # Only prompt for AI if deepcast will run
+            if deepcast or dual:
+                prompt_ai = input(f"AI model for deepcast (Enter to keep '{deepcast_model}', Q=cancel): ").strip()
+                if prompt_ai.upper() in {"Q","QUIT","EXIT"}: raise SystemExit(0)
+                if prompt_ai:
+                    deepcast_model = prompt_ai
             # Load meta and set workdir
             meta = json.loads(selected["meta_path"].read_text(encoding="utf-8"))
             wd = selected["directory"]
