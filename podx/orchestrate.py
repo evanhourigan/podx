@@ -509,6 +509,17 @@ def run(
                 start = page * per_page
                 end = min(start + per_page, len(eps_sorted))
 
+                # Compute a dynamic width for Title so narrow columns stay compact
+                try:
+                    console_width = console.size.width
+                except Exception:
+                    console_width = 120
+                # Sum of fixed columns widths
+                fixed_cols = 3 + 18 + 10 + 3 + 5 + 5 + 8 + 4 + 16
+                # Extra allowance for table borders/padding/separators
+                borders_allowance = 20
+                title_width = max(30, console_width - fixed_cols - borders_allowance)
+
                 table = Table(
                     show_header=True,
                     header_style="bold magenta",
@@ -519,7 +530,7 @@ def run(
                 table.add_column("Show", style="green", width=18, no_wrap=True)
                 table.add_column("Date", style="blue", width=10, no_wrap=True)
                 # Title column flexes; keep one line with ellipsis
-                table.add_column("Title", style="white", no_wrap=True, overflow="ellipsis")
+                table.add_column("Title", style="white", width=title_width, no_wrap=True, overflow="ellipsis")
                 table.add_column("ASR", style="yellow", width=3, no_wrap=True)
                 table.add_column("Align", style="yellow", width=5, no_wrap=True)
                 table.add_column("Diar", style="yellow", width=5, no_wrap=True)
