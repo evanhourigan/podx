@@ -455,8 +455,16 @@ def run(
                 raise SystemExit("Interactive select requires rich. Install with: pip install rich")
             console = Console()
             eps = _scan_episode_status(Path(scan_dir))
+            # Optional filter by --show if provided
+            if show:
+                s_l = show.lower()
+                eps = [e for e in eps if s_l in (e.get("show", "").lower())]
             if not eps:
-                console.print(f"[red]No episodes found in {scan_dir}[/red]")
+                if show:
+                    console.print(f"[red]No episodes found for show '{show}' in {scan_dir}[/red]")
+                    console.print("[dim]Tip: run 'podx-fetch --interactive' to download episodes first.[/dim]")
+                else:
+                    console.print(f"[red]No episodes found in {scan_dir}[/red]")
                 raise SystemExit(1)
             # Sort newest first
             eps_sorted = sorted(eps, key=lambda x: (x["date"], x["show"]), reverse=True)
@@ -480,10 +488,12 @@ def run(
                 table.add_column("Notion", style="yellow", width=6)
                 table.add_column("Last Run", style="white", width=16)
                 for idx, e in enumerate(eps_sorted[start:end], start=start + 1):
-                    asr_count = str(len(e["transcripts"])) if e["transcripts"] else "0"
+                    asr_count_val = len(e["transcripts"]) if e["transcripts"] else 0
+                    asr_count = f"[dim]-[/dim]" if asr_count_val == 0 else str(asr_count_val)
                     align_ok = "✓" if e["aligned"] else "○"
                     diar_ok = "✓" if e["diarized"] else "○"
-                    dc_count = str(len(e["deepcasts"])) if e["deepcasts"] else "0"
+                    dc_count_val = len(e["deepcasts"]) if e["deepcasts"] else 0
+                    dc_count = f"[dim]-[/dim]" if dc_count_val == 0 else str(dc_count_val)
                     notion_ok = "✓" if e["notion"] else "○"
                     table.add_row(str(idx), e["show"], e["date"], e["title"], asr_count, align_ok, diar_ok, dc_count, notion_ok, e["last_run"])
                 console.print(table)
