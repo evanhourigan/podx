@@ -5,6 +5,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+import re
 
 import click
 
@@ -172,14 +173,17 @@ def scan_transcribable_episodes(base_dir: Path = Path.cwd()) -> List[Dict[str, A
                 if not audio_path.exists():
                     continue
 
-            # Check for existing transcripts with model names
+            # Check for existing transcripts by reading JSON (provider-aware)
             transcripts = {}
 
-            # Check for model-specific transcripts
-            for model in ASR_MODELS:
-                transcript_path = meta_file.parent / f"transcript-{model}.json"
-                if transcript_path.exists():
-                    transcripts[model] = transcript_path
+            # Discover any transcript-*.json and read asr_model from content
+            for transcript_path in meta_file.parent.glob("transcript-*.json"):
+                try:
+                    data = json.loads(transcript_path.read_text(encoding="utf-8"))
+                    asr_model = data.get("asr_model") or data.get("model") or "unknown"
+                    transcripts[asr_model] = transcript_path
+                except Exception:
+                    continue
 
             # Check for legacy transcript.json (unknown model)
             legacy_transcript = meta_file.parent / "transcript.json"
@@ -401,7 +405,7 @@ def select_asr_model(
 
     transcribed_models = list(episode["transcripts"].keys())
 
-    # Determine recommended model (most sophisticated not yet transcribed)
+    # Determine recommended local model (most sophisticated not yet transcribed)
     recommended = None
     for model in reversed(ASR_MODELS):
         if model not in transcribed_models:
@@ -419,7 +423,14 @@ def select_asr_model(
     table.add_column("Model", style="white", width=12)
     table.add_column("Status", style="yellow", width=20)
 
-    for idx, model in enumerate(ASR_MODELS, 1):
+    # Display local models plus common variants and provider examples
+    display_models: List[str] = []
+    display_models.extend(ASR_MODELS)
+    for extra in ["small.en", "medium.en", "openai:large-v3-turbo", "hf:distil-large-v3"]:
+        if extra not in display_models:
+            display_models.append(extra)
+
+    for idx, model in enumerate(display_models, 1):
         if model in transcribed_models:
             status = "✓ Already transcribed"
         elif model == recommended:
@@ -438,14 +449,14 @@ def select_asr_model(
     # Get user selection
     while True:
         try:
-            choice = input("\n👉 Select model (1-7) or Q to cancel: ").strip().upper()
+            choice = input(f"\n👉 Select model (1-{len(display_models)}) or Q to cancel: ").strip().upper()
 
             if choice in ["Q", "QUIT", "CANCEL"]:
                 return None
 
             model_idx = int(choice)
-            if 1 <= model_idx <= len(ASR_MODELS):
-                selected_model = ASR_MODELS[model_idx - 1]
+            if 1 <= model_idx <= len(display_models):
+                selected_model = display_models[model_idx - 1]
 
                 # Check if same model already exists - ask for confirmation
                 if selected_model in transcribed_models:
@@ -466,7 +477,7 @@ def select_asr_model(
                 return selected_model
             else:
                 console.print(
-                    f"[red]❌ Invalid choice. Please select 1-{len(ASR_MODELS)}[/red]"
+                        f"[red]❌ Invalid choice. Please select 1-{len(display_models)}[/red]"
                 )
 
         except ValueError:
