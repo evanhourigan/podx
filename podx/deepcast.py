@@ -940,8 +940,8 @@ def deepcast(
 )
 @click.option(
     "--model",
-    default=lambda: os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
-    help="OpenAI model (gpt-4.1, gpt-4.1-mini) [default: gpt-4.1-mini]",
+    default=lambda: os.getenv("OPENAI_MODEL", "gpt-4.1"),
+    help="OpenAI model (gpt-4.1, gpt-4.1-mini) [default: gpt-4.1]",
 )
 @click.option(
     "--temperature",

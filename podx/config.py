@@ -20,7 +20,7 @@ class PodxConfig(BaseSettings):
 
     # OpenAI Configuration
     openai_api_key: Optional[str] = Field(default=None, env="OPENAI_API_KEY")
-    openai_model: str = Field(default="gpt-4.1-mini", env="OPENAI_MODEL")
+    openai_model: str = Field(default="gpt-4.1", env="OPENAI_MODEL")
     openai_temperature: float = Field(default=0.2, env="OPENAI_TEMPERATURE")
     openai_base_url: Optional[str] = Field(default=None, env="OPENAI_BASE_URL")
 
