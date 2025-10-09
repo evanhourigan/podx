@@ -507,7 +507,13 @@ def run(
                 console.clear()
                 start = page * per_page
                 end = min(start + per_page, len(eps_sorted))
-                table = Table(show_header=True, header_style="bold magenta", title=f"🎙️ Episodes (Page {page+1}/{total_pages})", expand=True)
+
+                table = Table(
+                    show_header=True,
+                    header_style="bold magenta",
+                    title=f"🎙️ Episodes (Page {page+1}/{total_pages})",
+                    expand=True,
+                )
                 table.add_column("#", style="cyan", width=3, justify="right")
                 table.add_column("Show", style="green", width=18, no_wrap=True)
                 table.add_column("Date", style="blue", width=12, no_wrap=True)
@@ -519,6 +525,7 @@ def run(
                 table.add_column("Deepcast", style="yellow", width=8, no_wrap=True)
                 table.add_column("Proc", style="yellow", width=12, no_wrap=True)
                 table.add_column("Last Run", style="white", width=16, no_wrap=True)
+
                 for idx, e in enumerate(eps_sorted[start:end], start=start + 1):
                     asr_count_val = len(e["transcripts"]) if e["transcripts"] else 0
                     asr_count = f"[dim]-[/dim]" if asr_count_val == 0 else str(asr_count_val)
@@ -528,10 +535,26 @@ def run(
                     dc_count = f"[dim]-[/dim]" if dc_count_val == 0 else str(dc_count_val)
                     notion_ok = "✓" if e["notion"] else "○"
                     proc = e.get("processing_flags", "")
-                    table.add_row(str(idx), e["show"], e["date"], e["title"], asr_count, align_ok, diar_ok, dc_count, proc, e["last_run"])
+                    table.add_row(
+                        str(idx),
+                        e["show"],
+                        e["date"],
+                        e["title"],
+                        asr_count,
+                        align_ok,
+                        diar_ok,
+                        dc_count,
+                        proc,
+                        e["last_run"],
+                    )
+
                 console.print(table)
                 extra = " • F fetch new" if show else ""
-                console.print(("[dim]Enter 1-{end} to select • N next • P prev • Q quit" + extra + "[/dim]").replace("{end}", str(end)))
+                console.print(
+                    ("[dim]Enter 1-{end} to select • N next • P prev • Q quit" + extra + "[/dim]").replace(
+                        "{end}", str(end)
+                    )
+                )
                 choice = input("\n👉 Select: ").strip().upper()
                 if choice in ["Q", "QUIT", "EXIT"]:
                     console.print("[dim]Cancelled[/dim]")
@@ -967,25 +990,31 @@ def run(
                 progress.start_step(f"Dual QA: transcribing precision & recall with {model}")
                 step_start = time.time()
                 safe_model = _sanitize(model)
-                # Precision
+                # Precision (resume if exists)
                 t_prec = wd / f"transcript-{safe_model}-precision.json"
-                cmd_prec = [
-                    "podx-transcribe", "--model", model, "--compute", compute,
-                    "--preset", "precision",
-                ]
-                if asr_provider and asr_provider != "auto":
-                    cmd_prec += ["--asr-provider", asr_provider]
-                prec = _run(cmd_prec, stdin_payload=audio, verbose=verbose, save_to=t_prec)
+                if t_prec.exists():
+                    prec = json.loads(t_prec.read_text())
+                else:
+                    cmd_prec = [
+                        "podx-transcribe", "--model", model, "--compute", compute,
+                        "--preset", "precision",
+                    ]
+                    if asr_provider and asr_provider != "auto":
+                        cmd_prec += ["--asr-provider", asr_provider]
+                    prec = _run(cmd_prec, stdin_payload=audio, verbose=verbose, save_to=t_prec)
 
-                # Recall
+                # Recall (resume if exists)
                 t_rec = wd / f"transcript-{safe_model}-recall.json"
-                cmd_rec = [
-                    "podx-transcribe", "--model", model, "--compute", compute,
-                    "--preset", "recall",
-                ]
-                if asr_provider and asr_provider != "auto":
-                    cmd_rec += ["--asr-provider", asr_provider]
-                rec = _run(cmd_rec, stdin_payload=audio, verbose=verbose, save_to=t_rec)
+                if t_rec.exists():
+                    rec = json.loads(t_rec.read_text())
+                else:
+                    cmd_rec = [
+                        "podx-transcribe", "--model", model, "--compute", compute,
+                        "--preset", "recall",
+                    ]
+                    if asr_provider and asr_provider != "auto":
+                        cmd_rec += ["--asr-provider", asr_provider]
+                    rec = _run(cmd_rec, stdin_payload=audio, verbose=verbose, save_to=t_rec)
 
                 step_duration = time.time() - step_start
                 progress.complete_step(
