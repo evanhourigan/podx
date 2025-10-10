@@ -44,6 +44,8 @@ from . import (
     transcode,
     transcribe,
 )
+from .deepcast import CANONICAL_TYPES as DC_CANONICAL_TYPES  # type: ignore
+from .deepcast import ALIAS_TYPES as DC_ALIAS_TYPES  # type: ignore
 from .config import get_config
 from .errors import ValidationError
 from .fetch import _generate_workdir
@@ -301,6 +303,12 @@ def main():
     help="Also extract raw markdown file when running deepcast",
 )
 @click.option(
+    "--deepcast-pdf",
+    "deepcast_pdf",
+    is_flag=True,
+    help="Also render a PDF of the deepcast markdown (requires pandoc)",
+)
+@click.option(
     "--notion",
     is_flag=True,
     help="Upload to Notion database (default: no upload)",
@@ -384,6 +392,7 @@ def run(
     deepcast_model: str,
     deepcast_temp: float,
     extract_markdown: bool,
+    deepcast_pdf: bool,
     notion: bool,
     notion_db: Optional[str],
     podcast_prop: str,
@@ -715,6 +724,66 @@ def run(
                 if prompt_ai.upper() in {"Q","QUIT","EXIT"}: raise SystemExit(0)
                 if prompt_ai:
                     deepcast_model = prompt_ai
+
+            # Options panel: toggle steps and outputs
+            def _yn(prompt: str, cur: bool) -> bool:
+                resp = input(f"{prompt} (y/N, current={'on' if cur else 'off'}): ").strip().lower()
+                if resp in {"q","quit","exit"}: raise SystemExit(0)
+                return cur if resp == "" else resp in {"y","yes"}
+
+            console.print(Panel("Adjust options below (Enter keeps current): Q cancels", title="Options", border_style="blue"))
+            align = _yn("Align (WhisperX)", align)
+            diarize = _yn("Diarize (speaker labels)", diarize)
+            preprocess = _yn("Preprocess (merge/normalize)", preprocess)
+            restore = _yn("Semantic restore (LLM)", restore) if preprocess else restore
+            deepcast = _yn("Deepcast (AI analysis)", deepcast)
+            dual = _yn("Dual mode (precision+recall)", dual)
+            extract_markdown = _yn("Save Markdown file", extract_markdown)
+            deepcast_pdf = _yn("Also render PDF (pandoc)", deepcast_pdf)
+
+            # Deepcast type override (canonical or alias), default from YAML
+            chosen_type = yaml_analysis_type
+            if deepcast or dual:
+                type_prompt_default = chosen_type or "general"
+                # Build selectable list: canonical + aliases
+                type_options = [t.value for t in DC_CANONICAL_TYPES] + list(DC_ALIAS_TYPES.keys())
+                console.print("\n[bold cyan]Select Deepcast type:[/bold cyan]")
+                for i, tname in enumerate(type_options, start=1):
+                    marker = " ← default" if tname == type_prompt_default else ""
+                    console.print(f"  {i:2}  {tname}{marker}")
+                t_in = input(f"👉 Choose 1-{len(type_options)} (Enter keeps '{type_prompt_default}', Q=cancel): ").strip()
+                if t_in.upper() in {"Q","QUIT","EXIT"}: raise SystemExit(0)
+                if t_in:
+                    try:
+                        t_idx = int(t_in)
+                        if 1 <= t_idx <= len(type_options):
+                            chosen_type = type_options[t_idx - 1]
+                    except ValueError:
+                        pass
+
+            # Preview pipeline
+            stages = ["fetch", "transcode", "transcribe"]
+            if align: stages.append("align")
+            if diarize: stages.append("diarize")
+            if preprocess: stages.append("preprocess" + ("+restore" if restore else ""))
+            if deepcast: stages.append("deepcast")
+            if dual: stages.append("agreement" + ("+consensus" if not no_consensus else ""))
+            outputs = []
+            if extract_markdown: outputs.append("markdown")
+            if deepcast_pdf: outputs.append("pdf")
+            preview = (
+                f"Pipeline: {' → '.join(stages)}\n"
+                f"ASR={model} preset={preset or '-'} dual={dual} align={align} diarize={diarize} preprocess={preprocess} restore={restore}\n"
+                f"AI={deepcast_model} type={chosen_type or '-'} outputs={','.join(outputs) or '-'}"
+            )
+            console.print(Panel(preview, title="Preview", border_style="green"))
+            cont = input("Proceed? (Y/n): ").strip().lower()
+            if cont in {"n","no"}:
+                console.print("[dim]Cancelled[/dim]")
+                raise SystemExit(0)
+
+            # Use chosen_type downstream
+            yaml_analysis_type = chosen_type
             # Load meta and set workdir
             meta = json.loads(selected["meta_path"].read_text(encoding="utf-8"))
             wd = selected["directory"]
@@ -1343,6 +1412,8 @@ def run(
                         cmd.extend(["--type", yaml_analysis_type])
                     if extract_markdown:
                         cmd.append("--extract-markdown")
+                    if deepcast_pdf:
+                        cmd.append("--pdf")
                     _run(cmd, verbose=verbose, save_to=None, label=None)
                     step_duration = time.time() - step_start
                     progress.complete_step("AI analysis completed", step_duration)
@@ -1370,6 +1441,8 @@ def run(
                             cmd.extend(["--type", yaml_analysis_type])
                         if extract_markdown:
                             cmd.append("--extract-markdown")
+                        if deepcast_pdf:
+                            cmd.append("--pdf")
                         _run(cmd, verbose=verbose, save_to=None, label=None)
                         return out
 
