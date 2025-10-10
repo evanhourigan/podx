@@ -513,6 +513,7 @@ def run(
                 if list(ep_dir.glob("agreement-*.json")):
                     proc_flags.append("Q")
 
+                has_consensus = bool(list(ep_dir.glob("consensus-*.json")))
                 episodes.append({
                     "meta_path": meta_path,
                     "directory": ep_dir,
@@ -524,6 +525,7 @@ def run(
                     "aligned": aligned,
                     "diarized": diarized,
                     "deepcasts": deepcasts,
+                    "has_consensus": has_consensus,
                     "notion": notion_out,
                     "last_run": last_run,
                     "processing_flags": "".join(proc_flags),
@@ -571,7 +573,8 @@ def run(
                 except Exception:
                     console_width = 120
                 # Sum of fixed columns widths
-                fixed_cols = 3 + 18 + 10 + 3 + 5 + 5 + 4 + 4 + 16
+                # Fixed columns (excluding flexible Title): #, Show, Date, ASR, Align, Diar, Deep, Trk, Proc, Last Run
+                fixed_cols = 3 + 18 + 10 + 3 + 5 + 4 + 4 + 4 + 4 + 16
                 # Extra allowance for table borders/padding/separators
                 borders_allowance = 40
                 # Let Title shrink further on small terminals so other headers aren't truncated
@@ -593,6 +596,7 @@ def run(
                 table.add_column("Align", style="yellow", width=5, no_wrap=True)
                 table.add_column("Diar", style="yellow", width=4, no_wrap=True)
                 table.add_column("Deep", style="yellow", width=4, no_wrap=True)
+                table.add_column("Trk", style="yellow", width=4, no_wrap=True)
                 table.add_column("Proc", style="yellow", width=4, no_wrap=True)
                 table.add_column("Last Run", style="white", width=16, no_wrap=True)
 
@@ -603,6 +607,8 @@ def run(
                     diar_ok = "✓" if e["diarized"] else "○"
                     dc_count_val = len(e["deepcasts"]) if e["deepcasts"] else 0
                     dc_count = f"[dim]-[/dim]" if dc_count_val == 0 else str(dc_count_val)
+                    # Track: prefer consensus when present, else show '-' (too many episodes to compute per row)
+                    trk = "C" if e.get("has_consensus") else "-"
                     notion_ok = "✓" if e["notion"] else "○"
                     proc = e.get("processing_flags", "")
                     table.add_row(
@@ -614,6 +620,7 @@ def run(
                         align_ok,
                         diar_ok,
                         dc_count,
+                        trk,
                         proc,
                         e["last_run"],
                     )

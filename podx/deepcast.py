@@ -419,8 +419,7 @@ class DeepcastBrowser:
             table.add_column("#", style="cyan", width=3, justify="right")
             table.add_column("ASR Model", style="yellow", width=12)
             table.add_column("AI Model", style="green", width=15)
-            table.add_column("Type", style="white", width=20)
-            table.add_column("Trk", style="white", width=6)
+            table.add_column("Type", style="white", width=24)
             table.add_column("Show", style="green", width=18)
             table.add_column("Date", style="blue", width=12)
             table.add_column("Title", style="white", width=35)
@@ -430,9 +429,6 @@ class DeepcastBrowser:
                 
                 # Derive track and canonical type if available from file names/metadata later if needed
                 types_str = ", ".join(row["deepcast_types"]) if row["deepcast_types"] else ""
-                # Track is not applicable in this pre-deepcast picker; show '-' to avoid confusion
-                track = "-"
-                
                 show = _truncate_text(episode["show"], 18)
                 date = episode["date"]
                 title = _truncate_text(episode["title"], 35)
@@ -442,7 +438,6 @@ class DeepcastBrowser:
                     row["asr_model"] or "",
                     row["ai_model"] or "",
                     types_str,
-                    track,
                     show,
                     date,
                     title
