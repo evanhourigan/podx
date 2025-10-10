@@ -25,6 +25,15 @@ except Exception:  # pragma: no cover
 
 from .cli_shared import read_stdin_json
 from .info import get_episode_workdir
+from .ui import (
+    make_console,
+    TABLE_BORDER_STYLE,
+    TABLE_HEADER_STYLE,
+    TABLE_NUM_STYLE,
+    TABLE_SHOW_STYLE,
+    TABLE_DATE_STYLE,
+    TABLE_TITLE_COL_STYLE,
+)
 
 try:
     from notion_client import Client
@@ -371,101 +380,131 @@ def _prompt_numbered_choice(title: str, items: List[str]) -> Optional[str]:
         click.echo("Invalid selection. Try again.")
 
 
-def _interactive_flow(db_id: Optional[str]) -> Optional[Dict[str, str]]:
-    """Run a minimal interactive flow for podx-notion selection.
+def _scan_notion_rows(scan_dir: Path) -> List[Dict[str, Any]]:
+    """Scan for deepcast JSONs and build table rows: one per deepcast file."""
+    def _format_date_ymd(s: Optional[str]) -> str:
+        if not isinstance(s, str) or not s.strip():
+            return "Unknown"
+        # Try robust parsing first
+        try:
+            from dateutil import parser as dtparse  # type: ignore
 
-    Returns dict with keys: show, episode_date, select_model, dry_run ("true"|"false").
-    """
-    root = Path.cwd()
+            return dtparse.parse(s).date().isoformat()
+        except Exception:
+            pass
+        # Fallback: extract first YYYY-MM-DD pattern
+        m = re.search(r"(\d{4}-\d{2}-\d{2})", s)
+        if m:
+            return m.group(1)
+        # Last resort: take last 10 chars if they look like a date-ish token
+        t = s.strip()
+        return t[-10:] if len(t) >= 10 else t
+    rows: List[Dict[str, Any]] = []
+    for deepcast_file in scan_dir.rglob("deepcast-*.json"):
+        try:
+            data = json.loads(deepcast_file.read_text(encoding="utf-8"))
+        except Exception:
+            continue
 
-    # Ensure DB
-    if not db_id:
-        db_id = click.prompt(
-            "Enter Notion Database ID (or set NOTION_DB_ID) [q to cancel]",
-            default="",
-            show_default=False,
-        )
-        if not db_id or str(db_id).strip().lower() in {"q", "quit", "exit"}:
-            click.echo("Cancelled.")
-            return None
+        meta = data.get("deepcast_metadata", {})
+        ai = meta.get("model", "unknown")
+        asr = meta.get("asr_model", "unknown")
+        episode_dir = deepcast_file.parent
 
-    # Choose show (only those with deepcasts available)
-    shows = _detect_shows(root)
-    if not shows:
-        click.echo("No shows with deepcasts detected in current directory. Exiting.")
-        return None
-    show = _prompt_numbered_choice("Select a show:", shows)
-    if not show:
-        return None
-
-    # Choose date
-    dates = _list_episode_dates(root, show)
-    if not dates:
-        click.echo("No episode dates found for this show. Exiting.")
-        return None
-    episode_date = _prompt_numbered_choice(
-        f"Select an episode date for '{show}':", dates
-    )
-    if not episode_date:
-        return None
-
-    # Choose model (if available)
-    workdir = get_episode_workdir(show, episode_date)
-    models = _list_deepcast_models(workdir)
-    select_model = None
-    if models:
-        default_model = models[0]
-        click.echo("")
-        click.echo("Available deepcast models (newest first):")
-        for idx, m in enumerate(models, start=1):
-            click.echo(f"  {idx}. {m}")
-        resp = click.prompt(
-            f"Select model # (or ENTER for newest: {default_model}, q to cancel)",
-            default="",
-            show_default=False,
-        )
-        if str(resp).strip().lower() in {"q", "quit", "exit"}:
-            return None
-        if resp.strip():
+        show = "Unknown"
+        title = "Unknown"
+        date = "Unknown"
+        em = episode_dir / "episode-meta.json"
+        if em.exists():
             try:
-                mi = int(resp)
-                if 1 <= mi <= len(models):
-                    select_model = models[mi - 1]
-            except ValueError:
-                # Fallback to text match if typed
-                if resp in models:
-                    select_model = resp
-        if not select_model:
-            select_model = default_model
-    else:
-        click.echo("No deepcast analyses found in this episode directory. Exiting.")
+                emd = json.loads(em.read_text(encoding="utf-8"))
+                show = emd.get("show", show)
+                title = emd.get("episode_title", title)
+                dval = emd.get("episode_published") or emd.get("date")
+                date = _format_date_ymd(dval)
+            except Exception:
+                pass
+
+        notion_done = (episode_dir / "notion.out.json").exists()
+        rows.append(
+            {
+                "path": deepcast_file,
+                "dir": episode_dir,
+                "show": show,
+                "date": date,
+                "title": title,
+                "ai": ai,
+                "asr": asr,
+                "notion": notion_done,
+            }
+        )
+
+    # Sort newest first by directory date and file mtime
+    rows.sort(key=lambda r: (r["date"], r["path"].stat().st_mtime), reverse=True)
+    return rows
+
+
+def _interactive_table_flow(db_id: Optional[str], scan_dir: Path) -> Optional[Dict[str, Any]]:
+    console = make_console()
+    rows = _scan_notion_rows(scan_dir)
+    if not rows:
+        console.print(f"[red]No deepcast files found in {scan_dir}[/red]")
         return None
 
-    # Dry-run toggle
-    dry = click.prompt("Dry-run first? (y/N, q to cancel)", default="y")
-    if str(dry).strip().lower() in {"q", "quit", "exit"}:
-        return None
-    dry_run = "true" if str(dry).strip().lower() in {"y", "yes"} else "false"
+    # Column widths with flexible Title
+    term_width = console.size.width
+    fixed = {"num": 4, "show": 20, "date": 12, "ai": 14, "asr": 14, "notion": 8}
+    borders = 20
+    title_w = max(30, term_width - sum(fixed.values()) - borders)
 
-    # Preview
-    click.echo("")
-    click.echo("Will run:")
-    click.echo(
-        f"podx-notion --show \"{show}\" --episode-date \"{episode_date}\" --select-model \"{select_model}\" --db {db_id} {'--dry-run' if dry_run == 'true' else ''}"
+    table = Table(
+        show_header=True,
+        header_style=TABLE_HEADER_STYLE,
+        title="🪄 Select an analysis to upload to Notion",
+        expand=False,
+        border_style=TABLE_BORDER_STYLE,
     )
+    table.add_column("#", style=TABLE_NUM_STYLE, width=fixed["num"], justify="right", no_wrap=True)
+    table.add_column("Show", style=TABLE_SHOW_STYLE, width=fixed["show"], no_wrap=True, overflow="ellipsis")
+    table.add_column("Date", style=TABLE_DATE_STYLE, width=fixed["date"], no_wrap=True)
+    table.add_column("Title", style=TABLE_TITLE_COL_STYLE, width=title_w, no_wrap=True, overflow="ellipsis")
+    table.add_column("AI", style="green", width=fixed["ai"], no_wrap=True, overflow="ellipsis")
+    table.add_column("ASR", style="yellow", width=fixed["asr"], no_wrap=True, overflow="ellipsis")
+    table.add_column("Notion", style="white", width=fixed["notion"], no_wrap=True)
 
-    # Confirm
-    ok = click.prompt("Proceed? (Y/n, q to cancel)", default="Y")
-    if str(ok).strip().lower() in {"n", "no", "q", "quit", "exit"}:
+    for idx, r in enumerate(rows, start=1):
+        table.add_row(
+            str(idx), r["show"], r["date"], r["title"], r["ai"], r["asr"], "✓" if r["notion"] else "-",
+        )
+    console.print(table)
+    console.print("\n[dim]Enter selection number, or Q to cancel.[/dim]")
+    ans = input(f"👉 1-{len(rows)}: ").strip().upper()
+    if ans in {"Q", "QUIT", "EXIT"}:
+        return None
+    try:
+        i = int(ans)
+        if not (1 <= i <= len(rows)):
+            raise ValueError
+    except Exception:
+        console.print("[red]Invalid selection[/red]")
         return None
 
-    return {
-        "show": show,
-        "episode_date": episode_date,
-        "select_model": select_model,
-        "dry_run": dry_run,
-        "db_id": db_id,
-    }
+    chosen = rows[i - 1]
+
+    # DB prompt
+    default_db = db_id or os.getenv("NOTION_DB_ID", "")
+    db_val = input(f"Notion DB ID [{default_db}]: ").strip() if _HAS_RICH else click.prompt("Notion DB ID", default=default_db, show_default=bool(default_db))
+    if not db_val:
+        db_val = default_db
+    if not db_val:
+        console.print("[red]Database ID required[/red]")
+        return None
+
+    # Dry run toggle
+    dry = input("Dry-run first? (y/N): ").strip().lower() if _HAS_RICH else click.prompt("Dry-run first? (y/N)", default="N")
+    dry_run = str(dry).lower() in {"y", "yes"}
+
+    return {"db_id": db_val, "input_path": chosen["path"], "meta_path": chosen["dir"] / "episode-meta.json", "dry_run": dry_run}
 
 
 def md_to_blocks(md: str) -> List[Dict[str, Any]]:
@@ -914,18 +953,17 @@ def main(
     Upsert by Title (+ Date if provided).
     """
 
-    # Interactive flow (MVP)
+    # Interactive table flow
     if interactive:
-        params = _interactive_flow(db_id)
+        params = _interactive_table_flow(db_id, Path.cwd())
         if not params:
             return
 
         # Inject selected parameters
         db_id = params["db_id"]
-        show = params["show"]
-        episode_date = params["episode_date"]
-        select_model = params["select_model"]
-        dry_run = params["dry_run"] == "true"
+        input = params["input_path"]
+        meta_path = params.get("meta_path")
+        dry_run = params["dry_run"]
 
     # Auto-detect workdir and files if --show and --episode-date provided
     if show and episode_date:
