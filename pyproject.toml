@@ -54,6 +54,7 @@ podx-notion = "podx.notion:main"
 podx-preprocess = "podx.preprocess:main"
 podx-agreement = "podx.agreement:main"
 podx-consensus = "podx.consensus:main"
+podx-list = "podx.list:main"
 podx = "podx.orchestrate:main"
 
 [tool.setuptools.packages.find]

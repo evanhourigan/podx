@@ -1956,93 +1956,17 @@ def help_command(topic, examples, pipeline):
     ctx.invoke(help_cmd, examples=examples, pipeline=pipeline)
 
 
-@main.command("list")
-def list_commands():
-    """List all available commands and workflows."""
-    from rich.console import Console
-    from rich.table import Table
-
-    console = Console()
-
-    table = Table(title="🎙️ Podx Commands")
-    table.add_column("Command", style="cyan", no_wrap=True)
-    table.add_column("Type", style="magenta")
-    table.add_column("Description", style="white")
-
-    # Core workflow commands
-    table.add_row("browse", "Discovery", "Interactive episode browser")
-    table.add_row("run", "Core", "Complete customizable pipeline")
-    table.add_row("quick", "Workflow", "Fast transcription only")
-    table.add_row("analyze", "Workflow", "Transcription + AI analysis")
-    table.add_row("publish", "Workflow", "Full pipeline + Notion")
-
-    table.add_section()
-
-    # Individual commands
-    table.add_row("browse", "Discovery", "Interactive episode selection")
-    table.add_row("fetch", "Stage", "Download podcast episodes")
-    table.add_row("transcode", "Stage", "Convert audio formats")
-    table.add_row("transcribe", "Stage", "Speech-to-text conversion")
-    table.add_row("align", "Stage", "Word-level timing alignment")
-    table.add_row("diarize", "Stage", "Speaker identification")
-    table.add_row("export", "Stage", "Export to various formats")
-    table.add_row("deepcast", "Stage", "AI-powered analysis")
-    table.add_row("notion", "Stage", "Upload to Notion")
-
-    table.add_section()
-
-    # Utility commands
-    table.add_row("help", "Utility", "Enhanced help system")
-    table.add_row("list", "Utility", "Show this command list")
-    table.add_row("config", "Utility", "Configuration management")
-
-    console.print(table)
-
-    console.print("\n💡 [bold]Examples:[/bold]")
-    console.print("  [cyan]podx quick --show 'The Podcast' --date 2024-01-15[/cyan]")
-    console.print(
-        "  [cyan]podx analyze --show 'Tech Talk' --date 2024-01-15 --type tech[/cyan]"
-    )
-    console.print(
-        "  [cyan]podx publish --show 'Business Show' --date 2024-01-15[/cyan]"
-    )
-    console.print("  [cyan]podx help --examples[/cyan]")
-    console.print("  [cyan]podx plugin list[/cyan]")
-
-    # Show available plugins summary
-    manager = PluginManager()
-    manager.discover_plugins()
-    plugins = manager.get_available_plugins()
-
-    if plugins:
-        console.print(
-            f"\n🔌 [bold]Plugins Available:[/bold] {len(plugins)} plugins discovered"
-        )
-        type_counts = {}
-        for metadata in plugins.values():
-            type_name = metadata.plugin_type.value
-            type_counts[type_name] = type_counts.get(type_name, 0) + 1
-
-        plugin_summary = ", ".join(
-            [f"{t}: {c}" for t, c in sorted(type_counts.items())]
-        )
-        console.print(f"  {plugin_summary}")
-        console.print("  Use [cyan]podx plugin list[/cyan] for details")
-
-        console.print("\n📝 [bold]Podcast Configurations:[/bold]")
-        console.print(
-            "  [cyan]podx podcast list[/cyan]        - List saved podcast configurations"
-        )
-        console.print(
-            "  [cyan]podx podcast create[/cyan]      - Create podcast-specific settings"
-        )
-        console.print(
-            "  [cyan]podx podcast init[/cyan]        - Setup popular podcast configs"
-        )
-        console.print("  [cyan]podx podcast show <name>[/cyan] - Show detailed config")
-        console.print(
-            "\n  💡 Podcast configs auto-apply settings like --align --deepcast --notion"
-        )
+@main.command("list", help="Shim: run podx-list with the given arguments")
+@click.argument("args", nargs=-1)
+def list_shim(args: tuple[str, ...]):
+    import sys
+    original_argv = sys.argv.copy()
+    sys.argv = ["podx-list", *sys.argv[2:]]
+    try:
+        from .list import main as list_main
+        list_main()
+    finally:
+        sys.argv = original_argv
 
 
 @main.command("config")
