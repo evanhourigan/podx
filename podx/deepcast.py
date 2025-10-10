@@ -20,6 +20,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+import shutil
+import subprocess
 
 import click
 
@@ -56,6 +58,29 @@ CANONICAL_TYPES: list[PodcastType] = [
     PodcastType.GENERAL,                  # general
 ]
 from .yaml_config import get_podcast_yaml_config
+
+
+# Alias deepcast types that inject prompt hints but map to canonical templates
+# These are convenient names users can pass via --type or YAML; internally we
+# canonicalize to one of the four core types while augmenting the prompt.
+ALIAS_TYPES: dict[str, dict[str, Any]] = {
+    "host_moderated_panel": {
+        "canonical": PodcastType.PANEL_DISCUSSION,
+        "prompt": (
+            "- Use the HOST's topic introductions as section headings.\n"
+            "- Under each section, synthesize panelists' viewpoints (agreements, disagreements, notable quotes).\n"
+            "- Attribute quotes with speaker labels; include timestamps when useful."
+        ),
+    },
+    "cohost_commentary": {
+        "canonical": PodcastType.PANEL_DISCUSSION,
+        "prompt": (
+            "- Treat both hosts as equal participants (no host/guest framing).\n"
+            "- Synthesize joint reasoning, back-and-forth refinements, and final takeaways.\n"
+            "- Emphasize consensus vs. divergences; include brief quotes with timestamps."
+        ),
+    },
+}
 
 
 # utils
@@ -698,8 +723,8 @@ def select_deepcast_type(row: Dict[str, Any], console: Console) -> Optional[str]
     if not default_type:
         default_type = "general"
     
-    # List canonical deepcast types
-    all_types = [t.value for t in CANONICAL_TYPES]
+    # List canonical deepcast types plus friendly aliases
+    all_types = [t.value for t in CANONICAL_TYPES] + list(ALIAS_TYPES.keys())
     
     console.print("\n[bold cyan]Select a deepcast type:[/bold cyan]")
     for idx, dtype in enumerate(all_types, start=1):
@@ -814,6 +839,7 @@ def deepcast(
     want_json: bool,
     podcast_type: Optional[PodcastType] = None,
     show_prompt_only: Optional[str] = None,
+    extra_system_instructions: Optional[str] = None,
 ) -> Tuple[str, Optional[Dict[str, Any]]]:
     """Enhanced deepcast pipeline with intelligent prompt selection.
 
@@ -875,6 +901,19 @@ def deepcast(
         system_prompt += f"\n\n{yaml_config.analysis.custom_prompts}"
     elif json_config and json_config.custom_prompt_additions:
         system_prompt += f"\n\n{json_config.custom_prompt_additions}"
+
+    # If YAML selected an alias type, inject its extra guidance too
+    try:
+        if yaml_config and getattr(yaml_config, "analysis", None):
+            y_type = getattr(yaml_config.analysis, "type", None)
+            if isinstance(y_type, str) and y_type in ALIAS_TYPES:
+                system_prompt += f"\n\n{ALIAS_TYPES[y_type]['prompt']}"
+    except Exception:
+        pass
+
+    # Add any ad-hoc extra instructions (e.g., from alias types)
+    if extra_system_instructions:
+        system_prompt += f"\n\n{extra_system_instructions}"
 
     system = (
         system_prompt
@@ -977,10 +1016,16 @@ def deepcast(
     help="Also write raw markdown to a separate .md file",
 )
 @click.option(
+    "--pdf",
+    "export_pdf",
+    is_flag=True,
+    help="Also write a PDF rendering of the markdown (requires pandoc)",
+)
+@click.option(
     "--type",
     "podcast_type_str",
-    type=click.Choice([t.value for t in CANONICAL_TYPES]),
-    help="Podcast type (canonical): interview_guest_focused | panel_discussion | solo_commentary | general",
+    type=click.Choice([t.value for t in CANONICAL_TYPES] + list(ALIAS_TYPES.keys())),
+    help="Podcast type (canonical or alias): interview_guest_focused | panel_discussion | solo_commentary | general | host_moderated_panel | cohost_commentary",
 )
 @click.option(
     "--meta",
@@ -1014,6 +1059,7 @@ def main(
     temperature: float,
     chunk_chars: int,
     extract_markdown: bool,
+    export_pdf: bool,
     podcast_type_str: Optional[str],
     meta: Optional[Path],
     show_prompt: Optional[str],
@@ -1087,6 +1133,14 @@ def main(
             sys.exit(0)
         extract_markdown = md_choice in ["yes", "y"]
 
+        # Step 5b: Ask about PDF generation unless already requested via --pdf
+        if not export_pdf:
+            pdf_choice = input("\n👉 Also generate a PDF (via pandoc)? y/N or Q to cancel: ").strip().lower()
+            if pdf_choice in ["q", "quit", "exit"]:
+                console.print("[dim]Cancelled[/dim]")
+                sys.exit(0)
+            export_pdf = pdf_choice in ["yes", "y"]
+
         # Load the transcript file
         transcript_file = selected_row["transcript_file"]
         if not transcript_file or not transcript_file.exists():
@@ -1127,8 +1181,16 @@ def main(
 
     # Convert podcast type string to enum
     podcast_type = None
+    alias_used: Optional[str] = None
+    extra_instructions: Optional[str] = None
     if podcast_type_str:
-        podcast_type = PodcastType(podcast_type_str)
+        if podcast_type_str in ALIAS_TYPES:
+            alias_used = podcast_type_str
+            alias_cfg = ALIAS_TYPES[podcast_type_str]
+            podcast_type = alias_cfg["canonical"]
+            extra_instructions = alias_cfg["prompt"]
+        else:
+            podcast_type = PodcastType(podcast_type_str)
 
     # Handle --show-prompt mode: display prompts and exit
     if show_prompt is not None:
@@ -1140,6 +1202,7 @@ def main(
             want_json,
             podcast_type,
             show_prompt_only=show_prompt,
+            extra_system_instructions=extra_instructions,
         )
         print(prompt_display)
         return
@@ -1162,7 +1225,13 @@ def main(
     
     try:
         md, json_data = deepcast(
-            transcript, model, temperature, chunk_chars, want_json, podcast_type
+            transcript,
+            model,
+            temperature,
+            chunk_chars,
+            want_json,
+            podcast_type,
+            extra_system_instructions=extra_instructions,
         )
     except SystemExit as e:
         if timer:
@@ -1191,6 +1260,20 @@ def main(
         elif first_seg.get("words"):
             transcript_variant = "aligned"
     
+    # If alias not provided via CLI, detect alias from YAML config so we can record it
+    if alias_used is None:
+        try:
+            show_name = transcript.get("show") or transcript.get("show_name", "")
+            yaml_cfg = get_podcast_yaml_config(show_name) if show_name else None
+            if (
+                yaml_cfg
+                and getattr(yaml_cfg, "analysis", None)
+                and getattr(yaml_cfg.analysis, "type", None) in ALIAS_TYPES
+            ):
+                alias_used = yaml_cfg.analysis.type  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
     # Unified JSON output
     unified = {
         "markdown": md,
@@ -1203,6 +1286,7 @@ def main(
             "asr_model": transcript.get("asr_model"),  # Store ASR model from transcript
             "transcript_variant": transcript_variant,  # Store transcript type
             "deepcast_type": podcast_type.value if podcast_type else "general",  # Explicit type field
+            "deepcast_alias": alias_used or None,
         },
     }
     if json_data:
@@ -1235,6 +1319,39 @@ def main(
         metadata_comment = f"<!-- Metadata: ASR={asr_model_str}, AI={model}, Type={deepcast_type_str}, Transcript={transcript_variant} -->\n\n"
         markdown_with_metadata = metadata_comment + md
         markdown_file.write_text(markdown_with_metadata, encoding="utf-8")
+
+    # Optionally export a PDF using pandoc (reads markdown from memory)
+    if export_pdf:
+        asr_model_str = transcript.get("asr_model", "unknown")
+        deepcast_type_str = podcast_type.value if podcast_type else "general"
+        pdf_filename = generate_deepcast_filename(asr_model_str, model, deepcast_type_str, "pdf", with_timestamp=True)
+        pdf_file = json_output.parent / pdf_filename if json_output.parent.name else Path(pdf_filename)
+
+        pandoc_path = shutil.which("pandoc")
+        if not pandoc_path:
+            if interactive and RICH_AVAILABLE:
+                console = Console()
+                console.print("[yellow]⚠ pandoc not found. Install with: brew install pandoc[/yellow]")
+            else:
+                print("pandoc not found. Install with: brew install pandoc", file=sys.stderr)
+        else:
+            try:
+                # Feed markdown via stdin to pandoc
+                subprocess.run(
+                    [pandoc_path, "-f", "markdown", "-t", "pdf", "-o", str(pdf_file)],
+                    input=md,
+                    text=True,
+                    check=True,
+                )
+                if interactive and RICH_AVAILABLE:
+                    console = Console()
+                    console.print(f"[green]✅ PDF saved to: {pdf_file.name}[/green]")
+            except subprocess.CalledProcessError as e:
+                if interactive and RICH_AVAILABLE:
+                    console = Console()
+                    console.print(f"[red]❌ Failed to generate PDF with pandoc: {e}[/red]")
+                else:
+                    print(f"Failed to generate PDF with pandoc: {e}", file=sys.stderr)
 
     # Print to stdout (for pipelines) - but not in interactive mode
     if not interactive:
