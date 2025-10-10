@@ -678,22 +678,16 @@ def run(
                 except Exception:
                     console.print("[red]Invalid selection[/red]")
                     input("Press Enter to continue...")
-            # Optional: quick fidelity choice with detailed help
-            current_flags = (
-                f"preset={preset or '-'}  align={align}  diarize={diarize}  "
-                f"preprocess={preprocess}  restore={restore}  deepcast={deepcast}  dual={dual}"
-            )
+            # Fidelity choice with concise instructions
             help_text = (
                 "1: Deepcast only — use latest transcript; skip preprocess/restore/align/diarize (fastest)\n"
                 "2: Recall — transcribe with recall preset; preprocess+restore; deepcast (higher recall)\n"
                 "3: Precision — transcribe with precision preset; preprocess+restore; deepcast (higher precision)\n"
                 "4: Balanced — transcribe with balanced preset; preprocess+restore; deepcast (recommended single-track)\n"
-                "5: Dual QA — run precision & recall; preprocess+restore both; deepcast both; compute agreement (best)\n\n"
-                f"Current flags: {current_flags}\n"
-                "Press Enter to keep current flags unchanged, or choose 1-5 to override. Q cancels."
+                "5: Dual QA — precision & recall; preprocess+restore both; deepcast both; agreement (best)"
             )
-            console.print(Panel(help_text, title="Fidelity Levels", border_style="blue"))
-            fchoice = input("\nChoose fidelity [1-5] (Enter=keep current flags, Q=cancel): ").strip()
+            console.print(Panel(help_text, title="Choose Fidelity (1-5)", border_style="blue"))
+            fchoice = input("\nChoose preset [1-5] (Q=cancel): ").strip()
             if fchoice.upper() in {"Q", "QUIT", "EXIT"}:
                 console.print("[dim]Cancelled[/dim]")
                 raise SystemExit(0)
@@ -710,6 +704,14 @@ def run(
                     preset = "balanced"; preprocess = True; restore = True; deepcast = True; dual = False
                 elif fidelity == "5":
                     dual = True; preprocess = True; restore = True; deepcast = True; preset = preset or "balanced"
+
+            # Show resulting flags (yes/no) before overrides
+            yn = lambda b: "yes" if b else "no"
+            summary = (
+                f"preset={preset or '-'}  align={yn(align)}  diarize={yn(diarize)}  "
+                f"preprocess={yn(preprocess)}  restore={yn(restore)}  deepcast={yn(deepcast)}  dual={yn(dual)}"
+            )
+            console.print(Panel(summary, title="Preset Applied", border_style="green"))
             # Optional: allow user to adjust ASR and AI models interactively
             # Only prompt for ASR if we'll transcribe (dual or preset set or no transcripts)
             will_transcribe = dual or preset is not None or not any(selected.get("transcripts"))
@@ -727,7 +729,7 @@ def run(
 
             # Options panel: toggle steps and outputs
             def _yn(prompt: str, cur: bool) -> bool:
-                resp = input(f"{prompt} (y/N, current={'on' if cur else 'off'}): ").strip().lower()
+                resp = input(f"{prompt} (y/N, current={'yes' if cur else 'no'}): ").strip().lower()
                 if resp in {"q","quit","exit"}: raise SystemExit(0)
                 return cur if resp == "" else resp in {"y","yes"}
 
@@ -747,10 +749,20 @@ def run(
                 type_prompt_default = chosen_type or "general"
                 # Build selectable list: canonical + aliases
                 type_options = [t.value for t in DC_CANONICAL_TYPES] + list(DC_ALIAS_TYPES.keys())
+                # Build short descriptions
+                desc: dict[str,str] = {
+                    "interview_guest_focused": "Interview; emphasize guest insights",
+                    "panel_discussion": "Multi-speaker panel; perspectives & dynamics",
+                    "solo_commentary": "Single voice; host analysis/thoughts",
+                    "general": "Generic structure; adapt to content",
+                    "host_moderated_panel": "Host sets sections; panel discussion per section",
+                    "cohost_commentary": "Two peers; back-and-forth commentary",
+                }
                 console.print("\n[bold cyan]Select Deepcast type:[/bold cyan]")
                 for i, tname in enumerate(type_options, start=1):
                     marker = " ← default" if tname == type_prompt_default else ""
-                    console.print(f"  {i:2}  {tname}{marker}")
+                    d = desc.get(tname, "")
+                    console.print(f"  {i:2}  {tname}  [dim]{d}[/dim]{marker}")
                 t_in = input(f"👉 Choose 1-{len(type_options)} (Enter keeps '{type_prompt_default}', Q=cancel): ").strip()
                 if t_in.upper() in {"Q","QUIT","EXIT"}: raise SystemExit(0)
                 if t_in:
@@ -773,7 +785,7 @@ def run(
             if deepcast_pdf: outputs.append("pdf")
             preview = (
                 f"Pipeline: {' → '.join(stages)}\n"
-                f"ASR={model} preset={preset or '-'} dual={dual} align={align} diarize={diarize} preprocess={preprocess} restore={restore}\n"
+                f"ASR={model} preset={preset or '-'} dual={yn(dual)} align={yn(align)} diarize={yn(diarize)} preprocess={yn(preprocess)} restore={yn(restore)}\n"
                 f"AI={deepcast_model} type={chosen_type or '-'} outputs={','.join(outputs) or '-'}"
             )
             console.print(Panel(preview, title="Preview", border_style="green"))
