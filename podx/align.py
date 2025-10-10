@@ -24,6 +24,28 @@ try:
 except ImportError:
     RICH_AVAILABLE = False
 
+# Shared UI styling
+try:
+    from .ui import (
+        make_console,
+        TABLE_BORDER_STYLE,
+        TABLE_HEADER_STYLE,
+        TABLE_NUM_STYLE,
+        TABLE_SHOW_STYLE,
+        TABLE_DATE_STYLE,
+        TABLE_TITLE_COL_STYLE,
+    )
+except Exception:
+    def make_console():
+        return Console()
+
+    TABLE_BORDER_STYLE = "grey50"
+    TABLE_HEADER_STYLE = "bold magenta"
+    TABLE_NUM_STYLE = "cyan"
+    TABLE_SHOW_STYLE = "yellow3"
+    TABLE_DATE_STYLE = "bright_blue"
+    TABLE_TITLE_COL_STYLE = "white"
+
 
 class LiveTimer:
     """Display a live timer that updates every second in the console."""
@@ -173,7 +195,7 @@ class AlignBrowser:
         if not RICH_AVAILABLE:
             return None
 
-        console = Console()
+        console = make_console()
 
         while True:
             console.clear()
@@ -186,20 +208,31 @@ class AlignBrowser:
             # Create title with emoji
             title = f"🎙️ Episodes Available for Transcription Alignment (Page {self.current_page + 1}/{self.total_pages})"
 
-            # Create table
-            table = Table(show_header=True, header_style="bold magenta", title=title)
-            table.add_column("#", style="cyan", width=3, justify="right")
-            table.add_column("Status", style="yellow", width=25)
-            table.add_column("Show", style="green", width=18)
-            table.add_column("Date", style="blue", width=12)
-            table.add_column("Title", style="white", width=45)
+            # Compute dynamic Title width
+            term_width = console.size.width
+            fixed_widths = {"num": 4, "status": 24, "show": 20, "date": 12}
+            borders_allowance = 16
+            title_width = max(30, term_width - sum(fixed_widths.values()) - borders_allowance)
+
+            table = Table(
+                show_header=True,
+                header_style=TABLE_HEADER_STYLE,
+                border_style=TABLE_BORDER_STYLE,
+                title=title,
+                expand=False,
+            )
+            table.add_column("#", style=TABLE_NUM_STYLE, width=fixed_widths["num"], justify="right", no_wrap=True)
+            table.add_column("Status", style="magenta", width=fixed_widths["status"], no_wrap=True, overflow="ellipsis")
+            table.add_column("Show", style=TABLE_SHOW_STYLE, width=fixed_widths["show"], no_wrap=True, overflow="ellipsis")
+            table.add_column("Date", style=TABLE_DATE_STYLE, width=fixed_widths["date"], no_wrap=True)
+            table.add_column("Title", style=TABLE_TITLE_COL_STYLE, width=title_width, no_wrap=True, overflow="ellipsis")
 
             for idx, item in enumerate(page_items, start=start_idx + 1):
                 episode_meta = item["episode_meta"]
                 asr_model = item["asr_model"]
                 status = f"✓ {asr_model}" if item["is_aligned"] else f"○ {asr_model}"
 
-                show = _truncate_text(episode_meta.get("show", "Unknown"), 18)
+                show = episode_meta.get("show", "Unknown")
 
                 # Format date like transcribe does
                 date_str = episode_meta.get("episode_published", "")
@@ -216,9 +249,7 @@ class AlignBrowser:
                     parts = str(item["directory"]).split("/")
                     date = parts[-1] if parts else "Unknown"
 
-                title_text = _truncate_text(
-                    episode_meta.get("episode_title", "Unknown"), 45
-                )
+                title_text = episode_meta.get("episode_title", "Unknown")
 
                 table.add_row(str(idx), status, show, date, title_text)
 

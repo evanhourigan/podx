@@ -33,6 +33,26 @@ try:
 except ImportError:
     RICH_AVAILABLE = False
 
+# Shared UI styling
+try:
+    from .ui import (
+        make_console,
+        TABLE_BORDER_STYLE,
+        TABLE_HEADER_STYLE,
+        TABLE_NUM_STYLE,
+        TABLE_DATE_STYLE,
+        TABLE_TITLE_COL_STYLE,
+    )
+except Exception:
+    def make_console():
+        return Console()
+
+    TABLE_BORDER_STYLE = "grey50"
+    TABLE_HEADER_STYLE = "bold magenta"
+    TABLE_NUM_STYLE = "cyan"
+    TABLE_DATE_STYLE = "bright_blue"
+    TABLE_TITLE_COL_STYLE = "white"
+
 
 def _sanitize(s: str) -> str:
     # Keep spaces, only replace truly problematic characters
@@ -107,7 +127,7 @@ class EpisodeBrowser:
         self.show_name = show_name
         self.rss_url = rss_url
         self.episodes_per_page = episodes_per_page
-        self.console = Console() if RICH_AVAILABLE else None
+        self.console = make_console() if RICH_AVAILABLE else None
         self.episodes: List[Dict[str, Any]] = []
         self.current_page = 0
         self.total_pages = 0
@@ -217,19 +237,30 @@ class EpisodeBrowser:
         # Create title
         title = f"🎙️ {self.show_name} - Episodes (Page {self.current_page + 1}/{self.total_pages})"
 
-        # Create table
-        table = Table(show_header=True, header_style="bold magenta", title=title)
-        table.add_column("#", style="cyan", width=3, justify="right")
-        table.add_column("Date", style="green", width=15)
-        table.add_column("Duration", style="yellow", width=8, justify="right")
-        table.add_column("Title", style="white")
+        # Compute Title width and render with shared styling
+        term_width = self.console.size.width
+        fixed_widths = {"num": 4, "date": 12, "dur": 8}
+        borders_allowance = 16
+        title_width = max(30, term_width - sum(fixed_widths.values()) - borders_allowance)
+
+        table = Table(
+            show_header=True,
+            header_style=TABLE_HEADER_STYLE,
+            border_style=TABLE_BORDER_STYLE,
+            title=title,
+            expand=False,
+        )
+        table.add_column("#", style=TABLE_NUM_STYLE, width=fixed_widths["num"], justify="right", no_wrap=True)
+        table.add_column("Date", style=TABLE_DATE_STYLE, width=fixed_widths["date"], no_wrap=True)
+        table.add_column("Duration", style="yellow", width=fixed_widths["dur"], justify="right", no_wrap=True)
+        table.add_column("Title", style=TABLE_TITLE_COL_STYLE, width=title_width, no_wrap=True, overflow="ellipsis")
 
         # Add episodes to table
         for i, episode in enumerate(page_episodes):
             episode_num = start_idx + i + 1
             date = _format_date(episode["published"])
             duration = _format_duration(episode["duration"])
-            title_text = _truncate_text(episode["title"], 60)
+            title_text = episode["title"]
 
             # Check if episode is already fetched
             episode_dir = _generate_workdir(self.show_name, episode["published"])

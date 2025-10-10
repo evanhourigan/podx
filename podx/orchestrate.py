@@ -481,7 +481,13 @@ def run(
         if interactive_select:
             if not RICH_AVAILABLE:
                 raise SystemExit("Interactive select requires rich. Install with: pip install rich")
-            console = Console()
+            from .ui import (
+                make_console,
+                TABLE_HEADER_STYLE,
+                TABLE_BORDER_STYLE,
+                TABLE_NUM_STYLE,
+            )
+            console = make_console()
             eps = _scan_episode_status(Path(scan_dir))
             # Optional filter by --show if provided
             if show:
@@ -519,11 +525,12 @@ def run(
 
                 table = Table(
                     show_header=True,
-                    header_style="bold magenta",
+                    header_style=TABLE_HEADER_STYLE,
                     title=f"🎙️ Episodes (Page {page+1}/{total_pages})",
-                    expand=True,
+                    expand=False,
+                    border_style=TABLE_BORDER_STYLE,
                 )
-                table.add_column("#", style="cyan", width=3, justify="right")
+                table.add_column("#", style=TABLE_NUM_STYLE, width=3, justify="right")
                 table.add_column("Show", style="green", width=18, no_wrap=True)
                 table.add_column("Date", style="blue", width=10, no_wrap=True)
                 # Title column flexes; keep one line with ellipsis
