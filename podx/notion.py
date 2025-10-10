@@ -381,7 +381,10 @@ def _prompt_numbered_choice(title: str, items: List[str]) -> Optional[str]:
 
 
 def _scan_notion_rows(scan_dir: Path) -> List[Dict[str, Any]]:
-    """Scan for deepcast JSONs and build table rows: one per deepcast file."""
+    """Scan for deepcast/consensus JSONs and build table rows: one per analysis file.
+
+    Adds a 'type' field indicating consensus, precision, recall, or deepcast type.
+    """
     def _format_date_ymd(s: Optional[str]) -> str:
         if not isinstance(s, str) or not s.strip():
             return "Unknown"
@@ -400,20 +403,9 @@ def _scan_notion_rows(scan_dir: Path) -> List[Dict[str, Any]]:
         t = s.strip()
         return t[-10:] if len(t) >= 10 else t
     rows: List[Dict[str, Any]] = []
-    for deepcast_file in scan_dir.rglob("deepcast-*.json"):
-        try:
-            data = json.loads(deepcast_file.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-
-        meta = data.get("deepcast_metadata", {})
-        ai = meta.get("model", "unknown")
-        asr = meta.get("asr_model", "unknown")
-        episode_dir = deepcast_file.parent
-
-        show = "Unknown"
-        title = "Unknown"
-        date = "Unknown"
+    # Helper to push a row from paths and metadata
+    def add_row(episode_dir: Path, analysis_path: Path, ai: str, asr: str, kind: str):
+        show = "Unknown"; title = "Unknown"; date = "Unknown"
         em = episode_dir / "episode-meta.json"
         if em.exists():
             try:
@@ -424,20 +416,49 @@ def _scan_notion_rows(scan_dir: Path) -> List[Dict[str, Any]]:
                 date = _format_date_ymd(dval)
             except Exception:
                 pass
-
         notion_done = (episode_dir / "notion.out.json").exists()
-        rows.append(
-            {
-                "path": deepcast_file,
-                "dir": episode_dir,
-                "show": show,
-                "date": date,
-                "title": title,
-                "ai": ai,
-                "asr": asr,
-                "notion": notion_done,
-            }
-        )
+        rows.append({
+            "path": analysis_path,
+            "dir": episode_dir,
+            "show": show,
+            "date": date,
+            "title": title,
+            "ai": ai,
+            "asr": asr,
+            "type": kind,
+            "notion": notion_done,
+        })
+
+    # Deepcast analyses
+    for analysis_file in scan_dir.rglob("deepcast-*.json"):
+        try:
+            data = json.loads(analysis_file.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        meta = data.get("deepcast_metadata", {})
+        ai = meta.get("model", "unknown")
+        asr = meta.get("asr_model", "unknown")
+        # Determine kind: deepcast type or precision/recall from filename suffix
+        kind = meta.get("deepcast_type") or ""
+        stem = analysis_file.stem
+        if stem.endswith("-precision"):
+            kind = "precision"
+        elif stem.endswith("-recall"):
+            kind = "recall"
+        if not kind:
+            kind = "general"
+        add_row(analysis_file.parent, analysis_file, ai, asr, kind)
+
+    # Consensus analyses
+    for analysis_file in scan_dir.rglob("consensus-*.json"):
+        try:
+            data = json.loads(analysis_file.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        meta = data.get("consensus_metadata", {})
+        ai = meta.get("ai_model", "unknown")
+        asr = meta.get("asr_model", "unknown")
+        add_row(analysis_file.parent, analysis_file, ai, asr, "consensus")
 
     # Sort newest first by directory date and file mtime
     rows.sort(key=lambda r: (r["date"], r["path"].stat().st_mtime), reverse=True)
@@ -453,7 +474,7 @@ def _interactive_table_flow(db_id: Optional[str], scan_dir: Path) -> Optional[Di
 
     # Column widths with flexible Title
     term_width = console.size.width
-    fixed = {"num": 4, "show": 20, "date": 12, "ai": 14, "asr": 14, "notion": 8}
+    fixed = {"num": 4, "show": 20, "date": 12, "ai": 14, "asr": 14, "type": 18, "notion": 8}
     borders = 20
     title_w = max(30, term_width - sum(fixed.values()) - borders)
 
@@ -470,11 +491,12 @@ def _interactive_table_flow(db_id: Optional[str], scan_dir: Path) -> Optional[Di
     table.add_column("Title", style=TABLE_TITLE_COL_STYLE, width=title_w, no_wrap=True, overflow="ellipsis")
     table.add_column("AI", style="green", width=fixed["ai"], no_wrap=True, overflow="ellipsis")
     table.add_column("ASR", style="yellow", width=fixed["asr"], no_wrap=True, overflow="ellipsis")
+    table.add_column("Type", style="white", width=fixed["type"], no_wrap=True, overflow="ellipsis")
     table.add_column("Notion", style="white", width=fixed["notion"], no_wrap=True)
 
     for idx, r in enumerate(rows, start=1):
         table.add_row(
-            str(idx), r["show"], r["date"], r["title"], r["ai"], r["asr"], "✓" if r["notion"] else "-",
+            str(idx), r["show"], r["date"], r["title"], r["ai"], r["asr"], r.get("type", ""), "✓" if r["notion"] else "-",
         )
     console.print(table)
     console.print("\n[dim]Enter selection number, or Q to cancel.[/dim]")
