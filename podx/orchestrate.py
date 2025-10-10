@@ -1807,6 +1807,21 @@ def deepcast_cmd(ctx):
         sys.argv = original_argv
 
 
+@main.command("models")
+@click.pass_context
+def models_cmd(ctx):
+    """List AI models with pricing and estimate deepcast cost."""
+    import sys
+
+    original_argv = sys.argv.copy()
+    sys.argv = ["podx-models"] + sys.argv[2:]
+    try:
+        from . import models as models_cli
+        models_cli.main()
+    finally:
+        sys.argv = original_argv
+
+
 @main.command("notion")
 @click.pass_context
 def notion_cmd(ctx):
