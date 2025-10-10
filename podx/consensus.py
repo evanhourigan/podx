@@ -234,7 +234,12 @@ def main(precision: Optional[Path], recall: Optional[Path], agreement: Optional[
             table.add_row(str(idx), r["asr"], r["ai"], r["show"], r["date"], r["title"])
         console.print(table)
         console.print("\n[dim]Select a row to build consensus, Q to cancel.[/dim]")
-        choice = input(f"👉 1-{len(rows)}: ").strip().upper()
+        try:
+            choice = input(f"👉 1-{len(rows)}: ")
+        except EOFError:
+            console.print("[dim]Cancelled[/dim]")
+            raise SystemExit(0)
+        choice = (choice or "").strip().upper()
         if choice in ["Q", "QUIT", "EXIT"]:
             console.print("[dim]Cancelled[/dim]")
             raise SystemExit(0)

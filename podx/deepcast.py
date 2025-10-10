@@ -430,7 +430,8 @@ class DeepcastBrowser:
                 
                 # Derive track and canonical type if available from file names/metadata later if needed
                 types_str = ", ".join(row["deepcast_types"]) if row["deepcast_types"] else ""
-                track = ""
+                # Track is not applicable in this pre-deepcast picker; show '-' to avoid confusion
+                track = "-"
                 
                 show = _truncate_text(episode["show"], 18)
                 date = episode["date"]
