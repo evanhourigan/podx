@@ -468,6 +468,8 @@ def _scan_notion_rows(scan_dir: Path) -> List[Dict[str, Any]]:
 def _interactive_table_flow(db_id: Optional[str], scan_dir: Path) -> Optional[Dict[str, Any]]:
     console = make_console()
     rows = _scan_notion_rows(scan_dir)
+    # Promote consensus rows to the top order within same episode (show+date+title)
+    rows.sort(key=lambda r: (r["show"], r["date"], r["title"], 0 if r.get("type") == "consensus" else 1, r["path"].stat().st_mtime), reverse=True)
     if not rows:
         console.print(f"[red]No deepcast files found in {scan_dir}[/red]")
         return None
@@ -494,6 +496,7 @@ def _interactive_table_flow(db_id: Optional[str], scan_dir: Path) -> Optional[Di
     table.add_column("Type", style="white", width=fixed["type"], no_wrap=True, overflow="ellipsis")
     table.add_column("Notion", style="white", width=fixed["notion"], no_wrap=True)
 
+    # Sort to prefer consensus at top for the same episode
     for idx, r in enumerate(rows, start=1):
         table.add_row(
             str(idx), r["show"], r["date"], r["title"], r["ai"], r["asr"], r.get("type", ""), "✓" if r["notion"] else "-",

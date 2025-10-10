@@ -282,6 +282,7 @@ def main(precision: Optional[Path], recall: Optional[Path], agreement: Optional[
     # Metadata
     meta_p = p.get("deepcast_metadata", {})
     meta_r = r.get("deepcast_metadata", {})
+    dc_type = meta_p.get("deepcast_type") or meta_r.get("deepcast_type")
     out = {
         "sources": {
             "precision": str(precision),
@@ -293,6 +294,7 @@ def main(precision: Optional[Path], recall: Optional[Path], agreement: Optional[
             "created_at": datetime.now(timezone.utc).isoformat(),
             "asr_model": meta_p.get("asr_model") or meta_r.get("asr_model"),
             "ai_model": meta_p.get("model") or meta_r.get("model"),
+            "deepcast_type": dc_type,
         },
     }
 
