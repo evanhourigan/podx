@@ -83,11 +83,19 @@ def main(input_a: Optional[Path], input_b: Optional[Path], model: str, interacti
                 title = em.get("episode_title", title)
             except Exception:
                 pass
+            # Track abbrev from filename suffix
+            stem = p.stem
+            track = "S"
+            if stem.endswith("-precision"):
+                track = "P"
+            elif stem.endswith("-recall"):
+                track = "R"
             rows.append({
                 "path": p,
                 "asr": meta.get("asr_model", "unknown"),
                 "ai": meta.get("ai_model", "unknown"),
                 "dtype": meta.get("deepcast_type", "unknown"),
+                "track": track,
                 "show": show,
                 "date": date,
                 "title": title,
@@ -100,6 +108,7 @@ def main(input_a: Optional[Path], input_b: Optional[Path], model: str, interacti
             "num": 4,  # includes a little padding
             "asr": 16,
             "type": 26,
+            "trk": 6,
             "show": 20,
             "date": 12,
         }
@@ -116,11 +125,12 @@ def main(input_a: Optional[Path], input_b: Optional[Path], model: str, interacti
         table.add_column("#", style=TABLE_NUM_STYLE, width=fixed_widths["num"], justify="right", no_wrap=True)
         table.add_column("ASR", style="yellow", width=fixed_widths["asr"], no_wrap=True, overflow="ellipsis")
         table.add_column("Type", style="white", width=fixed_widths["type"], no_wrap=True, overflow="ellipsis")
+        table.add_column("Trk", style="white", width=fixed_widths["trk"], no_wrap=True)
         table.add_column("Show", style=TABLE_SHOW_STYLE, width=fixed_widths["show"], no_wrap=True, overflow="ellipsis")
         table.add_column("Date", style=TABLE_DATE_STYLE, width=fixed_widths["date"], no_wrap=True)
         table.add_column("Title", style=TABLE_TITLE_COL_STYLE, width=title_width, no_wrap=True, overflow="ellipsis")
         for idx, r in enumerate(rows, start=1):
-            table.add_row(str(idx), r["asr"], r["dtype"], r["show"], r["date"], r["title"])
+            table.add_row(str(idx), r["asr"], r["dtype"], r.get("track", ""), r["show"], r["date"], r["title"])
         console.print(table)
         console.print("\n[dim]Enter two selections: first then second. Q to cancel.[/dim]")
         choice1 = input(f"👉 First (1-{len(rows)}): ").strip().upper()
