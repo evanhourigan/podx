@@ -128,24 +128,20 @@ def _run_passthrough(cmd: List[str]) -> int:
 
 @click.group()
 def main():
-    """Podx: Composable podcast processing pipeline
+    """Podx — composable podcast pipeline
 
-    A modular toolkit for podcast transcription, analysis, and publishing.
+    Core idea: small tools that do one thing well and compose cleanly.
 
-    WORKFLOWS:
-      run       Complete customizable pipeline
-      quick     Fast transcription only (fetch + transcribe)
-      analyze   AI analysis workflow (transcribe + align + deepcast)
-      publish   Full pipeline with Notion upload
+    Core commands (composable):
+      fetch, transcode, transcribe, preprocess, align, diarize, export, deepcast, agreement, notion
 
-    STAGES:
-      fetch, transcode, transcribe, align, diarize, export, deepcast, notion
+    Orchestrator:
+      run  — drive the pipeline end‑to‑end with flags (or interactive mode)
 
-    UTILITIES:
-      help, list, config, plugin
-
-    Use 'podx list' to see all commands or 'podx help --examples' for usage examples.
-    Use 'podx plugin list' to see available plugins.
+    Tips:
+    - Use 'podx COMMAND --help' for details on each tool
+    - Use 'podx help --examples' for copy‑paste examples
+    - All tools read JSON from stdin and write JSON to stdout so you can pipe them
     """
     pass
 
@@ -515,9 +511,9 @@ def run(
                 except Exception:
                     console_width = 120
                 # Sum of fixed columns widths
-                fixed_cols = 3 + 18 + 10 + 3 + 5 + 5 + 8 + 4 + 16
+                fixed_cols = 3 + 18 + 10 + 3 + 5 + 5 + 4 + 4 + 16
                 # Extra allowance for table borders/padding/separators
-                borders_allowance = 20
+                borders_allowance = 40
                 # Let Title shrink further on small terminals so other headers aren't truncated
                 title_width = max(10, console_width - fixed_cols - borders_allowance)
 
@@ -533,8 +529,8 @@ def run(
                 # Title column flexes; keep one line with ellipsis
                 table.add_column("Title", style="white", width=title_width, no_wrap=True, overflow="ellipsis")
                 table.add_column("ASR", style="yellow", width=3, no_wrap=True)
-                table.add_column("A", style="yellow", width=2, no_wrap=True)
-                table.add_column("Di", style="yellow", width=2, no_wrap=True)
+                table.add_column("Align", style="yellow", width=5, no_wrap=True)
+                table.add_column("Diar", style="yellow", width=4, no_wrap=True)
                 table.add_column("Deep", style="yellow", width=4, no_wrap=True)
                 table.add_column("Proc", style="yellow", width=4, no_wrap=True)
                 table.add_column("Last Run", style="white", width=16, no_wrap=True)

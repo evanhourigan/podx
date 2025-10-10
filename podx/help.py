@@ -146,22 +146,9 @@ podx-fetch → podx-transcode → podx-transcribe → podx-deepcast → podx-not
     console.print(Markdown(flow_md))
 
 
-@click.command()
-@click.option("--examples", is_flag=True, help="Show usage examples")
-@click.option("--pipeline", is_flag=True, help="Show pipeline flow diagram")
-def help_cmd(examples: bool, pipeline: bool):
-    """Enhanced help system for podx."""
+def print_default_help():
+    """Print the default top-level help content (rich, colorized when TTY)."""
     console = Console()
-
-    if examples:
-        print_examples()
-        return
-
-    if pipeline:
-        print_pipeline_flow()
-        return
-
-    # Default help
     help_md = """
 # 🎙️ Podx - Composable Podcast Pipeline
 
@@ -183,10 +170,12 @@ podx run --show "Radio Lab" --date 2024-01-15 --align --diarize --deepcast --not
 - `podx-fetch` - Download episodes from iTunes or RSS
 - `podx-transcode` - Convert audio formats
 - `podx-transcribe` - Speech-to-text with Whisper
+- `podx-preprocess` - Merge/normalize/restore transcript
 - `podx-align` - Word-level timing alignment
 - `podx-diarize` - Speaker identification
 - `podx-export` - Export to various formats
 - `podx-deepcast` - AI-powered analysis
+- `podx-agreement` - Compare two analyses (semantic diff)
 - `podx-notion` - Upload to Notion database
 - `podx run` - Orchestrate full pipeline
 
@@ -197,13 +186,27 @@ podx help --examples    # Show usage examples
 podx help --pipeline    # Show pipeline flow
 podx COMMAND --help     # Help for specific command
 ```
-
-## 🌐 Documentation
-
-Full documentation available at: https://github.com/your-repo/podx
     """
-
     console.print(Markdown(help_md))
+
+
+@click.command()
+@click.option("--examples", is_flag=True, help="Show usage examples")
+@click.option("--pipeline", is_flag=True, help="Show pipeline flow diagram")
+def help_cmd(examples: bool, pipeline: bool):
+    """Enhanced help system for podx."""
+    console = Console()
+
+    if examples:
+        print_examples()
+        return
+
+    if pipeline:
+        print_pipeline_flow()
+        return
+
+    # Default help
+    print_default_help()
 
 
 if __name__ == "__main__":
