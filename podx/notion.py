@@ -508,8 +508,17 @@ def _interactive_table_flow(db_id: Optional[str], scan_dir: Path) -> Optional[Di
             str(idx), r["show"], r["date"], r["title"], r["ai"], r["asr"], r.get("type", ""), r.get("track", ""), ("✓" if r.get("track") == "C" else "-"), "✓" if r["notion"] else "-",
         )
     console.print(table)
+    # Prefer consensus row as default selection if available
+    default_idx = None
+    for i2, r in enumerate(rows, start=1):
+        if r.get("track") == "C":
+            default_idx = i2
+            break
+    default_hint = f" (Enter={default_idx})" if default_idx else ""
     console.print("\n[dim]Enter selection number, or Q to cancel.[/dim]")
-    ans = input(f"👉 1-{len(rows)}: ").strip().upper()
+    ans = input(f"👉 1-{len(rows)}{default_hint}: ").strip().upper()
+    if not ans and default_idx:
+        ans = str(default_idx)
     if ans in {"Q", "QUIT", "EXIT"}:
         return None
     try:
@@ -533,14 +542,14 @@ def _interactive_table_flow(db_id: Optional[str], scan_dir: Path) -> Optional[Di
     if dbs:
         names = list(dbs.keys())
         console.print("\n[bold]Select Notion database:[/bold]")
-        for i, name in enumerate(names, start=1):
-            console.print(f"  {i}. {name}")
+        for i3, name in enumerate(names, start=1):
+            console.print(f"  {i3}. {name}")
         console.print(f"  0. Enter ID manually{' (default)' if default_db else ''}")
         sel = input("Choice [0-{}]: ".format(len(names))).strip()
         if sel.isdigit() and int(sel) in range(1, len(names) + 1):
             preset = dbs[names[int(sel) - 1]]
             db_val = preset.database_id
-        else:
+    else:
             manual = input(f"Notion DB ID [{default_db}]: ").strip()
             db_val = manual or default_db
     else:
@@ -558,6 +567,22 @@ def _interactive_table_flow(db_id: Optional[str], scan_dir: Path) -> Optional[Di
     # Cover image toggle
     cov = input("Set cover image if available? (y/N): ").strip().lower()
     cover = cov in {"y", "yes"}
+
+    # Quick hint if a page already exists (best-effort)
+    try:
+        meta_for_hint = json.loads((chosen["dir"] / "episode-meta.json").read_text(encoding="utf-8"))
+        episode_title = meta_for_hint.get("episode_title") or meta_for_hint.get("title") or ""
+        date_val = meta_for_hint.get("episode_published") or meta_for_hint.get("date") or ""
+        if episode_title and db_val and not dry_run:
+            client = notion_client_from_env()
+            filt = {"and": [{"property": "Episode", "rich_text": {"equals": episode_title}}]}
+            if isinstance(date_val, str) and len(date_val) >= 10:
+                filt["and"].append({"property": "Date", "date": {"equals": date_val[:10]}})
+            q = client.databases.query(database_id=db_val, filter=filt)
+            if q.get("results"):
+                console.print("[yellow]Note: an existing Notion page with this title/date was found.[/yellow]")
+    except Exception:
+        pass
 
     return {"db_id": db_val, "input_path": chosen["path"], "meta_path": chosen["dir"] / "episode-meta.json", "dry_run": dry_run, "cover": cover}
 
