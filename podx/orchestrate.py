@@ -46,6 +46,7 @@ from . import (
 )
 from .deepcast import CANONICAL_TYPES as DC_CANONICAL_TYPES  # type: ignore
 from .deepcast import ALIAS_TYPES as DC_ALIAS_TYPES  # type: ignore
+from .pricing import load_model_catalog, estimate_deepcast_cost  # type: ignore
 from .config import get_config
 from .errors import ValidationError
 from .fetch import _generate_workdir
@@ -775,7 +776,7 @@ def run(
                     except ValueError:
                         pass
 
-            # Preview pipeline
+            # Preview pipeline with optional cost estimate
             stages = ["fetch", "transcode", "transcribe"]
             if align: stages.append("align")
             if diarize: stages.append("diarize")
@@ -790,6 +791,16 @@ def run(
                 f"ASR={model} preset={preset or '-'} dual={yn(dual)} align={yn(align)} diarize={yn(diarize)} preprocess={yn(preprocess)} restore={yn(restore)}\n"
                 f"AI={deepcast_model} type={chosen_type or '-'} outputs={','.join(outputs) or '-'}"
             )
+            # Cost estimate (best-effort; ignores provider detection nuances)
+            try:
+                provider = "openai" if deepcast_model.startswith("gpt") or "-" in deepcast_model else "anthropic"
+                transcript_json = json.loads((wd / "latest.json").read_text(encoding="utf-8")) if (wd / "latest.json").exists() else None
+                if transcript_json:
+                    catalog = load_model_catalog(refresh=False)
+                    est = estimate_deepcast_cost(transcript_json, provider, deepcast_model, catalog)
+                    preview += f"\nEstimated cost: ${est.total_usd:.2f} (in≈{est.input_tokens} tok, out≈{est.output_tokens} tok)"
+            except Exception:
+                pass
             console.print(Panel(preview, title="Preview", border_style="green"))
             cont = input("Proceed? (Y/n): ").strip().lower()
             if cont in {"n","no"}:
