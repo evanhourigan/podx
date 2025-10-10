@@ -47,6 +47,14 @@ from .prompt_templates import (
     get_template,
     map_to_canonical,
 )
+
+# Canonical deepcast types presented to users
+CANONICAL_TYPES: list[PodcastType] = [
+    PodcastType.INTERVIEW_GUEST_FOCUSED,  # interview_guest_focused
+    PodcastType.PANEL_DISCUSSION,         # multi_guest_panel
+    PodcastType.SOLO_COMMENTARY,          # host_analysis_mode
+    PodcastType.GENERAL,                  # general
+]
 from .yaml_config import get_podcast_yaml_config
 
 
@@ -691,8 +699,8 @@ def select_deepcast_type(row: Dict[str, Any], console: Console) -> Optional[str]
     if not default_type:
         default_type = "general"
     
-    # List all deepcast types
-    all_types = [t.value for t in PodcastType]
+    # List canonical deepcast types
+    all_types = [t.value for t in CANONICAL_TYPES]
     
     console.print("\n[bold cyan]Select a deepcast type:[/bold cyan]")
     for idx, dtype in enumerate(all_types, start=1):
@@ -972,8 +980,8 @@ def deepcast(
 @click.option(
     "--type",
     "podcast_type_str",
-    type=click.Choice([t.value for t in PodcastType]),
-    help="Podcast type for specialized analysis (auto-detected if not specified)",
+    type=click.Choice([t.value for t in CANONICAL_TYPES]),
+    help="Podcast type (canonical): interview_guest_focused | panel_discussion | solo_commentary | general",
 )
 @click.option(
     "--meta",
