@@ -557,26 +557,27 @@ def _interactive_table_flow(db_id: Optional[str], scan_dir: Path) -> Optional[Di
         if not db_val:
             db_val = default_db
 
-    # Dry run toggle
-    dry = input("Dry-run first? (y/N): ").strip().lower() if _HAS_RICH else click.prompt("Dry-run first? (y/N)", default="N")
-    dry_run = str(dry).lower() in {"y", "yes"}
+    # Dry run toggle:
+    # In interactive mode, respect --dry-run flag only; do not prompt.
+    if not _HAS_RICH:
+        dry = click.prompt("Dry-run first? (y/N)", default="N")
+        dry_run = str(dry).lower() in {"y", "yes"}
 
-    # Cover image toggle
-    cov = input("Set cover image if available? (y/N): ").strip().lower()
-    cover = cov in {"y", "yes"}
+    # Cover image: always set if available in interactive mode; otherwise respect flag
+    cover = True if _HAS_RICH else cover_image
 
     # Quick hint if a page already exists (best-effort)
     try:
         meta_for_hint = json.loads((chosen["dir"] / "episode-meta.json").read_text(encoding="utf-8"))
         episode_title = meta_for_hint.get("episode_title") or meta_for_hint.get("title") or ""
         date_val = meta_for_hint.get("episode_published") or meta_for_hint.get("date") or ""
-        if episode_title and db_val and not dry_run:
+        if episode_title and db_val and not dry_run and Client is not None:
             client = notion_client_from_env()
             filt = {"and": [{"property": "Episode", "rich_text": {"equals": episode_title}}]}
             if isinstance(date_val, str) and len(date_val) >= 10:
                 filt["and"].append({"property": "Date", "date": {"equals": date_val[:10]}})
             q = client.databases.query(database_id=db_val, filter=filt)
-            if q.get("results"):
+            if q.get("results") and _HAS_RICH:
                 console.print("[yellow]Note: an existing Notion page with this title/date was found.[/yellow]")
     except Exception:
         pass
@@ -1347,7 +1348,11 @@ def main(
             "props_extra_keys": list(props_extra.keys()) if props_extra else [],
             "blocks_count": len(blocks),
         }
-        print(json.dumps(payload, indent=2))
+        if _HAS_RICH:
+            console = Console()
+            console.print("[green]Dry run prepared. Payload summarized above.[/green]")
+        else:
+            print(json.dumps(payload, indent=2))
         return
 
     client = notion_client_from_env()
@@ -1373,7 +1378,11 @@ def main(
     if cover_url:
         _set_page_cover(client, page_id, cover_url)
 
-    print(json.dumps({"ok": True, "page_id": page_id}, indent=2))
+    if _HAS_RICH:
+        console = Console()
+        console.print(f"[green]✅ Notion page updated: {page_id}[/green]")
+    else:
+        print(json.dumps({"ok": True, "page_id": page_id}, indent=2))
 
 
 if __name__ == "__main__":
