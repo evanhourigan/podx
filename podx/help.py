@@ -5,7 +5,23 @@ Enhanced help and documentation system for podx.
 
 from typing import Dict, List
 
-import click
+# Prefer rich-click when available for colorized --help
+try:  # pragma: no cover
+    import click  # type: ignore
+    import rich_click  # type: ignore
+    rc = rich_click.rich_click
+    rc.STYLE_HEADING = "bold bright_green"
+    rc.STYLE_USAGE = "bold white"
+    rc.STYLE_COMMAND = "bold white"
+    rc.STYLE_METAVAR = "yellow"
+    rc.STYLE_SWITCH = "bright_black"
+    rc.STYLE_OPTION = "bright_black"
+    rc.STYLE_ARGUMENT = "yellow"
+    rc.STYLE_HELP = "white"
+    rc.GROUP_ARGUMENTS_OPTIONS = True
+    rc.MAX_WIDTH = 100
+except Exception:  # pragma: no cover
+    import click
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -191,7 +207,7 @@ podx run --show "This American Life" --date 2024-01-15
 # Full pipeline with AI analysis
 podx run --show "Radio Lab" --date 2024-01-15 --align --diarize --deepcast --notion
 
-## 🔧 Available Tools
+## 🔧 Available Tools (All composable)
 
 - `podx-fetch` - Download episodes from iTunes or RSS
 - `podx-transcode` - Convert audio formats
@@ -201,7 +217,8 @@ podx run --show "Radio Lab" --date 2024-01-15 --align --diarize --deepcast --not
 - `podx-diarize` - Speaker identification
 - `podx-export` - Export to various formats
 - `podx-deepcast` - AI-powered analysis
-- `podx-agreement` - Compare two analyses (semantic diff)
+- `podx-agreement` - Compare two analyses (semantic diff; reads JSON from stdin)
+- `podx-consensus` - Merge precision+recall analyses to a unified result (reads JSON from stdin)
 - `podx-notion` - Upload to Notion database
 - `podx run` - Orchestrate full pipeline
 

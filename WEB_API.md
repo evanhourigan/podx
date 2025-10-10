@@ -165,6 +165,30 @@ Response 200:
 }
 ```
 
+### POST /api/consensus
+Merge precision and recall deepcasts into a unified consensus.
+
+Request:
+```json
+{
+  "precision": { /* Deepcast unified JSON */ },
+  "recall": { /* Deepcast unified JSON */ },
+  "agreement": { /* Optional agreement JSON */ }
+}
+```
+
+Response 200:
+```json
+{
+  "consensus": { /* merged sections with provenance and confidence */ },
+  "consensus_metadata": {
+    "created_at": "ISO8601",
+    "asr_model": "...",
+    "ai_model": "..."
+  }
+}
+```
+
 ---
 
 ## Jobs & Progress (optional)
@@ -195,6 +219,7 @@ Non-2xx responses:
 - align → spawn `podx-align`
 - deepcast → spawn `podx-deepcast`
 - agreement → spawn `podx-agreement`
+- consensus → spawn `podx-consensus`
 
 ---
 

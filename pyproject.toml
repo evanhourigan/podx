@@ -12,6 +12,7 @@ license = { text = "MIT" }
 authors = [{ name = "You" }]
 dependencies = [
   "click>=8.1",
+  "rich-click>=1.8.3",
   "rich>=13.7",
   "requests>=2.32",
   "feedparser>=6.0",
@@ -52,6 +53,7 @@ podx-info = "podx.info:main"
 podx-notion = "podx.notion:main"
 podx-preprocess = "podx.preprocess:main"
 podx-agreement = "podx.agreement:main"
+podx-consensus = "podx.consensus:main"
 podx = "podx.orchestrate:main"
 
 [tool.setuptools.packages.find]

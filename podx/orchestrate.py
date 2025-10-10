@@ -6,9 +6,31 @@ import os
 import subprocess
 import time
 from pathlib import Path
+import sys
 from typing import Dict, List, Optional
 
-import click
+# Use rich-click for colorized --help when available
+try:  # pragma: no cover
+    import click  # type: ignore
+    import rich_click  # type: ignore
+
+    # Style configuration (approximate the standard color convention)
+    rc = rich_click.rich_click
+    rc.STYLE_HEADING = "bold bright_green"
+    rc.STYLE_USAGE = "bold white"
+    rc.STYLE_COMMAND = "bold white"
+    rc.STYLE_METAVAR = "yellow"
+    rc.STYLE_SWITCH = "bright_black"  # flags
+    rc.STYLE_OPTION = "bright_black"  # flags
+    rc.STYLE_ARGUMENT = "yellow"  # flag arguments
+    rc.STYLE_HELP = "white"
+    rc.GROUP_ARGUMENTS_OPTIONS = True
+    rc.MAX_WIDTH = 100
+
+    BaseGroup = rich_click.RichGroup
+except Exception:  # pragma: no cover
+    import click
+    BaseGroup = click.Group
 
 # Import individual command modules for CLI integration
 from . import (
@@ -126,14 +148,24 @@ def _run_passthrough(cmd: List[str]) -> int:
     return proc.returncode
 
 
-@click.group()
+class PodxGroup(BaseGroup):
+    """Custom group to hide deprecated commands from help."""
+
+    def list_commands(self, ctx):  # type: ignore[override]
+        commands = super().list_commands(ctx)
+        # Filter hidden and deprecated workflow aliases from help
+        hidden_names = {"quick", "analyze", "publish"}
+        return [name for name in commands if name not in hidden_names]
+
+
+@click.group(cls=PodxGroup)
 def main():
     """Podx — composable podcast pipeline
 
     Core idea: small tools that do one thing well and compose cleanly.
 
     Core commands (composable):
-      fetch, transcode, transcribe, preprocess, align, diarize, export, deepcast, agreement, notion
+      fetch, transcode, transcribe, preprocess, align, diarize, export, deepcast, agreement, consensus, notion
 
     Orchestrator:
       run  — drive the pipeline end‑to‑end with flags (or interactive mode)
@@ -214,6 +246,12 @@ def main():
     help="Run LLM summarization (default: no AI analysis)",
 )
 @click.option(
+    "--workflow",
+    type=click.Choice(["quick", "analyze", "publish"]),
+    default=None,
+    help="Preconfigured workflow: quick(fetch+transcribe), analyze(transcribe+align+deepcast), publish(full pipeline)",
+)
+@click.option(
     "--fidelity",
     type=click.Choice(["5", "4", "3", "2", "1"]),
     default=None,
@@ -240,6 +278,11 @@ def main():
     "--dual",
     is_flag=True,
     help="Run precision+recall QA: two ASR tracks (precision & recall) + preprocess(+restore) + deepcast both + agreement",
+)
+@click.option(
+    "--no-consensus",
+    is_flag=True,
+    help="In dual mode, skip consensus merge step",
 )
 @click.option(
     "--deepcast-model",
@@ -331,8 +374,10 @@ def run(
     restore: bool,
     diarize: bool,
     deepcast: bool,
+    workflow: str | None,
     fidelity: str | None,
     dual: bool,
+    no_consensus: bool,
     interactive_select: bool,
     scan_dir: Path,
     fetch_new: bool,
@@ -359,6 +404,15 @@ def run(
         deepcast = True
         extract_markdown = True
         notion = True
+
+    # Map --workflow presets first (can be combined with fidelity)
+    if workflow:
+        if workflow == "quick":
+            align = False; diarize = False; deepcast = False; extract_markdown = False; notion = False
+        elif workflow == "analyze":
+            align = True; diarize = False; deepcast = True; extract_markdown = True
+        elif workflow == "publish":
+            align = True; diarize = False; deepcast = True; extract_markdown = True; notion = True
 
     # Map --fidelity to flags (lowest→highest)
     # 1: deepcast only (use latest transcript)
@@ -1332,6 +1386,28 @@ def run(
                     progress.complete_step("Agreement computed", 0)
                     results.update({"agreement": str(agr_out)})
 
+                    # Consensus (unless disabled)
+                    if not no_consensus:
+                        progress.start_step("Merging consensus output")
+                        cons_out = wd / f"consensus-{safe_model}-{deepcast_model.replace('.', '_')}.json"
+                        _run(
+                            [
+                                "podx-consensus",
+                                "--precision",
+                                str(dc_prec),
+                                "--recall",
+                                str(dc_rec),
+                                "--agreement",
+                                str(agr_out),
+                                "--output",
+                                str(cons_out),
+                            ],
+                            verbose=verbose,
+                            save_to=cons_out,
+                        )
+                        progress.complete_step("Consensus created", 0)
+                        results.update({"consensus": str(cons_out)})
+
         # 7) NOTION (optional) — requires DB id
         if notion and not dual:
             if not notion_db:
@@ -1654,7 +1730,7 @@ def notion_cmd(ctx):
 
 
 # Add convenience workflow commands
-@main.command("quick")
+@main.command("quick", hidden=True)
 @click.option("--show", help="Podcast show name (iTunes search)")
 @click.option("--rss-url", help="Direct RSS feed URL (alternative to --show)")
 @click.option(
@@ -1686,7 +1762,8 @@ def notion_cmd(ctx):
 @click.option("-v", "--verbose", is_flag=True, help="Print interstitial outputs")
 def quick(show, rss_url, youtube_url, date, title_contains, model, asr_provider, preset, compute, verbose):
     """Quick workflow: fetch + transcribe only (fastest option)."""
-    click.echo("🚀 Running quick transcription workflow...")
+    click.secho("[deprecated] Use: podx run --workflow quick", fg="yellow")
+    click.echo("🚀 Running quick transcription workflow (alias of run --workflow quick)...")
 
     # Use the existing run command but with minimal options
     ctx = click.get_current_context()
@@ -1702,18 +1779,13 @@ def quick(show, rss_url, youtube_url, date, title_contains, model, asr_provider,
         asr_provider=asr_provider,
         preset=preset,
         verbose=verbose,
-        # All other options default to False/None
-        align=False,
-        diarize=False,
-        deepcast=False,
-        notion=False,
-        extract_markdown=False,
+        workflow="quick",
         clean=False,
         model_prop="Model",
     )
 
 
-@main.command("analyze")
+@main.command("analyze", hidden=True)
 @click.option("--show", help="Podcast show name (iTunes search)")
 @click.option("--rss-url", help="Direct RSS feed URL (alternative to --show)")
 @click.option(
@@ -1780,7 +1852,8 @@ def analyze(
     verbose,
 ):
     """Analysis workflow: transcribe + align + AI analysis (recommended)."""
-    click.echo("🤖 Running analysis workflow...")
+    click.secho("[deprecated] Use: podx run --workflow analyze", fg="yellow")
+    click.echo("🤖 Running analysis workflow (alias of run --workflow analyze)...")
 
     ctx = click.get_current_context()
     ctx.invoke(
@@ -1796,19 +1869,13 @@ def analyze(
         preset=preset,
         deepcast_model=deepcast_model,
         verbose=verbose,
-        # Analysis workflow options
-        align=True,
-        deepcast=True,
-        extract_markdown=True,
-        # Not included
-        diarize=False,
-        notion=False,
+        workflow="analyze",
         clean=False,
         model_prop="Model",
     )
 
 
-@main.command("publish")
+@main.command("publish", hidden=True)
 @click.option("--show", help="Podcast show name (iTunes search)")
 @click.option("--rss-url", help="Direct RSS feed URL (alternative to --show)")
 @click.option(
@@ -1857,10 +1924,11 @@ def publish(
     verbose,
 ):
     """Publishing workflow: full pipeline + Notion upload (complete)."""
-    click.echo("📝 Running publishing workflow...")
+    click.secho("[deprecated] Use: podx run --workflow publish", fg="yellow")
+    click.echo("📝 Running publishing workflow (alias of run --workflow publish)...")
 
     ctx = click.get_current_context()
-    # This is equivalent to the --full flag
+        # Equivalent to selecting the publish workflow
     ctx.invoke(
         run,
         show=show,
@@ -1871,11 +1939,7 @@ def publish(
         notion_db=notion_db,
         deepcast_model=deepcast_model,
         verbose=verbose,
-        # Full pipeline
-        align=True,
-        deepcast=True,
-        extract_markdown=True,
-        notion=True,
+        workflow="publish",
         clean=False,
         model_prop="Model",
     )
@@ -2051,6 +2115,28 @@ def config_command(action):
 def plugin_group():
     """Plugin management commands."""
     pass
+
+
+# Lightweight shims to expose individual tools under the unified `podx` namespace
+@main.command("preprocess", help="Shim: run podx-preprocess with the given arguments")
+@click.argument("args", nargs=-1)
+def preprocess_shim(args: tuple[str, ...]):
+    code = _run_passthrough(["podx-preprocess", *args])
+    sys.exit(code)
+
+
+@main.command("agreement", help="Shim: run podx-agreement with the given arguments")
+@click.argument("args", nargs=-1)
+def agreement_shim(args: tuple[str, ...]):
+    code = _run_passthrough(["podx-agreement", *args])
+    sys.exit(code)
+
+
+@main.command("consensus", help="Shim: run podx-consensus with the given arguments")
+@click.argument("args", nargs=-1)
+def consensus_shim(args: tuple[str, ...]):
+    code = _run_passthrough(["podx-consensus", *args])
+    sys.exit(code)
 
 
 @plugin_group.command("list")

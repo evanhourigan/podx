@@ -356,6 +356,20 @@ podx run --rss-url "https://feeds.example.com/podcast.xml" --date 2025-05-02 \
 # Explicit dual (equivalent to fidelity 5 but more explicit control)
 podx run --rss-url "https://feeds.example.com/podcast.xml" --date 2025-05-02 \
   --model large-v3 --dual --preprocess --restore --deepcast
+
+### Composability
+
+All tools read JSON from stdin and write JSON to stdout so you can pipe them. New composable utilities:
+
+```bash
+# Agreement from two deepcasts (stdin)
+jq -n --argfile a deepcast-precision.json --argfile b deepcast-recall.json '{a:$a, b:$b}' \
+| podx-agreement > agreement.json
+
+# Consensus merge (stdin)
+jq -n --argfile p deepcast-precision.json --argfile r deepcast-recall.json '{precision:$p, recall:$r}' \
+| podx-consensus > consensus.json
+```
 ```
 
 ### ASR Providers & Presets

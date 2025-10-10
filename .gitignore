@@ -46,3 +46,6 @@ episodes/
 *.vtt
 *.json
 *.txt
+
+# Codex
+.codex-context/
