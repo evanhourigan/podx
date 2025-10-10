@@ -407,6 +407,8 @@ def run(
     no_keep_audio: bool,
 ):
     """Orchestrate the complete podcast processing pipeline."""
+    # Ensure analysis type placeholder exists before any interactive flow references it
+    yaml_analysis_type: Optional[str] = None
     # Handle convenience --full flag
     if full:
         align = True
