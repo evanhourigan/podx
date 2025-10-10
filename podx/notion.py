@@ -25,6 +25,7 @@ except Exception:  # pragma: no cover
 
 from .cli_shared import read_stdin_json
 from .info import get_episode_workdir
+from .yaml_config import get_yaml_config_manager
 from .ui import (
     make_console,
     TABLE_BORDER_STYLE,
@@ -479,7 +480,7 @@ def _interactive_table_flow(db_id: Optional[str], scan_dir: Path) -> Optional[Di
 
     # Column widths with flexible Title
     term_width = console.size.width
-    fixed = {"num": 4, "show": 20, "date": 12, "ai": 14, "asr": 14, "type": 18, "trk": 6, "notion": 8}
+    fixed = {"num": 4, "show": 20, "date": 12, "ai": 14, "asr": 14, "type": 18, "trk": 6, "rec": 4, "notion": 8}
     borders = 20
     title_w = max(30, term_width - sum(fixed.values()) - borders)
 
@@ -498,12 +499,13 @@ def _interactive_table_flow(db_id: Optional[str], scan_dir: Path) -> Optional[Di
     table.add_column("ASR", style="yellow", width=fixed["asr"], no_wrap=True, overflow="ellipsis")
     table.add_column("Type", style="white", width=fixed["type"], no_wrap=True, overflow="ellipsis")
     table.add_column("Trk", style="white", width=fixed["trk"], no_wrap=True)
+    table.add_column("Rec", style="white", width=fixed["rec"], no_wrap=True)
     table.add_column("Notion", style="white", width=fixed["notion"], no_wrap=True)
 
     # Sort to prefer consensus at top for the same episode
     for idx, r in enumerate(rows, start=1):
         table.add_row(
-            str(idx), r["show"], r["date"], r["title"], r["ai"], r["asr"], r.get("type", ""), r.get("track", ""), "✓" if r["notion"] else "-",
+            str(idx), r["show"], r["date"], r["title"], r["ai"], r["asr"], r.get("type", ""), r.get("track", ""), ("✓" if r.get("track") == "C" else "-"), "✓" if r["notion"] else "-",
         )
     console.print(table)
     console.print("\n[dim]Enter selection number, or Q to cancel.[/dim]")
@@ -520,11 +522,31 @@ def _interactive_table_flow(db_id: Optional[str], scan_dir: Path) -> Optional[Di
 
     chosen = rows[i - 1]
 
-    # DB prompt
+    # DB prompt with YAML presets if available
     default_db = db_id or os.getenv("NOTION_DB_ID", "")
-    db_val = input(f"Notion DB ID [{default_db}]: ").strip() if _HAS_RICH else click.prompt("Notion DB ID", default=default_db, show_default=bool(default_db))
-    if not db_val:
-        db_val = default_db
+    preset_db = None
+    try:
+        mgr = get_yaml_config_manager()
+        dbs = mgr.list_notion_databases()
+    except Exception:
+        dbs = {}
+    if dbs:
+        names = list(dbs.keys())
+        console.print("\n[bold]Select Notion database:[/bold]")
+        for i, name in enumerate(names, start=1):
+            console.print(f"  {i}. {name}")
+        console.print(f"  0. Enter ID manually{' (default)' if default_db else ''}")
+        sel = input("Choice [0-{}]: ".format(len(names))).strip()
+        if sel.isdigit() and int(sel) in range(1, len(names) + 1):
+            preset = dbs[names[int(sel) - 1]]
+            db_val = preset.database_id
+        else:
+            manual = input(f"Notion DB ID [{default_db}]: ").strip()
+            db_val = manual or default_db
+    else:
+        db_val = input(f"Notion DB ID [{default_db}]: ").strip() if _HAS_RICH else click.prompt("Notion DB ID", default=default_db, show_default=bool(default_db))
+        if not db_val:
+            db_val = default_db
     if not db_val:
         console.print("[red]Database ID required[/red]")
         return None
@@ -533,7 +555,11 @@ def _interactive_table_flow(db_id: Optional[str], scan_dir: Path) -> Optional[Di
     dry = input("Dry-run first? (y/N): ").strip().lower() if _HAS_RICH else click.prompt("Dry-run first? (y/N)", default="N")
     dry_run = str(dry).lower() in {"y", "yes"}
 
-    return {"db_id": db_val, "input_path": chosen["path"], "meta_path": chosen["dir"] / "episode-meta.json", "dry_run": dry_run}
+    # Cover image toggle
+    cov = input("Set cover image if available? (y/N): ").strip().lower()
+    cover = cov in {"y", "yes"}
+
+    return {"db_id": db_val, "input_path": chosen["path"], "meta_path": chosen["dir"] / "episode-meta.json", "dry_run": dry_run, "cover": cover}
 
 
 def md_to_blocks(md: str) -> List[Dict[str, Any]]:
@@ -993,6 +1019,7 @@ def main(
         input = params["input_path"]
         meta_path = params.get("meta_path")
         dry_run = params["dry_run"]
+        cover_image = params.get("cover", cover_image)
 
     # Auto-detect workdir and files if --show and --episode-date provided
     if show and episode_date:
