@@ -549,16 +549,13 @@ def _interactive_table_flow(db_id: Optional[str], scan_dir: Path) -> Optional[Di
         if sel.isdigit() and int(sel) in range(1, len(names) + 1):
             preset = dbs[names[int(sel) - 1]]
             db_val = preset.database_id
-    else:
+        else:
             manual = input(f"Notion DB ID [{default_db}]: ").strip()
             db_val = manual or default_db
     else:
         db_val = input(f"Notion DB ID [{default_db}]: ").strip() if _HAS_RICH else click.prompt("Notion DB ID", default=default_db, show_default=bool(default_db))
         if not db_val:
             db_val = default_db
-    if not db_val:
-        console.print("[red]Database ID required[/red]")
-        return None
 
     # Dry run toggle
     dry = input("Dry-run first? (y/N): ").strip().lower() if _HAS_RICH else click.prompt("Dry-run first? (y/N)", default="N")
