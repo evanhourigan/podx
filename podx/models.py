@@ -19,14 +19,24 @@ except Exception:  # pragma: no cover
 
 
 CURATED_OPENAI = [
+    # Flagship and common families
     "gpt-5",
     "gpt-5-mini",
     "gpt-4.1",
     "gpt-4.1-mini",
     "gpt-4o",
     "gpt-4o-mini",
+    # Popular/legacy families users still ask for
+    "o3",
+    "o3-mini",
+    "o4",
+    "o4-mini",
+    "gpt-3.5",
+    "gpt-3.5-turbo",
 ]
 CURATED_ANTHROPIC = [
+    "claude-4.5-sonnet",
+    "claude-4-sonnet",
     "claude-3-5-sonnet",
     "claude-3-5-haiku",
     "claude-3-opus",
@@ -74,9 +84,21 @@ def main(refresh: bool, provider: str, json_out: bool, filter_str: Optional[str]
         models = entry.get("models") or []
         pricing = entry.get("pricing") or {}
         curated = CURATED_OPENAI if prov == "openai" else CURATED_ANTHROPIC
-        base = list(pricing.keys()) if not show_all else list(set(list(models) + list(pricing.keys())))
-        # Trim to curated families unless --all
-        names = [n for n in base if (show_all or any(n.startswith(fam) for fam in curated))]
+        if show_all:
+            names = sorted(set(list(models) + list(pricing.keys())))
+        else:
+            # Include any provider models that start with curated families, plus the
+            # curated family names themselves and any priced variants that match.
+            names_set = set()
+            for m in models:
+                if any(m.startswith(f) for f in curated):
+                    names_set.add(m)
+            for p in pricing.keys():
+                if any(p.startswith(f) for f in curated):
+                    names_set.add(p)
+            for fam in curated:
+                names_set.add(fam)
+            names = sorted(names_set)
         for name in sorted(set(names)):
             if filter_str and filter_str.lower() not in name.lower():
                 continue
