@@ -8,6 +8,15 @@ import click
 from .cli_shared import read_stdin_json
 from .logging import get_logger
 from .deepcast import parse_deepcast_metadata
+from .ui import (
+    make_console,
+    TABLE_BORDER_STYLE,
+    TABLE_HEADER_STYLE,
+    TABLE_NUM_STYLE,
+    TABLE_SHOW_STYLE,
+    TABLE_DATE_STYLE,
+    TABLE_TITLE_COL_STYLE,
+)
 
 logger = get_logger(__name__)
 
@@ -42,7 +51,7 @@ def main(input_a: Optional[Path], input_b: Optional[Path], model: str, interacti
     if interactive:
         if not RICH_AVAILABLE:
             raise SystemExit("Interactive mode requires rich library. Install with: pip install rich")
-        console = Console()
+        console = make_console()
         deepcast_files = list(Path(scan_dir).rglob("deepcast-*.json"))
         if not deepcast_files:
             console.print(f"[red]No deepcast files found in {scan_dir}[/red]")
@@ -84,14 +93,32 @@ def main(input_a: Optional[Path], input_b: Optional[Path], model: str, interacti
                 "title": title,
             })
 
-        # Display table (full width, only Title flexes)
-        table = Table(show_header=True, header_style="bold magenta", title="🤖 Deepcast Analyses", expand=True)
-        table.add_column("#", style="cyan", width=3, justify="right")
-        table.add_column("ASR Model", style="yellow", width=14, no_wrap=True)
-        table.add_column("Type", style="white", width=22, no_wrap=True)
-        table.add_column("Show", style="green", width=18, no_wrap=True)
-        table.add_column("Date", style="blue", width=12, no_wrap=True)
-        table.add_column("Title", style="white", no_wrap=True, overflow="ellipsis")
+        # Display table (full width, compact fixed columns; only Title flexes)
+        # Compute a title width that ensures all columns fit the terminal
+        term_width = console.size.width
+        fixed_widths = {
+            "num": 4,  # includes a little padding
+            "asr": 16,
+            "type": 26,
+            "show": 20,
+            "date": 12,
+        }
+        borders_allowance = 16  # table borders/separators/padding
+        title_width = max(30, term_width - sum(fixed_widths.values()) - borders_allowance)
+
+        table = Table(
+            show_header=True,
+            header_style=TABLE_HEADER_STYLE,
+            title="🤖 Deepcast Analyses",
+            expand=False,
+            border_style=TABLE_BORDER_STYLE,
+        )
+        table.add_column("#", style=TABLE_NUM_STYLE, width=fixed_widths["num"], justify="right", no_wrap=True)
+        table.add_column("ASR", style="yellow", width=fixed_widths["asr"], no_wrap=True, overflow="ellipsis")
+        table.add_column("Type", style="white", width=fixed_widths["type"], no_wrap=True, overflow="ellipsis")
+        table.add_column("Show", style=TABLE_SHOW_STYLE, width=fixed_widths["show"], no_wrap=True, overflow="ellipsis")
+        table.add_column("Date", style=TABLE_DATE_STYLE, width=fixed_widths["date"], no_wrap=True)
+        table.add_column("Title", style=TABLE_TITLE_COL_STYLE, width=title_width, no_wrap=True, overflow="ellipsis")
         for idx, r in enumerate(rows, start=1):
             table.add_row(str(idx), r["asr"], r["dtype"], r["show"], r["date"], r["title"])
         console.print(table)
