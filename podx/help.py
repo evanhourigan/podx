@@ -10,6 +10,14 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
+
+from .ui import (
+    make_console,
+    format_example_line,
+    EXAMPLE_HEADING_STYLE,
+    TABLE_HEADER_STYLE,
+)
 
 
 def get_examples() -> Dict[str, List[str]]:
@@ -74,20 +82,18 @@ def get_examples() -> Dict[str, List[str]]:
 
 def print_examples():
     """Print formatted examples to console."""
-    console = Console()
+    console = make_console()
     examples = get_examples()
 
     console.print("\n[bold blue]📚 Podx Usage Examples[/bold blue]\n")
 
     for category, commands in examples.items():
-        console.print(f"[bold cyan]💡 {category}[/bold cyan]")
+        console.print(Text(f"💡 {category}", style=EXAMPLE_HEADING_STYLE))
         console.print()
 
         for command in commands:
-            if command.startswith("#"):
-                console.print(f"[italic green]{command}[/italic green]")
-            elif command:
-                console.print(f"[white]{command}[/white]")
+            if command:
+                console.print(format_example_line(command))
             else:
                 console.print()
 
@@ -96,26 +102,29 @@ def print_examples():
 
 def print_pipeline_flow():
     """Print visual pipeline flow diagram."""
-    console = Console()
+    console = make_console()
 
     table = Table(
-        title="🎙️ Podx Pipeline Flow", show_header=True, header_style="bold magenta"
+        title="🎙️ Podx Pipeline Flow", show_header=True, header_style=TABLE_HEADER_STYLE
     )
-    table.add_column("Step", style="cyan", width=12)
-    table.add_column("Tool", style="yellow", width=15)
-    table.add_column("Input", style="green", width=20)
-    table.add_column("Output", style="blue", width=20)
-    table.add_column("Optional", style="red", width=8)
+    # Wider columns to avoid truncation
+    table.add_column("Step", style="white", width=16)
+    table.add_column("Tool", style="white", width=18)
+    table.add_column("Input", style="white", width=30)
+    table.add_column("Output", style="white", width=30)
+    table.add_column("Optional", style="white", width=8)
 
     pipeline_steps = [
         ("1. Fetch", "podx-fetch", "Show name/RSS URL", "EpisodeMeta JSON", "No"),
         ("2. Transcode", "podx-transcode", "EpisodeMeta JSON", "AudioMeta JSON", "No"),
         ("3. Transcribe", "podx-transcribe", "AudioMeta JSON", "Transcript JSON", "No"),
-        ("4. Align", "podx-align", "Transcript JSON", "Aligned JSON", "Yes"),
-        ("5. Diarize", "podx-diarize", "Aligned JSON", "Diarized JSON", "Yes"),
-        ("6. Export", "podx-export", "Any Transcript", "TXT/SRT/VTT files", "No"),
-        ("7. Deepcast", "podx-deepcast", "Any Transcript", "AI Analysis", "Yes"),
-        ("8. Notion", "podx-notion", "Deepcast output", "Notion page", "Yes"),
+        ("4. Preprocess", "podx-preprocess", "Any Transcript", "Preprocessed JSON", "Yes"),
+        ("5. Align", "podx-align", "Transcript JSON", "Aligned JSON", "Yes"),
+        ("6. Diarize", "podx-diarize", "Aligned JSON", "Diarized JSON", "Yes"),
+        ("7. Export", "podx-export", "Any Transcript", "TXT/SRT/VTT files", "No"),
+        ("8. Deepcast", "podx-deepcast", "Any Transcript", "AI Analysis", "Yes"),
+        ("9. Agreement", "podx-agreement", "Two deepcasts", "Agreement JSON", "Yes"),
+        ("10. Notion", "podx-notion", "Deepcast output", "Notion page", "Yes"),
     ]
 
     for step, tool, input_type, output_type, optional in pipeline_steps:
@@ -124,26 +133,45 @@ def print_pipeline_flow():
     console.print(table)
     console.print()
 
-    # Print flow diagram
-    flow_md = """
-## 🔄 Data Flow
+    # Print flow diagram (monochrome, aligned, no code block background)
+    console.print("\n[bold white]🔄 Data Flow[/bold white]\n")
+    # Columns including preprocess
+    cols_sources = [
+        "iTunes/RSS",
+        "Audio File",
+        "Transcript",
+        "Preprocessed",
+        "Analysis",
+        "Notion",
+    ]
+    cols_tools = [
+        "podx-fetch",
+        "podx-transcode",
+        "podx-transcribe",
+        "podx-preprocess",
+        "podx-deepcast",
+        "podx-notion",
+    ]
+    cols_artifacts = [
+        "EpisodeMeta",
+        "AudioMeta",
+        "Transcript JSON",
+        "Preprocessed JSON",
+        "Deepcast JSON",
+        "Notion page",
+    ]
 
-```
-📱 iTunes/RSS → 🎵 Audio File → 🎤 Transcript → 📝 Analysis → ☁️ Notion
-    ↓              ↓              ↓              ↓             ↓
-podx-fetch → podx-transcode → podx-transcribe → podx-deepcast → podx-notion
-    ↓              ↓              ↓
- EpisodeMeta → AudioMeta → Transcript
-```
+    # Compute per-column widths to align arrows
+    def row_from(parts: list[str]) -> str:
+        widths = [max(len(cols_sources[i]), len(cols_tools[i]), len(cols_artifacts[i])) for i in range(len(cols_sources))]
+        segments = [parts[i].ljust(widths[i]) for i in range(len(parts))]
+        return "  →  ".join(segments)
 
-**Key Points:**
-- Each step outputs JSON to stdout for piping
-- Optional steps can be skipped based on needs
-- `podx run` orchestrates the full pipeline
-- All intermediate files are saved for inspection
-    """
-
-    console.print(Markdown(flow_md))
+    left_labels = ["Sources:", "Tools:", "Artifacts:"]
+    left_pad = max(len(s) for s in left_labels) + 1
+    lines = [row_from(cols_sources), row_from(cols_tools), row_from(cols_artifacts)]
+    for label, content in zip(left_labels, lines):
+        console.print(f"[white]{label.ljust(left_pad)}{content}[/white]")
 
 
 def print_default_help():
@@ -157,13 +185,11 @@ each tool does one thing well and can be combined via pipes.
 
 ## 🚀 Quick Start
 
-```bash
 # Simple transcription
 podx run --show "This American Life" --date 2024-01-15
 
 # Full pipeline with AI analysis
 podx run --show "Radio Lab" --date 2024-01-15 --align --diarize --deepcast --notion
-```
 
 ## 🔧 Available Tools
 
@@ -181,11 +207,9 @@ podx run --show "Radio Lab" --date 2024-01-15 --align --diarize --deepcast --not
 
 ## 📖 More Help
 
-```bash
 podx help --examples    # Show usage examples
 podx help --pipeline    # Show pipeline flow
 podx COMMAND --help     # Help for specific command
-```
     """
     console.print(Markdown(help_md))
 

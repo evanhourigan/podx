@@ -84,22 +84,23 @@ def main(input_a: Optional[Path], input_b: Optional[Path], model: str, interacti
                 "title": title,
             })
 
-        # Display table
-        table = Table(show_header=True, header_style="bold magenta", title="🤖 Deepcast Analyses")
+        # Display table (full width, only Title flexes)
+        table = Table(show_header=True, header_style="bold magenta", title="🤖 Deepcast Analyses", expand=True)
         table.add_column("#", style="cyan", width=3, justify="right")
-        table.add_column("ASR Model", style="yellow", width=14)
-        table.add_column("Type", style="white", width=24)
-        table.add_column("Show", style="green", width=18)
-        table.add_column("Date", style="blue", width=12)
-        table.add_column("Title", style="white", width=45)
+        table.add_column("ASR Model", style="yellow", width=14, no_wrap=True)
+        table.add_column("Type", style="white", width=22, no_wrap=True)
+        table.add_column("Show", style="green", width=18, no_wrap=True)
+        table.add_column("Date", style="blue", width=12, no_wrap=True)
+        table.add_column("Title", style="white", no_wrap=True, overflow="ellipsis")
         for idx, r in enumerate(rows, start=1):
             table.add_row(str(idx), r["asr"], r["dtype"], r["show"], r["date"], r["title"])
         console.print(table)
-        choice1 = input(f"\n👉 Select first analysis (1-{len(rows)}) or Q to cancel: ").strip().upper()
+        console.print("\n[dim]Enter two selections: first then second. Q to cancel.[/dim]")
+        choice1 = input(f"👉 First (1-{len(rows)}): ").strip().upper()
         if choice1 in ["Q", "QUIT", "EXIT"]:
             console.print("[dim]Cancelled[/dim]")
             raise SystemExit(0)
-        choice2 = input(f"👉 Select second analysis (1-{len(rows)}) or Q to cancel: ").strip().upper()
+        choice2 = input(f"👉 Second (1-{len(rows)}): ").strip().upper()
         if choice2 in ["Q", "QUIT", "EXIT"]:
             console.print("[dim]Cancelled[/dim]")
             raise SystemExit(0)
