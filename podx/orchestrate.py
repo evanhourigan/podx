@@ -626,11 +626,13 @@ def run(
                     trk = "C" if e.get("has_consensus") else "-"
                     notion_ok = "✓" if e["notion"] else "○"
                     proc = e.get("processing_flags", "")
+                    # Sanitize title to avoid confusing table borders when '|' is present
+                    title_cell = (e["title"] or "").replace("|", "·")
                     table.add_row(
                         str(idx),
                         e["show"],
                         e["date"],
-                        e["title"],
+                        title_cell,
                         asr_count,
                         align_ok,
                         diar_ok,
@@ -642,11 +644,11 @@ def run(
 
                 console.print(table)
                 extra = " • F fetch new" if show else ""
-                console.print(
-                    ("[dim]Enter 1-{end} to select • N next • P prev • Q quit" + extra + "[/dim]").replace(
-                        "{end}", str(end)
-                    )
+                total = len(eps_sorted)
+                footer = (
+                    f"[dim]Enter 1-{end} of {total} to select • N next • P prev • Q quit{extra}[/dim]"
                 )
+                console.print(footer)
                 choice = input("\n👉 Select: ").strip().upper()
                 if choice in ["Q", "QUIT", "EXIT"]:
                     console.print("[dim]Cancelled[/dim]")
@@ -1157,27 +1159,27 @@ def run(
         else:
             if not dual:
                 # Single track transcription
-            progress.start_step(f"Transcribing with {model} model")
-            step_start = time.time()
+                progress.start_step(f"Transcribing with {model} model")
+                step_start = time.time()
                 transcribe_cmd = ["podx-transcribe", "--model", model, "--compute", compute]
                 if asr_provider and asr_provider != "auto":
                     transcribe_cmd += ["--asr-provider", asr_provider]
                 if preset:
                     transcribe_cmd += ["--preset", preset]
-            base = _run(
+                base = _run(
                     transcribe_cmd,
-                stdin_payload=audio,
-                verbose=verbose,
-                save_to=transcript_file,
+                    stdin_payload=audio,
+                    verbose=verbose,
+                    save_to=transcript_file,
                     label=None,
-            )
-            step_duration = time.time() - step_start
-            progress.complete_step(
-                f"Transcription complete - {len(base.get('segments', []))} segments",
-                step_duration,
-            )
-        latest = base
-        latest_name = f"transcript-{model}"
+                )
+                step_duration = time.time() - step_start
+                progress.complete_step(
+                    f"Transcription complete - {len(base.get('segments', []))} segments",
+                    step_duration,
+                )
+                latest = base
+                latest_name = f"transcript-{model}"
             else:
                 # Dual QA: precision & recall tracks
                 progress.start_step(f"Dual QA: transcribing precision & recall with {model}")
@@ -1425,8 +1427,8 @@ def run(
                     results.update({"deepcast_md": str(md_out)})
             else:
                 if not dual:
-                progress.start_step(f"Analyzing transcript with {deepcast_model}")
-                step_start = time.time()
+                    progress.start_step(f"Analyzing transcript with {deepcast_model}")
+                    step_start = time.time()
                 inp = str(wd / "latest.json")
                 meta_file = wd / "episode-meta.json"
 
@@ -1624,10 +1626,10 @@ def run(
                 if json_path:
                     cmd += ["--json", json_path]
             else:
-            # Find any deepcast files if model-specific ones don't exist
-            # Check for both new and legacy formats
-            deepcast_files = list(wd.glob("deepcast-*.md"))
-            fallback_md = deepcast_files[0] if deepcast_files else None
+                # Find any deepcast files if model-specific ones don't exist
+                # Check for both new and legacy formats
+                deepcast_files = list(wd.glob("deepcast-*.md"))
+                fallback_md = deepcast_files[0] if deepcast_files else None
 
             # Prefer unified JSON mode if no separate markdown file exists
             if model_specific_json.exists() and not model_specific_md.exists():
