@@ -70,6 +70,7 @@ from .progress import (
     print_podx_success,
 )
 from .prompt_templates import PodcastType
+from .export import export_from_deepcast_json
 from .yaml_config import (
     NotionDatabase,
     PodcastMapping,
@@ -594,6 +595,16 @@ def run(
                 # Let Title shrink further on small terminals so other headers aren't truncated
                 title_width = max(10, console_width - fixed_cols - borders_allowance)
 
+                # Sanitize helper for cells to avoid layout-breaking zero-width chars and pipes
+                def _clean_cell(text: str) -> str:
+                    try:
+                        import unicodedata as _ud  # local import to avoid global footprint
+                        cleaned = ''.join(ch for ch in (text or '') if _ud.category(ch) not in {"Cf", "Cc"})
+                    except Exception:
+                        cleaned = text or ''
+                    # Replace table divider pipes with a middle dot so borders stay aligned
+                    return cleaned.replace('|', '·')
+
                 table = Table(
                     show_header=True,
                     header_style=TABLE_HEADER_STYLE,
@@ -626,11 +637,12 @@ def run(
                     trk = "C" if e.get("has_consensus") else "-"
                     notion_ok = "✓" if e["notion"] else "○"
                     proc = e.get("processing_flags", "")
-                    # Sanitize title to avoid confusing table borders when '|' is present
-                    title_cell = (e["title"] or "").replace("|", "·")
+                    # Sanitize problematic characters that can break column alignment
+                    title_cell = _clean_cell(e["title"] or "")
+                    show_cell = _clean_cell(e["show"]) if e.get("show") else ""
                     table.add_row(
                         str(idx),
-                        e["show"],
+                        show_cell,
                         e["date"],
                         title_cell,
                         asr_count,
@@ -1548,34 +1560,14 @@ def run(
                             break
             if export_source_path and export_source_path.exists():
                 data = json.loads(export_source_path.read_text(encoding="utf-8"))
-                md = data.get("markdown", "")
-                meta = data.get("deepcast_metadata", {})
-                # Append metadata at end
-                meta_lines = [
-                    "\n\n---\n\n",
-                    "### Processing metadata\n",
-                    f"- Track: {export_track}",
-                    f"- Deepcast type: {meta.get('deepcast_type')}",
-                    (f"- Alias: {meta.get('deepcast_alias')}" if meta.get('deepcast_alias') else ""),
-                    f"- ASR model: {meta.get('asr_model')}",
-                    f"- AI model: {meta.get('model')}",
-                    f"- Transcript: {meta.get('transcript_variant')}",
-                    f"- Exported at: {datetime.now(timezone.utc).isoformat()}",
-                ]
-                md_final = (md or "").rstrip() + "\n" + "\n".join([s for s in meta_lines if s]) + "\n"
-                ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-                exported_md = wd / f"exported-{ts}.md"
-                exported_md.write_text(md_final, encoding="utf-8")
-                results["exported_md"] = str(exported_md)
-                if deepcast_pdf:
-                    pandoc = shutil.which("pandoc")
-                    if pandoc:
-                        exported_pdf = wd / f"exported-{ts}.pdf"
-                        try:
-                            subprocess.run([pandoc, "-f", "markdown", "-t", "pdf", "-o", str(exported_pdf)], input=md_final, text=True, check=True)
-                            results["exported_pdf"] = str(exported_pdf)
-                        except Exception:
-                            pass
+                # Use unified exporter (handles deepcast and consensus JSON, and PDF auto-install)
+                try:
+                    md_path, pdf_path = export_from_deepcast_json(data, wd, deepcast_pdf)
+                    results["exported_md"] = str(md_path)
+                    if pdf_path is not None:
+                        results["exported_pdf"] = str(pdf_path)
+                except Exception:
+                    pass
         except Exception:
             pass
 
