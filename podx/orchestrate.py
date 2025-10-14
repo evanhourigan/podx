@@ -29,7 +29,7 @@ try:  # pragma: no cover
 
     BaseGroup = rich_click.RichGroup
 except Exception:  # pragma: no cover
-import click
+    import click  # type: ignore
     BaseGroup = click.Group
 
 # Import individual command modules for CLI integration
