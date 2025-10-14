@@ -192,11 +192,11 @@ def find_episode_rows(scan_dir: Path) -> List[Dict[str, Any]]:
 @click.option("--precision", type=click.Path(exists=True, path_type=Path), help="Precision deepcast JSON (from dual mode)")
 @click.option("--recall", type=click.Path(exists=True, path_type=Path), help="Recall deepcast JSON (from dual mode)")
 @click.option("--agreement", type=click.Path(exists=True, path_type=Path), help="Optional agreement JSON to inform confidence scores")
-@click.option("--input", "-i", type=click.Path(exists=True, path_type=Path), help="Read inputs from a JSON file or stdin with keys: precision, recall, agreement (objects or file paths)")
+@click.option("--input", "-i", "inp", type=click.Path(exists=True, path_type=Path), help="Read inputs from a JSON file or stdin with keys: precision, recall, agreement (objects or file paths)")
 @click.option("--output", "-o", type=click.Path(path_type=Path), help="Output consensus JSON file")
 @click.option("--interactive", is_flag=True, help="Interactive browser to select eligible episodes")
 @click.option("--scan-dir", type=click.Path(exists=True, path_type=Path), default=".", help="Directory to scan for deepcasts")
-def main(precision: Optional[Path], recall: Optional[Path], agreement: Optional[Path], input: Optional[Path], output: Optional[Path], interactive: bool, scan_dir: Path):
+def main(precision: Optional[Path], recall: Optional[Path], agreement: Optional[Path], inp: Optional[Path], output: Optional[Path], interactive: bool, scan_dir: Path):
     """Merge precision and recall deepcasts into a unified consensus JSON with provenance.
 
     Composable usage: pipe a JSON object with fields {"precision": <obj|path>, "recall": <obj|path>, "agreement": <obj|path?>}.
@@ -257,8 +257,8 @@ def main(precision: Optional[Path], recall: Optional[Path], agreement: Optional[
     if not precision or not recall:
         # Try input file or stdin JSON
         data: Optional[Dict[str, Any]] = None
-        if input:
-            data = json.loads(Path(input).read_text(encoding="utf-8"))
+        if inp:
+            data = json.loads(Path(inp).read_text(encoding="utf-8"))
         else:
             try:
                 data = read_stdin_json()
