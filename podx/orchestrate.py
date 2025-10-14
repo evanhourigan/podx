@@ -1259,8 +1259,9 @@ def run(
             latest = base
             latest_name = f"transcript-{base.get('asr_model', model)}"
 
-        # 5) ALIGN (optional) → transcript-aligned-{model}.json (skip in dual per-track for now)
-        if align and not dual:
+        # 5) ALIGN (optional) → transcript-aligned-{model}.json
+        # In dual mode, we still align the currently-latest transcript (per selected track above).
+        if align:
             # Get model from base transcript
             used_model = latest.get("asr_model", model)
             aligned_file = wd / f"transcript-aligned-{_sanitize(used_model)}.json"
@@ -1305,8 +1306,9 @@ def run(
                 latest = aligned
                 latest_name = f"transcript-aligned-{used_model}"
 
-        # 6) DIARIZE (optional) → transcript-diarized-{model}.json (skip in dual per-track for now)
-        if diarize and not dual:
+        # 6) DIARIZE (optional) → transcript-diarized-{model}.json
+        # In dual mode, we diarize the currently-latest transcript as well.
+        if diarize:
             # Get model from latest transcript
             used_model = latest.get("asr_model", model)
             diarized_file = wd / f"transcript-diarized-{_sanitize(used_model)}.json"
@@ -1360,7 +1362,7 @@ def run(
         # Always keep a pointer to the latest JSON/SRT/TXT for convenience
         (wd / "latest.json").write_text(json.dumps(latest, indent=2), encoding="utf-8")
 
-        # quick TXT/SRT from whatever we have
+        # quick TXT/SRT from whatever we have (prefer diarized/aligned if produced)
         progress.start_step("Exporting transcript files")
         step_start = time.time()
         export_result = _run(
