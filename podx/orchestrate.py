@@ -47,6 +47,9 @@ from . import (
 from .deepcast import CANONICAL_TYPES as DC_CANONICAL_TYPES  # type: ignore
 from .deepcast import ALIAS_TYPES as DC_ALIAS_TYPES  # type: ignore
 from .pricing import load_model_catalog, estimate_deepcast_cost  # type: ignore
+import shutil
+import subprocess
+from datetime import datetime, timezone
 from .config import get_config
 from .errors import ValidationError
 from .fetch import _generate_workdir
@@ -1515,6 +1518,60 @@ def run(
                         progress.complete_step("Consensus created", 0)
                         results.update({"consensus": str(cons_out)})
 
+        # Final export step (write exported-<timestamp>.* from consensus or selected track)
+        try:
+            export_source_path = None
+            export_track = None
+            if dual and not no_consensus:
+                cons = results.get("consensus")
+                if cons and Path(cons).exists():
+                    export_source_path = Path(cons)
+                    export_track = "consensus"
+            if export_source_path is None:
+                single = results.get("deepcast_json")
+                if single and Path(single).exists():
+                    export_source_path = Path(single)
+                    export_track = (preset or "balanced") if preset else "single"
+                else:
+                    for key, trk in [("deepcast_recall", "recall"), ("deepcast_precision", "precision")]:
+                        p = results.get(key)
+                        if p and Path(p).exists():
+                            export_source_path = Path(p)
+                            export_track = trk
+                            break
+            if export_source_path and export_source_path.exists():
+                data = json.loads(export_source_path.read_text(encoding="utf-8"))
+                md = data.get("markdown", "")
+                meta = data.get("deepcast_metadata", {})
+                # Append metadata at end
+                meta_lines = [
+                    "\n\n---\n\n",
+                    "### Processing metadata\n",
+                    f"- Track: {export_track}",
+                    f"- Deepcast type: {meta.get('deepcast_type')}",
+                    (f"- Alias: {meta.get('deepcast_alias')}" if meta.get('deepcast_alias') else ""),
+                    f"- ASR model: {meta.get('asr_model')}",
+                    f"- AI model: {meta.get('model')}",
+                    f"- Transcript: {meta.get('transcript_variant')}",
+                    f"- Exported at: {datetime.now(timezone.utc).isoformat()}",
+                ]
+                md_final = (md or "").rstrip() + "\n" + "\n".join([s for s in meta_lines if s]) + "\n"
+                ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+                exported_md = wd / f"exported-{ts}.md"
+                exported_md.write_text(md_final, encoding="utf-8")
+                results["exported_md"] = str(exported_md)
+                if deepcast_pdf:
+                    pandoc = shutil.which("pandoc")
+                    if pandoc:
+                        exported_pdf = wd / f"exported-{ts}.pdf"
+                        try:
+                            subprocess.run([pandoc, "-f", "markdown", "-t", "pdf", "-o", str(exported_pdf)], input=md_final, text=True, check=True)
+                            results["exported_pdf"] = str(exported_pdf)
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
         # 7) NOTION (optional) — requires DB id
         if notion and not dual:
             if not notion_db:
@@ -1524,15 +1581,48 @@ def run(
 
             progress.start_step("Uploading to Notion")
             step_start = time.time()
-            # Prefer model-specific deepcast outputs, fallback to latest.txt
+            # Prefer exported.md if available, else model-specific deepcast outputs, fallback to latest.txt
             model_suffix = deepcast_model.replace(".", "_").replace("-", "_")
+            exported_md = Path(results.get("exported_md", "")) if results.get("exported_md") else None
             model_specific_md = wd / f"deepcast-brief-{model_suffix}.md"
             model_specific_json = wd / f"deepcast-brief-{model_suffix}.json"
 
-            # Find any deepcast files if model-specific ones don't exist
-            # Check for both new and legacy formats
-            deepcast_files = list(wd.glob("deepcast-*.md"))
-            fallback_md = deepcast_files[0] if deepcast_files else None
+            # If exported exists, use it directly
+            if exported_md and exported_md.exists():
+                md_path = str(exported_md)
+                json_path = (
+                    str(model_specific_json) if model_specific_json.exists() else None
+                )
+                cmd = [
+                    "podx-notion",
+                    "--markdown",
+                    md_path,
+                    "--meta",
+                    str(wd / "episode-meta.json"),
+                    "--db",
+                    notion_db,
+                    "--podcast-prop",
+                    podcast_prop,
+                    "--date-prop",
+                    date_prop,
+                    "--episode-prop",
+                    episode_prop,
+                    "--model-prop",
+                    model_prop,
+                    "--asr-prop",
+                    asr_prop,
+                    "--deepcast-model",
+                    deepcast_model,
+                    "--asr-model",
+                    model,
+                ]
+                if json_path:
+                    cmd += ["--json", json_path]
+            else:
+                # Find any deepcast files if model-specific ones don't exist
+                # Check for both new and legacy formats
+                deepcast_files = list(wd.glob("deepcast-*.md"))
+                fallback_md = deepcast_files[0] if deepcast_files else None
 
             # Prefer unified JSON mode if no separate markdown file exists
             if model_specific_json.exists() and not model_specific_md.exists():
