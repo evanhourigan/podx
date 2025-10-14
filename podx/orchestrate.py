@@ -29,7 +29,7 @@ try:  # pragma: no cover
 
     BaseGroup = rich_click.RichGroup
 except Exception:  # pragma: no cover
-    import click
+import click
     BaseGroup = click.Group
 
 # Import individual command modules for CLI integration
@@ -588,9 +588,9 @@ def run(
                     console_width = 120
                 # Sum of fixed columns widths
                 # Fixed columns (excluding flexible Title): #, Show, Date, ASR, Align, Diar, Deep, Trk, Proc, Last Run
-                fixed_cols = 3 + 18 + 10 + 3 + 5 + 4 + 4 + 4 + 4 + 16
+                fixed_cols = 4 + 18 + 10 + 4 + 4 + 4 + 4 + 3 + 5 + 16
                 # Extra allowance for table borders/padding/separators
-                borders_allowance = 40
+                borders_allowance = 24
                 # Let Title shrink further on small terminals so other headers aren't truncated
                 title_width = max(10, console_width - fixed_cols - borders_allowance)
 
@@ -598,25 +598,26 @@ def run(
                     show_header=True,
                     header_style=TABLE_HEADER_STYLE,
                     title=f"🎙️ Episodes (Page {page+1}/{total_pages})",
-                    expand=False,
+                    expand=True,
                     border_style=TABLE_BORDER_STYLE,
+                    pad_edge=False,
                 )
-                table.add_column("#", style=TABLE_NUM_STYLE, width=3, justify="right")
+                table.add_column("#", style=TABLE_NUM_STYLE, width=4, justify="right", no_wrap=True)
                 table.add_column("Show", style="green", width=18, no_wrap=True)
                 table.add_column("Date", style="blue", width=10, no_wrap=True)
                 # Title column flexes; keep one line with ellipsis
                 table.add_column("Title", style="white", width=title_width, no_wrap=True, overflow="ellipsis")
-                table.add_column("ASR", style="yellow", width=3, no_wrap=True)
-                table.add_column("Align", style="yellow", width=5, no_wrap=True)
-                table.add_column("Diar", style="yellow", width=4, no_wrap=True)
-                table.add_column("Deep", style="yellow", width=4, no_wrap=True)
-                table.add_column("Trk", style="yellow", width=4, no_wrap=True)
-                table.add_column("Proc", style="yellow", width=4, no_wrap=True)
+                table.add_column("ASR", style="yellow", width=4, no_wrap=True, justify="right")
+                table.add_column("Align", style="yellow", width=4, no_wrap=True, justify="center")
+                table.add_column("Diar", style="yellow", width=4, no_wrap=True, justify="center")
+                table.add_column("Deep", style="yellow", width=4, no_wrap=True, justify="right")
+                table.add_column("Trk", style="yellow", width=3, no_wrap=True, justify="center")
+                table.add_column("Proc", style="yellow", width=5, no_wrap=True)
                 table.add_column("Last Run", style="white", width=16, no_wrap=True)
 
                 for idx, e in enumerate(eps_sorted[start:end], start=start + 1):
                     asr_count_val = len(e["transcripts"]) if e["transcripts"] else 0
-                    asr_count = f"[dim]-[/dim]" if asr_count_val == 0 else str(asr_count_val)
+                    asr_count = "-" if asr_count_val == 0 else str(asr_count_val)
                     align_ok = "✓" if e["aligned"] else "○"
                     diar_ok = "✓" if e["diarized"] else "○"
                     dc_count_val = len(e["deepcasts"]) if e["deepcasts"] else 0
@@ -803,7 +804,9 @@ def run(
                 if transcript_json:
                     catalog = load_model_catalog(refresh=False)
                     est = estimate_deepcast_cost(transcript_json, provider, deepcast_model, catalog)
-                    preview += f"\nEstimated cost: ${est.total_usd:.2f} (in≈{est.input_tokens} tok, out≈{est.output_tokens} tok)"
+                    preview += f"\nEstimated cost: ${est.total_usd:.2f}  (in≈{est.input_tokens:,} tok, out≈{est.output_tokens:,} tok)"
+                else:
+                    preview += "\nEstimated cost: (no transcript yet; will compute after transcribe)"
             except Exception:
                 pass
             console.print(Panel(preview, title="Preview", border_style="green"))
@@ -1154,27 +1157,27 @@ def run(
         else:
             if not dual:
                 # Single track transcription
-                progress.start_step(f"Transcribing with {model} model")
-                step_start = time.time()
+            progress.start_step(f"Transcribing with {model} model")
+            step_start = time.time()
                 transcribe_cmd = ["podx-transcribe", "--model", model, "--compute", compute]
                 if asr_provider and asr_provider != "auto":
                     transcribe_cmd += ["--asr-provider", asr_provider]
                 if preset:
                     transcribe_cmd += ["--preset", preset]
-                base = _run(
+            base = _run(
                     transcribe_cmd,
-                    stdin_payload=audio,
-                    verbose=verbose,
-                    save_to=transcript_file,
+                stdin_payload=audio,
+                verbose=verbose,
+                save_to=transcript_file,
                     label=None,
-                )
-                step_duration = time.time() - step_start
-                progress.complete_step(
-                    f"Transcription complete - {len(base.get('segments', []))} segments",
-                    step_duration,
-                )
-                latest = base
-                latest_name = f"transcript-{model}"
+            )
+            step_duration = time.time() - step_start
+            progress.complete_step(
+                f"Transcription complete - {len(base.get('segments', []))} segments",
+                step_duration,
+            )
+        latest = base
+        latest_name = f"transcript-{model}"
             else:
                 # Dual QA: precision & recall tracks
                 progress.start_step(f"Dual QA: transcribing precision & recall with {model}")
@@ -1422,8 +1425,8 @@ def run(
                     results.update({"deepcast_md": str(md_out)})
             else:
                 if not dual:
-                    progress.start_step(f"Analyzing transcript with {deepcast_model}")
-                    step_start = time.time()
+                progress.start_step(f"Analyzing transcript with {deepcast_model}")
+                step_start = time.time()
                 inp = str(wd / "latest.json")
                 meta_file = wd / "episode-meta.json"
 
@@ -1621,10 +1624,10 @@ def run(
                 if json_path:
                     cmd += ["--json", json_path]
             else:
-                # Find any deepcast files if model-specific ones don't exist
-                # Check for both new and legacy formats
-                deepcast_files = list(wd.glob("deepcast-*.md"))
-                fallback_md = deepcast_files[0] if deepcast_files else None
+            # Find any deepcast files if model-specific ones don't exist
+            # Check for both new and legacy formats
+            deepcast_files = list(wd.glob("deepcast-*.md"))
+            fallback_md = deepcast_files[0] if deepcast_files else None
 
             # Prefer unified JSON mode if no separate markdown file exists
             if model_specific_json.exists() and not model_specific_md.exists():
