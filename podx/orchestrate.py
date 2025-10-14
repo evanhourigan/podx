@@ -588,8 +588,8 @@ def run(
                 except Exception:
                     console_width = 120
                 # Sum of fixed columns widths
-                # Fixed columns (excluding flexible Title): #, Show, Date, ASR, Align, Diar, Deep, Trk, Proc, Last Run
-                fixed_cols = 4 + 18 + 10 + 4 + 4 + 4 + 4 + 3 + 5 + 16
+                # Fixed columns (excluding flexible Title): #, Show, Date(12), ASR, Align, Diar, Deep, Trk, Proc, Last Run
+                fixed_cols = 4 + 18 + 12 + 4 + 4 + 4 + 4 + 3 + 5 + 16
                 # Extra allowance for table borders/padding/separators
                 borders_allowance = 24
                 # Let Title shrink further on small terminals so other headers aren't truncated
@@ -615,7 +615,7 @@ def run(
                 )
                 table.add_column("#", style=TABLE_NUM_STYLE, width=4, justify="right", no_wrap=True)
                 table.add_column("Show", style="green", width=18, no_wrap=True)
-                table.add_column("Date", style="blue", width=10, no_wrap=True)
+                table.add_column("Date", style="blue", width=12, no_wrap=True, overflow="ellipsis")
                 # Title column flexes; keep one line with ellipsis
                 table.add_column("Title", style="white", width=title_width, no_wrap=True, overflow="ellipsis")
                 table.add_column("ASR", style="yellow", width=4, no_wrap=True, justify="right")
