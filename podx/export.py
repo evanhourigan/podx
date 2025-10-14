@@ -72,7 +72,12 @@ def main(
     - Non-interactive Deepcast: if --input JSON has 'markdown', write exported-<ts>.md/pdf.
     - Legacy Transcript export: if input/STDIN has 'segments', write txt/srt/vtt/md.
     """
-    # Read input
+    # Interactive deepcast export flow
+    if interactive:
+        run_interactive_export(scan_dir, pdf, output)
+        return
+
+    # Read input (non-interactive modes only)
     data: Optional[Dict[str, Any]] = None
     if input:
         try:
@@ -83,11 +88,6 @@ def main(
         raw = read_stdin_json()
         if isinstance(raw, dict):
             data = raw
-
-    # Interactive deepcast export flow
-    if interactive:
-        run_interactive_export(scan_dir, pdf, output)
-        return
 
     if not data:
         raise SystemExit("Provide JSON via --input or stdin, or use --interactive")
