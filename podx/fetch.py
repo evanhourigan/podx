@@ -651,11 +651,26 @@ def main(show, rss_url, date, title_contains, outdir, output, interactive):
         feed_url = find_feed_for_show(show)
         show_name = show
 
-    # Parse feed
+    # Parse feed with fallbacks (some hosts require UA or redirects)
     logger.debug("Parsing RSS feed", url=feed_url)
     f = feedparser.parse(feed_url)
-    if f.bozo:
-        raise ValidationError(f"Failed to parse feed: {feed_url}")
+    if f.bozo or not f.entries:
+        # Try fetching content with a browser-like UA
+        try:
+            session = requests.Session()
+            session.headers.update({"User-Agent": UA})
+            r = session.get(feed_url, timeout=30, allow_redirects=True, verify=True)
+            r.raise_for_status()
+            f = feedparser.parse(r.content)
+        except Exception as e:
+            # Last resort: surface a clearer error including the underlying reason
+            reason = getattr(f, "bozo_exception", None)
+            raise ValidationError(
+                f"Failed to parse feed: {feed_url}"
+                + (f" (reason: {reason})" if reason else "")
+            ) from e
+    if not f.entries:
+        raise ValidationError(f"No episodes found in feed: {feed_url}")
 
     # Extract show name from feed if not provided or not set by interactive mode
     if "show_name" not in locals() or not show_name:
