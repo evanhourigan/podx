@@ -29,7 +29,7 @@ try:  # pragma: no cover
 
     BaseGroup = rich_click.RichGroup
 except Exception:  # pragma: no cover
-    import click
+import click
     BaseGroup = click.Group
 
 # Import individual command modules for CLI integration
@@ -797,7 +797,10 @@ def run(
             # Cost estimate (best-effort; ignores provider detection nuances)
             try:
                 provider = "openai" if deepcast_model.startswith("gpt") or "-" in deepcast_model else "anthropic"
-                transcript_json = json.loads((wd / "latest.json").read_text(encoding="utf-8")) if (wd / "latest.json").exists() else None
+                # Use the selected episode directory before we set wd
+                sel_dir = selected.get("directory") if isinstance(selected, dict) else None
+                latest_path = (sel_dir / "latest.json") if sel_dir and (sel_dir / "latest.json").exists() else None
+                transcript_json = json.loads(latest_path.read_text(encoding="utf-8")) if latest_path else None
                 if transcript_json:
                     catalog = load_model_catalog(refresh=False)
                     est = estimate_deepcast_cost(transcript_json, provider, deepcast_model, catalog)
@@ -816,7 +819,7 @@ def run(
             meta = json.loads(selected["meta_path"].read_text(encoding="utf-8"))
             wd = selected["directory"]
             # Skip fetch stage
-        
+
         # 1) FETCH → meta.json
         if not interactive_select and youtube_url:
             # Handle YouTube URLs directly
@@ -1152,27 +1155,27 @@ def run(
         else:
             if not dual:
                 # Single track transcription
-                progress.start_step(f"Transcribing with {model} model")
-                step_start = time.time()
+            progress.start_step(f"Transcribing with {model} model")
+            step_start = time.time()
                 transcribe_cmd = ["podx-transcribe", "--model", model, "--compute", compute]
                 if asr_provider and asr_provider != "auto":
                     transcribe_cmd += ["--asr-provider", asr_provider]
                 if preset:
                     transcribe_cmd += ["--preset", preset]
-                base = _run(
+            base = _run(
                     transcribe_cmd,
-                    stdin_payload=audio,
-                    verbose=verbose,
-                    save_to=transcript_file,
+                stdin_payload=audio,
+                verbose=verbose,
+                save_to=transcript_file,
                     label=None,
-                )
-                step_duration = time.time() - step_start
-                progress.complete_step(
-                    f"Transcription complete - {len(base.get('segments', []))} segments",
-                    step_duration,
-                )
-                latest = base
-                latest_name = f"transcript-{model}"
+            )
+            step_duration = time.time() - step_start
+            progress.complete_step(
+                f"Transcription complete - {len(base.get('segments', []))} segments",
+                step_duration,
+            )
+        latest = base
+        latest_name = f"transcript-{model}"
             else:
                 # Dual QA: precision & recall tracks
                 progress.start_step(f"Dual QA: transcribing precision & recall with {model}")
@@ -1420,36 +1423,36 @@ def run(
                     results.update({"deepcast_md": str(md_out)})
             else:
                 if not dual:
-                    progress.start_step(f"Analyzing transcript with {deepcast_model}")
-                    step_start = time.time()
-                    inp = str(wd / "latest.json")
-                    meta_file = wd / "episode-meta.json"
+                progress.start_step(f"Analyzing transcript with {deepcast_model}")
+                step_start = time.time()
+                inp = str(wd / "latest.json")
+                meta_file = wd / "episode-meta.json"
 
-                    cmd = [
-                        "podx-deepcast",
-                        "--input",
-                        inp,
-                        "--output",
-                        str(json_out),
-                        "--model",
-                        deepcast_model,
-                        "--temperature",
-                        str(deepcast_temp),
-                    ]
-                    if meta_file.exists():
-                        cmd.extend(["--meta", str(meta_file)])
-                    if yaml_analysis_type:
-                        cmd.extend(["--type", yaml_analysis_type])
-                    if extract_markdown:
-                        cmd.append("--extract-markdown")
+                cmd = [
+                    "podx-deepcast",
+                    "--input",
+                    inp,
+                    "--output",
+                    str(json_out),
+                    "--model",
+                    deepcast_model,
+                    "--temperature",
+                    str(deepcast_temp),
+                ]
+                if meta_file.exists():
+                    cmd.extend(["--meta", str(meta_file)])
+                if yaml_analysis_type:
+                    cmd.extend(["--type", yaml_analysis_type])
+                if extract_markdown:
+                    cmd.append("--extract-markdown")
                     if deepcast_pdf:
                         cmd.append("--pdf")
                     _run(cmd, verbose=verbose, save_to=None, label=None)
-                    step_duration = time.time() - step_start
-                    progress.complete_step("AI analysis completed", step_duration)
-                    results.update({"deepcast_json": str(json_out)})
-                    if extract_markdown and md_out.exists():
-                        results.update({"deepcast_md": str(md_out)})
+                step_duration = time.time() - step_start
+                progress.complete_step("AI analysis completed", step_duration)
+                results.update({"deepcast_json": str(json_out)})
+                if extract_markdown and md_out.exists():
+                    results.update({"deepcast_md": str(md_out)})
                 else:
                     # Dual: deepcast precision & recall
                     progress.start_step(f"Analyzing precision & recall with {deepcast_model}")
@@ -1619,10 +1622,10 @@ def run(
                 if json_path:
                     cmd += ["--json", json_path]
             else:
-                # Find any deepcast files if model-specific ones don't exist
-                # Check for both new and legacy formats
-                deepcast_files = list(wd.glob("deepcast-*.md"))
-                fallback_md = deepcast_files[0] if deepcast_files else None
+            # Find any deepcast files if model-specific ones don't exist
+            # Check for both new and legacy formats
+            deepcast_files = list(wd.glob("deepcast-*.md"))
+            fallback_md = deepcast_files[0] if deepcast_files else None
 
             # Prefer unified JSON mode if no separate markdown file exists
             if model_specific_json.exists() and not model_specific_md.exists():
