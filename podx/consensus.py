@@ -308,7 +308,18 @@ def main(precision: Optional[Path], recall: Optional[Path], agreement: Optional[
         output = Path("consensus.json")
 
     output.write_text(json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(json.dumps(out, ensure_ascii=False))
+    # In interactive mode, don't dump JSON to stdout; show a friendly message
+    try:
+        import sys
+        if interactive and RICH_AVAILABLE:
+            console = make_console()
+            console.print(f"[green]✅ Consensus saved to: {output}[/green]")
+        elif not interactive:
+            print(json.dumps(out, ensure_ascii=False))
+    except Exception:
+        # Fallback to plain message
+        if interactive:
+            print(f"Consensus saved to: {output}")
 
 
 if __name__ == "__main__":
