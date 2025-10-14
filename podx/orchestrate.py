@@ -29,7 +29,7 @@ try:  # pragma: no cover
 
     BaseGroup = rich_click.RichGroup
 except Exception:  # pragma: no cover
-import click
+    import click
     BaseGroup = click.Group
 
 # Import individual command modules for CLI integration
@@ -48,7 +48,6 @@ from .deepcast import CANONICAL_TYPES as DC_CANONICAL_TYPES  # type: ignore
 from .deepcast import ALIAS_TYPES as DC_ALIAS_TYPES  # type: ignore
 from .pricing import load_model_catalog, estimate_deepcast_cost  # type: ignore
 import shutil
-import subprocess
 from datetime import datetime, timezone
 from .config import get_config
 from .errors import ValidationError
@@ -1155,27 +1154,27 @@ def run(
         else:
             if not dual:
                 # Single track transcription
-            progress.start_step(f"Transcribing with {model} model")
-            step_start = time.time()
+                progress.start_step(f"Transcribing with {model} model")
+                step_start = time.time()
                 transcribe_cmd = ["podx-transcribe", "--model", model, "--compute", compute]
                 if asr_provider and asr_provider != "auto":
                     transcribe_cmd += ["--asr-provider", asr_provider]
                 if preset:
                     transcribe_cmd += ["--preset", preset]
-            base = _run(
+                base = _run(
                     transcribe_cmd,
-                stdin_payload=audio,
-                verbose=verbose,
-                save_to=transcript_file,
+                    stdin_payload=audio,
+                    verbose=verbose,
+                    save_to=transcript_file,
                     label=None,
-            )
-            step_duration = time.time() - step_start
-            progress.complete_step(
-                f"Transcription complete - {len(base.get('segments', []))} segments",
-                step_duration,
-            )
-        latest = base
-        latest_name = f"transcript-{model}"
+                )
+                step_duration = time.time() - step_start
+                progress.complete_step(
+                    f"Transcription complete - {len(base.get('segments', []))} segments",
+                    step_duration,
+                )
+                latest = base
+                latest_name = f"transcript-{model}"
             else:
                 # Dual QA: precision & recall tracks
                 progress.start_step(f"Dual QA: transcribing precision & recall with {model}")
@@ -1423,8 +1422,8 @@ def run(
                     results.update({"deepcast_md": str(md_out)})
             else:
                 if not dual:
-                progress.start_step(f"Analyzing transcript with {deepcast_model}")
-                step_start = time.time()
+                    progress.start_step(f"Analyzing transcript with {deepcast_model}")
+                    step_start = time.time()
                 inp = str(wd / "latest.json")
                 meta_file = wd / "episode-meta.json"
 
@@ -1445,9 +1444,9 @@ def run(
                     cmd.extend(["--type", yaml_analysis_type])
                 if extract_markdown:
                     cmd.append("--extract-markdown")
-                    if deepcast_pdf:
-                        cmd.append("--pdf")
-                    _run(cmd, verbose=verbose, save_to=None, label=None)
+                if deepcast_pdf:
+                    cmd.append("--pdf")
+                _run(cmd, verbose=verbose, save_to=None, label=None)
                 step_duration = time.time() - step_start
                 progress.complete_step("AI analysis completed", step_duration)
                 results.update({"deepcast_json": str(json_out)})
@@ -1622,10 +1621,10 @@ def run(
                 if json_path:
                     cmd += ["--json", json_path]
             else:
-            # Find any deepcast files if model-specific ones don't exist
-            # Check for both new and legacy formats
-            deepcast_files = list(wd.glob("deepcast-*.md"))
-            fallback_md = deepcast_files[0] if deepcast_files else None
+                # Find any deepcast files if model-specific ones don't exist
+                # Check for both new and legacy formats
+                deepcast_files = list(wd.glob("deepcast-*.md"))
+                fallback_md = deepcast_files[0] if deepcast_files else None
 
             # Prefer unified JSON mode if no separate markdown file exists
             if model_specific_json.exists() and not model_specific_md.exists():
