@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import time
 from pathlib import Path
@@ -39,7 +38,6 @@ from . import (
     diarize,
     export,
     fetch,
-    info,
     notion,
     transcode,
     transcribe,
@@ -47,8 +45,6 @@ from . import (
 from .deepcast import CANONICAL_TYPES as DC_CANONICAL_TYPES  # type: ignore
 from .deepcast import ALIAS_TYPES as DC_ALIAS_TYPES  # type: ignore
 from .pricing import load_model_catalog, estimate_deepcast_cost  # type: ignore
-import shutil
-from datetime import datetime, timezone
 from .config import get_config
 from .errors import ValidationError
 from .fetch import _generate_workdir
@@ -56,11 +52,7 @@ from .help import help_cmd
 from .logging import get_logger, setup_logging
 from .plugins import PluginManager, PluginType, get_registry
 from .podcast_config import (
-    PREDEFINED_CONFIGS,
-    PodcastAnalysisConfig,
-    create_predefined_configs,
     get_podcast_config,
-    get_podcast_config_manager,
 )
 from .progress import (
     PodxProgress,
@@ -69,15 +61,11 @@ from .progress import (
     print_podx_info,
     print_podx_success,
 )
-from .prompt_templates import PodcastType
 from .export import export_from_deepcast_json
 from .yaml_config import (
-    NotionDatabase,
-    PodcastMapping,
     get_notion_database_config,
     get_podcast_yaml_config,
     get_yaml_config_manager,
-    load_yaml_config,
 )
 
 # Initialize logging
@@ -86,7 +74,6 @@ logger = get_logger(__name__)
 
 # Optional rich for interactive select UI
 try:
-    from rich.console import Console
     from rich.table import Table
     from rich.panel import Panel
     RICH_AVAILABLE = True
@@ -423,11 +410,22 @@ def run(
     # Map --workflow presets first (can be combined with fidelity)
     if workflow:
         if workflow == "quick":
-            align = False; diarize = False; deepcast = False; extract_markdown = False; notion = False
+            align = False
+            diarize = False
+            deepcast = False
+            extract_markdown = False
+            notion = False
         elif workflow == "analyze":
-            align = True; diarize = False; deepcast = True; extract_markdown = True
+            align = True
+            diarize = False
+            deepcast = True
+            extract_markdown = True
         elif workflow == "publish":
-            align = True; diarize = False; deepcast = True; extract_markdown = True; notion = True
+            align = True
+            diarize = False
+            deepcast = True
+            extract_markdown = True
+            notion = True
 
     # Map --fidelity to flags (lowest→highest)
     # 1: deepcast only (use latest transcript)
@@ -516,7 +514,7 @@ def run(
                     newest = max([p.stat().st_mtime for p in transcripts + aligned + diarized + deepcasts] or [meta_path.stat().st_mtime])
                     last_run = time.strftime("%Y-%m-%d %H:%M", time.localtime(newest))
                 except Exception:
-                    last_run = "" 
+                    last_run = ""
                 # Build processing flags summary from artifacts
                 proc_flags = []
                 if list(ep_dir.glob("transcript-preprocessed-*.json")):
@@ -548,7 +546,7 @@ def run(
             return episodes
 
         # Interactive selection: choose existing episode to process
-        selected_meta = None
+        # selected_meta removed (unused)
         if interactive_select:
             if not RICH_AVAILABLE:
                 raise SystemExit("Interactive select requires rich. Install with: pip install rich")
@@ -632,10 +630,10 @@ def run(
                     align_ok = "✓" if e["aligned"] else "○"
                     diar_ok = "✓" if e["diarized"] else "○"
                     dc_count_val = len(e["deepcasts"]) if e["deepcasts"] else 0
-                    dc_count = f"[dim]-[/dim]" if dc_count_val == 0 else str(dc_count_val)
+                    dc_count = "[dim]-[/dim]" if dc_count_val == 0 else str(dc_count_val)
                     # Track: prefer consensus when present, else show '-' (too many episodes to compute per row)
                     trk = "C" if e.get("has_consensus") else "-"
-                    notion_ok = "✓" if e["notion"] else "○"
+                    # notion_ok omitted in table (unused variable)
                     proc = e.get("processing_flags", "")
                     # Sanitize problematic characters that can break column alignment
                     title_cell = _clean_cell(e["title"] or "")
@@ -715,18 +713,39 @@ def run(
                 fidelity = fchoice
                 # Apply fidelity mapping immediately (same logic as above)
                 if fidelity == "1":
-                    align = False; diarize = False; preprocess = False; dual = False; deepcast = True
+                    align = False
+                    diarize = False
+                    preprocess = False
+                    dual = False
+                    deepcast = True
                 elif fidelity == "2":
-                    preset = "recall"; preprocess = True; restore = True; deepcast = True; dual = False
+                    preset = "recall"
+                    preprocess = True
+                    restore = True
+                    deepcast = True
+                    dual = False
                 elif fidelity == "3":
-                    preset = "precision"; preprocess = True; restore = True; deepcast = True; dual = False
+                    preset = "precision"
+                    preprocess = True
+                    restore = True
+                    deepcast = True
+                    dual = False
                 elif fidelity == "4":
-                    preset = "balanced"; preprocess = True; restore = True; deepcast = True; dual = False
+                    preset = "balanced"
+                    preprocess = True
+                    restore = True
+                    deepcast = True
+                    dual = False
                 elif fidelity == "5":
-                    dual = True; preprocess = True; restore = True; deepcast = True; preset = preset or "balanced"
+                    dual = True
+                    preprocess = True
+                    restore = True
+                    deepcast = True
+                    preset = preset or "balanced"
 
             # Show resulting flags (yes/no) before overrides
-            yn = lambda b: "yes" if b else "no"
+            def yn(val: bool) -> str:
+                return "yes" if val else "no"
             summary = (
                 f"preset={preset or '-'}  align={yn(align)}  diarize={yn(diarize)}  "
                 f"preprocess={yn(preprocess)}  restore={yn(restore)}  deepcast={yn(deepcast)}  dual={yn(dual)}"
@@ -737,20 +756,23 @@ def run(
             will_transcribe = dual or preset is not None or not any(selected.get("transcripts"))
             if will_transcribe:
                 prompt_asr = input(f"\nASR model (Enter to keep '{model}', or type e.g. large-v3, small.en; Q=cancel): ").strip()
-                if prompt_asr.upper() in {"Q","QUIT","EXIT"}: raise SystemExit(0)
+                if prompt_asr.upper() in {"Q","QUIT","EXIT"}:
+                    raise SystemExit(0)
                 if prompt_asr:
                     model = prompt_asr
             # Only prompt for AI if deepcast will run
             if deepcast or dual:
                 prompt_ai = input(f"AI model for deepcast (Enter to keep '{deepcast_model}', Q=cancel): ").strip()
-                if prompt_ai.upper() in {"Q","QUIT","EXIT"}: raise SystemExit(0)
+                if prompt_ai.upper() in {"Q","QUIT","EXIT"}:
+                    raise SystemExit(0)
                 if prompt_ai:
                     deepcast_model = prompt_ai
 
             # Options panel: toggle steps and outputs
             def _yn(prompt: str, cur: bool) -> bool:
                 resp = input(f"{prompt} (y/N, current={'yes' if cur else 'no'}): ").strip().lower()
-                if resp in {"q","quit","exit"}: raise SystemExit(0)
+                if resp in {"q","quit","exit"}:
+                    raise SystemExit(0)
                 return cur if resp == "" else resp in {"y","yes"}
 
             console.print(Panel("Adjust options below (Enter keeps current): Q cancels", title="Options", border_style="blue"))
@@ -759,7 +781,9 @@ def run(
             preprocess = _yn("Preprocess (merge/normalize)", preprocess)
             restore = _yn("Semantic restore (LLM)", restore) if preprocess else restore
             deepcast = _yn("Deepcast (AI analysis)", deepcast)
-            dual = _yn("Dual mode (precision+recall)", dual)
+            # Only prompt for Dual mode when fidelity didn't already decide it
+            if fidelity not in {"5", "1", "2", "3", "4"}:
+                dual = _yn("Dual mode (precision+recall)", dual)
             extract_markdown = _yn("Save Markdown file", extract_markdown)
             deepcast_pdf = _yn("Also render PDF (pandoc)", deepcast_pdf)
 
@@ -784,7 +808,8 @@ def run(
                     d = desc.get(tname, "")
                     console.print(f"  {i:2}  {tname}  [dim]{d}[/dim]{marker}")
                 t_in = input(f"👉 Choose 1-{len(type_options)} (Enter keeps '{type_prompt_default}', Q=cancel): ").strip()
-                if t_in.upper() in {"Q","QUIT","EXIT"}: raise SystemExit(0)
+                if t_in.upper() in {"Q","QUIT","EXIT"}:
+                    raise SystemExit(0)
                 if t_in:
                     try:
                         t_idx = int(t_in)
@@ -795,14 +820,21 @@ def run(
 
             # Preview pipeline with optional cost estimate
             stages = ["fetch", "transcode", "transcribe"]
-            if align: stages.append("align")
-            if diarize: stages.append("diarize")
-            if preprocess: stages.append("preprocess" + ("+restore" if restore else ""))
-            if deepcast: stages.append("deepcast")
-            if dual: stages.append("agreement" + ("+consensus" if not no_consensus else ""))
+            if align:
+                stages.append("align")
+            if diarize:
+                stages.append("diarize")
+            if preprocess:
+                stages.append("preprocess" + ("+restore" if restore else ""))
+            if deepcast:
+                stages.append("deepcast")
+            if dual:
+                stages.append("agreement" + ("+consensus" if not no_consensus else ""))
             outputs = []
-            if extract_markdown: outputs.append("markdown")
-            if deepcast_pdf: outputs.append("pdf")
+            if extract_markdown:
+                outputs.append("markdown")
+            if deepcast_pdf:
+                outputs.append("pdf")
             preview = (
                 f"Pipeline: {' → '.join(stages)}\n"
                 f"ASR={model} preset={preset or '-'} dual={yn(dual)} align={yn(align)} diarize={yn(diarize)} preprocess={yn(preprocess)} restore={yn(restore)}\n"
@@ -1258,8 +1290,18 @@ def run(
                 pre_prec = wd / f"transcript-preprocessed-{safe_model}-precision.json"
                 pre_rec = wd / f"transcript-preprocessed-{safe_model}-recall.json"
 
-                out_prec = _run(build_cmd(pre_prec) + ["--input", str(t_prec)], stdin_payload=None, verbose=verbose, save_to=pre_prec)
-                out_rec = _run(build_cmd(pre_rec) + ["--input", str(t_rec)], stdin_payload=None, verbose=verbose, save_to=pre_rec)
+                _ = _run(
+                    build_cmd(pre_prec) + ["--input", str(t_prec)],
+                    stdin_payload=None,
+                    verbose=verbose,
+                    save_to=pre_prec,
+                )
+                out_rec = _run(
+                    build_cmd(pre_rec) + ["--input", str(t_rec)],
+                    stdin_payload=None,
+                    verbose=verbose,
+                    save_to=pre_rec,
+                )
                 latest = out_rec
                 latest_name = f"transcript-preprocessed-{safe_model}-recall"
             else:
@@ -1439,10 +1481,13 @@ def run(
                     results.update({"deepcast_md": str(md_out)})
             else:
                 if not dual:
+                    # Single-track deepcast always reads the latest processed transcript
                     progress.start_step(f"Analyzing transcript with {deepcast_model}")
                     step_start = time.time()
-                inp = str(wd / "latest.json")
-                meta_file = wd / "episode-meta.json"
+                    # Prefer a preprocessed latest if present, else fallback to latest.json
+                    latest_path = wd / "latest.json"
+                    inp = str(latest_path)
+                    meta_file = wd / "episode-meta.json"
 
                 cmd = [
                     "podx-deepcast",
@@ -1470,13 +1515,19 @@ def run(
                 if extract_markdown and md_out.exists():
                     results.update({"deepcast_md": str(md_out)})
                 else:
-                    # Dual: deepcast precision & recall
+                    # Dual: deepcast precision & recall (requires preprocessed precision/recall inputs)
                     progress.start_step(f"Analyzing precision & recall with {deepcast_model}")
                     step_start = time.time()
                     safe_model = _sanitize(model)
                     pre_prec = wd / f"transcript-preprocessed-{safe_model}-precision.json"
                     pre_rec = wd / f"transcript-preprocessed-{safe_model}-recall.json"
                     meta_file = wd / "episode-meta.json"
+
+                    # Guard: ensure inputs exist (preprocess step should have created them)
+                    if not pre_prec.exists() or not pre_rec.exists():
+                        raise ValidationError(
+                            "Dual deepcast requires preprocessed precision/recall transcripts; rerun with preprocess enabled or Fidelity 5."
+                        )
 
                     def run_dc(inp_path: Path, suffix: str) -> Path:
                         out = wd / f"deepcast-{safe_model}-{deepcast_model.replace('.', '_')}-{suffix}.json"
@@ -1562,7 +1613,7 @@ def run(
                 data = json.loads(export_source_path.read_text(encoding="utf-8"))
                 # Use unified exporter (handles deepcast and consensus JSON, and PDF auto-install)
                 try:
-                    md_path, pdf_path = export_from_deepcast_json(data, wd, deepcast_pdf)
+                    md_path, pdf_path = export_from_deepcast_json(data, wd, deepcast_pdf, track_hint=export_track)
                     results["exported_md"] = str(md_path)
                     if pdf_path is not None:
                         results["exported_pdf"] = str(pdf_path)
@@ -1689,7 +1740,7 @@ def run(
                 cmd += ["--append-content"]
             # Default is replace, so no flag needed when append_content is False
 
-            notion_resp = _run(
+            _ = _run(
                 cmd,
                 verbose=verbose,
                 save_to=wd / "notion.out.json",
@@ -2343,7 +2394,7 @@ def plugin_info(plugin_name):
 
     # Create info panel
     info_text = f"""**Name:** {metadata.name}
-**Version:** {metadata.version}  
+**Version:** {metadata.version}
 **Author:** {metadata.author}
 **Type:** {metadata.plugin_type.value}
 **Status:** {"✅ Enabled" if metadata.enabled else "❌ Disabled"}
@@ -2525,11 +2576,11 @@ def config_init():
     console.print(
         f"✅ Created example YAML configuration at: [cyan]{manager.config_file}[/cyan]"
     )
-    console.print(f"\n📝 Edit this file to customize your podcast processing settings:")
-    console.print(f"   - Multiple Notion databases with different API keys")
-    console.print(f"   - Podcast-specific analysis types and prompts")
-    console.print(f"   - Global pipeline defaults")
-    console.print(f"   - Custom variables and advanced settings")
+    console.print("\n📝 Edit this file to customize your podcast processing settings:")
+    console.print("   - Multiple Notion databases with different API keys")
+    console.print("   - Podcast-specific analysis types and prompts")
+    console.print("   - Global pipeline defaults")
+    console.print("   - Custom variables and advanced settings")
 
 
 @config_group.command("show")
@@ -2543,7 +2594,7 @@ def config_show():
 
     if not manager.config_file.exists():
         console.print("❌ No YAML configuration found.")
-        console.print(f"💡 Create one with [cyan]podx config init[/cyan]")
+        console.print("💡 Create one with [cyan]podx config init[/cyan]")
         return
 
     # Read and display config file
@@ -2576,11 +2627,11 @@ def config_validate():
         if config.notion_databases:
             console.print(f"🗃️  Found {len(config.notion_databases)} Notion databases")
         if config.defaults:
-            console.print(f"⚙️  Global defaults configured")
+            console.print("⚙️  Global defaults configured")
 
     except Exception as e:
         console.print(f"❌ Configuration validation failed: {e}")
-        console.print(f"💡 Check your YAML syntax and fix any errors")
+        console.print("💡 Check your YAML syntax and fix any errors")
 
 
 @config_group.command("databases")
