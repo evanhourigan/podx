@@ -18,12 +18,16 @@ except Exception:  # pragma: no cover
     RICH_AVAILABLE = False
 
 
+# Canonical family names to display by default (ordered)
 CURATED_OPENAI = [
     # Flagship and common families
     "gpt-5",
     "gpt-5-mini",
+    "gpt-5-nano",
+    "gpt-5-pro",
     "gpt-4.1",
     "gpt-4.1-mini",
+    "gpt-4.1-nano",
     "gpt-4o",
     "gpt-4o-mini",
     # Popular/legacy families users still ask for
@@ -35,6 +39,7 @@ CURATED_OPENAI = [
     "gpt-3.5-turbo",
 ]
 CURATED_ANTHROPIC = [
+    "claude-4.1-opus",
     "claude-4.5-sonnet",
     "claude-4-sonnet",
     "claude-3-5-sonnet",
@@ -68,7 +73,8 @@ def _auto_find_transcript() -> Optional[Dict[str, Any]]:
 @click.option("--filter", "filter_str", help="Substring filter for model names")
 @click.option("--estimate", "estimate_input", type=click.Path(exists=True, path_type=Path), help="Estimate cost for a given transcript JSON")
 @click.option("--all", "show_all", is_flag=True, help="Show all provider models (not only curated)")
-def main(refresh: bool, provider: str, json_out: bool, filter_str: Optional[str], estimate_input: Optional[Path], show_all: bool):
+@click.option("--variants", is_flag=True, help="Include dated/preview variants instead of family-only view")
+def main(refresh: bool, provider: str, json_out: bool, filter_str: Optional[str], estimate_input: Optional[Path], show_all: bool, variants: bool):
     """List available AI models with pricing, and optionally estimate deepcast cost for a transcript."""
     catalog = load_model_catalog(refresh=refresh)
     if estimate_input:
@@ -84,29 +90,35 @@ def main(refresh: bool, provider: str, json_out: bool, filter_str: Optional[str]
         models = entry.get("models") or []
         pricing = entry.get("pricing") or {}
         curated = CURATED_OPENAI if prov == "openai" else CURATED_ANTHROPIC
-        if show_all:
+        if show_all or variants:
             names = sorted(set(list(models) + list(pricing.keys())))
         else:
-            # Include any provider models that start with curated families, plus the
-            # curated family names themselves and any priced variants that match.
-            names_set = set()
-            for m in models:
-                if any(m.startswith(f) for f in curated):
-                    names_set.add(m)
-            for p in pricing.keys():
-                if any(p.startswith(f) for f in curated):
-                    names_set.add(p)
+            # Family-only view: show one canonical entry per curated family.
+            names = []
             for fam in curated:
-                names_set.add(fam)
-            names = sorted(names_set)
+                # Prefer exact family id; otherwise pick the newest provider model starting with the family
+                if fam in models or fam in pricing:
+                    names.append(fam)
+                else:
+                    candidates = [m for m in models if m.startswith(fam)]
+                    if candidates:
+                        # Heuristic: pick lexicographically max as newest
+                        names.append(sorted(candidates)[-1])
         for name in sorted(set(names)):
             if filter_str and filter_str.lower() not in name.lower():
                 continue
+            # Inherit pricing/desc from family key if exact price not available
             price = pricing.get(name, {})
+            if not price:
+                base_keys = list(pricing.keys())
+                for k in base_keys:
+                    if name.startswith(k):
+                        price = pricing.get(k, {})
+                        break
             desc = price.get("desc", "")
             row = {
                 "provider": prov,
-                "model": name,
+                "model": name if (show_all or variants) else (next((fam for fam in curated if name.startswith(fam)), name)),
                 "price_in": price.get("in"),
                 "price_out": price.get("out"),
                 "desc": desc,
@@ -162,5 +174,3 @@ def main(refresh: bool, provider: str, json_out: bool, filter_str: Optional[str]
             print(
                 f"{r['provider']:9} | {r['model']:18} | {str(r['price_in'] or '-') :>6} | {str(r['price_out'] or '-') :>7} | {est:>7} | {r.get('desc','')}"
             )
-
-

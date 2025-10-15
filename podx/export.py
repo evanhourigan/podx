@@ -5,6 +5,8 @@ import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
+import tempfile
+import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 import click
@@ -43,6 +45,168 @@ def write_if_changed(path: Path, content: str, replace: bool = False) -> None:
             return  # Content unchanged, skip write
 
     path.write_text(content, encoding="utf-8")
+
+
+def _run_quiet(cmd: List[str]) -> int:
+    """Run a command quietly; return exit code."""
+    try:
+        proc = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return proc.returncode
+    except Exception:
+        return 1
+
+
+def _ensure_pandoc_and_engine() -> Tuple[Optional[str], Optional[str]]:
+    """Ensure pandoc is available; try to install via Homebrew if missing.
+
+    Also try to install a PDF engine (tectonic) and return its name if available.
+    Returns (pandoc_path, pdf_engine_name_or_none).
+    """
+    pandoc_path = shutil.which("pandoc")
+    engine: Optional[str] = None
+    if not pandoc_path and sys.platform == "darwin":
+        # Attempt Homebrew install
+        _run_quiet(["brew", "install", "pandoc"])  # best-effort
+        pandoc_path = shutil.which("pandoc")
+
+    # Prefer tectonic as lightweight LaTeX engine
+    if shutil.which("tectonic") is None and sys.platform == "darwin":
+        _run_quiet(["brew", "install", "tectonic"])  # best-effort
+    if shutil.which("tectonic") is not None:
+        engine = "tectonic"
+
+    return pandoc_path, engine
+
+
+def _ensure_html_pdf_tools() -> List[str]:
+    """Return a list of available browser binaries for headless HTML→PDF.
+
+    Attempts to install Chromium on macOS if none found. Order indicates
+    preference; the renderer will try each in sequence.
+    """
+    # Env override first
+    env_bin = os.environ.get("PODX_CHROME_BIN") or None
+    chrome_candidates = [
+        env_bin if env_bin else None,
+        # CLI names
+        "chromium",
+        "google-chrome",
+        "google-chrome-stable",
+        "chrome",
+        "msedge",
+        "brave",
+        # Common macOS app paths
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Google Chrome Beta.app/Contents/MacOS/Google Chrome Beta",
+        "/Applications/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+        "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+    ]
+    found: List[str] = []
+    for c in chrome_candidates:
+        if not c:
+            continue
+        p = shutil.which(c) if os.path.sep not in c else (c if Path(c).exists() else None)
+        if p:
+            found.append(p)
+    if not found and sys.platform == "darwin":
+        # Try to install Chromium via Homebrew cask
+        _run_quiet(["brew", "install", "--cask", "chromium"])  # best-effort
+        # Re-check
+        for c in chrome_candidates:
+            if not c:
+                continue
+            p = shutil.which(c) if os.path.sep not in c else (c if Path(c).exists() else None)
+            if p:
+                found.append(p)
+    # Deduplicate while preserving order
+    uniq: List[str] = []
+    seen = set()
+    for p in found:
+        if p not in seen:
+            seen.add(p)
+            uniq.append(p)
+    return uniq
+
+
+def _render_pdf_pretty(md_final: str, out_pdf: Path) -> bool:
+    """Render a pretty PDF using HTML pipeline to preserve emoji/styling.
+
+    Returns True on success, False otherwise.
+    """
+    pandoc = shutil.which("pandoc")
+    if not pandoc:
+        pandoc, _ = _ensure_pandoc_and_engine()  # try to install pandoc
+    if not pandoc:
+        return False
+
+    browsers = _ensure_html_pdf_tools()
+    if not browsers:
+        # No HTML-to-PDF tool available
+        return False
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmpdir = Path(tmp)
+        html = tmpdir / "export.html"
+        css = tmpdir / "style.css"
+        css.write_text(
+            """
+            :root { --fg: #222; --muted: #666; }
+            html { font-size: 16px; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif; color: var(--fg); line-height: 1.55; padding: 2rem; }
+            h1, h2, h3 { font-weight: 800; }
+            h1 { font-size: 2.1rem; margin: 0 0 0.8rem; }
+            h2 { font-size: 1.6rem; margin: 1.6rem 0 0.6rem; }
+            h3 { font-size: 1.25rem; margin: 1.2rem 0 0.4rem; }
+            hr { border: none; border-top: 1px solid #ddd; margin: 1.6rem 0; }
+            blockquote { color: var(--muted); border-left: 4px solid #ddd; margin: 0.8rem 0; padding: 0.4rem 0.9rem; }
+            ul { margin: 0.3rem 0 0.9rem 1.1rem; }
+            li { margin: 0.25rem 0; }
+            code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; }
+            table { border-collapse: collapse; }
+            th, td { border: 1px solid #ddd; padding: 6px 8px; }
+            .meta hr { margin-top: 1.2rem; }
+            """.strip(),
+            encoding="utf-8",
+        )
+
+        # Convert markdown to HTML with embedded CSS
+        cmd = [
+            pandoc,
+            "-f",
+            "markdown",
+            "-t",
+            "html5",
+            "-s",
+            "--css",
+            str(css),
+    "-o",
+            str(html),
+        ]
+        try:
+            subprocess.run(cmd, input=md_final, text=True, check=True)
+        except Exception:
+            return False
+
+        for chrome in browsers:
+            try:
+                cmd = [
+                    chrome,
+                    "--headless",
+                    "--disable-gpu",
+                    # Suppress header/footer across Chrome variants
+                    "--print-to-pdf-no-header",
+                    "--no-pdf-header-footer",
+                    "--disable-print-header-footer",
+                    f"--print-to-pdf={out_pdf}",
+                    str(html),
+                ]
+                subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return True
+            except Exception:
+                continue
+    return False
 
 
 @click.command(help="Export final analysis or transcript to files. Interactive mode supports show→episode selection and source override.")
@@ -241,7 +405,9 @@ def _scan_export_rows(scan_dir: Path) -> List[Dict[str, Any]]:
         # Episode metadata for show/title/date
         episode_dir = analysis_file.parent
         em = episode_dir / "episode-meta.json"
-        show = "Unknown"; title = "Unknown"; date = "Unknown"
+        show = "Unknown"
+        title = "Unknown"
+        date = "Unknown"
         if em.exists():
             try:
                 emd = json.loads(em.read_text(encoding="utf-8"))
@@ -275,7 +441,9 @@ def _scan_export_rows(scan_dir: Path) -> List[Dict[str, Any]]:
         dc_type = meta.get("deepcast_type") or "general"
         episode_dir = analysis_file.parent
         em = episode_dir / "episode-meta.json"
-        show = "Unknown"; title = "Unknown"; date = "Unknown"
+        show = "Unknown"
+        title = "Unknown"
+        date = "Unknown"
         if em.exists():
             try:
                 emd = json.loads(em.read_text(encoding="utf-8"))
@@ -429,36 +597,252 @@ def _pick_json_for_source(episode_dir: Path, source: str) -> Optional[Path]:
     return newest(["deepcast-*.json"])  # includes dual; we'll filter suffix below
 
 
-def export_from_deepcast_json(dc: Dict[str, Any], out_dir: Path, pdf: bool) -> Tuple[Path, Optional[Path]]:
-    md = dc.get("markdown", "")
-    meta = dc.get("deepcast_metadata", {})
+def _read_precision_header_from_sources(dc: Dict[str, Any], out_dir: Path) -> Optional[str]:
+    """Try to read the nice episode header from the precision deepcast markdown."""
+    try:
+        sources = dc.get("sources") or {}
+        pth = sources.get("precision") or sources.get("recall")
+        if not pth:
+            return None
+        p = Path(pth)
+        if not p.exists():
+            p = out_dir / Path(pth)
+        if not p.exists():
+            return None
+        data = json.loads(p.read_text(encoding="utf-8"))
+        md = (data.get("markdown") or "").strip()
+        if not md:
+            return None
+        # Keep everything before the first H2 section
+        idx = md.find("\n## ")
+        return md[: idx if idx != -1 else len(md)].rstrip() + "\n\n"
+    except Exception:
+        return None
+
+
+def _build_header_from_episode_meta(out_dir: Path) -> Optional[str]:
+    try:
+        em = out_dir / "episode-meta.json"
+        if not em.exists():
+            return None
+        meta = json.loads(em.read_text(encoding="utf-8"))
+        show = meta.get("show") or meta.get("show_name") or "Unknown Show"
+        title = meta.get("episode_title") or meta.get("title") or "Unknown Episode"
+        date = meta.get("episode_published") or meta.get("release_date") or "Unknown Date"
+        return f"# {show}\n## {title}\n**Released:** {date}\n\n---\n\n"
+    except Exception:
+        return None
+
+
+def _markdown_from_consensus(dc: Dict[str, Any], out_dir: Path) -> str:
+    """Build a readable markdown from a consensus JSON structure."""
+    cons = dc.get("consensus", {})
+    header = _read_precision_header_from_sources(dc, out_dir) or _build_header_from_episode_meta(out_dir) or ""
+
     lines: List[str] = []
-    lines.append("\n\n---\n\n")
-    lines.append("### Processing metadata\n")
-    track_guess = "consensus" if dc.get("consensus") else None
-    lines.append(f"- Track: {track_guess or meta.get('track') or 'single'}")
-    lines.append(f"- Deepcast type: {meta.get('deepcast_type')}")
-    if meta.get("deepcast_alias"):
-        lines.append(f"- Alias: {meta.get('deepcast_alias')}")
-    lines.append(f"- ASR model: {meta.get('asr_model')}")
-    lines.append(f"- AI model: {meta.get('model')}")
-    lines.append(f"- Transcript: {meta.get('transcript_variant')}")
-    lines.append(f"- Exported at: {datetime.now(timezone.utc).isoformat()}")
-    md_final = (md or "").rstrip() + "\n" + "\n".join(lines) + "\n"
+    # Executive Summary (choose best of precision/recall)
+    summary = cons.get("summary", {})
+    text_p = (summary.get("precision") or "").strip() if isinstance(summary, dict) else ""
+    text_r = (summary.get("recall") or "").strip() if isinstance(summary, dict) else ""
+    summary_text = text_p if len(text_p) >= len(text_r) else text_r
+    if summary_text:
+        lines.append("## 📋 Executive Summary\n\n" + summary_text + "\n")
+        lines.append("\n---\n")
+
+    def collect_texts(key: str) -> List[str]:
+        items = cons.get(key) or []
+        out: List[str] = []
+        for it in items:
+            if isinstance(it, dict):
+                txt = (it.get("text") or "").strip()
+            else:
+                txt = str(it).strip()
+            if txt:
+                out.append(txt)
+        # Deduplicate preserving order
+        seen = set()
+        uniq: List[str] = []
+        for t in out:
+            if t not in seen:
+                seen.add(t)
+                uniq.append(t)
+        return uniq
+
+    # Format a bullet: bold lead phrase, keep remainder, keep trailing timecode
+    _time_re = re.compile(r"\s*(\[[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{2})?\])\s*$")
+    def format_bullet(text: str) -> str:
+        t = text.strip()
+        # Extract trailing timecode
+        time_match = _time_re.search(t)
+        timecode = ""
+        if time_match:
+            timecode = " " + time_match.group(1)
+            t = _time_re.sub("", t)
+        # Split on colon/em dash/period for lead
+        lead, rest = t, ""
+        for sep in [": ", " — ", " - ", ". "]:
+            if sep in t and len(t.split(sep, 1)[0]) <= 80:
+                lead, rest = t.split(sep, 1)
+                break
+        if rest:
+            return f"- **{lead.strip()}**: {rest.strip()}{timecode}"
+        return f"- {t}{timecode}"
+
+    def bullet_section(title: str, key: str):
+        arr = collect_texts(key)
+        if not arr:
+            return
+        lines.append(f"\n## {title}\n")
+        for t in arr:
+            lines.append(format_bullet(t))
+        lines.append("\n---\n")
+
+    bullet_section("🎯 Key Insights", "key_points")
+    bullet_section("💎 Gold Nuggets", "gold_nuggets")
+
+    # Quotes: merge both lists
+    quotes = (dc.get("consensus", {}).get("quotes") or {})
+    merged_quotes: List[Dict[str, str]] = []
+    for bucket in ("precision", "recall"):
+        for q in (quotes.get(bucket) or []):
+            rec: Dict[str, str] = {"quote": "", "context": "", "time": "", "speaker": ""}
+            if isinstance(q, str):
+                # Try to parse JSON, else treat as plain quote
+                try:
+                    obj = json.loads(q)
+                except Exception:
+                    obj = {"quote": q}
+            else:
+                obj = q
+            if isinstance(obj, dict):
+                rec["quote"] = str(obj.get("quote") or obj.get("text") or obj.get("q") or "").strip(' \n"')
+                rec["context"] = str(obj.get("context") or obj.get("explanation") or "").strip()
+                rec["time"] = str(obj.get("time") or obj.get("ts") or "").strip()
+                rec["speaker"] = str(obj.get("speaker") or "").strip()
+            else:
+                rec["quote"] = str(obj)
+            merged_quotes.append(rec)
+    if merged_quotes:
+        lines.append("\n## 💬 Notable Quotes\n")
+        for i, q in enumerate(merged_quotes, 1):
+            time_str = f" [{q['time']}]" if q.get("time") else ""
+            expl = q.get("context") or ""
+            if expl:
+                lines.append(f"{i}. \"**{q['quote']}**\"{time_str}\n   — {expl}")
+            else:
+                lines.append(f"{i}. \"**{q['quote']}**\"{time_str}")
+        lines.append("\n---\n")
+
+    bullet_section("⚡ Action Items", "actions")
+
+    # Outline: parse JSON strings back to dicts when possible
+    outline_items = cons.get("outline") or []
+    formatted_outline: List[str] = []
+    for it in outline_items:
+        rec = it
+        if isinstance(it, str):
+            try:
+                rec = json.loads(it)
+            except Exception:
+                rec = {"label": it}
+        if isinstance(rec, dict):
+            label = rec.get("label") or rec.get("text") or ""
+            time = rec.get("time") or rec.get("ts") or ""
+            desc = rec.get("description") or rec.get("desc") or ""
+            text = label
+            if time:
+                text += f" [{time}]"
+            if desc:
+                text += f" — {desc}"
+            formatted_outline.append(text.strip())
+        else:
+            formatted_outline.append(str(rec))
+    if formatted_outline:
+        lines.append("\n## 🕒 Timestamp Outline\n")
+        for t in formatted_outline:
+            lines.append(f"- {t}")
+        lines.append("\n---\n")
+
+    body = header + "\n".join(lines).strip() + "\n"
+    return body
+
+
+def _safe_meta_line(label: str, value: Optional[str]) -> Optional[str]:
+    val = (value or "").strip()
+    return f"- {label}: {val}" if val else None
+
+
+def export_from_deepcast_json(dc: Dict[str, Any], out_dir: Path, pdf: bool, track_hint: Optional[str] = None) -> Tuple[Path, Optional[Path]]:
+    # 1) Build body markdown from either unified deepcast JSON or consensus JSON
+    if isinstance(dc.get("markdown"), str) and dc.get("markdown").strip():
+        body_md = dc.get("markdown", "")
+        meta = dc.get("deepcast_metadata", {})
+        track_label = (track_hint or meta.get("track") or meta.get("transcript_variant") or "single")
+        dc_type = meta.get("deepcast_type")
+        asr = meta.get("asr_model")
+        ai = meta.get("model")
+        transcript_var = meta.get("transcript_variant")
+    elif "consensus" in dc:
+        body_md = _markdown_from_consensus(dc, out_dir)
+        meta = dc.get("consensus_metadata", {})
+        track_label = track_hint or "consensus"
+        dc_type = meta.get("deepcast_type")
+        asr = meta.get("asr_model")
+        ai = meta.get("ai_model")
+        transcript_var = None
+    else:
+        # Unknown structure; fallback to dumping JSON
+        body_md = "```json\n" + json.dumps(dc, indent=2, ensure_ascii=False) + "\n```\n"
+        meta = {}
+        track_label = "single"
+        dc_type = None
+        asr = None
+        ai = None
+        transcript_var = None
+
+    # 2) Footer metadata
+    footer: List[str] = []
+    footer.append("\n\n---\n\n")
+    footer.append("### Processing metadata\n")
+    for line in [
+        _safe_meta_line("Track", track_label),
+        _safe_meta_line("Deepcast type", dc_type),
+        _safe_meta_line("Alias", meta.get("deepcast_alias")),
+        _safe_meta_line("ASR model", asr),
+        _safe_meta_line("AI model", ai),
+        _safe_meta_line("Transcript", transcript_var),
+        f"- Exported at: {datetime.now(timezone.utc).isoformat()}",
+    ]:
+        if line:
+            footer.append(line)
+
+    md_final = (body_md or "").rstrip() + "\n" + "\n".join(footer) + "\n"
     ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     out_dir.mkdir(parents=True, exist_ok=True)
-    md_path = out_dir / f"exported-{ts}.md"
+    label_for_name = (track_label or "").lower()
+    name_core = (
+        f"exported-{label_for_name}-{ts}" if label_for_name in {"precision", "recall", "consensus"} else f"exported-{ts}"
+    )
+    md_path = out_dir / f"{name_core}.md"
     md_path.write_text(md_final, encoding="utf-8")
     pdf_path: Optional[Path] = None
     if pdf:
-        pandoc = shutil.which("pandoc")
-        if pandoc:
-            pdf_path = out_dir / f"exported-{ts}.pdf"
-            try:
-                subprocess.run([pandoc, "-f", "markdown", "-t", "pdf", "-o", str(pdf_path)], input=md_final, text=True, check=True)
-            except Exception:
+        pdf_path = out_dir / f"{name_core}.pdf"
+        # Prefer pretty HTML → PDF path first
+        if not _render_pdf_pretty(md_final, pdf_path):
+            # Fallback to pandoc+LaTeX
+            pandoc, engine = _ensure_pandoc_and_engine()
+            if pandoc:
+                cmd = [pandoc, "-f", "markdown", "-t", "pdf"]
+                if engine:
+                    cmd += ["--pdf-engine", engine]
+                cmd += ["-o", str(pdf_path)]
+                try:
+                    subprocess.run(cmd, input=md_final, text=True, check=True)
+                except Exception:
+                    pdf_path = None
+            else:
                 pdf_path = None
-        # If pandoc not found, do not fail; proceed with MD only
     return md_path, pdf_path
 
 
@@ -484,7 +868,24 @@ def run_interactive_export(scan_dir: Path, pdf: bool, output: Optional[Path]) ->
         console.print("[red]No matching analysis file found for that source.[/red]")
         raise SystemExit(1)
     dc = json.loads(chosen.read_text(encoding="utf-8"))
-    md_path, pdf_path = export_from_deepcast_json(dc, episode_dir, pdf)
+    # Offer PDF prompt in interactive mode if flag not provided
+    if not pdf:
+        try:
+            ans = input("Also render a PDF? [y/N]: ").strip().lower()
+            pdf = ans in {"y", "yes"}
+        except EOFError:
+            pdf = False
+    # Determine track hint for naming
+    track_hint = None
+    if src in {"precision", "recall", "consensus"}:
+        track_hint = src
+    elif chosen.name.startswith("consensus-"):
+        track_hint = "consensus"
+    elif chosen.name.endswith("-precision.json"):
+        track_hint = "precision"
+    elif chosen.name.endswith("-recall.json"):
+        track_hint = "recall"
+    md_path, pdf_path = export_from_deepcast_json(dc, episode_dir, pdf, track_hint=track_hint)
     summary: Dict[str, Any] = {"exported_md": str(md_path)}
     if pdf_path is not None:
         summary["exported_pdf"] = str(pdf_path)

@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -406,7 +405,9 @@ def _scan_notion_rows(scan_dir: Path) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     # Helper to push a row from paths and metadata
     def add_row(episode_dir: Path, analysis_path: Path, ai: str, asr: str, kind: str, track: str):
-        show = "Unknown"; title = "Unknown"; date = "Unknown"
+        show = "Unknown"
+        title = "Unknown"
+        date = "Unknown"
         em = episode_dir / "episode-meta.json"
         if em.exists():
             try:
@@ -469,7 +470,12 @@ def _scan_notion_rows(scan_dir: Path) -> List[Dict[str, Any]]:
     return rows
 
 
-def _interactive_table_flow(db_id: Optional[str], scan_dir: Path) -> Optional[Dict[str, Any]]:
+def _interactive_table_flow(
+    db_id: Optional[str],
+    scan_dir: Path,
+    dry_run: bool = False,
+    cover_image: bool = False,
+) -> Optional[Dict[str, Any]]:
     console = make_console()
     rows = _scan_notion_rows(scan_dir)
     # Promote consensus rows to the top order within same episode (show+date+title)
@@ -533,7 +539,6 @@ def _interactive_table_flow(db_id: Optional[str], scan_dir: Path) -> Optional[Di
 
     # DB prompt with YAML presets if available
     default_db = db_id or os.getenv("NOTION_DB_ID", "")
-    preset_db = None
     try:
         mgr = get_yaml_config_manager()
         dbs = mgr.list_notion_databases()
@@ -557,21 +562,29 @@ def _interactive_table_flow(db_id: Optional[str], scan_dir: Path) -> Optional[Di
         if not db_val:
             db_val = default_db
 
-    # Dry run toggle:
-    # In interactive mode, respect --dry-run flag only; do not prompt.
+    # Determine effective dry-run setting for interactive mode:
+    # - Respect CLI flag; do not auto-enable based on environment
+    # - If Rich isn't available (fallback TTY UI), offer a prompt to toggle it
+    effective_dry_run = dry_run
     if not _HAS_RICH:
         dry = click.prompt("Dry-run first? (y/N)", default="N")
-        dry_run = str(dry).lower() in {"y", "yes"}
+        effective_dry_run = effective_dry_run or (str(dry).lower() in {"y", "yes"})
 
     # Cover image: always set if available in interactive mode; otherwise respect flag
     cover = True if _HAS_RICH else cover_image
+
+    # If attempting a real publish, ensure NOTION_TOKEN is present; else exit early
+    if not effective_dry_run and not os.getenv("NOTION_TOKEN"):
+        raise SystemExit(
+            f"Set NOTION_TOKEN environment variable to publish to Notion (database: {db_val})"
+        )
 
     # Quick hint if a page already exists (best-effort)
     try:
         meta_for_hint = json.loads((chosen["dir"] / "episode-meta.json").read_text(encoding="utf-8"))
         episode_title = meta_for_hint.get("episode_title") or meta_for_hint.get("title") or ""
         date_val = meta_for_hint.get("episode_published") or meta_for_hint.get("date") or ""
-        if episode_title and db_val and not dry_run and Client is not None:
+        if episode_title and db_val and not effective_dry_run and Client is not None:
             client = notion_client_from_env()
             filt = {"and": [{"property": "Episode", "rich_text": {"equals": episode_title}}]}
             if isinstance(date_val, str) and len(date_val) >= 10:
@@ -582,7 +595,7 @@ def _interactive_table_flow(db_id: Optional[str], scan_dir: Path) -> Optional[Di
     except Exception:
         pass
 
-    return {"db_id": db_val, "input_path": chosen["path"], "meta_path": chosen["dir"] / "episode-meta.json", "dry_run": dry_run, "cover": cover}
+    return {"db_id": db_val, "input_path": chosen["path"], "meta_path": chosen["dir"] / "episode-meta.json", "dry_run": effective_dry_run, "cover": cover}
 
 
 def md_to_blocks(md: str) -> List[Dict[str, Any]]:
@@ -1033,7 +1046,7 @@ def main(
 
     # Interactive table flow
     if interactive:
-        params = _interactive_table_flow(db_id, Path.cwd())
+        params = _interactive_table_flow(db_id, Path.cwd(), dry_run=dry_run, cover_image=cover_image)
         if not params:
             return
 

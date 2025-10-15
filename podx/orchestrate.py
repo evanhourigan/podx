@@ -1245,8 +1245,6 @@ def run(
                     f"Transcription complete - {len(base.get('segments', []))} segments",
                     step_duration,
                 )
-                latest = base
-                latest_name = f"transcript-{model}"
             else:
                 # Dual QA: precision & recall tracks
                 progress.start_step(f"Dual QA: transcribing precision & recall with {model}")
@@ -1286,6 +1284,10 @@ def run(
                 # Set latest to recall by default
                 latest = rec
                 latest_name = f"transcript-{safe_model}-recall"
+
+        if not dual:
+            latest = base
+            latest_name = f"transcript-{base.get('asr_model', model)}"
 
         # 4) PREPROCESS (optional or implied by --dual) → transcript-preprocessed-*.json
         if preprocess or dual:
