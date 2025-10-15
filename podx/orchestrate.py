@@ -770,10 +770,22 @@ def run(
 
             # Options panel: toggle steps and outputs
             def _yn(prompt: str, cur: bool) -> bool:
-                resp = input(f"{prompt} (y/N, current={'yes' if cur else 'no'}): ").strip().lower()
-                if resp in {"q","quit","exit"}:
-                    raise SystemExit(0)
-                return cur if resp == "" else resp in {"y","yes"}
+                """Strict yes/no input with q to cancel. Enter keeps current.
+
+                Accepts only y/Y, n/N, empty (keep), or q/Q to cancel.
+                """
+                while True:
+                    resp = input(
+                        f"{prompt} (y/n, current={'yes' if cur else 'no'}; q cancel): "
+                    ).strip()
+                    if not resp:
+                        return cur
+                    r = resp.lower()
+                    if r in {"q", "quit", "exit"}:
+                        raise SystemExit(0)
+                    if r in {"y", "n"}:
+                        return r == "y"
+                    print("Please enter 'y', 'n', or 'q'.")
 
             console.print(Panel("Adjust options below (Enter keeps current): Q cancels", title="Options", border_style="blue"))
             align = _yn("Align (WhisperX)", align)
@@ -856,10 +868,21 @@ def run(
             except Exception:
                 pass
             console.print(Panel(preview, title="Preview", border_style="green"))
-            cont = input("Proceed? (Y/n): ").strip().lower()
-            if cont in {"n","no"}:
-                console.print("[dim]Cancelled[/dim]")
-                raise SystemExit(0)
+            # Strict proceed confirmation: only y/n (default yes on empty)
+            while True:
+                cont = input("Proceed? (y/n; q cancel) [Y]: ").strip()
+                if not cont:
+                    break
+                c = cont.lower()
+                if c in {"q", "quit", "exit"}:
+                    console.print("[dim]Cancelled[/dim]")
+                    raise SystemExit(0)
+                if c in {"y", "n"}:
+                    if c == "n":
+                        console.print("[dim]Cancelled[/dim]")
+                        raise SystemExit(0)
+                    break
+                print("Please enter 'y' or 'n' (or 'q' to cancel).")
 
             # Use chosen_type downstream
             yaml_analysis_type = chosen_type
