@@ -24,7 +24,7 @@ except Exception:  # pragma: no cover
 
 from .cli_shared import read_stdin_json
 from .info import get_episode_workdir
-from .yaml_config import get_yaml_config_manager
+from .yaml_config import get_yaml_config_manager, NotionDatabase
 from .ui import (
     make_console,
     TABLE_BORDER_STYLE,
@@ -42,15 +42,17 @@ except ImportError:
 
 
 # utils
-def notion_client_from_env() -> Client:
+def notion_client_from_env(token: Optional[str] = None) -> Client:
     if Client is None:
         raise SystemExit("Install notion-client: pip install notion-client")
 
-    token = os.getenv("NOTION_TOKEN")
-    if not token:
-        raise SystemExit("Set NOTION_TOKEN environment variable")
+    auth_token = token or os.getenv("NOTION_TOKEN")
+    if not auth_token:
+        raise SystemExit(
+            "Set NOTION_TOKEN environment variable or configure a token via podx config."
+        )
 
-    return Client(auth=token)
+    return Client(auth=auth_token)
 
 
 def chunk_rich_text(s: str, chunk: int = 1800) -> List[Dict[str, Any]]:
@@ -472,6 +474,7 @@ def _scan_notion_rows(scan_dir: Path) -> List[Dict[str, Any]]:
 
 def _interactive_table_flow(
     db_id: Optional[str],
+    db_name: Optional[str],
     scan_dir: Path,
     dry_run: bool = False,
     cover_image: bool = False,
@@ -539,6 +542,7 @@ def _interactive_table_flow(
 
     # DB prompt with YAML presets if available
     default_db = db_id or os.getenv("NOTION_DB_ID", "")
+    selected_db_name = db_name
     try:
         mgr = get_yaml_config_manager()
         dbs = mgr.list_notion_databases()
@@ -546,21 +550,34 @@ def _interactive_table_flow(
         dbs = {}
     if dbs:
         names = list(dbs.keys())
+        preset: Optional[NotionDatabase] = None
+        if selected_db_name and selected_db_name in dbs:
+            preset = dbs[selected_db_name]
         console.print("\n[bold]Select Notion database:[/bold]")
         for i3, name in enumerate(names, start=1):
-            console.print(f"  {i3}. {name}")
+            mark = "*" if preset and selected_db_name == name else ""
+            console.print(f"  {i3}. {name} {mark}")
         console.print(f"  0. Enter ID manually{' (default)' if default_db else ''}")
         sel = input("Choice [0-{}]: ".format(len(names))).strip()
         if sel.isdigit() and int(sel) in range(1, len(names) + 1):
-            preset = dbs[names[int(sel) - 1]]
+            selected_db_name = names[int(sel) - 1]
+            preset = dbs[selected_db_name]
+        elif preset is None and selected_db_name and selected_db_name in dbs:
+            preset = dbs[selected_db_name]
+
+        if preset is not None:
             db_val = preset.database_id
+            selected_db_name = selected_db_name or preset.name
+            preset_token = preset.token
         else:
             manual = input(f"Notion DB ID [{default_db}]: ").strip()
             db_val = manual or default_db
+            preset_token = None
     else:
         db_val = input(f"Notion DB ID [{default_db}]: ").strip() if _HAS_RICH else click.prompt("Notion DB ID", default=default_db, show_default=bool(default_db))
         if not db_val:
             db_val = default_db
+        preset_token = None
 
     # Determine effective dry-run setting for interactive mode:
     # - Respect CLI flag; do not auto-enable based on environment
@@ -595,7 +612,15 @@ def _interactive_table_flow(
     except Exception:
         pass
 
-    return {"db_id": db_val, "input_path": chosen["path"], "meta_path": chosen["dir"] / "episode-meta.json", "dry_run": effective_dry_run, "cover": cover}
+    return {
+        "db_id": db_val,
+        "db_name": selected_db_name,
+        "token": preset_token,
+        "input_path": chosen["path"],
+        "meta_path": chosen["dir"] / "episode-meta.json",
+        "dry_run": effective_dry_run,
+        "cover": cover,
+    }
 
 
 def md_to_blocks(md: str) -> List[Dict[str, Any]]:
@@ -927,6 +952,11 @@ def upsert_page(
     help="Target Notion database ID",
 )
 @click.option(
+    "--config-db",
+    "config_db_name",
+    help="Named Notion database from podx config to use (overrides env defaults)",
+)
+@click.option(
     "--show", help="Podcast show name (auto-detect workdir, files, and models)"
 )
 @click.option(
@@ -1018,6 +1048,7 @@ def upsert_page(
 )
 def main(
     db_id: Optional[str],
+    config_db_name: Optional[str],
     show: Optional[str],
     episode_date: Optional[str],
     select_model: Optional[str],
@@ -1046,12 +1077,21 @@ def main(
 
     # Interactive table flow
     if interactive:
-        params = _interactive_table_flow(db_id, Path.cwd(), dry_run=dry_run, cover_image=cover_image)
+        params = _interactive_table_flow(
+            db_id,
+            config_db_name,
+            Path.cwd(),
+            dry_run=dry_run,
+            cover_image=cover_image,
+        )
         if not params:
             return
 
         # Inject selected parameters
         db_id = params["db_id"]
+        config_db_name = params.get("db_name", config_db_name)
+        if params.get("token"):
+            selected_token = params["token"]
         input = params["input_path"]
         meta_path = params.get("meta_path")
         dry_run = params["dry_run"]
@@ -1138,8 +1178,30 @@ def main(
                 except (json.JSONDecodeError, FileNotFoundError):
                     pass
 
+    selected_db: Optional[NotionDatabase] = None
+    selected_token: Optional[str] = None
+    if config_db_name:
+        try:
+            mgr = get_yaml_config_manager()
+            selected_db = mgr.get_notion_database(config_db_name)
+            if not selected_db:
+                raise SystemExit(
+                    f"No Notion database named '{config_db_name}' found in podx config."
+                )
+        except Exception as exc:
+            raise SystemExit(f"Failed to load podx config: {exc}")
+
+    if selected_db:
+        db_id = db_id or selected_db.database_id
+        podcast_prop = podcast_prop or selected_db.podcast_property
+        date_prop = date_prop or selected_db.date_property
+        episode_prop = episode_prop or selected_db.episode_property
+        selected_token = selected_db.token
+
     if not db_id:
-        raise SystemExit("Please pass --db or set NOTION_DB_ID environment variable")
+        raise SystemExit(
+            "Please pass --db, use --config-db, or set NOTION_DB_ID environment variable"
+        )
 
     # Handle input modes: --input (from stdin/file) vs separate files
     if input:
@@ -1368,7 +1430,7 @@ def main(
             print(json.dumps(payload, indent=2))
         return
 
-    client = notion_client_from_env()
+    client = notion_client_from_env(selected_token)
     page_id = upsert_page(
         client=client,
         db_id=db_id,

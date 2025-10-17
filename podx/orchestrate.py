@@ -1509,36 +1509,35 @@ def run(
                     # Single-track deepcast always reads the latest processed transcript
                     progress.start_step(f"Analyzing transcript with {deepcast_model}")
                     step_start = time.time()
-                    # Prefer a preprocessed latest if present, else fallback to latest.json
                     latest_path = wd / "latest.json"
                     inp = str(latest_path)
                     meta_file = wd / "episode-meta.json"
 
-                cmd = [
-                    "podx-deepcast",
-                    "--input",
-                    inp,
-                    "--output",
-                    str(json_out),
-                    "--model",
-                    deepcast_model,
-                    "--temperature",
-                    str(deepcast_temp),
-                ]
-                if meta_file.exists():
-                    cmd.extend(["--meta", str(meta_file)])
-                if yaml_analysis_type:
-                    cmd.extend(["--type", yaml_analysis_type])
-                if extract_markdown:
-                    cmd.append("--extract-markdown")
-                if deepcast_pdf:
-                    cmd.append("--pdf")
-                _run(cmd, verbose=verbose, save_to=None, label=None)
-                step_duration = time.time() - step_start
-                progress.complete_step("AI analysis completed", step_duration)
-                results.update({"deepcast_json": str(json_out)})
-                if extract_markdown and md_out.exists():
-                    results.update({"deepcast_md": str(md_out)})
+                    cmd = [
+                        "podx-deepcast",
+                        "--input",
+                        inp,
+                        "--output",
+                        str(json_out),
+                        "--model",
+                        deepcast_model,
+                        "--temperature",
+                        str(deepcast_temp),
+                    ]
+                    if meta_file.exists():
+                        cmd.extend(["--meta", str(meta_file)])
+                    if yaml_analysis_type:
+                        cmd.extend(["--type", yaml_analysis_type])
+                    if extract_markdown:
+                        cmd.append("--extract-markdown")
+                    if deepcast_pdf:
+                        cmd.append("--pdf")
+                    _run(cmd, verbose=verbose, save_to=None, label=None)
+                    step_duration = time.time() - step_start
+                    progress.complete_step("AI analysis completed", step_duration)
+                    results.update({"deepcast_json": str(json_out)})
+                    if extract_markdown and md_out.exists():
+                        results.update({"deepcast_md": str(md_out)})
                 else:
                     # Dual: deepcast precision & recall (requires preprocessed precision/recall inputs)
                     progress.start_step(f"Analyzing precision & recall with {deepcast_model}")
@@ -1548,7 +1547,6 @@ def run(
                     pre_rec = wd / f"transcript-preprocessed-{safe_model}-recall.json"
                     meta_file = wd / "episode-meta.json"
 
-                    # Guard: ensure inputs exist (preprocess step should have created them)
                     if not pre_prec.exists() or not pre_rec.exists():
                         raise ValidationError(
                             "Dual deepcast requires preprocessed precision/recall transcripts; rerun with preprocess enabled or Fidelity 5."
@@ -1557,8 +1555,15 @@ def run(
                     def run_dc(inp_path: Path, suffix: str) -> Path:
                         out = wd / f"deepcast-{safe_model}-{deepcast_model.replace('.', '_')}-{suffix}.json"
                         cmd = [
-                            "podx-deepcast", "--input", str(inp_path), "--output", str(out),
-                            "--model", deepcast_model, "--temperature", str(deepcast_temp)
+                            "podx-deepcast",
+                            "--input",
+                            str(inp_path),
+                            "--output",
+                            str(out),
+                            "--model",
+                            deepcast_model,
+                            "--temperature",
+                            str(deepcast_temp),
                         ]
                         if meta_file.exists():
                             cmd.extend(["--meta", str(meta_file)])
@@ -2679,7 +2684,10 @@ def config_databases():
     table = Table(title="🗃️ Configured Notion Databases")
     table.add_column("Name", style="cyan")
     table.add_column("Database ID", style="yellow")
-    table.add_column("Title Property", style="green")
+    table.add_column("Token", style="magenta")
+    table.add_column("Podcast Prop", style="green")
+    table.add_column("Date Prop", style="green")
+    table.add_column("Episode Prop", style="green")
     table.add_column("Description", style="blue")
 
     for name, db in databases.items():
@@ -2690,8 +2698,24 @@ def config_databases():
             else db.database_id
         )
 
+        def _mask(value: Optional[str]) -> str:
+            if not value:
+                return "(none)"
+            if len(value) <= 10:
+                return value
+            return f"{value[:6]}…{value[-4:]}"
+
+        masked_id = _mask(db.database_id)
+        masked_token = _mask(db.token)
+
         table.add_row(
-            name, masked_id, db.title_property, db.description or "No description"
+            name,
+            masked_id,
+            masked_token,
+            db.podcast_property,
+            db.date_property,
+            db.episode_property,
+            db.description or "No description",
         )
 
     console.print(table)
