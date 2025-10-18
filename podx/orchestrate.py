@@ -46,7 +46,7 @@ from .deepcast import CANONICAL_TYPES as DC_CANONICAL_TYPES  # type: ignore
 from .deepcast import ALIAS_TYPES as DC_ALIAS_TYPES  # type: ignore
 from .pricing import load_model_catalog, estimate_deepcast_cost  # type: ignore
 from .config import get_config
-from .constants import (
+from .domain.constants import (
     EPISODES_PER_PAGE,
     MIN_TITLE_COLUMN_WIDTH,
     TABLE_BORDER_PADDING,
