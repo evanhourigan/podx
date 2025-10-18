@@ -1,0 +1,21 @@
+"""Constants and configuration values for the podx package."""
+
+# Interactive episode selection table configuration
+EPISODES_PER_PAGE = 10
+MIN_TITLE_COLUMN_WIDTH = 10
+TABLE_BORDER_PADDING = 24
+
+# Table column widths
+COLUMN_WIDTH_EPISODE_NUM = 4
+COLUMN_WIDTH_SHOW = 18
+COLUMN_WIDTH_DATE = 12
+COLUMN_WIDTH_ASR = 4
+COLUMN_WIDTH_ALIGN = 4
+COLUMN_WIDTH_DIAR = 4
+COLUMN_WIDTH_DEEP = 4
+COLUMN_WIDTH_TRK = 3
+COLUMN_WIDTH_PROC = 5
+COLUMN_WIDTH_LAST_RUN = 16
+
+# Preview text truncation
+PREVIEW_MAX_LENGTH = 400
