@@ -6,7 +6,7 @@ import subprocess
 import time
 from pathlib import Path
 import sys
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 # Use rich-click for colorized --help when available
 try:  # pragma: no cover
@@ -46,6 +46,21 @@ from .deepcast import CANONICAL_TYPES as DC_CANONICAL_TYPES  # type: ignore
 from .deepcast import ALIAS_TYPES as DC_ALIAS_TYPES  # type: ignore
 from .pricing import load_model_catalog, estimate_deepcast_cost  # type: ignore
 from .config import get_config
+from .constants import (
+    EPISODES_PER_PAGE,
+    MIN_TITLE_COLUMN_WIDTH,
+    TABLE_BORDER_PADDING,
+    COLUMN_WIDTH_EPISODE_NUM,
+    COLUMN_WIDTH_SHOW,
+    COLUMN_WIDTH_DATE,
+    COLUMN_WIDTH_ASR,
+    COLUMN_WIDTH_ALIGN,
+    COLUMN_WIDTH_DIAR,
+    COLUMN_WIDTH_DEEP,
+    COLUMN_WIDTH_TRK,
+    COLUMN_WIDTH_PROC,
+    COLUMN_WIDTH_LAST_RUN,
+)
 from .errors import ValidationError
 from .fetch import _generate_workdir
 from .help import help_cmd
@@ -397,7 +412,77 @@ def run(
     clean: bool,
     no_keep_audio: bool,
 ):
-    """Orchestrate the complete podcast processing pipeline."""
+    """Orchestrate the complete podcast processing pipeline.
+
+    This function handles the end-to-end workflow from episode fetch to publication,
+    supporting various pipeline configurations and resume capabilities.
+
+    Pipeline Flow:
+        1. Source Selection: Fetch from RSS, YouTube, or interactive browser
+        2. Audio Processing: Transcode to target format
+        3. Transcription: ASR with optional dual-track QA (precision + recall)
+        4. Enhancement: Alignment, diarization, preprocessing
+        5. Analysis: AI-powered deepcast with configurable types
+        6. Export: Markdown, PDF, and format conversions
+        7. Publication: Optional Notion upload
+
+    Resume Support:
+        The function detects existing artifacts and offers to skip completed steps,
+        maintaining state in run-state.json for crash recovery.
+
+    Args:
+        show: Podcast name for iTunes search (alternative to rss_url/youtube_url)
+        rss_url: Direct RSS feed URL
+        youtube_url: YouTube video/channel URL
+        date: Filter episode by date (YYYY-MM-DD or partial)
+        title_contains: Filter episode by title substring
+        workdir: Working directory path (auto-generated if not specified)
+        fmt: Output audio format (wav16/mp3/aac)
+        model: ASR transcription model
+        compute: ASR compute type (int8/float16/float32)
+        asr_provider: ASR provider (auto/local/openai/hf)
+        preset: ASR preset (balanced/precision/recall)
+        align: Enable word-level alignment (WhisperX)
+        preprocess: Enable transcript preprocessing
+        restore: Enable semantic restore (LLM-based)
+        diarize: Enable speaker diarization (WhisperX)
+        deepcast: Enable AI analysis
+        workflow: Workflow preset (quick/analyze/publish)
+        fidelity: Fidelity level 1-5 (1=fastest, 5=best quality)
+        dual: Enable dual QA mode (precision + recall)
+        no_consensus: Skip consensus generation in dual mode
+        interactive_select: Use interactive episode selection UI
+        scan_dir: Directory to scan for episodes in interactive mode
+        fetch_new: Force fetch new episode (skip interactive selection)
+        deepcast_model: AI model for deepcast analysis
+        deepcast_temp: Temperature for deepcast LLM calls
+        extract_markdown: Extract markdown from deepcast output
+        deepcast_pdf: Generate PDF from deepcast output
+        notion: Upload to Notion
+        notion_db: Notion database key (from YAML config)
+        podcast_prop: Notion property name for podcast
+        date_prop: Notion property name for date
+        episode_prop: Notion property name for episode
+        model_prop: Notion property name for model
+        asr_prop: Notion property name for ASR provider
+        append_content: Append to existing Notion page instead of replacing
+        full: Convenience flag to enable align + deepcast + markdown + notion
+        verbose: Enable verbose logging
+        clean: Clean intermediate files after completion
+        no_keep_audio: Don't keep audio files after transcription
+
+    Raises:
+        ValidationError: On configuration or input validation failures
+        SystemExit: On user cancellation or missing required configuration
+
+    Returns:
+        Exits with status code 0 on success, non-zero on failure
+    """
+    # Initialize variables that may be used conditionally later to prevent NameError
+    selected: Optional[Dict[str, Any]] = None
+    chosen_type: Optional[str] = None
+    preview: str = ""
+
     # Ensure analysis type placeholder exists before any interactive flow references it
     yaml_analysis_type: Optional[str] = None
     # Handle convenience --full flag
@@ -427,6 +512,62 @@ def run(
             extract_markdown = True
             notion = True
 
+    # Helper function to apply fidelity mapping
+    def _apply_fidelity(
+        fid: str,
+        current_preset: Optional[str],
+        interactive: bool = False
+    ) -> Dict[str, Any]:
+        """Apply fidelity level mapping to pipeline flags.
+
+        Returns dictionary with keys: align, diarize, preprocess, restore, deepcast, dual, preset
+        """
+        flags = {}
+        if fid == "1":
+            # Deepcast only; keep other flags off
+            flags = {
+                "align": False,
+                "diarize": False,
+                "preprocess": False,
+                "dual": False,
+                "deepcast": True,
+                "restore": False,
+                "preset": current_preset,
+            }
+        elif fid == "2":
+            flags = {
+                "preset": "recall" if interactive else (current_preset or "recall"),
+                "preprocess": True,
+                "restore": True,
+                "deepcast": True,
+                "dual": False,
+            }
+        elif fid == "3":
+            flags = {
+                "preset": "precision" if interactive else (current_preset or "precision"),
+                "preprocess": True,
+                "restore": True,
+                "deepcast": True,
+                "dual": False,
+            }
+        elif fid == "4":
+            flags = {
+                "preset": "balanced" if interactive else (current_preset or "balanced"),
+                "preprocess": True,
+                "restore": True,
+                "deepcast": True,
+                "dual": False,
+            }
+        elif fid == "5":
+            flags = {
+                "dual": True,
+                "preprocess": True,
+                "restore": True,
+                "deepcast": True,
+                "preset": current_preset or "balanced",
+            }
+        return flags
+
     # Map --fidelity to flags (lowest→highest)
     # 1: deepcast only (use latest transcript)
     # 2: recall + preprocess + restore + deepcast
@@ -434,38 +575,14 @@ def run(
     # 4: balanced + preprocess + restore + deepcast
     # 5: dual (precision+recall) + preprocess + restore + deepcast
     if fidelity:
-        if fidelity == "1":
-            # Deepcast only; keep other flags off
-            align = False
-            diarize = False
-            preprocess = False
-            dual = False
-            # deepcast flag will trigger analysis on latest
-            deepcast = True
-        elif fidelity == "2":
-            preset = preset or "recall"
-            preprocess = True
-            restore = True
-            deepcast = True
-            dual = False
-        elif fidelity == "3":
-            preset = preset or "precision"
-            preprocess = True
-            restore = True
-            deepcast = True
-            dual = False
-        elif fidelity == "4":
-            preset = preset or "balanced"
-            preprocess = True
-            restore = True
-            deepcast = True
-            dual = False
-        elif fidelity == "5":
-            dual = True
-            preprocess = True
-            restore = True
-            deepcast = True
-            preset = preset or "balanced"
+        fid_flags = _apply_fidelity(fidelity, preset, interactive=False)
+        align = fid_flags.get("align", align)
+        diarize = fid_flags.get("diarize", diarize)
+        preprocess = fid_flags.get("preprocess", preprocess)
+        restore = fid_flags.get("restore", restore)
+        deepcast = fid_flags.get("deepcast", deepcast)
+        dual = fid_flags.get("dual", dual)
+        preset = fid_flags.get("preset", preset)
 
     # Print header and start progress tracking
     print_podx_header()
@@ -481,7 +598,7 @@ def run(
         wd = None  # Will be set after fetch
 
         # Helper: scan episodes for interactive select
-        def _scan_episode_status(root: Path):
+        def _scan_episode_status(root: Path) -> List[Dict[str, Any]]:
             episodes = []
             for meta_path in root.rglob("episode-meta.json"):
                 try:
@@ -572,7 +689,7 @@ def run(
             # Sort newest first
             eps_sorted = sorted(eps, key=lambda x: (x["date"], x["show"]), reverse=True)
             page = 0
-            per_page = 10
+            per_page = EPISODES_PER_PAGE
             total_pages = max(1, (len(eps_sorted) + per_page - 1) // per_page)
             selected = None
             while True:
@@ -586,12 +703,23 @@ def run(
                 except Exception:
                     console_width = 120
                 # Sum of fixed columns widths
-                # Fixed columns (excluding flexible Title): #, Show, Date(12), ASR, Align, Diar, Deep, Trk, Proc, Last Run
-                fixed_cols = 4 + 18 + 12 + 4 + 4 + 4 + 4 + 3 + 5 + 16
+                # Fixed columns (excluding flexible Title): #, Show, Date, ASR, Align, Diar, Deep, Trk, Proc, Last Run
+                fixed_cols = (
+                    COLUMN_WIDTH_EPISODE_NUM +
+                    COLUMN_WIDTH_SHOW +
+                    COLUMN_WIDTH_DATE +
+                    COLUMN_WIDTH_ASR +
+                    COLUMN_WIDTH_ALIGN +
+                    COLUMN_WIDTH_DIAR +
+                    COLUMN_WIDTH_DEEP +
+                    COLUMN_WIDTH_TRK +
+                    COLUMN_WIDTH_PROC +
+                    COLUMN_WIDTH_LAST_RUN
+                )
                 # Extra allowance for table borders/padding/separators
-                borders_allowance = 24
+                borders_allowance = TABLE_BORDER_PADDING
                 # Let Title shrink further on small terminals so other headers aren't truncated
-                title_width = max(10, console_width - fixed_cols - borders_allowance)
+                title_width = max(MIN_TITLE_COLUMN_WIDTH, console_width - fixed_cols - borders_allowance)
 
                 # Sanitize helper for cells to avoid layout-breaking zero-width chars and pipes
                 def _clean_cell(text: str) -> str:
@@ -611,18 +739,18 @@ def run(
                     border_style=TABLE_BORDER_STYLE,
                     pad_edge=False,
                 )
-                table.add_column("#", style=TABLE_NUM_STYLE, width=4, justify="right", no_wrap=True)
-                table.add_column("Show", style="green", width=18, no_wrap=True)
-                table.add_column("Date", style="blue", width=12, no_wrap=True, overflow="ellipsis")
+                table.add_column("#", style=TABLE_NUM_STYLE, width=COLUMN_WIDTH_EPISODE_NUM, justify="right", no_wrap=True)
+                table.add_column("Show", style="green", width=COLUMN_WIDTH_SHOW, no_wrap=True)
+                table.add_column("Date", style="blue", width=COLUMN_WIDTH_DATE, no_wrap=True, overflow="ellipsis")
                 # Title column flexes; keep one line with ellipsis
                 table.add_column("Title", style="white", width=title_width, no_wrap=True, overflow="ellipsis")
-                table.add_column("ASR", style="yellow", width=4, no_wrap=True, justify="right")
-                table.add_column("Align", style="yellow", width=4, no_wrap=True, justify="center")
-                table.add_column("Diar", style="yellow", width=4, no_wrap=True, justify="center")
-                table.add_column("Deep", style="yellow", width=4, no_wrap=True, justify="right")
-                table.add_column("Trk", style="yellow", width=3, no_wrap=True, justify="center")
-                table.add_column("Proc", style="yellow", width=5, no_wrap=True)
-                table.add_column("Last Run", style="white", width=16, no_wrap=True)
+                table.add_column("ASR", style="yellow", width=COLUMN_WIDTH_ASR, no_wrap=True, justify="right")
+                table.add_column("Align", style="yellow", width=COLUMN_WIDTH_ALIGN, no_wrap=True, justify="center")
+                table.add_column("Diar", style="yellow", width=COLUMN_WIDTH_DIAR, no_wrap=True, justify="center")
+                table.add_column("Deep", style="yellow", width=COLUMN_WIDTH_DEEP, no_wrap=True, justify="right")
+                table.add_column("Trk", style="yellow", width=COLUMN_WIDTH_TRK, no_wrap=True, justify="center")
+                table.add_column("Proc", style="yellow", width=COLUMN_WIDTH_PROC, no_wrap=True)
+                table.add_column("Last Run", style="white", width=COLUMN_WIDTH_LAST_RUN, no_wrap=True)
 
                 for idx, e in enumerate(eps_sorted[start:end], start=start + 1):
                     asr_count_val = len(e["transcripts"]) if e["transcripts"] else 0
@@ -711,37 +839,15 @@ def run(
                 raise SystemExit(0)
             if fchoice in {"5","4","3","2","1"}:
                 fidelity = fchoice
-                # Apply fidelity mapping immediately (same logic as above)
-                if fidelity == "1":
-                    align = False
-                    diarize = False
-                    preprocess = False
-                    dual = False
-                    deepcast = True
-                elif fidelity == "2":
-                    preset = "recall"
-                    preprocess = True
-                    restore = True
-                    deepcast = True
-                    dual = False
-                elif fidelity == "3":
-                    preset = "precision"
-                    preprocess = True
-                    restore = True
-                    deepcast = True
-                    dual = False
-                elif fidelity == "4":
-                    preset = "balanced"
-                    preprocess = True
-                    restore = True
-                    deepcast = True
-                    dual = False
-                elif fidelity == "5":
-                    dual = True
-                    preprocess = True
-                    restore = True
-                    deepcast = True
-                    preset = preset or "balanced"
+                # Apply fidelity mapping using shared helper
+                fid_flags = _apply_fidelity(fidelity, preset, interactive=True)
+                align = fid_flags.get("align", align)
+                diarize = fid_flags.get("diarize", diarize)
+                preprocess = fid_flags.get("preprocess", preprocess)
+                restore = fid_flags.get("restore", restore)
+                deepcast = fid_flags.get("deepcast", deepcast)
+                dual = fid_flags.get("dual", dual)
+                preset = fid_flags.get("preset", preset)
 
             # Show resulting flags (yes/no) before overrides
             def yn(val: bool) -> str:
