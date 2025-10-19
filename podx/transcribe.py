@@ -1,7 +1,5 @@
 import json
 import sys
-import threading
-import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -20,7 +18,6 @@ logger = get_logger(__name__)
 # Interactive browser imports (optional)
 try:
     from rich.console import Console
-    from rich.table import Table
 
     RICH_AVAILABLE = True
 except ImportError:
@@ -29,8 +26,10 @@ except ImportError:
 # Shared UI styling and components
 try:
     from .ui import (
+        LiveTimer,
         TranscribeBrowser,
         scan_transcribable_episodes,
+        select_asr_model,
         make_console,
         TABLE_BORDER_STYLE,
         TABLE_HEADER_STYLE,
@@ -41,6 +40,8 @@ try:
     )
 except Exception:
     # Fallbacks if ui module is unavailable
+    from .ui.asr_selector import select_asr_model
+    from .ui.live_timer import LiveTimer
     from .ui.transcribe_browser import TranscribeBrowser, scan_transcribable_episodes
 
     def make_console():
@@ -52,10 +53,6 @@ except Exception:
     TABLE_SHOW_STYLE = "yellow3"
     TABLE_DATE_STYLE = "bright_blue"
     TABLE_TITLE_COL_STYLE = "white"
-
-# Available ASR models in order of sophistication (local/faster-whisper canonical names)
-# Note: local models also support ".en" variants like "small.en", "medium.en".
-ASR_MODELS = ["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"]
 
 # Model alias maps per provider. Keep minimal and conservative; expand over time.
 OPENAI_MODEL_ALIASES: Dict[str, str] = {
@@ -129,150 +126,11 @@ def parse_model_and_provider(
     return ("local", normalized)
 
 
-class LiveTimer:
-    """Display a live timer that updates every second in the console."""
-
-    def __init__(self, message: str = "Running"):
-        self.message = message
-        self.start_time = None
-        self.stop_flag = threading.Event()
-        self.thread = None
-
-    def _format_time(self, seconds: int) -> str:
-        """Format seconds as M:SS."""
-        minutes = seconds // 60
-        secs = seconds % 60
-        return f"{minutes}:{secs:02d}"
-
-    def _run(self):
-        """Run the timer loop."""
-        while not self.stop_flag.is_set():
-            elapsed = int(time.time() - self.start_time)
-            # Use \r to overwrite the line
-            print(f"\r{self.message} ({self._format_time(elapsed)})", end="", flush=True)
-            time.sleep(1)
-
-    def start(self):
-        """Start the timer."""
-        self.start_time = time.time()
-        self.stop_flag.clear()
-        self.thread = threading.Thread(target=self._run, daemon=True)
-        self.thread.start()
-
-    def stop(self) -> float:
-        """Stop the timer and return elapsed time."""
-        elapsed = time.time() - self.start_time
-        self.stop_flag.set()
-        if self.thread:
-            self.thread.join(timeout=2)
-        # Clear the line
-        print("\r" + " " * 80 + "\r", end="", flush=True)
-        return elapsed
-
-
-def get_most_sophisticated_model(models: List[str]) -> str:
-    """Return the most sophisticated model from a list."""
-    for model in reversed(ASR_MODELS):
-        if model in models:
-            return model
-    return models[0] if models else "base"
-
-
 def _truncate_text(text: str, max_length: int = 60) -> str:
     """Truncate text to max length with ellipsis."""
     if len(text) <= max_length:
         return text
     return text[: max_length - 3] + "..."
-
-
-def select_asr_model(
-    episode: Dict[str, Any], console: Optional[Console]
-) -> Optional[str]:
-    """Prompt user to select ASR model with helpful context."""
-    if not console:
-        return None
-
-    transcribed_models = list(episode["transcripts"].keys())
-
-    # Determine recommended local model (most sophisticated not yet transcribed)
-    recommended = None
-    for model in reversed(ASR_MODELS):
-        if model not in transcribed_models:
-            recommended = model
-            break
-
-    if not recommended:
-        recommended = get_most_sophisticated_model(ASR_MODELS)
-
-    console.print("\n[bold cyan]Select ASR model:[/bold cyan]\n")
-
-    # Create table showing models
-    table = Table(show_header=False, box=None, padding=(0, 2))
-    table.add_column("Number", style="cyan", justify="right", width=3)
-    table.add_column("Model", style="white", width=12)
-    table.add_column("Status", style="yellow", width=20)
-
-    # Display local models plus common variants and provider examples
-    display_models: List[str] = []
-    display_models.extend(ASR_MODELS)
-    for extra in ["small.en", "medium.en", "openai:large-v3-turbo", "hf:distil-large-v3"]:
-        if extra not in display_models:
-            display_models.append(extra)
-
-    for idx, model in enumerate(display_models, 1):
-        if model in transcribed_models:
-            status = "✓ Already transcribed"
-        elif model == recommended:
-            status = "← Recommended"
-        else:
-            status = ""
-        table.add_row(str(idx), model, status)
-
-    console.print(table)
-
-    if transcribed_models:
-        console.print(
-            f"\n[dim]Already transcribed with: {', '.join(transcribed_models)}[/dim]"
-        )
-
-    # Get user selection
-    while True:
-        try:
-            choice = input(f"\n👉 Select model (1-{len(display_models)}) or Q to cancel: ").strip().upper()
-
-            if choice in ["Q", "QUIT", "CANCEL"]:
-                return None
-
-            model_idx = int(choice)
-            if 1 <= model_idx <= len(display_models):
-                selected_model = display_models[model_idx - 1]
-
-                # Check if same model already exists - ask for confirmation
-                if selected_model in transcribed_models:
-                    console.print(
-                        f"\n[yellow]⚠ Episode already transcribed with model '{selected_model}'[/yellow]"
-                    )
-                    confirm = (
-                        input("Re-transcribe with same model? (yes/no): ")
-                        .strip()
-                        .lower()
-                    )
-                    if confirm not in ["yes", "y"]:
-                        console.print(
-                            "[dim]Selection cancelled. Choose a different model.[/dim]"
-                        )
-                        continue
-
-                return selected_model
-            else:
-                console.print(
-                        f"[red]❌ Invalid choice. Please select 1-{len(display_models)}[/red]"
-                )
-
-        except ValueError:
-            console.print("[red]❌ Invalid input. Please enter a number.[/red]")
-        except (KeyboardInterrupt, EOFError):
-            return None
 
 
 @click.command()

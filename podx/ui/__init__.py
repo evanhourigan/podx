@@ -22,6 +22,7 @@ from ..ui_styles import (
 )
 
 # Import from new ui/ package modules
+from .asr_selector import ASR_MODELS, get_most_sophisticated_model, select_asr_model
 from .confirmation import Confirmation
 from .deepcast_selector import select_deepcast_type
 from .episode_selector import (
@@ -31,6 +32,7 @@ from .episode_selector import (
 )
 from .fetch_browser import EpisodeBrowser
 from .formatters import clean_cell, sanitize_filename
+from .live_timer import LiveTimer
 from .transcribe_browser import TranscribeBrowser, scan_transcribable_episodes
 
 __all__ = [
@@ -53,13 +55,17 @@ __all__ = [
     "make_console",
     "format_example_line",
     # From new ui/ package
+    "ASR_MODELS",
     "Confirmation",
     "EpisodeBrowser",
+    "LiveTimer",
     "TranscribeBrowser",
     "clean_cell",
+    "get_most_sophisticated_model",
     "sanitize_filename",
     "scan_episode_status",
     "scan_transcribable_episodes",
+    "select_asr_model",
     "select_deepcast_type",
     "select_episode_interactive",
     "select_fidelity_interactive",
