@@ -1,7 +1,12 @@
-"""Workflow and fidelity preset utilities."""
+"""Workflow and fidelity preset utilities.
+
+These functions delegate to domain layer factory methods to ensure
+single source of truth for preset logic.
+"""
 
 from typing import Any, Dict, Union
 
+from ..domain import PipelineConfig
 from ..domain.enums import ASRPreset
 
 
@@ -11,6 +16,9 @@ def apply_fidelity_preset(
     interactive: bool = False,
 ) -> Dict[str, Any]:
     """Apply fidelity level mapping to pipeline flags.
+
+    This delegates to PipelineConfig.from_fidelity() to ensure single source
+    of truth for fidelity mappings.
 
     Args:
         fidelity: Fidelity level 1-5
@@ -26,51 +34,19 @@ def apply_fidelity_preset(
         Dictionary with pipeline flags: align, diarize, preprocess, restore, deepcast, dual, preset
         Note: preset values are ASRPreset enums for type safety
     """
-    flags: Dict[str, Any] = {}
+    # Delegate to domain factory method
+    config = PipelineConfig.from_fidelity(int(fidelity), preset=current_preset)
 
-    if fidelity == "1":
-        # Deepcast only; keep other flags off
-        flags = {
-            "align": False,
-            "diarize": False,
-            "preprocess": False,
-            "dual": False,
-            "deepcast": True,
-            "restore": False,
-            "preset": current_preset,
-        }
-    elif fidelity == "2":
-        flags = {
-            "preset": ASRPreset.RECALL if interactive else (current_preset or ASRPreset.RECALL),
-            "preprocess": True,
-            "restore": True,
-            "deepcast": True,
-            "dual": False,
-        }
-    elif fidelity == "3":
-        flags = {
-            "preset": ASRPreset.PRECISION if interactive else (current_preset or ASRPreset.PRECISION),
-            "preprocess": True,
-            "restore": True,
-            "deepcast": True,
-            "dual": False,
-        }
-    elif fidelity == "4":
-        flags = {
-            "preset": ASRPreset.BALANCED if interactive else (current_preset or ASRPreset.BALANCED),
-            "preprocess": True,
-            "restore": True,
-            "deepcast": True,
-            "dual": False,
-        }
-    elif fidelity == "5":
-        flags = {
-            "dual": True,
-            "preprocess": True,
-            "restore": True,
-            "deepcast": True,
-            "preset": current_preset or ASRPreset.BALANCED,
-        }
+    # Convert to dict for backward compatibility with orchestrate.py
+    flags = {
+        "preset": config.preset,
+        "align": config.align,
+        "diarize": config.diarize,
+        "preprocess": config.preprocess,
+        "restore": config.restore,
+        "deepcast": config.deepcast,
+        "dual": config.dual,
+    }
 
     return flags
 
@@ -78,36 +54,25 @@ def apply_fidelity_preset(
 def apply_workflow_preset(workflow: str) -> Dict[str, Any]:
     """Apply workflow preset to pipeline flags.
 
+    This delegates to PipelineConfig.from_workflow() to ensure single source
+    of truth for workflow mappings.
+
     Args:
         workflow: Workflow name (quick, analyze, publish)
 
     Returns:
         Dictionary with pipeline flags
     """
-    flags: Dict[str, Any] = {}
+    # Delegate to domain factory method
+    config = PipelineConfig.from_workflow(workflow)
 
-    if workflow == "quick":
-        flags = {
-            "align": False,
-            "diarize": False,
-            "deepcast": False,
-            "extract_markdown": False,
-            "notion": False,
-        }
-    elif workflow == "analyze":
-        flags = {
-            "align": True,
-            "diarize": False,
-            "deepcast": True,
-            "extract_markdown": True,
-        }
-    elif workflow == "publish":
-        flags = {
-            "align": True,
-            "diarize": False,
-            "deepcast": True,
-            "extract_markdown": True,
-            "notion": True,
-        }
+    # Convert to dict for backward compatibility with orchestrate.py
+    flags = {
+        "align": config.align,
+        "diarize": config.diarize,
+        "deepcast": config.deepcast,
+        "extract_markdown": config.extract_markdown,
+        "notion": config.notion,
+    }
 
     return flags
