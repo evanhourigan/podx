@@ -22,6 +22,7 @@ from ..ui_styles import (
 )
 
 # Import from new ui/ package modules
+from .align_browser import AlignBrowser, scan_alignable_transcripts
 from .asr_selector import ASR_MODELS, get_most_sophisticated_model, select_asr_model
 from .confirmation import Confirmation
 from .deepcast_selector import select_deepcast_type
@@ -55,6 +56,7 @@ __all__ = [
     "make_console",
     "format_example_line",
     # From new ui/ package
+    "AlignBrowser",
     "ASR_MODELS",
     "Confirmation",
     "EpisodeBrowser",
@@ -63,6 +65,7 @@ __all__ = [
     "clean_cell",
     "get_most_sophisticated_model",
     "sanitize_filename",
+    "scan_alignable_transcripts",
     "scan_episode_status",
     "scan_transcribable_episodes",
     "select_asr_model",
