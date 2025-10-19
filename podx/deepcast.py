@@ -9,11 +9,11 @@ Detects:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sys
 import textwrap
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -301,6 +301,20 @@ def chat_once(
     return resp.choices[0].message.content or ""
 
 
+async def chat_once_async(
+    client: OpenAI, model: str, system: str, user: str, temperature: float = 0.2
+) -> str:
+    """Async wrapper for chat_once to enable concurrent API calls.
+
+    Runs the synchronous OpenAI API call in a thread pool executor
+    to enable parallel processing of multiple chunks.
+    """
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        None, chat_once, client, model, system, user, temperature
+    )
+
+
 def select_deepcast_type(row: Dict[str, Any], console: Console) -> Optional[str]:
     """Prompt user to select deepcast type."""
     # Get default type from config if available
@@ -531,17 +545,26 @@ def deepcast(
         )
         return prompt_display, None
 
-    # Normal flow: call the API
+    # Normal flow: call the API (parallel execution for speedup)
     client = get_client()
-    map_notes = []
 
-    for i, chunk in enumerate(chunks):
-        prompt = f"{template.map_instructions}\n\nChunk {i+1}/{len(chunks)}:\n\n{chunk}"
-        note = chat_once(
-            client, model=model, system=system, user=prompt, temperature=temperature
-        )
-        map_notes.append(note)
-        time.sleep(0.1)  # Rate limiting
+    async def process_chunks_parallel():
+        """Process all chunks concurrently with rate limiting."""
+        semaphore = asyncio.Semaphore(3)  # Limit to 3 concurrent requests
+
+        async def process_chunk(i: int, chunk: str) -> str:
+            async with semaphore:
+                prompt = f"{template.map_instructions}\n\nChunk {i+1}/{len(chunks)}:\n\n{chunk}"
+                note = await chat_once_async(
+                    client, model=model, system=system, user=prompt, temperature=temperature
+                )
+                return note
+
+        tasks = [process_chunk(i, chunk) for i, chunk in enumerate(chunks)]
+        return await asyncio.gather(*tasks)
+
+    # Run parallel processing
+    map_notes = asyncio.run(process_chunks_parallel())
 
     # Reduce phase with enhanced instructions
     reduce_prompt = (
