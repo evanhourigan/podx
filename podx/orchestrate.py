@@ -1618,8 +1618,15 @@ def run(
         else:
             progress.start_step(f"Transcoding audio to {fmt}")
             step_start = time.time()
+            from .services import CommandBuilder
+
+            transcode_cmd = (
+                CommandBuilder("podx-transcode")
+                .add_option("--to", fmt)
+                .add_option("--outdir", str(wd))
+            )
             audio = _run(
-                ["podx-transcode", "--to", fmt, "--outdir", str(wd)],
+                transcode_cmd.build(),
                 stdin_payload=meta,
                 verbose=verbose,
                 save_to=audio_meta_file,
@@ -1665,17 +1672,17 @@ def run(
         # quick TXT/SRT from whatever we have (prefer diarized/aligned if produced)
         progress.start_step("Exporting transcript files")
         step_start = time.time()
+        from .services import CommandBuilder
+
+        export_cmd = (
+            CommandBuilder("podx-export")
+            .add_option("--formats", "txt,srt")
+            .add_option("--output-dir", str(wd))
+            .add_option("--input", str(wd / f"{latest_name}.json"))
+            .add_flag("--replace")
+        )
         export_result = _run(
-            [
-                "podx-export",
-                "--formats",
-                "txt,srt",
-                "--output-dir",
-                str(wd),
-                "--input",
-                str(wd / f"{latest_name}.json"),
-                "--replace",
-            ],
+            export_cmd.build(),
             stdin_payload=latest,
             verbose=verbose,
             label=None,  # Progress handles the display
