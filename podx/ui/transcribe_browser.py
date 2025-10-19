@@ -2,9 +2,10 @@
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from ..logging import get_logger
+from .interactive_browser import InteractiveBrowser
 
 logger = get_logger(__name__)
 
@@ -106,28 +107,35 @@ def scan_transcribable_episodes(base_dir: Path = Path.cwd()) -> List[Dict[str, A
     return episodes
 
 
-class TranscribeBrowser:
+class TranscribeBrowser(InteractiveBrowser):
     """Interactive episode browser for transcription."""
 
     def __init__(self, episodes: List[Dict[str, Any]], episodes_per_page: int = 10):
-        self.episodes = episodes
-        self.episodes_per_page = episodes_per_page
-        self.console = make_console() if RICH_AVAILABLE else None
-        self.current_page = 0
-        self.total_pages = (
-            (len(episodes) + episodes_per_page - 1) // episodes_per_page
-            if episodes
-            else 1
-        )
+        super().__init__(episodes, episodes_per_page, item_name="episode")
+        # Keep episodes as alias for backward compatibility
+        self.episodes = self.items
+        self.episodes_per_page = self.items_per_page
+
+    def _get_item_title(self, item: Dict[str, Any]) -> str:
+        """Get title of episode for selection confirmation."""
+        episode_meta_file = item["directory"] / "episode-meta.json"
+        if episode_meta_file.exists():
+            try:
+                import json
+                episode_meta = json.loads(episode_meta_file.read_text(encoding="utf-8"))
+                return episode_meta.get("episode_title", "Unknown")
+            except Exception:
+                pass
+        return "Unknown"
 
     def display_page(self) -> None:
         """Display current page of episodes."""
         if not self.console:
             return
 
-        start_idx = self.current_page * self.episodes_per_page
-        end_idx = min(start_idx + self.episodes_per_page, len(self.episodes))
-        page_episodes = self.episodes[start_idx:end_idx]
+        start_idx = self.current_page * self.items_per_page
+        end_idx = min(start_idx + self.items_per_page, len(self.items))
+        page_episodes = self.items[start_idx:end_idx]
 
         # Create title
         title = f"🎙️ Episodes Available for Transcription (Page {self.current_page + 1}/{self.total_pages})"
@@ -202,7 +210,7 @@ class TranscribeBrowser:
         # Show navigation options
         options = []
         options.append(
-            f"[cyan]1-{len(self.episodes)}[/cyan]: Select episode to transcribe"
+            f"[cyan]1-{len(self.items)}[/cyan]: Select episode to transcribe"
         )
 
         if self.current_page < self.total_pages - 1:
@@ -220,85 +228,3 @@ class TranscribeBrowser:
         )
 
         self.console.print(panel)
-
-    def get_user_input(self) -> Optional[Dict[str, Any]]:
-        """Get user input and return selected episode or None."""
-        while True:
-            try:
-                user_input = input("\n👉 Your choice: ").strip().upper()
-
-                if not user_input:
-                    continue
-
-                # Quit
-                if user_input in ["Q", "QUIT", "EXIT"]:
-                    if self.console:
-                        self.console.print("👋 Goodbye!")
-                    return None
-
-                # Next page
-                if user_input == "N" and self.current_page < self.total_pages - 1:
-                    self.current_page += 1
-                    return {}  # Empty dict signals page change
-
-                # Previous page
-                if user_input == "P" and self.current_page > 0:
-                    self.current_page -= 1
-                    return {}  # Empty dict signals page change
-
-                # Episode selection
-                try:
-                    episode_num = int(user_input)
-                    if 1 <= episode_num <= len(self.episodes):
-                        selected_episode = self.episodes[episode_num - 1]
-                        # Show confirmation
-                        if self.console:
-                            # Load metadata to get title
-                            episode_meta_file = selected_episode["directory"] / "episode-meta.json"
-                            if episode_meta_file.exists():
-                                try:
-                                    import json
-                                    episode_meta = json.loads(episode_meta_file.read_text(encoding="utf-8"))
-                                    title = episode_meta.get("episode_title", "Unknown")
-                                except Exception:
-                                    title = "Unknown"
-                            else:
-                                title = "Unknown"
-                            self.console.print(f"✅ Selected: [green]{title}[/green]")
-                        return selected_episode
-                    else:
-                        if self.console:
-                            self.console.print(
-                                f"[red]❌ Invalid choice. Please select 1-{len(self.episodes)}[/red]"
-                            )
-                except ValueError:
-                    pass
-
-                # Invalid input
-                if self.console:
-                    self.console.print("[red]❌ Invalid input. Please enter a number.[/red]")
-
-            except (KeyboardInterrupt, EOFError):
-                if self.console:
-                    self.console.print("\n👋 Goodbye!")
-                return None
-
-    def browse(self) -> Optional[Dict[str, Any]]:
-        """Main browsing loop."""
-        while True:
-            if self.console:
-                self.console.clear()
-            self.display_page()
-
-            result = self.get_user_input()
-
-            # None means quit
-            if result is None:
-                return None
-
-            # Empty dict means page change, continue loop
-            if not result:
-                continue
-
-            # Non-empty dict means episode selected
-            return result

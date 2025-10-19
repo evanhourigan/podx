@@ -1,10 +1,11 @@
 """Interactive episode browser for podcast RSS feeds."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import feedparser
 
 from ..utils import format_date, format_duration, generate_workdir
+from .interactive_browser import InteractiveBrowser
 
 # Interactive browser imports (optional)
 try:
@@ -19,7 +20,6 @@ except ImportError:
 # Shared UI styling
 try:
     from . import (
-        make_console,
         TABLE_BORDER_STYLE,
         TABLE_HEADER_STYLE,
         TABLE_NUM_STYLE,
@@ -38,7 +38,7 @@ except Exception:
     TABLE_TITLE_COL_STYLE = "white"
 
 
-class EpisodeBrowser:
+class EpisodeBrowser(InteractiveBrowser):
     """Interactive episode browser with pagination."""
 
     def __init__(
@@ -46,11 +46,15 @@ class EpisodeBrowser:
     ):
         self.show_name = show_name
         self.rss_url = rss_url
-        self.episodes_per_page = episodes_per_page
-        self.console = make_console() if RICH_AVAILABLE else None
-        self.episodes: List[Dict[str, Any]] = []
-        self.current_page = 0
-        self.total_pages = 0
+        # Initialize with empty list, load_episodes() will populate it
+        super().__init__([], episodes_per_page, item_name="episode")
+        # Keep episodes as alias for backward compatibility
+        self.episodes = self.items
+        self.episodes_per_page = self.items_per_page
+
+    def _get_item_title(self, item: Dict[str, Any]) -> str:
+        """Get title of episode for selection confirmation."""
+        return item.get("title", "Unknown")
 
     def load_episodes(self) -> bool:
         """Load episodes from RSS feed."""
@@ -132,14 +136,14 @@ class EpisodeBrowser:
 
                 self.episodes.append(episode)
 
-            # Calculate pagination
-            self.total_pages = (
-                len(self.episodes) + self.episodes_per_page - 1
-            ) // self.episodes_per_page
+            # Calculate pagination - update base class total_pages
+            self.total_pages = max(1, (
+                len(self.items) + self.items_per_page - 1
+            ) // self.items_per_page)
 
             if self.console:
                 self.console.print(
-                    f"✅ Loaded [green]{len(self.episodes)}[/green] episodes"
+                    f"✅ Loaded [green]{len(self.items)}[/green] episodes"
                 )
             return True
 
@@ -153,9 +157,9 @@ class EpisodeBrowser:
         if not self.console:
             return
 
-        start_idx = self.current_page * self.episodes_per_page
-        end_idx = min(start_idx + self.episodes_per_page, len(self.episodes))
-        page_episodes = self.episodes[start_idx:end_idx]
+        start_idx = self.current_page * self.items_per_page
+        end_idx = min(start_idx + self.items_per_page, len(self.items))
+        page_episodes = self.items[start_idx:end_idx]
 
         # Create title
         title = f"🎙️ {self.show_name} - Episodes (Page {self.current_page + 1}/{self.total_pages})"
@@ -201,7 +205,7 @@ class EpisodeBrowser:
         # Show navigation options
         options = []
         options.append(
-            f"[cyan]1-{len(self.episodes)}[/cyan]: Select episode to download"
+            f"[cyan]1-{len(self.items)}[/cyan]: Select episode to download"
         )
 
         if self.current_page < self.total_pages - 1:
@@ -220,77 +224,10 @@ class EpisodeBrowser:
 
         self.console.print(panel)
 
-    def get_user_input(self) -> Optional[Dict[str, Any]]:
-        """Get user input and return selected episode or None."""
-        while True:
-            try:
-                user_input = input("\n👉 Your choice: ").strip().upper()
-
-                if not user_input:
-                    continue
-
-                # Quit
-                if user_input in ["Q", "QUIT", "EXIT"]:
-                    if self.console:
-                        self.console.print("👋 Goodbye!")
-                    return None
-
-                # Next page
-                if user_input == "N" and self.current_page < self.total_pages - 1:
-                    self.current_page += 1
-                    return {}  # Empty dict signals page change
-
-                # Previous page
-                if user_input == "P" and self.current_page > 0:
-                    self.current_page -= 1
-                    return {}  # Empty dict signals page change
-
-                # Episode selection
-                try:
-                    episode_num = int(user_input)
-                    if 1 <= episode_num <= len(self.episodes):
-                        selected_episode = self.episodes[episode_num - 1]
-                        if self.console:
-                            self.console.print(
-                                f"✅ Selected: [green]{selected_episode['title']}[/green]"
-                            )
-                        return selected_episode
-                    else:
-                        if self.console:
-                            self.console.print(
-                                f"[red]❌ Invalid choice. Please select 1-{len(self.episodes)}[/red]"
-                            )
-                except ValueError:
-                    pass
-
-                # Invalid input
-                if self.console:
-                    self.console.print("[red]❌ Invalid input. Please enter a number.[/red]")
-
-            except (KeyboardInterrupt, EOFError):
-                if self.console:
-                    self.console.print("\n👋 Goodbye!")
-                return None
-
     def browse(self) -> Optional[Dict[str, Any]]:
-        """Main browsing loop."""
+        """Main browsing loop. Load episodes first, then start browsing."""
         if not self.load_episodes():
             return None
 
-        while True:
-            if self.console:
-                self.console.clear()
-            self.display_page()
-
-            result = self.get_user_input()
-
-            # None means quit
-            if result is None:
-                return None
-
-            # Empty dict means page change, continue loop
-            if not result:
-                continue
-
-            # Non-empty dict means episode selected
-            return result
+        # Call parent browse() after episodes are loaded
+        return super().browse()

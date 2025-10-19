@@ -3,7 +3,7 @@
 import json
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 try:
     from rich.panel import Panel
@@ -21,8 +21,8 @@ from ..ui_styles import (
     TABLE_SHOW_STYLE,
     TABLE_DATE_STYLE,
     TABLE_TITLE_COL_STYLE,
-    make_console,
 )
+from .interactive_browser import InteractiveBrowser
 
 logger = get_logger(__name__)
 
@@ -284,15 +284,18 @@ def flatten_episodes_to_rows(episodes: List[Dict[str, Any]]) -> List[Dict[str, A
     return rows
 
 
-class DeepcastBrowser:
+class DeepcastBrowser(InteractiveBrowser):
     """Interactive browser for selecting episodes to deepcast."""
 
     def __init__(self, rows: List[Dict[str, Any]], items_per_page: int = 10):
-        self.rows = rows
-        self.items_per_page = items_per_page
-        self.console = make_console() if RICH_AVAILABLE else None
-        self.current_page = 0
-        self.total_pages = max(1, (len(rows) + items_per_page - 1) // items_per_page)
+        super().__init__(rows, items_per_page, item_name="row")
+        # Keep rows as alias for backward compatibility
+        self.rows = self.items
+
+    def _get_item_title(self, item: Dict[str, Any]) -> str:
+        """Get title of episode for selection confirmation."""
+        episode = item.get("episode", {})
+        return episode.get("title", "Unknown")
 
     def display_page(self) -> None:
         """Display current page with table and navigation options."""
@@ -301,8 +304,8 @@ class DeepcastBrowser:
 
         # Calculate page bounds
         start_idx = self.current_page * self.items_per_page
-        end_idx = min(start_idx + self.items_per_page, len(self.rows))
-        page_items = self.rows[start_idx:end_idx]
+        end_idx = min(start_idx + self.items_per_page, len(self.items))
+        page_items = self.items[start_idx:end_idx]
 
         # Create title with emoji
         title = f"🎙️ Episodes Available for Deepcast (Page {self.current_page + 1}/{self.total_pages})"
@@ -354,7 +357,7 @@ class DeepcastBrowser:
         # Show navigation options in Panel
         options = []
         options.append(
-            f"[cyan]1-{len(self.rows)}[/cyan]: Select episode to deepcast"
+            f"[cyan]1-{len(self.items)}[/cyan]: Select episode to deepcast"
         )
 
         if self.current_page < self.total_pages - 1:
@@ -370,75 +373,3 @@ class DeepcastBrowser:
             options_text, title="Options", border_style="blue", padding=(0, 1)
         )
         self.console.print(panel)
-
-    def get_user_input(self) -> Optional[Dict[str, Any]]:
-        """Get user input and return selected row or None."""
-        while True:
-            try:
-                choice = input("\n👉 Your choice: ").strip().upper()
-
-                if not choice:
-                    continue
-
-                # Quit
-                if choice in ["Q", "QUIT", "EXIT"]:
-                    if self.console:
-                        self.console.print("👋 Goodbye!")
-                    return None
-
-                # Next page
-                if choice == "N" and self.current_page < self.total_pages - 1:
-                    self.current_page += 1
-                    return {}  # Empty dict signals page change
-
-                # Previous page
-                if choice == "P" and self.current_page > 0:
-                    self.current_page -= 1
-                    return {}  # Empty dict signals page change
-
-                # Episode selection
-                try:
-                    selection = int(choice)
-                    if 1 <= selection <= len(self.rows):
-                        selected_row = self.rows[selection - 1]
-                        if self.console:
-                            episode = selected_row["episode"]
-                            title = episode.get("title", "Unknown")
-                            self.console.print(f"✅ Selected: [green]{title}[/green]")
-                        return selected_row
-                    else:
-                        if self.console:
-                            self.console.print(
-                                f"[red]❌ Invalid choice. Please select 1-{len(self.rows)}[/red]"
-                            )
-                except ValueError:
-                    pass
-
-                # Invalid input
-                if self.console:
-                    self.console.print("[red]❌ Invalid input. Please enter a number.[/red]")
-
-            except (KeyboardInterrupt, EOFError):
-                if self.console:
-                    self.console.print("\n👋 Goodbye!")
-                return None
-
-    def browse(self) -> Optional[Dict[str, Any]]:
-        """Main browsing loop. Returns selected row or None."""
-        while True:
-            if self.console:
-                self.console.clear()
-            self.display_page()
-
-            result = self.get_user_input()
-
-            # None means quit
-            if result is None:
-                return None
-
-            # Empty dict means page change, continue loop
-            if not result:
-                continue
-
-            # Non-empty dict means row selected
-            return result
