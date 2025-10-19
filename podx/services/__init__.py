@@ -1,17 +1,11 @@
-"""Service layer for podx - business logic and orchestration.
+"""Service layer for podx pipeline orchestration.
 
-This package contains the core business logic for pipeline orchestration,
-separated from CLI concerns and presentation logic.
+This package contains business logic extracted from orchestrate.py to improve
+testability, maintainability, and enable alternative interfaces (API, library).
 """
 
 from .command_builder import CommandBuilder
-from .pipeline_service import PipelineConfig, PipelineResult, PipelineService
-from .step_executor import StepExecutor
 
 __all__ = [
     "CommandBuilder",
-    "PipelineConfig",
-    "PipelineResult",
-    "PipelineService",
-    "StepExecutor",
 ]
