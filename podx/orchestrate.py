@@ -1247,31 +1247,23 @@ def run(
             else:
                 if not dual:
                     # Single-track deepcast always reads the latest processed transcript
+                    from .utils import build_deepcast_command
+
                     progress.start_step(f"Analyzing transcript with {deepcast_model}")
                     step_start = time.time()
                     latest_path = wd / "latest.json"
-                    inp = str(latest_path)
                     meta_file = wd / "episode-meta.json"
 
-                    cmd = [
-                        "podx-deepcast",
-                        "--input",
-                        inp,
-                        "--output",
-                        str(json_out),
-                        "--model",
-                        deepcast_model,
-                        "--temperature",
-                        str(deepcast_temp),
-                    ]
-                    if meta_file.exists():
-                        cmd.extend(["--meta", str(meta_file)])
-                    if yaml_analysis_type:
-                        cmd.extend(["--type", yaml_analysis_type])
-                    if extract_markdown:
-                        cmd.append("--extract-markdown")
-                    if deepcast_pdf:
-                        cmd.append("--pdf")
+                    cmd = build_deepcast_command(
+                        input_path=latest_path,
+                        output_path=json_out,
+                        model=deepcast_model,
+                        temperature=deepcast_temp,
+                        meta_path=meta_file,
+                        analysis_type=yaml_analysis_type,
+                        extract_markdown=extract_markdown,
+                        generate_pdf=deepcast_pdf,
+                    )
                     _run(cmd, verbose=verbose, save_to=None, label=None)
                     step_duration = time.time() - step_start
                     progress.complete_step("AI analysis completed", step_duration)
@@ -1280,6 +1272,8 @@ def run(
                         results.update({"deepcast_md": str(md_out)})
                 else:
                     # Dual: deepcast precision & recall (requires preprocessed precision/recall inputs)
+                    from .utils import build_deepcast_command
+
                     progress.start_step(f"Analyzing precision & recall with {deepcast_model}")
                     step_start = time.time()
                     safe_model = sanitize_model_name(model)
@@ -1292,32 +1286,33 @@ def run(
                             "Dual deepcast requires preprocessed precision/recall transcripts; rerun with preprocess enabled or Fidelity 5."
                         )
 
-                    def run_dc(inp_path: Path, suffix: str) -> Path:
-                        out = wd / f"deepcast-{safe_model}-{deepcast_model.replace('.', '_')}-{suffix}.json"
-                        cmd = [
-                            "podx-deepcast",
-                            "--input",
-                            str(inp_path),
-                            "--output",
-                            str(out),
-                            "--model",
-                            deepcast_model,
-                            "--temperature",
-                            str(deepcast_temp),
-                        ]
-                        if meta_file.exists():
-                            cmd.extend(["--meta", str(meta_file)])
-                        if yaml_analysis_type:
-                            cmd.extend(["--type", yaml_analysis_type])
-                        if extract_markdown:
-                            cmd.append("--extract-markdown")
-                        if deepcast_pdf:
-                            cmd.append("--pdf")
-                        _run(cmd, verbose=verbose, save_to=None, label=None)
-                        return out
+                    # Precision analysis
+                    dc_prec = wd / f"deepcast-{safe_model}-{deepcast_model.replace('.', '_')}-precision.json"
+                    cmd_prec = build_deepcast_command(
+                        input_path=pre_prec,
+                        output_path=dc_prec,
+                        model=deepcast_model,
+                        temperature=deepcast_temp,
+                        meta_path=meta_file,
+                        analysis_type=yaml_analysis_type,
+                        extract_markdown=extract_markdown,
+                        generate_pdf=deepcast_pdf,
+                    )
+                    _run(cmd_prec, verbose=verbose, save_to=None, label=None)
 
-                    dc_prec = run_dc(pre_prec, "precision")
-                    dc_rec = run_dc(pre_rec, "recall")
+                    # Recall analysis
+                    dc_rec = wd / f"deepcast-{safe_model}-{deepcast_model.replace('.', '_')}-recall.json"
+                    cmd_rec = build_deepcast_command(
+                        input_path=pre_rec,
+                        output_path=dc_rec,
+                        model=deepcast_model,
+                        temperature=deepcast_temp,
+                        meta_path=meta_file,
+                        analysis_type=yaml_analysis_type,
+                        extract_markdown=extract_markdown,
+                        generate_pdf=deepcast_pdf,
+                    )
+                    _run(cmd_rec, verbose=verbose, save_to=None, label=None)
                     step_duration = time.time() - step_start
                     progress.complete_step("Dual deepcast analyses completed", step_duration)
                     results.update({

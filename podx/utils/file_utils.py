@@ -77,3 +77,50 @@ def build_preprocess_command(output_path: Path, restore: bool = False) -> List[s
     if restore:
         cmd.append("--restore")
     return cmd
+
+
+def build_deepcast_command(
+    input_path: Path,
+    output_path: Path,
+    model: str,
+    temperature: float,
+    meta_path: Path | None = None,
+    analysis_type: str | None = None,
+    extract_markdown: bool = False,
+    generate_pdf: bool = False,
+) -> List[str]:
+    """Build podx-deepcast command for AI transcript analysis.
+
+    Args:
+        input_path: Input transcript file path
+        output_path: Output deepcast JSON file path
+        model: AI model name (e.g., "gpt-4", "claude-3")
+        temperature: Model temperature (0.0-1.0)
+        meta_path: Optional episode metadata file path
+        analysis_type: Optional analysis type (e.g., "interview", "panel_discussion")
+        extract_markdown: Whether to extract markdown from analysis
+        generate_pdf: Whether to generate PDF output
+
+    Returns:
+        List of command arguments for podx-deepcast
+    """
+    cmd = [
+        "podx-deepcast",
+        "--input",
+        str(input_path),
+        "--output",
+        str(output_path),
+        "--model",
+        model,
+        "--temperature",
+        str(temperature),
+    ]
+    if meta_path and meta_path.exists():
+        cmd.extend(["--meta", str(meta_path)])
+    if analysis_type:
+        cmd.extend(["--type", analysis_type])
+    if extract_markdown:
+        cmd.append("--extract-markdown")
+    if generate_pdf:
+        cmd.append("--pdf")
+    return cmd
