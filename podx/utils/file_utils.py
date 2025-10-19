@@ -3,7 +3,7 @@
 import json
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 
 def discover_transcripts(dir_path: Path) -> Dict[str, Path]:
@@ -55,6 +55,106 @@ def sanitize_model_name(name: str) -> str:
         Sanitized model name safe for filenames
     """
     return re.sub(r"[^A-Za-z0-9._-]", "_", name)
+
+
+def sanitize_filename(s: str) -> str:
+    """Sanitize a string for safe use in filenames.
+
+    Keeps spaces, only replaces truly problematic characters for filesystems.
+
+    Args:
+        s: String to sanitize
+
+    Returns:
+        Sanitized string safe for filenames
+    """
+    # Keep spaces, only replace characters that are invalid on most filesystems
+    return re.sub(r'[<>:"/\\|?*]', "_", s.strip())
+
+
+def generate_workdir(show_name: str, episode_date: str) -> Path:
+    """Generate a work directory path based on show name and episode date.
+
+    Args:
+        show_name: Name of the podcast show
+        episode_date: Episode publication date (will be parsed and formatted)
+
+    Returns:
+        Path object for the work directory (show_name/YYYY-MM-DD)
+    """
+    # Sanitize show name for filesystem
+    safe_show = sanitize_filename(show_name)
+
+    # Parse and format date
+    try:
+        from dateutil import parser as dtparse
+
+        parsed_date = dtparse.parse(episode_date)
+        date_str = parsed_date.strftime("%Y-%m-%d")
+    except Exception:
+        # Fallback to original date string if parsing fails
+        date_str = sanitize_filename(episode_date)
+
+    return Path(safe_show) / date_str
+
+
+def format_duration(seconds: Optional[int]) -> str:
+    """Format duration in seconds to HH:MM:SS format.
+
+    Args:
+        seconds: Duration in seconds
+
+    Returns:
+        Formatted duration string (HH:MM:SS) or "Unknown" if None
+    """
+    if not seconds:
+        return "Unknown"
+
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    secs = seconds % 60
+
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+
+def format_date(date_str: str) -> str:
+    """Format date string to readable YYYY-MM-DD format.
+
+    Args:
+        date_str: Date string in various formats
+
+    Returns:
+        Formatted date string (YYYY-MM-DD) or original string if parsing fails
+    """
+    try:
+        # Parse various date formats
+        for fmt in [
+            "%a, %d %b %Y %H:%M:%S %Z",
+            "%a, %d %b %Y %H:%M:%S %z",
+            "%Y-%m-%dT%H:%M:%S%z",
+        ]:
+            try:
+                from datetime import datetime
+
+                dt = datetime.strptime(date_str, fmt)
+                return dt.strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+
+        # Try dateutil parser as fallback
+        try:
+            from dateutil import parser as dtparse
+
+            dt = dtparse.parse(date_str)
+            return dt.strftime("%Y-%m-%d")
+        except Exception:
+            pass
+
+    except Exception:
+        pass
+
+    # Return original if all parsing fails
+    return date_str[:10] if len(date_str) >= 10 else date_str
 
 
 def build_preprocess_command(output_path: Path, restore: bool = False) -> List[str]:

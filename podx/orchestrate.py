@@ -45,7 +45,6 @@ from . import (
 from .pricing import load_model_catalog, estimate_deepcast_cost  # type: ignore
 from .config import get_config
 from .errors import ValidationError
-from .fetch import _generate_workdir
 from .help import help_cmd
 from .logging import get_logger, setup_logging
 from .plugins import PluginManager, PluginType, get_registry
@@ -781,9 +780,11 @@ def run(
             logger.debug("Using specified workdir", workdir=str(workdir))
         else:
             # Default: use smart naming with spaces
+            from .utils import generate_workdir
+
             show_name = meta.get("show", "Unknown Show")
             episode_date = meta.get("episode_published") or date or "unknown"
-            wd = _generate_workdir(show_name, episode_date)
+            wd = generate_workdir(show_name, episode_date)
             logger.debug("Using smart workdir", workdir=str(wd))
 
         wd.mkdir(parents=True, exist_ok=True)

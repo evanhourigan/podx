@@ -1,7 +1,5 @@
 import json
-import re
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode, urlparse
@@ -11,11 +9,11 @@ import feedparser
 import requests
 from dateutil import parser as dtparse
 
-from .cli_shared import print_json, read_stdin_json
-from .config import get_config
+from .cli_shared import print_json
 from .errors import NetworkError, ValidationError, with_retries
 from .logging import get_logger
 from .schemas import EpisodeMeta
+from .utils import format_date, format_duration, generate_workdir, sanitize_filename
 from .validation import validate_output
 
 logger = get_logger(__name__)
@@ -27,7 +25,6 @@ try:
     from rich.console import Console
     from rich.panel import Panel
     from rich.table import Table
-    from rich.text import Text
 
     RICH_AVAILABLE = True
 except ImportError:
@@ -52,63 +49,6 @@ except Exception:
     TABLE_NUM_STYLE = "cyan"
     TABLE_DATE_STYLE = "bright_blue"
     TABLE_TITLE_COL_STYLE = "white"
-
-
-def _sanitize(s: str) -> str:
-    # Keep spaces, only replace truly problematic characters
-    return re.sub(r'[<>:"/\\|?*]', "_", s.strip())
-
-
-def _generate_workdir(show_name: str, episode_date: str) -> Path:
-    """Generate a work directory path based on show name and episode date."""
-    # Sanitize show name for filesystem
-    safe_show = _sanitize(show_name)
-
-    # Parse and format date
-    try:
-        parsed_date = dtparse.parse(episode_date)
-        date_str = parsed_date.strftime("%Y-%m-%d")
-    except Exception:
-        # Fallback to original date string if parsing fails
-        date_str = _sanitize(episode_date)
-
-    return Path(safe_show) / date_str
-
-
-# Interactive browser helper functions
-def _format_duration(seconds: Optional[int]) -> str:
-    """Format duration in seconds to HH:MM:SS format."""
-    if not seconds:
-        return "Unknown"
-
-    hours = seconds // 3600
-    minutes = (seconds % 3600) // 60
-    secs = seconds % 60
-
-    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
-
-
-def _format_date(date_str: str) -> str:
-    """Format date string to readable format."""
-    try:
-        # Parse various date formats
-        for fmt in [
-            "%a, %d %b %Y %H:%M:%S %Z",
-            "%a, %d %b %Y %H:%M:%S %z",
-            "%Y-%m-%dT%H:%M:%S%z",
-        ]:
-            try:
-                dt = datetime.strptime(date_str, fmt)
-                return dt.strftime("%Y-%m-%d")
-            except ValueError:
-                continue
-
-        # Fallback: just return first 10 chars if it looks like a date
-        if len(date_str) >= 10:
-            return date_str[:10]
-        return date_str
-    except Exception:
-        return date_str
 
 
 def _truncate_text(text: str, max_length: int = 80) -> str:
@@ -258,12 +198,12 @@ class EpisodeBrowser:
         # Add episodes to table
         for i, episode in enumerate(page_episodes):
             episode_num = start_idx + i + 1
-            date = _format_date(episode["published"])
-            duration = _format_duration(episode["duration"])
+            date = format_date(episode["published"])
+            duration = format_duration(episode["duration"])
             title_text = episode["title"]
 
             # Check if episode is already fetched
-            episode_dir = _generate_workdir(self.show_name, episode["published"])
+            episode_dir = generate_workdir(self.show_name, episode["published"])
             episode_meta_file = episode_dir / "episode-meta.json"
             is_fetched = episode_meta_file.exists()
 
@@ -509,7 +449,7 @@ def download_enclosure(entry, out_dir: Path) -> Path:
     clean_path = parsed_url.path
     extension = Path(clean_path).suffix or ".mp3"  # Default to .mp3 if no extension
 
-    name = _sanitize(entry.get("title", "episode")) + extension
+    name = sanitize_filename(entry.get("title", "episode")) + extension
     dest = out_dir / name
 
     # Simple retries with backoff
@@ -526,7 +466,6 @@ def download_enclosure(entry, out_dir: Path) -> Path:
                 audio, stream=True, headers={"User-Agent": UA}, timeout=60
             ) as r:
                 r.raise_for_status()
-                total_size = int(r.headers.get("content-length", 0))
 
                 with open(dest, "wb") as f:
                     downloaded = 0
@@ -689,7 +628,7 @@ def main(show, rss_url, date, title_contains, outdir, output, interactive):
     else:
         # Default: use smart naming with spaces
         episode_date = ep.get("published") or ep.get("updated") or date or "unknown"
-        workdir = _generate_workdir(show_name, episode_date)
+        workdir = generate_workdir(show_name, episode_date)
 
     # Download audio
     audio_path = download_enclosure(ep, workdir)
