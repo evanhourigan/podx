@@ -29,6 +29,7 @@ from .episode_selector import (
     select_episode_interactive,
     select_fidelity_interactive,
 )
+from .fetch_browser import EpisodeBrowser
 from .formatters import clean_cell, sanitize_filename
 
 __all__ = [
@@ -52,6 +53,7 @@ __all__ = [
     "format_example_line",
     # From new ui/ package
     "Confirmation",
+    "EpisodeBrowser",
     "clean_cell",
     "sanitize_filename",
     "scan_episode_status",
