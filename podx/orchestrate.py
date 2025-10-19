@@ -6,7 +6,7 @@ import subprocess
 import time
 from pathlib import Path
 import sys
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 # Use rich-click for colorized --help when available
 try:  # pragma: no cover
@@ -43,6 +43,15 @@ from . import (
     transcribe,
 )
 from .config import get_config
+from .constants import (
+    DEFAULT_ENCODING,
+    FIDELITY_LEVELS,
+    JSON_INDENT,
+    MIN_NOTION_DB_ID_LENGTH,
+    OPENAI_MODEL_PREFIX,
+    PREVIEW_MAX_LENGTH,
+    TITLE_MAX_LENGTH,
+)
 from .errors import ValidationError
 from .help import help_cmd
 from .logging import get_logger, setup_logging
@@ -61,11 +70,11 @@ logger = get_logger(__name__)
 
 def _run(
     cmd: List[str],
-    stdin_payload: Dict | None = None,
+    stdin_payload: Optional[Dict[str, Any]] = None,
     verbose: bool = False,
-    save_to: Path | None = None,
-    label: str | None = None,
-) -> Dict:
+    save_to: Optional[Path] = None,
+    label: Optional[str] = None,
+) -> Dict[str, Any]:
     """Run a CLI tool that prints JSON to stdout; return parsed dict."""
     if label:
         logger.debug("Running command", command=" ".join(cmd), label=label)
@@ -92,7 +101,7 @@ def _run(
 
     if verbose:
         # Show a compact preview of the JSON output
-        preview = out[:400] + "..." if len(out) > 400 else out
+        preview = out[:PREVIEW_MAX_LENGTH] + "..." if len(out) > PREVIEW_MAX_LENGTH else out
         click.secho(preview, fg="white")
 
     try:
@@ -104,7 +113,7 @@ def _run(
         logger.debug("Command returned non-JSON output", command=cmd[0])
 
     if save_to:
-        save_to.write_text(out, encoding="utf-8")
+        save_to.write_text(out, encoding=DEFAULT_ENCODING)
         logger.debug("Output saved", file=str(save_to))
 
     return data
@@ -186,7 +195,7 @@ def _build_pipeline_config(
     verbose: bool,
     clean: bool,
     no_keep_audio: bool,
-) -> dict:
+) -> Dict[str, Any]:
     """Build pipeline configuration from CLI arguments.
 
     Applies preset transformations (--full, --workflow, --fidelity) to CLI flags
@@ -335,7 +344,7 @@ def _execute_fetch(
         }
 
         progress.complete_step(
-            f"YouTube metadata fetched: {meta.get('episode_title', 'Unknown')[:80]}"
+            f"YouTube metadata fetched: {meta.get('episode_title', 'Unknown')[:TITLE_MAX_LENGTH]}"
         )
 
         # Note: YouTube audio will be downloaded after workdir is created
@@ -1225,7 +1234,7 @@ def _print_results_summary(
         print_podx_info("\n".join(key_files))
 
     # Still print JSON for programmatic use
-    print(json.dumps(results, indent=2))
+    print(json.dumps(results, indent=JSON_INDENT))
 
 
 def _display_pipeline_config(
@@ -1408,7 +1417,7 @@ def _execute_export_final(
                         break
 
         if export_source_path and export_source_path.exists():
-            data = json.loads(export_source_path.read_text(encoding="utf-8"))
+            data = json.loads(export_source_path.read_text(encoding=DEFAULT_ENCODING))
             # Use unified exporter (handles deepcast and consensus JSON, and PDF auto-install)
             try:
                 md_path, pdf_path = export_from_deepcast_json(data, wd, deepcast_pdf, track_hint=export_track)
@@ -1421,7 +1430,7 @@ def _execute_export_final(
         pass
 
 
-def _handle_interactive_mode(config: dict, scan_dir: Path, console) -> tuple[dict, Path]:
+def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: Any) -> tuple[Dict[str, Any], Path]:
     """Handle interactive episode selection and configuration.
 
     Displays rich table UI for episode selection, prompts for fidelity level,
@@ -1522,7 +1531,7 @@ def _handle_interactive_mode(config: dict, scan_dir: Path, console) -> tuple[dic
     config["deepcast"] = Confirmation.yes_no("Deepcast (AI analysis)", config["deepcast"])
 
     # Only prompt for Dual mode when fidelity didn't already decide it
-    if fidelity_level not in {"5", "1", "2", "3", "4"}:
+    if fidelity_level not in FIDELITY_LEVELS:
         config["dual"] = Confirmation.yes_no("Dual mode (precision+recall)", config["dual"])
 
     config["extract_markdown"] = Confirmation.yes_no("Save Markdown file", config["extract_markdown"])
@@ -1567,7 +1576,7 @@ def _handle_interactive_mode(config: dict, scan_dir: Path, console) -> tuple[dic
 
         provider = (
             "openai"
-            if config["deepcast_model"].startswith("gpt") or "-" in config["deepcast_model"]
+            if config["deepcast_model"].startswith(OPENAI_MODEL_PREFIX) or "-" in config["deepcast_model"]
             else "anthropic"
         )
         sel_dir = selected.get("directory") if isinstance(selected, dict) else None
@@ -1579,7 +1588,7 @@ def _handle_interactive_mode(config: dict, scan_dir: Path, console) -> tuple[dic
         if latest_path:
             import json
 
-            transcript_json = json.loads(latest_path.read_text(encoding="utf-8"))
+            transcript_json = json.loads(latest_path.read_text(encoding=DEFAULT_ENCODING))
             catalog = load_model_catalog(refresh=False)
             est = estimate_deepcast_cost(
                 transcript_json, provider, config["deepcast_model"], catalog
@@ -2126,7 +2135,7 @@ def run(
         )
 
         # Always keep a pointer to the latest JSON/SRT/TXT for convenience
-        (wd / "latest.json").write_text(json.dumps(latest, indent=2), encoding="utf-8")
+        (wd / "latest.json").write_text(json.dumps(latest, indent=JSON_INDENT), encoding=DEFAULT_ENCODING)
 
         # Export to TXT/SRT formats and build results dictionary
         results = _execute_export_formats(
@@ -3029,7 +3038,7 @@ def config_databases():
         # Mask the database ID for security
         masked_id = (
             db.database_id[:8] + "..." + db.database_id[-8:]
-            if len(db.database_id) > 16
+            if len(db.database_id) > MIN_NOTION_DB_ID_LENGTH
             else db.database_id
         )
 
