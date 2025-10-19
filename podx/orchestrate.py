@@ -586,6 +586,195 @@ def _execute_transcribe(
     return latest, latest_name
 
 
+def _execute_enhancement(
+    preprocess: bool,
+    restore: bool,
+    align: bool,
+    diarize: bool,
+    dual: bool,
+    model: str,
+    latest: dict,
+    latest_name: str,
+    wd: Path,
+    progress,
+    verbose: bool,
+) -> tuple[dict, str]:
+    """Execute transcript enhancement pipeline (preprocess, align, diarize).
+
+    Processes transcripts through optional enhancement steps, updating the
+    latest transcript and its name as each step completes.
+
+    Args:
+        preprocess: Enable transcript preprocessing
+        restore: Enable semantic restore in preprocessing
+        align: Enable word-level alignment (WhisperX)
+        diarize: Enable speaker diarization
+        dual: Dual QA mode flag (affects preprocessing behavior)
+        model: ASR model name (for file naming)
+        latest: Latest transcript dict (input)
+        latest_name: Latest transcript filename without extension (input)
+        wd: Working directory Path
+        progress: Progress tracker instance
+        verbose: Enable verbose logging
+
+    Returns:
+        Tuple of (enhanced_transcript_dict, enhanced_transcript_name)
+        - Returns input values unchanged if no enhancement steps enabled
+
+    Resume Support:
+        - Reuses existing aligned/diarized transcripts
+        - Supports legacy filename formats
+    """
+    import json
+    import time
+
+    from .utils import build_preprocess_command, sanitize_model_name
+
+    # 4) PREPROCESS (optional or implied by --dual)
+    if preprocess or dual:
+        progress.start_step("Preprocessing transcript (merge/normalize)")
+        step_start = time.time()
+
+        if dual:
+            # Preprocess both precision & recall
+            safe_model = sanitize_model_name(model)
+            t_prec = wd / f"transcript-{safe_model}-precision.json"
+            t_rec = wd / f"transcript-{safe_model}-recall.json"
+            pre_prec = wd / f"transcript-preprocessed-{safe_model}-precision.json"
+            pre_rec = wd / f"transcript-preprocessed-{safe_model}-recall.json"
+
+            _ = _run(
+                build_preprocess_command(pre_prec, restore) + ["--input", str(t_prec)],
+                stdin_payload=None,
+                verbose=verbose,
+                save_to=pre_prec,
+            )
+            out_rec = _run(
+                build_preprocess_command(pre_rec, restore) + ["--input", str(t_rec)],
+                stdin_payload=None,
+                verbose=verbose,
+                save_to=pre_rec,
+            )
+            latest = out_rec
+            latest_name = f"transcript-preprocessed-{safe_model}-recall"
+        else:
+            # Single-track: preprocess the latest transcript
+            used_model = (latest or {}).get("asr_model", model) if isinstance(latest, dict) else model
+            pre_file = wd / f"transcript-preprocessed-{sanitize_model_name(used_model)}.json"
+            latest = _run(
+                build_preprocess_command(pre_file, restore),
+                stdin_payload=latest,  # latest contains the base transcript JSON
+                verbose=verbose,
+                save_to=pre_file,
+                label=None,
+            )
+            latest_name = f"transcript-preprocessed-{used_model}"
+
+        step_duration = time.time() - step_start
+        progress.complete_step("Preprocessing completed", step_duration)
+
+    # 5) ALIGN (optional)
+    if align:
+        # Get model from base transcript
+        used_model = latest.get("asr_model", model)
+        aligned_file = wd / f"transcript-aligned-{sanitize_model_name(used_model)}.json"
+
+        # Also check legacy filenames
+        legacy_aligned_new = wd / f"aligned-transcript-{used_model}.json"
+        legacy_aligned = wd / "aligned-transcript.json"
+        if aligned_file.exists():
+            logger.info(
+                f"Found existing aligned transcript ({used_model}), skipping alignment"
+            )
+            aligned = json.loads(aligned_file.read_text())
+            progress.complete_step(
+                f"Using existing aligned transcript ({used_model})", 0
+            )
+            latest = aligned
+            latest_name = f"transcript-aligned-{used_model}"
+        elif legacy_aligned_new.exists():
+            logger.info(f"Found existing legacy aligned transcript ({used_model}), using it")
+            aligned = json.loads(legacy_aligned_new.read_text())
+            progress.complete_step("Using existing aligned transcript", 0)
+            latest = aligned
+            latest_name = f"transcript-aligned-{used_model}"
+        elif legacy_aligned.exists():
+            logger.info("Found existing legacy aligned transcript, using it")
+            aligned = json.loads(legacy_aligned.read_text())
+            progress.complete_step("Using existing aligned transcript", 0)
+            latest = aligned
+            latest_name = "transcript-aligned"
+        else:
+            progress.start_step("Aligning transcript with audio")
+            step_start = time.time()
+            aligned = _run(
+                ["podx-align"],  # Audio path comes from transcript JSON
+                stdin_payload=latest,
+                verbose=verbose,
+                save_to=aligned_file,
+                label=None,  # Progress handles the display
+            )
+            step_duration = time.time() - step_start
+            progress.complete_step("Audio alignment completed", step_duration)
+            latest = aligned
+            latest_name = f"transcript-aligned-{used_model}"
+
+    # 6) DIARIZE (optional)
+    if diarize:
+        # Get model from latest transcript
+        used_model = latest.get("asr_model", model)
+        diarized_file = wd / f"transcript-diarized-{sanitize_model_name(used_model)}.json"
+
+        # Check if already exists (also check legacy filenames)
+        legacy_diarized_new = wd / f"diarized-transcript-{used_model}.json"
+        legacy_diarized = wd / "diarized-transcript.json"
+        if diarized_file.exists():
+            logger.info(
+                f"Found existing diarized transcript ({used_model}), skipping diarization"
+            )
+            diar = json.loads(diarized_file.read_text())
+            progress.complete_step(
+                f"Using existing diarized transcript ({used_model})", 0
+            )
+            latest = diar
+            latest_name = f"transcript-diarized-{used_model}"
+        elif legacy_diarized_new.exists():
+            logger.info(f"Found existing legacy diarized transcript ({used_model}), using it")
+            diar = json.loads(legacy_diarized_new.read_text())
+            progress.complete_step("Using existing diarized transcript", 0)
+            latest = diar
+            latest_name = f"transcript-diarized-{used_model}"
+        elif legacy_diarized.exists():
+            logger.info("Found existing legacy diarized transcript, using it")
+            diar = json.loads(legacy_diarized.read_text())
+            progress.complete_step("Using existing diarized transcript", 0)
+            latest = diar
+            latest_name = "transcript-diarized"
+        else:
+            progress.start_step("Identifying speakers")
+            step_start = time.time()
+            # Debug: Check what we're passing to diarize
+            if verbose:
+                import click
+                click.secho(
+                    f"Debug: Passing {latest_name} JSON to diarize with {len(latest.get('segments', []))} segments",
+                    fg="yellow",
+                )
+            diar = _run(
+                ["podx-diarize"],  # Audio path comes from aligned transcript JSON
+                stdin_payload=latest,
+                verbose=verbose,
+                save_to=diarized_file,
+                label=None,  # Progress handles the display
+            )
+            step_duration = time.time() - step_start
+            progress.complete_step("Speaker diarization completed", step_duration)
+            latest = diar
+            latest_name = f"transcript-diarized-{used_model}"
+
+    return latest, latest_name
+
+
 def _execute_deepcast(
     deepcast: bool,
     dual: bool,
@@ -1455,150 +1644,20 @@ def run(
             verbose=verbose,
         )
 
-        # 4) PREPROCESS (optional or implied by --dual) → transcript-preprocessed-*.json
-        if preprocess or dual:
-            from .utils import build_preprocess_command, sanitize_model_name
-
-            progress.start_step("Preprocessing transcript (merge/normalize)")
-            step_start = time.time()
-
-            if dual:
-                # Preprocess both precision & recall
-                safe_model = sanitize_model_name(model)
-                t_prec = wd / f"transcript-{safe_model}-precision.json"
-                t_rec = wd / f"transcript-{safe_model}-recall.json"
-                pre_prec = wd / f"transcript-preprocessed-{safe_model}-precision.json"
-                pre_rec = wd / f"transcript-preprocessed-{safe_model}-recall.json"
-
-                _ = _run(
-                    build_preprocess_command(pre_prec, restore) + ["--input", str(t_prec)],
-                    stdin_payload=None,
-                    verbose=verbose,
-                    save_to=pre_prec,
-                )
-                out_rec = _run(
-                    build_preprocess_command(pre_rec, restore) + ["--input", str(t_rec)],
-                    stdin_payload=None,
-                    verbose=verbose,
-                    save_to=pre_rec,
-                )
-                latest = out_rec
-                latest_name = f"transcript-preprocessed-{safe_model}-recall"
-            else:
-                # Single-track: preprocess the latest transcript
-                used_model = (latest or {}).get("asr_model", model) if isinstance(latest, dict) else model
-                pre_file = wd / f"transcript-preprocessed-{sanitize_model_name(used_model)}.json"
-                latest = _run(
-                    build_preprocess_command(pre_file, restore),
-                    stdin_payload=latest,  # latest contains the base transcript JSON
-                    verbose=verbose,
-                    save_to=pre_file,
-                    label=None,
-                )
-                latest_name = f"transcript-preprocessed-{used_model}"
-
-            step_duration = time.time() - step_start
-            progress.complete_step("Preprocessing completed", step_duration)
-
-        # 5) ALIGN (optional) → transcript-aligned-{model}.json
-        # In dual mode, we still align the currently-latest transcript (per selected track above).
-        if align:
-            # Get model from base transcript
-            used_model = latest.get("asr_model", model)
-            aligned_file = wd / f"transcript-aligned-{sanitize_model_name(used_model)}.json"
-
-            # Also check legacy filenames
-            legacy_aligned_new = wd / f"aligned-transcript-{used_model}.json"
-            legacy_aligned = wd / "aligned-transcript.json"
-            if aligned_file.exists():
-                logger.info(
-                    f"Found existing aligned transcript ({used_model}), skipping alignment"
-                )
-                aligned = json.loads(aligned_file.read_text())
-                progress.complete_step(
-                    f"Using existing aligned transcript ({used_model})", 0
-                )
-                latest = aligned
-                latest_name = f"transcript-aligned-{used_model}"
-            elif legacy_aligned_new.exists():
-                logger.info(f"Found existing legacy aligned transcript ({used_model}), using it")
-                aligned = json.loads(legacy_aligned_new.read_text())
-                progress.complete_step("Using existing aligned transcript", 0)
-                latest = aligned
-                latest_name = f"transcript-aligned-{used_model}"
-            elif legacy_aligned.exists():
-                logger.info("Found existing legacy aligned transcript, using it")
-                aligned = json.loads(legacy_aligned.read_text())
-                progress.complete_step("Using existing aligned transcript", 0)
-                latest = aligned
-                latest_name = "transcript-aligned"
-            else:
-                progress.start_step("Aligning transcript with audio")
-                step_start = time.time()
-                aligned = _run(
-                    ["podx-align"],  # Audio path comes from transcript JSON
-                    stdin_payload=latest,
-                    verbose=verbose,
-                    save_to=aligned_file,
-                    label=None,  # Progress handles the display
-                )
-                step_duration = time.time() - step_start
-                progress.complete_step("Audio alignment completed", step_duration)
-                latest = aligned
-                latest_name = f"transcript-aligned-{used_model}"
-
-        # 6) DIARIZE (optional) → transcript-diarized-{model}.json
-        # In dual mode, we diarize the currently-latest transcript as well.
-        if diarize:
-            # Get model from latest transcript
-            used_model = latest.get("asr_model", model)
-            diarized_file = wd / f"transcript-diarized-{sanitize_model_name(used_model)}.json"
-
-            # Check if already exists (also check legacy filenames)
-            legacy_diarized_new = wd / f"diarized-transcript-{used_model}.json"
-            legacy_diarized = wd / "diarized-transcript.json"
-            if diarized_file.exists():
-                logger.info(
-                    f"Found existing diarized transcript ({used_model}), skipping diarization"
-                )
-                diar = json.loads(diarized_file.read_text())
-                progress.complete_step(
-                    f"Using existing diarized transcript ({used_model})", 0
-                )
-                latest = diar
-                latest_name = f"transcript-diarized-{used_model}"
-            elif legacy_diarized_new.exists():
-                logger.info(f"Found existing legacy diarized transcript ({used_model}), using it")
-                diar = json.loads(legacy_diarized_new.read_text())
-                progress.complete_step("Using existing diarized transcript", 0)
-                latest = diar
-                latest_name = f"transcript-diarized-{used_model}"
-            elif legacy_diarized.exists():
-                logger.info("Found existing legacy diarized transcript, using it")
-                diar = json.loads(legacy_diarized.read_text())
-                progress.complete_step("Using existing diarized transcript", 0)
-                latest = diar
-                latest_name = "transcript-diarized"
-            else:
-                progress.start_step("Identifying speakers")
-                step_start = time.time()
-                # Debug: Check what we're passing to diarize
-                if verbose:
-                    click.secho(
-                        f"Debug: Passing {latest_name} JSON to diarize with {len(latest.get('segments', []))} segments",
-                        fg="yellow",
-                    )
-                diar = _run(
-                    ["podx-diarize"],  # Audio path comes from aligned transcript JSON
-                    stdin_payload=latest,
-                    verbose=verbose,
-                    save_to=diarized_file,
-                    label=None,  # Progress handles the display
-                )
-                step_duration = time.time() - step_start
-                progress.complete_step("Speaker diarization completed", step_duration)
-                latest = diar
-                latest_name = f"transcript-diarized-{used_model}"
+        # 4-6) ENHANCEMENT PIPELINE (preprocess, align, diarize)
+        latest, latest_name = _execute_enhancement(
+            preprocess=preprocess,
+            restore=restore,
+            align=align,
+            diarize=diarize,
+            dual=dual,
+            model=model,
+            latest=latest,
+            latest_name=latest_name,
+            wd=wd,
+            progress=progress,
+            verbose=verbose,
+        )
 
         # Always keep a pointer to the latest JSON/SRT/TXT for convenience
         (wd / "latest.json").write_text(json.dumps(latest, indent=2), encoding="utf-8")
