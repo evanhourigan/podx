@@ -1,11 +1,13 @@
 """Workflow and fidelity preset utilities."""
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Union
+
+from ..domain.enums import ASRPreset
 
 
 def apply_fidelity_preset(
     fidelity: str,
-    current_preset: Optional[str] = None,
+    current_preset: Union[str, ASRPreset, None] = None,
     interactive: bool = False,
 ) -> Dict[str, Any]:
     """Apply fidelity level mapping to pipeline flags.
@@ -17,11 +19,12 @@ def apply_fidelity_preset(
             3: Precision preset + preprocess + restore + deepcast
             4: Balanced preset + preprocess + restore + deepcast (recommended)
             5: Dual QA (precision + recall) + preprocess + restore (best)
-        current_preset: Current preset value (if any)
+        current_preset: Current preset value (if any) - string or ASRPreset enum
         interactive: Whether in interactive mode (affects preset behavior)
 
     Returns:
         Dictionary with pipeline flags: align, diarize, preprocess, restore, deepcast, dual, preset
+        Note: preset values are ASRPreset enums for type safety
     """
     flags: Dict[str, Any] = {}
 
@@ -38,7 +41,7 @@ def apply_fidelity_preset(
         }
     elif fidelity == "2":
         flags = {
-            "preset": "recall" if interactive else (current_preset or "recall"),
+            "preset": ASRPreset.RECALL if interactive else (current_preset or ASRPreset.RECALL),
             "preprocess": True,
             "restore": True,
             "deepcast": True,
@@ -46,7 +49,7 @@ def apply_fidelity_preset(
         }
     elif fidelity == "3":
         flags = {
-            "preset": "precision" if interactive else (current_preset or "precision"),
+            "preset": ASRPreset.PRECISION if interactive else (current_preset or ASRPreset.PRECISION),
             "preprocess": True,
             "restore": True,
             "deepcast": True,
@@ -54,7 +57,7 @@ def apply_fidelity_preset(
         }
     elif fidelity == "4":
         flags = {
-            "preset": "balanced" if interactive else (current_preset or "balanced"),
+            "preset": ASRPreset.BALANCED if interactive else (current_preset or ASRPreset.BALANCED),
             "preprocess": True,
             "restore": True,
             "deepcast": True,
@@ -66,7 +69,7 @@ def apply_fidelity_preset(
             "preprocess": True,
             "restore": True,
             "deepcast": True,
-            "preset": current_preset or "balanced",
+            "preset": current_preset or ASRPreset.BALANCED,
         }
 
     return flags
