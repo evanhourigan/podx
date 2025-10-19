@@ -3,7 +3,7 @@
 import json
 import re
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 
 def discover_transcripts(dir_path: Path) -> Dict[str, Path]:
@@ -55,3 +55,25 @@ def sanitize_model_name(name: str) -> str:
         Sanitized model name safe for filenames
     """
     return re.sub(r"[^A-Za-z0-9._-]", "_", name)
+
+
+def build_preprocess_command(output_path: Path, restore: bool = False) -> List[str]:
+    """Build podx-preprocess command with merge and normalize flags.
+
+    Args:
+        output_path: Output file path for processed transcript
+        restore: Whether to include --restore flag for semantic restoration
+
+    Returns:
+        List of command arguments for podx-preprocess
+    """
+    cmd = [
+        "podx-preprocess",
+        "--output",
+        str(output_path),
+        "--merge",
+        "--normalize",
+    ]
+    if restore:
+        cmd.append("--restore")
+    return cmd

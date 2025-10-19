@@ -1042,21 +1042,10 @@ def run(
 
         # 4) PREPROCESS (optional or implied by --dual) → transcript-preprocessed-*.json
         if preprocess or dual:
+            from .utils import build_preprocess_command
+
             progress.start_step("Preprocessing transcript (merge/normalize)")
             step_start = time.time()
-
-            # Build base command (output path will be set per case)
-            def build_cmd(out_path: Path) -> List[str]:
-                c = [
-                    "podx-preprocess",
-                    "--output",
-                    str(out_path),
-                    "--merge",
-                    "--normalize",
-                ]
-                if restore:
-                    c.append("--restore")
-                return c
 
             if dual:
                 # Preprocess both precision & recall
@@ -1067,13 +1056,13 @@ def run(
                 pre_rec = wd / f"transcript-preprocessed-{safe_model}-recall.json"
 
                 _ = _run(
-                    build_cmd(pre_prec) + ["--input", str(t_prec)],
+                    build_preprocess_command(pre_prec, restore) + ["--input", str(t_prec)],
                     stdin_payload=None,
                     verbose=verbose,
                     save_to=pre_prec,
                 )
                 out_rec = _run(
-                    build_cmd(pre_rec) + ["--input", str(t_rec)],
+                    build_preprocess_command(pre_rec, restore) + ["--input", str(t_rec)],
                     stdin_payload=None,
                     verbose=verbose,
                     save_to=pre_rec,
@@ -1085,7 +1074,7 @@ def run(
                 used_model = (latest or {}).get("asr_model", model) if isinstance(latest, dict) else model
                 pre_file = wd / f"transcript-preprocessed-{sanitize_model_name(used_model)}.json"
                 latest = _run(
-                    build_cmd(pre_file),
+                    build_preprocess_command(pre_file, restore),
                     stdin_payload=latest,  # latest contains the base transcript JSON
                     verbose=verbose,
                     save_to=pre_file,
