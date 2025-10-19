@@ -112,114 +112,144 @@ class AlignBrowser:
     def __init__(self, transcripts: List[Dict[str, Any]], items_per_page: int = 10):
         self.transcripts = transcripts
         self.items_per_page = items_per_page
+        self.console = make_console() if RICH_AVAILABLE else None
         self.current_page = 0
         self.total_pages = max(
             1, (len(transcripts) + items_per_page - 1) // items_per_page
         )
 
-    def browse(self) -> Optional[Dict[str, Any]]:
-        """Display interactive browser and return selected transcript."""
-        if not RICH_AVAILABLE:
+    def display_page(self) -> None:
+        """Display current page with table and navigation options."""
+        if not self.console:
+            return
+
+        # Calculate page bounds
+        start_idx = self.current_page * self.items_per_page
+        end_idx = min(start_idx + self.items_per_page, len(self.transcripts))
+        page_items = self.transcripts[start_idx:end_idx]
+
+        # Create title (shortened per spec)
+        title = f"🎙️ Episodes Available for Alignment (Page {self.current_page + 1}/{self.total_pages})"
+
+        # Compute dynamic Title width
+        term_width = self.console.size.width
+        fixed_widths = {"num": 4, "status": 24, "show": 20, "date": 12}
+        borders_allowance = 16
+        title_width = max(30, term_width - sum(fixed_widths.values()) - borders_allowance)
+
+        table = Table(
+            show_header=True,
+            header_style=TABLE_HEADER_STYLE,
+            border_style=TABLE_BORDER_STYLE,
+            title=title,
+            expand=False,
+        )
+        table.add_column("#", style=TABLE_NUM_STYLE, width=fixed_widths["num"], justify="right", no_wrap=True)
+        table.add_column("Status", style="magenta", width=fixed_widths["status"], no_wrap=True, overflow="ellipsis")
+        table.add_column("Show", style=TABLE_SHOW_STYLE, width=fixed_widths["show"], no_wrap=True, overflow="ellipsis")
+        table.add_column("Date", style=TABLE_DATE_STYLE, width=fixed_widths["date"], no_wrap=True)
+        table.add_column("Title", style=TABLE_TITLE_COL_STYLE, width=title_width, no_wrap=True, overflow="ellipsis")
+
+        for idx, item in enumerate(page_items, start=start_idx + 1):
+            episode_meta = item["episode_meta"]
+            asr_model = item["asr_model"]
+            status = f"✓ {asr_model}" if item["is_aligned"] else f"○ {asr_model}"
+
+            show = episode_meta.get("show", "Unknown")
+
+            # Format date to YYYY-MM-DD
+            date_str = episode_meta.get("episode_published", "")
+            if date_str:
+                try:
+                    from dateutil import parser as dtparse
+
+                    parsed = dtparse.parse(date_str)
+                    date = parsed.strftime("%Y-%m-%d")
+                except Exception:
+                    date = date_str[:10] if len(date_str) >= 10 else date_str
+            else:
+                # Try to extract from directory name
+                parts = str(item["directory"]).split("/")
+                date = parts[-1] if parts else "Unknown"
+
+            title_text = episode_meta.get("episode_title", "Unknown")
+
+            table.add_row(str(idx), status, show, date, title_text)
+
+        self.console.print(table)
+
+        # Show navigation options in Panel
+        options = []
+        options.append(
+            f"[cyan]1-{len(self.transcripts)}[/cyan]: Select episode to align"
+        )
+
+        if self.current_page < self.total_pages - 1:
+            options.append("[yellow]N[/yellow]: Next page")
+
+        if self.current_page > 0:
+            options.append("[yellow]P[/yellow]: Previous page")
+
+        options.append("[red]Q[/red]: Quit")
+
+        options_text = " • ".join(options)
+        panel = Panel(
+            options_text, title="Options", border_style="blue", padding=(0, 1)
+        )
+        self.console.print(panel)
+
+    def get_user_input(self) -> Optional[Dict[str, Any]]:
+        """Get user input and return selected item or None for quit."""
+        if not self.console:
             return None
 
-        console = make_console()
+        user_input = input("\n👉 Your choice: ").strip().upper()
+
+        # Quit
+        if user_input in ["Q", "QUIT", "EXIT"]:
+            self.console.print("👋 Goodbye!")
+            return None
+
+        # Next page
+        if user_input == "N" and self.current_page < self.total_pages - 1:
+            self.current_page += 1
+            return {}  # Signal page change
+
+        # Previous page
+        if user_input == "P" and self.current_page > 0:
+            self.current_page -= 1
+            return {}  # Signal page change
+
+        # Episode selection
+        try:
+            episode_num = int(user_input)
+            if 1 <= episode_num <= len(self.transcripts):
+                selected = self.transcripts[episode_num - 1]
+                # Show confirmation
+                title = selected["episode_meta"].get("episode_title", "Unknown")
+                self.console.print(f"✅ Selected: [green]{title}[/green]")
+                return selected
+            else:
+                self.console.print(
+                    f"[red]❌ Invalid choice. Please select 1-{len(self.transcripts)}[/red]"
+                )
+                return {}  # Stay on same page
+        except ValueError:
+            self.console.print("[red]❌ Invalid input. Please enter a number.[/red]")
+            return {}  # Stay on same page
+
+    def browse(self) -> Optional[Dict[str, Any]]:
+        """Main browsing loop. Returns selected transcript or None."""
+        if not self.console:
+            return None
 
         while True:
-            console.clear()
+            self.console.clear()
+            self.display_page()
+            result = self.get_user_input()
 
-            # Calculate page bounds
-            start_idx = self.current_page * self.items_per_page
-            end_idx = min(start_idx + self.items_per_page, len(self.transcripts))
-            page_items = self.transcripts[start_idx:end_idx]
-
-            # Create title with emoji
-            title = f"🎙️ Episodes Available for Transcription Alignment (Page {self.current_page + 1}/{self.total_pages})"
-
-            # Compute dynamic Title width
-            term_width = console.size.width
-            fixed_widths = {"num": 4, "status": 24, "show": 20, "date": 12}
-            borders_allowance = 16
-            title_width = max(30, term_width - sum(fixed_widths.values()) - borders_allowance)
-
-            table = Table(
-                show_header=True,
-                header_style=TABLE_HEADER_STYLE,
-                border_style=TABLE_BORDER_STYLE,
-                title=title,
-                expand=False,
-            )
-            table.add_column("#", style=TABLE_NUM_STYLE, width=fixed_widths["num"], justify="right", no_wrap=True)
-            table.add_column("Status", style="magenta", width=fixed_widths["status"], no_wrap=True, overflow="ellipsis")
-            table.add_column("Show", style=TABLE_SHOW_STYLE, width=fixed_widths["show"], no_wrap=True, overflow="ellipsis")
-            table.add_column("Date", style=TABLE_DATE_STYLE, width=fixed_widths["date"], no_wrap=True)
-            table.add_column("Title", style=TABLE_TITLE_COL_STYLE, width=title_width, no_wrap=True, overflow="ellipsis")
-
-            for idx, item in enumerate(page_items, start=start_idx + 1):
-                episode_meta = item["episode_meta"]
-                asr_model = item["asr_model"]
-                status = f"✓ {asr_model}" if item["is_aligned"] else f"○ {asr_model}"
-
-                show = episode_meta.get("show", "Unknown")
-
-                # Format date like transcribe does
-                date_str = episode_meta.get("episode_published", "")
-                if date_str:
-                    try:
-                        from dateutil import parser as dtparse
-
-                        parsed = dtparse.parse(date_str)
-                        date = parsed.strftime("%Y-%m-%d")
-                    except Exception:
-                        date = date_str[:10] if len(date_str) >= 10 else date_str
-                else:
-                    # Try to extract from directory name
-                    parts = str(item["directory"]).split("/")
-                    date = parts[-1] if parts else "Unknown"
-
-                title_text = episode_meta.get("episode_title", "Unknown")
-
-                table.add_row(str(idx), status, show, date, title_text)
-
-            console.print(table)
-
-            # Show navigation options in Panel
-            options = []
-            options.append(
-                f"[cyan]1-{len(self.transcripts)}[/cyan]: Select episode to align"
-            )
-
-            if self.current_page < self.total_pages - 1:
-                options.append("[yellow]N[/yellow]: Next page")
-
-            if self.current_page > 0:
-                options.append("[yellow]P[/yellow]: Previous page")
-
-            options.append("[red]Q[/red]: Quit")
-
-            options_text = " • ".join(options)
-            panel = Panel(
-                options_text, title="Options", border_style="blue", padding=(0, 1)
-            )
-            console.print(panel)
-
-            # Get user input
-            choice = input("\n👉 Your choice: ").strip().upper()
-
-            if choice in ["Q", "QUIT", "EXIT"]:
-                console.print("👋 Goodbye!")
-                return None
-            elif choice == "N" and self.current_page < self.total_pages - 1:
-                self.current_page += 1
-            elif choice == "P" and self.current_page > 0:
-                self.current_page -= 1
-            else:
-                try:
-                    selection = int(choice)
-                    if 1 <= selection <= len(self.transcripts):
-                        return self.transcripts[selection - 1]
-                    else:
-                        console.print(
-                            f"❌ Invalid episode number. Please choose 1-{len(self.transcripts)}"
-                        )
-                except ValueError:
-                    console.print("❌ Invalid input. Please try again.")
+            # {} signals page change, keep looping
+            if result == {}:
+                continue
+            # None signals quit or actual selection
+            return result
