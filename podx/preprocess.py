@@ -73,26 +73,50 @@ def _semantic_restore_segments(texts: List[str], model: str, batch_size: int = 2
     out: List[str] = []
     for i in range(0, len(texts), batch_size):
         chunk = texts[i : i + batch_size]
-        for text in chunk:
-            if use_new:
-                resp = client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": prompt},
-                        {"role": "user", "content": text},
-                    ],
-                )
-                cleaned = resp.choices[0].message.content or ""
-            else:
-                resp = openai.ChatCompletion.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": prompt},
-                        {"role": "user", "content": text},
-                    ],
-                )
-                cleaned = resp.choices[0].message.get("content") or ""
-            out.append(cleaned)
+
+        # Batch processing: join texts with delimiter, send as single request
+        delimiter = "\n---SEGMENT---\n"
+        batch_text = delimiter.join(chunk)
+        batch_prompt = (
+            f"Clean up these {len(chunk)} transcript segments. "
+            f"Return them in the same order, separated by '{delimiter.strip()}'.\n\n"
+            f"{batch_text}"
+        )
+
+        if use_new:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": batch_prompt},
+                ],
+            )
+            batch_result = resp.choices[0].message.content or ""
+        else:
+            resp = openai.ChatCompletion.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": batch_prompt},
+                ],
+            )
+            batch_result = resp.choices[0].message.get("content") or ""
+
+        # Split response back into individual cleaned texts
+        cleaned_chunks = batch_result.split(delimiter)
+
+        # Handle case where LLM doesn't return exact number of segments
+        # (fallback to original texts if mismatch)
+        if len(cleaned_chunks) == len(chunk):
+            out.extend([c.strip() for c in cleaned_chunks])
+        else:
+            # Fallback: if batch processing failed, keep originals
+            logger.warning(
+                f"Batch restore returned {len(cleaned_chunks)} segments, expected {len(chunk)}. "
+                "Using original texts for this batch."
+            )
+            out.extend(chunk)
+
     return out
 
 
