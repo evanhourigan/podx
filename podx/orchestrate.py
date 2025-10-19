@@ -524,9 +524,13 @@ def _execute_transcribe(
                 .add_option("--compute", compute)
             )
             if asr_provider and asr_provider != "auto":
-                transcribe_cmd.add_option("--asr-provider", asr_provider)
+                # Convert asr_provider enum to string value if needed
+                asr_provider_value = asr_provider.value if hasattr(asr_provider, 'value') else asr_provider
+                transcribe_cmd.add_option("--asr-provider", asr_provider_value)
             if preset:
-                transcribe_cmd.add_option("--preset", preset)
+                # Convert preset enum to string value if needed
+                preset_value = preset.value if hasattr(preset, 'value') else preset
+                transcribe_cmd.add_option("--preset", preset_value)
 
             base = _run(
                 transcribe_cmd.build(),
@@ -559,7 +563,9 @@ def _execute_transcribe(
                     .add_option("--preset", "precision")
                 )
                 if asr_provider and asr_provider != "auto":
-                    cmd_prec.add_option("--asr-provider", asr_provider)
+                    # Convert asr_provider enum to string value if needed
+                    asr_provider_value = asr_provider.value if hasattr(asr_provider, 'value') else asr_provider
+                    cmd_prec.add_option("--asr-provider", asr_provider_value)
                 prec = _run(cmd_prec.build(), stdin_payload=audio, verbose=verbose, save_to=t_prec)
 
             # Recall (resume if exists)
@@ -574,7 +580,9 @@ def _execute_transcribe(
                     .add_option("--preset", "recall")
                 )
                 if asr_provider and asr_provider != "auto":
-                    cmd_rec.add_option("--asr-provider", asr_provider)
+                    # Convert asr_provider enum to string value if needed
+                    asr_provider_value = asr_provider.value if hasattr(asr_provider, 'value') else asr_provider
+                    cmd_rec.add_option("--asr-provider", asr_provider_value)
                 rec = _run(cmd_rec.build(), stdin_payload=audio, verbose=verbose, save_to=t_rec)
 
             step_duration = time.time() - step_start
@@ -2028,9 +2036,12 @@ def run(
             step_start = time.time()
             from .services import CommandBuilder
 
+            # Convert fmt enum to string value if needed
+            fmt_value = config["fmt"].value if hasattr(config["fmt"], 'value') else config["fmt"]
+
             transcode_cmd = (
                 CommandBuilder("podx-transcode")
-                .add_option("--to", config["fmt"])
+                .add_option("--to", fmt_value)
                 .add_option("--outdir", str(wd))
             )
             audio = _run(

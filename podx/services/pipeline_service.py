@@ -203,9 +203,12 @@ class PipelineService:
         if progress_callback:
             progress_callback("transcode", "started")
 
+        # Convert fmt enum to string value if needed
+        fmt_value = self.config.fmt.value if hasattr(self.config.fmt, 'value') else self.config.fmt
+
         audio = self.executor.transcode(
             meta=meta,
-            fmt=self.config.fmt,
+            fmt=fmt_value,
             outdir=workdir,
             save_to=audio_meta_file,
         )
@@ -253,12 +256,15 @@ class PipelineService:
         if progress_callback:
             progress_callback("transcribe", "started")
 
+        # Convert preset enum to string value if needed
+        preset_value = self.config.preset.value if hasattr(self.config.preset, 'value') else self.config.preset
+
         transcript = self.executor.transcribe(
             audio=audio,
             model=self.config.model,
             compute=self.config.compute,
             asr_provider=self.config.asr_provider,
-            preset=self.config.preset,
+            preset=preset_value,
             save_to=transcript_file,
         )
 
@@ -486,13 +492,16 @@ class PipelineService:
         latest_path = workdir / "latest.json"
         meta_path = workdir / "episode-meta.json"
 
+        # Convert analysis_type enum to string value if needed
+        analysis_type_value = self.config.analysis_type.value if hasattr(self.config.analysis_type, 'value') else self.config.analysis_type
+
         self.executor.deepcast(
             input_path=latest_path,
             output_path=json_out,
             model=self.config.deepcast_model,
             temperature=self.config.deepcast_temp,
             meta_path=meta_path if meta_path.exists() else None,
-            analysis_type=self.config.analysis_type,
+            analysis_type=analysis_type_value,
             extract_markdown=self.config.extract_markdown,
             pdf=self.config.deepcast_pdf,
         )
