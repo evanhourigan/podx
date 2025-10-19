@@ -584,35 +584,19 @@ def run(
                     deepcast_model = prompt_ai
 
             # Options panel: toggle steps and outputs
-            def _yn(prompt: str, cur: bool) -> bool:
-                """Strict yes/no input with q to cancel. Enter keeps current.
-
-                Accepts only y/Y, n/N, empty (keep), or q/Q to cancel.
-                """
-                while True:
-                    resp = input(
-                        f"{prompt} (y/n, current={'yes' if cur else 'no'}; q cancel): "
-                    ).strip()
-                    if not resp:
-                        return cur
-                    r = resp.lower()
-                    if r in {"q", "quit", "exit"}:
-                        raise SystemExit(0)
-                    if r in {"y", "n"}:
-                        return r == "y"
-                    print("Please enter 'y', 'n', or 'q'.")
+            from .ui import Confirmation
 
             console.print(Panel("Adjust options below (Enter keeps current): Q cancels", title="Options", border_style="blue"))
-            align = _yn("Align (WhisperX)", align)
-            diarize = _yn("Diarize (speaker labels)", diarize)
-            preprocess = _yn("Preprocess (merge/normalize)", preprocess)
-            restore = _yn("Semantic restore (LLM)", restore) if preprocess else restore
-            deepcast = _yn("Deepcast (AI analysis)", deepcast)
+            align = Confirmation.yes_no("Align (WhisperX)", align)
+            diarize = Confirmation.yes_no("Diarize (speaker labels)", diarize)
+            preprocess = Confirmation.yes_no("Preprocess (merge/normalize)", preprocess)
+            restore = Confirmation.yes_no("Semantic restore (LLM)", restore) if preprocess else restore
+            deepcast = Confirmation.yes_no("Deepcast (AI analysis)", deepcast)
             # Only prompt for Dual mode when fidelity didn't already decide it
             if fidelity not in {"5", "1", "2", "3", "4"}:
-                dual = _yn("Dual mode (precision+recall)", dual)
-            extract_markdown = _yn("Save Markdown file", extract_markdown)
-            deepcast_pdf = _yn("Also render PDF (pandoc)", deepcast_pdf)
+                dual = Confirmation.yes_no("Dual mode (precision+recall)", dual)
+            extract_markdown = Confirmation.yes_no("Save Markdown file", extract_markdown)
+            deepcast_pdf = Confirmation.yes_no("Also render PDF (pandoc)", deepcast_pdf)
 
             # Deepcast type override (canonical or alias), default from YAML
             chosen_type = yaml_analysis_type
