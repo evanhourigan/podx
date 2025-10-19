@@ -35,10 +35,11 @@ Usage Examples:
     >>> results = await AsyncPipelineService.process_batch(configs, max_concurrent=3)
 """
 
+from ..domain import PipelineConfig, PipelineResult
 from .async_pipeline_service import AsyncPipelineService
 from .async_step_executor import AsyncStepExecutor
 from .command_builder import CommandBuilder
-from .pipeline_service import PipelineConfig, PipelineResult, PipelineService
+from .pipeline_service import PipelineService
 from .step_executor import StepExecutor
 
 __all__ = [
