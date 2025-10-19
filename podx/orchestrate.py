@@ -420,6 +420,159 @@ def _execute_fetch(
     return meta, wd
 
 
+def _execute_transcribe(
+    model: str,
+    compute: str,
+    asr_provider: str,
+    preset: Optional[str],
+    dual: bool,
+    audio: dict,
+    wd: Path,
+    progress,
+    verbose: bool,
+) -> tuple[dict, str]:
+    """Execute transcription step with single or dual QA mode.
+
+    Handles transcript discovery, resume support, and dual-track transcription
+    (precision + recall presets).
+
+    Args:
+        model: ASR model name (e.g., "large-v3")
+        compute: Compute type (int8, float16, float32)
+        asr_provider: ASR provider (auto, local, openai, hf)
+        preset: Optional ASR preset (balanced, precision, recall)
+        dual: Enable dual QA mode (precision + recall tracks)
+        audio: Audio metadata dict from transcode step
+        wd: Working directory Path
+        progress: Progress tracker instance
+        verbose: Enable verbose logging
+
+    Returns:
+        Tuple of (latest_transcript_dict, latest_transcript_name)
+        - latest_transcript_dict: JSON data of the latest transcript
+        - latest_transcript_name: Filename without .json extension
+
+    Resume Support:
+        - Reuses existing transcripts for the same model
+        - In dual mode, resumes from existing precision/recall files
+        - Falls back to best available model if exact match not found
+    """
+    import json
+    import time
+
+    from .utils import discover_transcripts, sanitize_model_name
+
+    existing_transcripts = discover_transcripts(wd)
+
+    # Proposed output filename (sanitized model to avoid colons/spaces)
+    transcript_file = wd / f"transcript-{sanitize_model_name(model)}.json"
+
+    # Check legacy transcript.json
+    legacy_transcript = wd / "transcript.json"
+    if legacy_transcript.exists():
+        try:
+            legacy_data = json.loads(legacy_transcript.read_text())
+            legacy_model = legacy_data.get("asr_model", "unknown")
+            existing_transcripts[legacy_model] = legacy_transcript
+        except Exception:
+            existing_transcripts["unknown"] = legacy_transcript
+
+    if not dual and transcript_file.exists():
+        # Use existing transcript for this specific model
+        logger.info(
+            f"Found existing transcript for model {model}, skipping transcription"
+        )
+        base = json.loads(transcript_file.read_text())
+        progress.complete_step(
+            f"Using existing transcript ({model}) - {len(base.get('segments', []))} segments",
+            0,
+        )
+    elif not dual and existing_transcripts:
+        # Found transcripts with other models - pick the most sophisticated among known order
+        order = ["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"]
+        available = list(existing_transcripts.keys())
+        best = None
+        for m in reversed(order):
+            if m in available:
+                best = m
+                break
+        best_model = best or available[0]
+
+        logger.info(f"Found existing transcript with model {best_model}, using it")
+        base = json.loads(existing_transcripts[best_model].read_text())
+        progress.complete_step(
+            f"Using existing transcript ({best_model}) - {len(base.get('segments', []))} segments",
+            0,
+        )
+    else:
+        if not dual:
+            # Single track transcription
+            progress.start_step(f"Transcribing with {model} model")
+            step_start = time.time()
+            transcribe_cmd = ["podx-transcribe", "--model", model, "--compute", compute]
+            if asr_provider and asr_provider != "auto":
+                transcribe_cmd += ["--asr-provider", asr_provider]
+            if preset:
+                transcribe_cmd += ["--preset", preset]
+            base = _run(
+                transcribe_cmd,
+                stdin_payload=audio,
+                verbose=verbose,
+                save_to=transcript_file,
+                label=None,
+            )
+            step_duration = time.time() - step_start
+            progress.complete_step(
+                f"Transcription complete - {len(base.get('segments', []))} segments",
+                step_duration,
+            )
+        else:
+            # Dual QA: precision & recall tracks
+            progress.start_step(f"Dual QA: transcribing precision & recall with {model}")
+            step_start = time.time()
+            safe_model = sanitize_model_name(model)
+            # Precision (resume if exists)
+            t_prec = wd / f"transcript-{safe_model}-precision.json"
+            if t_prec.exists():
+                prec = json.loads(t_prec.read_text())
+            else:
+                cmd_prec = [
+                    "podx-transcribe", "--model", model, "--compute", compute,
+                    "--preset", "precision",
+                ]
+                if asr_provider and asr_provider != "auto":
+                    cmd_prec += ["--asr-provider", asr_provider]
+                prec = _run(cmd_prec, stdin_payload=audio, verbose=verbose, save_to=t_prec)
+
+            # Recall (resume if exists)
+            t_rec = wd / f"transcript-{safe_model}-recall.json"
+            if t_rec.exists():
+                rec = json.loads(t_rec.read_text())
+            else:
+                cmd_rec = [
+                    "podx-transcribe", "--model", model, "--compute", compute,
+                    "--preset", "recall",
+                ]
+                if asr_provider and asr_provider != "auto":
+                    cmd_rec += ["--asr-provider", asr_provider]
+                rec = _run(cmd_rec, stdin_payload=audio, verbose=verbose, save_to=t_rec)
+
+            step_duration = time.time() - step_start
+            progress.complete_step(
+                f"Dual transcription completed (precision: {len(prec.get('segments', []))} segs; recall: {len(rec.get('segments', []))} segs)",
+                step_duration,
+            )
+            # Set latest to recall by default
+            latest = rec
+            latest_name = f"transcript-{safe_model}-recall"
+            return latest, latest_name
+
+    # Single mode: set latest and latest_name
+    latest = base
+    latest_name = f"transcript-{base.get('asr_model', model)}"
+    return latest, latest_name
+
+
 def _handle_interactive_mode(config: dict, scan_dir: Path, console) -> tuple[dict, Path]:
     """Handle interactive episode selection and configuration.
 
@@ -1101,120 +1254,21 @@ def run(
         transcoded_path = Path(audio["audio_path"])
 
         # 3) TRANSCRIBE → transcript-{model}.json (or dual precision/recall)
-        # Prefer JSON content over filename to determine asr_model
-        from .utils import discover_transcripts, sanitize_model_name
-
-        existing_transcripts = discover_transcripts(wd)
-
-        # Proposed output filename (sanitized model to avoid colons/spaces)
-        transcript_file = wd / f"transcript-{sanitize_model_name(model)}.json"
-
-        # Check legacy transcript.json
-        legacy_transcript = wd / "transcript.json"
-        if legacy_transcript.exists():
-            try:
-                legacy_data = json.loads(legacy_transcript.read_text())
-                legacy_model = legacy_data.get("asr_model", "unknown")
-                existing_transcripts[legacy_model] = legacy_transcript
-            except Exception:
-                existing_transcripts["unknown"] = legacy_transcript
-
-        if not dual and transcript_file.exists():
-            # Use existing transcript for this specific model
-            logger.info(
-                f"Found existing transcript for model {model}, skipping transcription"
-            )
-            base = json.loads(transcript_file.read_text())
-            progress.complete_step(
-                f"Using existing transcript ({model}) - {len(base.get('segments', []))} segments",
-                0,
-            )
-        elif not dual and existing_transcripts:
-            # Found transcripts with other models - pick the most sophisticated among known order
-            order = ["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"]
-            available = list(existing_transcripts.keys())
-            best = None
-            for m in reversed(order):
-                if m in available:
-                    best = m
-                    break
-            best_model = best or available[0]
-
-            logger.info(f"Found existing transcript with model {best_model}, using it")
-            base = json.loads(existing_transcripts[best_model].read_text())
-            progress.complete_step(
-                f"Using existing transcript ({best_model}) - {len(base.get('segments', []))} segments",
-                0,
-            )
-        else:
-            if not dual:
-                # Single track transcription
-                progress.start_step(f"Transcribing with {model} model")
-                step_start = time.time()
-                transcribe_cmd = ["podx-transcribe", "--model", model, "--compute", compute]
-                if asr_provider and asr_provider != "auto":
-                    transcribe_cmd += ["--asr-provider", asr_provider]
-                if preset:
-                    transcribe_cmd += ["--preset", preset]
-                base = _run(
-                    transcribe_cmd,
-                    stdin_payload=audio,
-                    verbose=verbose,
-                    save_to=transcript_file,
-                    label=None,
-                )
-                step_duration = time.time() - step_start
-                progress.complete_step(
-                    f"Transcription complete - {len(base.get('segments', []))} segments",
-                    step_duration,
-                )
-            else:
-                # Dual QA: precision & recall tracks
-                progress.start_step(f"Dual QA: transcribing precision & recall with {model}")
-                step_start = time.time()
-                safe_model = sanitize_model_name(model)
-                # Precision (resume if exists)
-                t_prec = wd / f"transcript-{safe_model}-precision.json"
-                if t_prec.exists():
-                    prec = json.loads(t_prec.read_text())
-                else:
-                    cmd_prec = [
-                        "podx-transcribe", "--model", model, "--compute", compute,
-                        "--preset", "precision",
-                    ]
-                    if asr_provider and asr_provider != "auto":
-                        cmd_prec += ["--asr-provider", asr_provider]
-                    prec = _run(cmd_prec, stdin_payload=audio, verbose=verbose, save_to=t_prec)
-
-                # Recall (resume if exists)
-                t_rec = wd / f"transcript-{safe_model}-recall.json"
-                if t_rec.exists():
-                    rec = json.loads(t_rec.read_text())
-                else:
-                    cmd_rec = [
-                        "podx-transcribe", "--model", model, "--compute", compute,
-                        "--preset", "recall",
-                    ]
-                    if asr_provider and asr_provider != "auto":
-                        cmd_rec += ["--asr-provider", asr_provider]
-                    rec = _run(cmd_rec, stdin_payload=audio, verbose=verbose, save_to=t_rec)
-
-                step_duration = time.time() - step_start
-                progress.complete_step(
-                    f"Dual transcription completed (precision: {len(prec.get('segments', []))} segs; recall: {len(rec.get('segments', []))} segs)",
-                    step_duration,
-                )
-                # Set latest to recall by default
-                latest = rec
-                latest_name = f"transcript-{safe_model}-recall"
-
-        if not dual:
-            latest = base
-            latest_name = f"transcript-{base.get('asr_model', model)}"
+        latest, latest_name = _execute_transcribe(
+            model=model,
+            compute=compute,
+            asr_provider=asr_provider,
+            preset=preset,
+            dual=dual,
+            audio=audio,
+            wd=wd,
+            progress=progress,
+            verbose=verbose,
+        )
 
         # 4) PREPROCESS (optional or implied by --dual) → transcript-preprocessed-*.json
         if preprocess or dual:
-            from .utils import build_preprocess_command
+            from .utils import build_preprocess_command, sanitize_model_name
 
             progress.start_step("Preprocessing transcript (merge/normalize)")
             step_start = time.time()
@@ -1256,9 +1310,6 @@ def run(
 
             step_duration = time.time() - step_start
             progress.complete_step("Preprocessing completed", step_duration)
-        else:
-            latest = base
-            latest_name = f"transcript-{base.get('asr_model', model)}"
 
         # 5) ALIGN (optional) → transcript-aligned-{model}.json
         # In dual mode, we still align the currently-latest transcript (per selected track above).
