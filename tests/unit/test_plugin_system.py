@@ -242,7 +242,9 @@ class TestPluginManager:
 
     def test_select_plugin(self):
         """Test selecting best plugin for criteria."""
-        manager = PluginManager()
+        # Use isolated registry to avoid interference from builtin plugins
+        registry = PluginRegistry()
+        manager = PluginManager(registry=registry)
 
         # Add source plugin
         source_plugin = Mock(spec=PluginInterface)
