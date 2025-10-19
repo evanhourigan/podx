@@ -411,11 +411,11 @@ def _execute_fetch(
     if config.get("workdir"):
         wd = config["workdir"]
     else:
-        from .fetch import _generate_workdir
+        from .utils import generate_workdir
 
         show = meta.get("show", "Unknown Show")
         episode_date = meta.get("episode_published") or config.get("date") or "unknown"
-        wd = _generate_workdir(show, episode_date)
+        wd = generate_workdir(show, episode_date)
 
     return meta, wd
 
