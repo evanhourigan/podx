@@ -6,8 +6,8 @@ import os
 from typing import Any, Dict, Optional
 
 from ..config import get_config
-from ..podcast_config import get_notion_database_config, get_podcast_config
-from ..yaml_config import get_podcast_yaml_config
+from ..podcast_config import get_podcast_config
+from ..yaml_config import get_notion_database_config, get_podcast_yaml_config
 
 
 class ConfigResult:
