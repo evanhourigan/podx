@@ -483,7 +483,7 @@ def _group_shows(rows: List[Dict[str, Any]]) -> List[Tuple[str, int]]:
 def _select_show(console, rows: List[Dict[str, Any]]) -> Optional[str]:
     shows = _group_shows(rows)
     if not shows:
-        console.print("[red]No exportable deepcasts found.[/red]")
+        console.print("[red]❌ No exportable deepcasts found.[/red]")
         return None
     table = Table(show_header=True, header_style=TABLE_HEADER_STYLE, title="📻 Choose a show", expand=False, border_style=TABLE_BORDER_STYLE)
     table.add_column("#", style=TABLE_NUM_STYLE, width=4, justify="right", no_wrap=True)
@@ -516,7 +516,7 @@ def _select_episode(console, rows: List[Dict[str, Any]], show: str) -> Optional[
         if r.get("track") == "C":
             entry["has_consensus"] = True
     if not eps:
-        console.print(f"[red]No episodes found for show: {show}[/red]")
+        console.print(f"[red]❌ No episodes found for show: {show}[/red]")
         return None
     ep_list = sorted(eps.values(), key=lambda e: (e["date"], e["has_consensus"], e["count"]), reverse=True)
     term_width = console.size.width
@@ -852,7 +852,7 @@ def run_interactive_export(scan_dir: Path, pdf: bool, output: Optional[Path]) ->
     console = make_console()
     rows = _scan_export_rows(scan_dir)
     if not rows:
-        console.print(f"[red]No deepcast files found in {scan_dir}[/red]")
+        console.print(f"[red]❌ No deepcast files found in {scan_dir}[/red]")
         raise SystemExit(1)
     show = _select_show(console, rows)
     if not show:
@@ -865,7 +865,7 @@ def run_interactive_export(scan_dir: Path, pdf: bool, output: Optional[Path]) ->
     src = _select_source(console, episode_dir)
     chosen = _pick_json_for_source(episode_dir, src)
     if not chosen or not chosen.exists():
-        console.print("[red]No matching analysis file found for that source.[/red]")
+        console.print("[red]❌ No matching analysis file found for that source.[/red]")
         raise SystemExit(1)
     dc = json.loads(chosen.read_text(encoding="utf-8"))
     # Offer PDF prompt in interactive mode if flag not provided

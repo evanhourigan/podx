@@ -160,13 +160,13 @@ def select_episode_interactive(
     if not eps:
         if show_filter:
             console.print(
-                f"[red]No episodes found for show '{show_filter}' in {scan_dir}[/red]"
+                f"[red]❌ No episodes found for show '{show_filter}' in {scan_dir}[/red]"
             )
             console.print(
                 "[dim]Tip: run 'podx-fetch --interactive' to download episodes first.[/dim]"
             )
         else:
-            console.print(f"[red]No episodes found in {scan_dir}[/red]")
+            console.print(f"[red]❌ No episodes found in {scan_dir}[/red]")
         raise SystemExit(1)
 
     # Sort newest first
@@ -300,9 +300,9 @@ def select_episode_interactive(
             try:
                 rc = run_passthrough_fn(["podx-fetch", "--show", show_filter, "--interactive"])
                 if rc != 0:
-                    console.print("[red]Fetch cancelled or failed[/red]")
+                    console.print("[red]❌ Fetch cancelled or failed[/red]")
             except Exception:
-                console.print("[red]Fetch cancelled or failed[/red]")
+                console.print("[red]❌ Fetch cancelled or failed[/red]")
 
             # Re-scan and continue
             eps = scan_episode_status(Path(scan_dir))
@@ -329,7 +329,7 @@ def select_episode_interactive(
             selected = eps_sorted[sel - 1]
             break
         except Exception:
-            console.print("[red]Invalid selection[/red]")
+            console.print("[red]❌ Invalid selection[/red]")
             input("Press Enter to continue...")
 
     # Load metadata
