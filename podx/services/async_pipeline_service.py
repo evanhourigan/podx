@@ -7,9 +7,9 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
+from ..domain import PipelineConfig, PipelineResult
 from ..logging import get_logger
 from .async_step_executor import AsyncStepExecutor
-from .pipeline_service import PipelineConfig, PipelineResult
 
 logger = get_logger(__name__)
 

@@ -2,20 +2,17 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, Optional
 
-from ..enums import (
-    AnalysisType,
-    ASRPreset,
-    ASRProvider,
-    AudioFormat,
-    PipelineStep,
-)
 
 
 @dataclass
 class PipelineConfig:
-    """Complete pipeline configuration."""
+    """Pipeline execution configuration.
+
+    This configuration controls which steps run and with what parameters.
+    Field names match the CLI/services API for consistency.
+    """
 
     # Source configuration
     show: Optional[str] = None
@@ -27,36 +24,32 @@ class PipelineConfig:
     # Working directory
     workdir: Optional[Path] = None
 
-    # Audio configuration
-    audio_format: AudioFormat = AudioFormat.WAV16
+    # Audio configuration (use simple name for API consistency)
+    fmt: str = "wav16"  # Audio format: wav16, mp3, aac
 
-    # ASR configuration
-    asr_provider: ASRProvider = ASRProvider.AUTO
-    asr_model: str = "medium.en"
-    asr_preset: Optional[ASRPreset] = None
-    asr_compute: str = "int8"
+    # Transcription configuration (match CLI names)
+    model: str = "base"  # ASR model name
+    compute: str = "int8"  # Compute type: int8, float16, float32
+    asr_provider: Optional[str] = None  # ASR provider: auto, local, openai, hf
+    preset: Optional[str] = None  # ASR preset: balanced, precision, recall
 
-    # Enhancement flags
+    # Pipeline flags
     align: bool = False
     diarize: bool = False
     preprocess: bool = False
     restore: bool = False
-
-    # Analysis configuration
     deepcast: bool = False
-    deepcast_model: str = "gpt-4"
-    deepcast_temp: float = 0.7
-    deepcast_type: Optional[AnalysisType] = None
-
-    # Dual mode (precision + recall)
     dual: bool = False
     no_consensus: bool = False
 
-    # Export configuration
+    # Deepcast configuration
+    deepcast_model: str = "gpt-4"
+    deepcast_temp: float = 0.7
+    analysis_type: Optional[str] = None  # Analysis type for deepcast
     extract_markdown: bool = False
     deepcast_pdf: bool = False
 
-    # Publishing configuration
+    # Notion configuration
     notion: bool = False
     notion_db: Optional[str] = None
     podcast_prop: str = "Podcast"
@@ -66,11 +59,7 @@ class PipelineConfig:
     asr_prop: str = "ASR"
     append_content: bool = False
 
-    # Workflow configuration
-    workflow: Optional[str] = None
-    fidelity: Optional[str] = None
-
-    # Other options
+    # Execution flags
     verbose: bool = False
     clean: bool = False
     no_keep_audio: bool = False
@@ -100,19 +89,19 @@ class PipelineConfig:
             config.dual = False
             config.deepcast = True
         elif level == 2:
-            config.asr_preset = ASRPreset.RECALL
+            config.preset = "recall"
             config.preprocess = True
             config.restore = True
             config.deepcast = True
             config.dual = False
         elif level == 3:
-            config.asr_preset = ASRPreset.PRECISION
+            config.preset = "precision"
             config.preprocess = True
             config.restore = True
             config.deepcast = True
             config.dual = False
         elif level == 4:
-            config.asr_preset = ASRPreset.BALANCED
+            config.preset = "balanced"
             config.preprocess = True
             config.restore = True
             config.deepcast = True
@@ -122,7 +111,7 @@ class PipelineConfig:
             config.preprocess = True
             config.restore = True
             config.deepcast = True
-            config.asr_preset = config.asr_preset or ASRPreset.BALANCED
+            config.preset = config.preset or "balanced"
 
         return config
 
@@ -164,20 +153,22 @@ class PipelineConfig:
 class PipelineResult:
     """Result of pipeline execution."""
 
-    working_dir: Path
-    completed_steps: Set[PipelineStep] = field(default_factory=set)
-    artifacts: Dict[str, Path] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    success: bool = True
-    error: Optional[str] = None
+    workdir: Path  # Match services API naming
+    steps_completed: list[str] = field(default_factory=list)  # Match services API
+    artifacts: Dict[str, str] = field(default_factory=dict)  # Match services API (str paths)
+    duration: float = 0.0
+    errors: list[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert result to dictionary."""
+        """Convert result to dictionary.
+
+        Returns:
+            Dictionary representation of pipeline result
+        """
         return {
-            "working_dir": str(self.working_dir),
-            "completed_steps": [step.value for step in self.completed_steps],
-            "artifacts": {k: str(v) for k, v in self.artifacts.items()},
-            "metadata": self.metadata,
-            "success": self.success,
-            "error": self.error,
+            "workdir": str(self.workdir),
+            "steps_completed": self.steps_completed,
+            "artifacts": self.artifacts,
+            "duration": self.duration,
+            "errors": self.errors,
         }
