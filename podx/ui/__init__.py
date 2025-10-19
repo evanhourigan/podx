@@ -26,6 +26,7 @@ from .align_browser import AlignBrowser, scan_alignable_transcripts
 from .asr_selector import ASR_MODELS, get_most_sophisticated_model, select_asr_model
 from .confirmation import Confirmation
 from .deepcast_selector import select_deepcast_type
+from .diarize_browser import DiarizeBrowser, scan_diarizable_transcripts
 from .episode_selector import (
     scan_episode_status,
     select_episode_interactive,
@@ -59,6 +60,7 @@ __all__ = [
     "AlignBrowser",
     "ASR_MODELS",
     "Confirmation",
+    "DiarizeBrowser",
     "EpisodeBrowser",
     "LiveTimer",
     "TranscribeBrowser",
@@ -66,6 +68,7 @@ __all__ = [
     "get_most_sophisticated_model",
     "sanitize_filename",
     "scan_alignable_transcripts",
+    "scan_diarizable_transcripts",
     "scan_episode_status",
     "scan_transcribable_episodes",
     "select_asr_model",
