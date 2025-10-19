@@ -9,13 +9,12 @@ podx with custom processing steps, AI providers, output formats, and integration
 import importlib
 import importlib.util
 import inspect
-import json
 import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union
 
 import click
 
@@ -306,13 +305,19 @@ class PluginManager:
         self.registry = registry or get_registry()
         self.config = get_config()
 
-    def discover_plugins(self, plugin_dirs: List[Path] = None) -> None:
+    def discover_plugins(self, plugin_dirs: List[Path] = None, use_entry_points: bool = True) -> None:
         """
-        Discover and load plugins from specified directories.
+        Discover and load plugins from specified directories and entry points.
 
         Args:
             plugin_dirs: List of directories to search for plugins
+            use_entry_points: Whether to discover plugins via setuptools entry points
         """
+        # Discover via entry points first (installed packages)
+        if use_entry_points:
+            self._discover_entry_points()
+
+        # Then discover from directories
         if plugin_dirs is None:
             plugin_dirs = self._get_default_plugin_dirs()
 
@@ -332,6 +337,41 @@ class PluginManager:
                     logger.warning(
                         "Failed to load plugin", file=str(plugin_file), error=str(e)
                     )
+
+    def _discover_entry_points(self) -> None:
+        """Discover and load plugins from setuptools entry points."""
+        try:
+            # Try to use importlib.metadata (Python 3.8+)
+            try:
+                from importlib.metadata import entry_points
+            except ImportError:
+                # Fallback to importlib_metadata for Python 3.7
+                from importlib_metadata import entry_points
+
+            # Discover plugins from the 'podx.plugins' entry point group
+            discovered = entry_points(group="podx.plugins")
+
+            for entry_point in discovered:
+                try:
+                    plugin_class = entry_point.load()
+                    plugin = plugin_class()
+                    self.registry.register(plugin)
+                    logger.info(
+                        "Loaded plugin from entry point",
+                        name=entry_point.name,
+                        module=entry_point.value,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Failed to load plugin from entry point",
+                        name=entry_point.name,
+                        error=str(e),
+                    )
+
+        except ImportError:
+            logger.debug("Entry point discovery not available (requires Python 3.8+ or importlib_metadata)")
+        except Exception as e:
+            logger.warning("Entry point discovery failed", error=str(e))
 
     def _get_default_plugin_dirs(self) -> List[Path]:
         """Get default plugin directories."""
@@ -478,13 +518,13 @@ def plugin_option(plugin_type: PluginType, help_text: str = None):
         available = manager.get_available_plugins(plugin_type)
         choices = list(available.keys()) if available else []
 
-        if not help_text:
-            help_text = f"Select {plugin_type.value} plugin"
+        # Use provided help text or generate default
+        option_help = help_text if help_text else f"Select {plugin_type.value} plugin"
 
         return click.option(
             f"--{plugin_type.value}-plugin",
             type=click.Choice(choices) if choices else str,
-            help=help_text,
+            help=option_help,
         )(f)
 
     return decorator
@@ -529,7 +569,7 @@ from podx.plugins import {plugin_type.value.title()}Plugin, PluginMetadata, Plug
 
 class {name.title()}Plugin({plugin_type.value.title()}Plugin):
     """Custom {plugin_type.value} plugin."""
-    
+
     @property
     def metadata(self) -> PluginMetadata:
         return PluginMetadata(
@@ -539,15 +579,15 @@ class {name.title()}Plugin({plugin_type.value.title()}Plugin):
             author="Your Name",
             plugin_type=PluginType.{plugin_type.name}
         )
-    
+
     def validate_config(self, config: Dict[str, Any]) -> bool:
         # Implement configuration validation
         return True
-    
+
     def initialize(self, config: Dict[str, Any]) -> None:
         # Initialize plugin with configuration
         pass
-    
+
     # Implement required methods for {plugin_type.value} plugin
     # See documentation for specific method signatures
 '''
