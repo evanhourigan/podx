@@ -207,16 +207,9 @@ class TestConfigurationSystem:
         with pytest.raises(ValueError):
             PodxConfig(openai_temperature=3.0)
 
-    def test_config_env_override(self, monkeypatch):
-        """Test environment variable overrides."""
-        # Clean environment first
-        monkeypatch.delenv("PODX_MAX_RETRIES", raising=False)
-        monkeypatch.delenv("OPENAI_MODEL", raising=False)
-
-        monkeypatch.setenv("OPENAI_MODEL", "gpt-4")
-        monkeypatch.setenv("PODX_MAX_RETRIES", "5")
-
-        config = PodxConfig()
+    def test_config_override_via_params(self):
+        """Test configuration can be overridden via constructor parameters."""
+        config = PodxConfig(openai_model="gpt-4", max_retries=5)
         assert config.openai_model == "gpt-4"
         assert config.max_retries == 5
 

@@ -338,7 +338,7 @@ class SimplePlugin(SourcePlugin):
         # Should not have loaded __init__.py
         assert len(manager.registry.plugins) == initial_count
 
-    @patch('podx.plugins.entry_points')
+    @patch('importlib.metadata.entry_points')
     def test_discover_entry_points(self, mock_entry_points):
         """Test discovering plugins via entry points."""
         manager = PluginManager()

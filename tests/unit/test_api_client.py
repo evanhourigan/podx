@@ -73,8 +73,8 @@ class TestTranscribeAPI:
     @patch("podx.api.client._transcribe")
     def test_transcribe_success(self, mock_transcribe, tmp_path):
         """Test successful transcription."""
-        # Create transcript file
-        transcript_path = tmp_path / "transcript.json"
+        # Create transcript file that mock will "create"
+        transcript_path = tmp_path / "transcript-output.json"
         transcript_data = {
             "segments": [
                 {"text": "Hello", "start": 0, "end": 1},
@@ -90,7 +90,9 @@ class TestTranscribeAPI:
             "duration_seconds": 2,
         }
 
-        client = PodxClient()
+        # Disable cache to ensure mock is called
+        config = ClientConfig(cache_enabled=False)
+        client = PodxClient(config=config)
         result = client.transcribe("test_audio.mp3", model="base", out_dir=str(tmp_path))
 
         assert result.success is True
@@ -103,7 +105,7 @@ class TestTranscribeAPI:
     @patch("podx.api.client._transcribe")
     def test_transcribe_uses_default_model(self, mock_transcribe, tmp_path):
         """Test transcription uses default model from config."""
-        transcript_path = tmp_path / "transcript.json"
+        transcript_path = tmp_path / "transcript-output.json"
         transcript_path.write_text("{}")
 
         mock_transcribe.return_value = {
@@ -111,7 +113,8 @@ class TestTranscribeAPI:
             "duration_seconds": 0,
         }
 
-        config = ClientConfig(default_model="medium")
+        # Disable cache to ensure mock is called
+        config = ClientConfig(default_model="medium", cache_enabled=False)
         client = PodxClient(config=config)
         result = client.transcribe("audio.mp3", out_dir=str(tmp_path))
 
