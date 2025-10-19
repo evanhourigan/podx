@@ -145,7 +145,7 @@ def select_episode_interactive(
     from .formatters import clean_cell
 
     if console is None:
-        from ..ui import make_console
+        from ..ui_styles import make_console
 
         console = make_console()
 
@@ -210,7 +210,7 @@ def select_episode_interactive(
         )
 
         # Create table
-        from ..ui import TABLE_BORDER_STYLE, TABLE_HEADER_STYLE, TABLE_NUM_STYLE
+        from ..ui_styles import TABLE_BORDER_STYLE, TABLE_HEADER_STYLE, TABLE_NUM_STYLE
 
         table = Table(
             show_header=True,
