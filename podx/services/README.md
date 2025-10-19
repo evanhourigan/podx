@@ -11,10 +11,12 @@ The service layer provides a programmatic API for integrating PodX into Python a
 
 ```
 podx/services/
-├── __init__.py           # Public API exports
-├── command_builder.py    # Fluent command construction
-├── step_executor.py      # Low-level command execution
-└── pipeline_service.py   # High-level orchestration
+├── __init__.py                # Public API exports
+├── command_builder.py         # Fluent command construction
+├── step_executor.py           # Synchronous command execution
+├── pipeline_service.py        # Synchronous orchestration
+├── async_step_executor.py     # Async command execution
+└── async_pipeline_service.py  # Async orchestration
 ```
 
 ### Component Responsibilities
@@ -23,7 +25,7 @@ podx/services/
 - Fluent API for building CLI commands
 - Type-safe option handling
 - Automatic quoting and escaping
-- Used by: StepExecutor, orchestrate.py helpers
+- Used by: StepExecutor, AsyncStepExecutor, orchestrate.py helpers
 
 **StepExecutor** (`step_executor.py`)
 - Executes individual pipeline steps via subprocess
@@ -37,6 +39,19 @@ podx/services/
 - Resumption logic for crashed/interrupted pipelines
 - Progress callbacks for UI integration
 - Used by: External applications, notebooks
+
+**AsyncStepExecutor** (`async_step_executor.py`)
+- Async version of StepExecutor using asyncio
+- Non-blocking subprocess execution
+- Enables concurrent step execution
+- Used by: AsyncPipelineService
+
+**AsyncPipelineService** (`async_pipeline_service.py`)
+- Async pipeline orchestration with concurrent execution
+- Can run align + diarize steps in parallel
+- Batch processing with concurrency control
+- Perfect for web apps, APIs, and async applications
+- Used by: FastAPI, aiohttp, async notebooks
 
 ## Quick Start
 
@@ -340,6 +355,209 @@ deepcast = executor.deepcast(
 )
 ```
 
+## Async Execution
+
+PodX provides full async/await support for non-blocking pipeline execution and concurrent processing. This is ideal for:
+- **Web Applications**: FastAPI, aiohttp servers
+- **WebSocket Streaming**: Real-time progress updates
+- **Batch Processing**: Process multiple episodes concurrently
+- **Async Applications**: Any async Python application
+
+### Basic Async Pipeline
+
+```python
+import asyncio
+from podx.services import AsyncPipelineService, PipelineConfig
+
+async def main():
+    config = PipelineConfig(
+        show="Lex Fridman Podcast",
+        date="2024-10-01",
+        model="large-v3-turbo",
+        deepcast=True,
+    )
+
+    service = AsyncPipelineService(config)
+    result = await service.execute()
+
+    print(f"Completed in {result.duration:.2f}s")
+
+asyncio.run(main())
+```
+
+### Concurrent Step Execution
+
+When both `align` and `diarize` are enabled, AsyncPipelineService runs them **concurrently** for faster execution:
+
+```python
+config = PipelineConfig(
+    show="All-In Podcast",
+    date="2024-10-01",
+    model="large-v3-turbo",
+    align=True,      # Runs concurrently with diarize
+    diarize=True,    # Runs concurrently with align
+)
+
+service = AsyncPipelineService(config)
+result = await service.execute()
+
+# Both align and diarize ran in parallel!
+```
+
+### Batch Processing with Concurrency Control
+
+Process multiple episodes concurrently with a configurable concurrency limit:
+
+```python
+configs = [
+    PipelineConfig(show="Lex Fridman Podcast", date="2024-10-01", deepcast=True),
+    PipelineConfig(show="All-In Podcast", date="2024-10-01", deepcast=True),
+    PipelineConfig(show="Acquired", date="2024-10-01", deepcast=True),
+]
+
+# Process max 2 episodes at a time
+results = await AsyncPipelineService.process_batch(
+    configs,
+    max_concurrent=2,
+    progress_callback=lambda idx, step, status: print(f"[{idx}] {step}: {status}")
+)
+
+for i, result in enumerate(results):
+    print(f"{i+1}. Completed in {result.duration:.2f}s")
+```
+
+### FastAPI Integration
+
+Perfect integration with async web frameworks:
+
+```python
+from fastapi import FastAPI, WebSocket
+from podx.services import AsyncPipelineService, PipelineConfig
+
+app = FastAPI()
+
+@app.post("/process")
+async def process_podcast(show: str, deepcast: bool = False):
+    """Non-blocking API endpoint."""
+    config = PipelineConfig(show=show, deepcast=deepcast)
+    service = AsyncPipelineService(config)
+    result = await service.execute()
+
+    return {
+        "workdir": str(result.workdir),
+        "duration": result.duration,
+        "artifacts": result.artifacts,
+    }
+
+@app.websocket("/process-stream")
+async def process_with_progress(websocket: WebSocket):
+    """Stream progress updates via WebSocket."""
+    await websocket.accept()
+    show = await websocket.receive_text()
+
+    async def send_progress(step: str, status: str):
+        await websocket.send_json({"step": step, "status": status})
+
+    config = PipelineConfig(show=show, deepcast=True)
+    service = AsyncPipelineService(config)
+
+    try:
+        result = await service.execute(progress_callback=send_progress)
+        await websocket.send_json({"type": "complete", "result": result.to_dict()})
+    except Exception as e:
+        await websocket.send_json({"type": "error", "error": str(e)})
+    finally:
+        await websocket.close()
+```
+
+### Progress Tracking
+
+Async progress callbacks for real-time updates:
+
+```python
+async def on_progress(step: str, status: str):
+    """Called for each pipeline step update."""
+    print(f"[{step}] {status}")
+    # Send to websocket, update database, etc.
+
+result = await service.execute(progress_callback=on_progress)
+```
+
+### Graceful Cancellation
+
+AsyncPipelineService supports graceful cancellation:
+
+```python
+# Create cancellable task
+task = asyncio.create_task(service.execute())
+
+# Cancel if needed (e.g., user cancellation, timeout)
+task.cancel()
+
+try:
+    result = await task
+except asyncio.CancelledError:
+    print("Pipeline was cancelled gracefully")
+```
+
+### Concurrent Metadata Fetching
+
+Use AsyncStepExecutor for concurrent individual operations:
+
+```python
+from podx.services import AsyncStepExecutor
+
+executor = AsyncStepExecutor(verbose=False)
+
+# Fetch 3 different podcasts concurrently
+results = await executor.run_concurrent(
+    executor.fetch(show="Lex Fridman Podcast", date="2024-10-01"),
+    executor.fetch(show="All-In Podcast", date="2024-10-01"),
+    executor.fetch(show="Acquired", date="2024-10-01"),
+)
+
+for meta in results:
+    print(f"✓ {meta['show']}: {meta['episode_title']}")
+```
+
+### Mixing Sync and Async
+
+You can mix sync and async APIs as needed:
+
+```python
+# Use async for I/O-bound operations
+executor = AsyncStepExecutor()
+meta = await executor.fetch(show="Lex Fridman Podcast", date="2024-10-01")
+
+# Continue with sync code if needed
+from podx.services import PipelineService
+config = PipelineConfig(show="...", model="...")
+service = PipelineService(config)  # Sync version
+```
+
+### Async Examples
+
+See `/examples/using_async_service_layer.py` for complete working examples:
+
+1. Basic Async Pipeline
+2. Concurrent Steps (align + diarize in parallel)
+3. Batch Processing (multiple episodes with concurrency control)
+4. FastAPI Integration Pattern
+5. Concurrent Metadata Fetching
+6. Custom Progress Tracking
+7. Graceful Cancellation
+8. Mixed Sync/Async Usage
+
+### Async Benefits
+
+✅ **Non-blocking Execution** - Doesn't block the event loop
+✅ **Concurrent Processing** - Run align + diarize in parallel
+✅ **Batch Operations** - Process 100s of episodes efficiently
+✅ **Real-time Progress** - Stream updates via WebSockets
+✅ **Web Framework Ready** - Perfect for FastAPI, aiohttp
+✅ **Graceful Cancellation** - Clean shutdown on cancel
+✅ **Scalable** - Handle many concurrent operations
+
 ## Migration from CLI
 
 ### Before (CLI)
@@ -370,6 +588,8 @@ result = service.execute()
 
 ## Examples
 
+### Synchronous API Examples
+
 See `/examples/using_service_layer.py` for complete working examples:
 
 1. Basic Pipeline (Fetch + Transcribe)
@@ -377,6 +597,19 @@ See `/examples/using_service_layer.py` for complete working examples:
 3. Dual-Mode (Precision + Recall + Consensus)
 4. YouTube Video Processing
 5. Custom Working Directory
+
+### Async API Examples
+
+See `/examples/using_async_service_layer.py` for complete async examples:
+
+1. Basic Async Pipeline
+2. Concurrent Steps (align + diarize in parallel)
+3. Batch Processing (multiple episodes with concurrency control)
+4. FastAPI Integration Pattern
+5. Concurrent Metadata Fetching
+6. Custom Progress Tracking
+7. Graceful Cancellation
+8. Mixed Sync/Async Usage
 
 ## Benefits
 
@@ -391,9 +624,10 @@ See `/examples/using_service_layer.py` for complete working examples:
 ## Future Enhancements
 
 Planned improvements:
-- [ ] Async execution with `asyncio`
-- [ ] Stream processing with progress updates
+- [x] Async execution with `asyncio` ✅ (Completed)
+- [x] WebSocket streaming for real-time progress ✅ (Completed)
 - [ ] Plugin system for custom steps
-- [ ] REST API server mode
-- [ ] WebSocket streaming for real-time progress
+- [ ] REST API server mode (standalone FastAPI app)
 - [ ] Distributed execution with Celery/RQ
+- [ ] Streaming transcription with incremental updates
+- [ ] GPU pool management for batch processing
