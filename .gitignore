@@ -49,3 +49,6 @@ episodes/
 
 # Codex
 .codex-context/
+
+# Testing
+.coverage
