@@ -281,6 +281,145 @@ def _build_pipeline_config(
     return config
 
 
+def _execute_fetch(
+    config: dict,
+    interactive_mode_meta: dict | None,
+    interactive_mode_wd: Path | None,
+    progress,
+    verbose: bool,
+) -> tuple[dict, Path]:
+    """Execute fetch step to get episode metadata and determine working directory.
+
+    Handles three fetch modes:
+    1. Interactive mode: Use pre-loaded metadata and workdir (skip fetch)
+    2. YouTube mode: Fetch from YouTube URL
+    3. RSS/Podcast mode: Fetch from iTunes search or RSS feed
+
+    After fetching, applies podcast-specific configuration from YAML/JSON config.
+
+    Args:
+        config: Pipeline configuration dictionary (modified in place for podcast config)
+        interactive_mode_meta: Pre-loaded metadata from interactive selection (or None)
+        interactive_mode_wd: Pre-determined workdir from interactive selection (or None)
+        progress: Progress tracker instance
+        verbose: Enable verbose logging
+
+    Returns:
+        Tuple of (episode_metadata, working_directory)
+
+    Raises:
+        ValidationError: If no source (show/RSS/YouTube) is provided
+        SystemExit: On fetch failures
+    """
+    # 1. Interactive mode: metadata and workdir already determined
+    if interactive_mode_meta is not None and interactive_mode_wd is not None:
+        return interactive_mode_meta, interactive_mode_wd
+
+    # 2. YouTube URL mode
+    if config.get("youtube_url"):
+        from .youtube import (
+            get_youtube_metadata,
+            is_youtube_url,
+        )
+
+        youtube_url = config["youtube_url"]
+        if not is_youtube_url(youtube_url):
+            raise ValidationError(f"Invalid YouTube URL: {youtube_url}")
+
+        progress.start_step("Fetching YouTube video metadata")
+
+        # Get metadata first to determine workdir
+        youtube_metadata = get_youtube_metadata(youtube_url)
+
+        # Create metadata dict
+        meta = {
+            "show": youtube_metadata["channel"],
+            "episode_title": youtube_metadata["title"],
+            "episode_published": youtube_metadata.get("upload_date", ""),
+        }
+
+        progress.complete_step(
+            f"YouTube metadata fetched: {meta.get('episode_title', 'Unknown')[:80]}"
+        )
+
+        # Note: YouTube audio will be downloaded after workdir is created
+        # (handled by run() function after _execute_fetch returns)
+
+    # 3. RSS/Podcast mode
+    else:
+        fetch_cmd = ["podx-fetch"]
+        if config.get("show"):
+            fetch_cmd.extend(["--show", config["show"]])
+        elif config.get("rss_url"):
+            fetch_cmd.extend(["--rss-url", config["rss_url"]])
+        else:
+            raise ValidationError(
+                "Either --show, --rss-url, or --youtube-url must be provided."
+            )
+
+        if config.get("date"):
+            fetch_cmd.extend(["--date", config["date"]])
+        if config.get("title_contains"):
+            fetch_cmd.extend(["--title-contains", config["title_contains"]])
+
+        # Run fetch first to get metadata
+        progress.start_step("Fetching episode metadata")
+        meta = _run(
+            fetch_cmd,
+            verbose=verbose,
+            save_to=None,  # Don't save yet, we'll save after determining workdir
+            label=None,  # Progress handles the display
+        )
+        progress.complete_step(
+            f"Episode fetched: {meta.get('episode_title', 'Unknown')}"
+        )
+
+    # 4. Apply podcast-specific configuration from YAML/JSON
+    from .utils import apply_podcast_config
+
+    show_name = meta.get("show") or meta.get("show_name", "")
+
+    # Current flags to potentially override
+    current_flags = {
+        "align": config["align"],
+        "diarize": config["diarize"],
+        "deepcast": config["deepcast"],
+        "extract_markdown": config["extract_markdown"],
+        "notion": config["notion"],
+    }
+
+    config_result = apply_podcast_config(
+        show_name=show_name,
+        current_flags=current_flags,
+        deepcast_model=config["deepcast_model"],
+        deepcast_temp=config["deepcast_temp"],
+        notion=config["notion"],
+        logger=logger,
+    )
+
+    # Update config with podcast-specific overrides
+    config["align"] = config_result["align"]
+    config["diarize"] = config_result["diarize"]
+    config["deepcast"] = config_result["deepcast"]
+    config["extract_markdown"] = config_result["extract_markdown"]
+    config["notion"] = config_result["notion"]
+    config["deepcast_model"] = config_result.get("deepcast_model", config["deepcast_model"])
+    config["deepcast_temp"] = config_result.get("deepcast_temp", config["deepcast_temp"])
+    config["yaml_analysis_type"] = config_result.get("analysis_type")
+
+    # 5. Determine working directory
+    if config.get("workdir"):
+        wd = config["workdir"]
+    else:
+        from .fetch import _generate_workdir
+
+        show = meta.get("show", "Unknown Show")
+        episode_date = meta.get("episode_published") or config.get("date") or "unknown"
+        wd = _generate_workdir(show, episode_date)
+
+    return meta, wd
+
+
 def _handle_interactive_mode(config: dict, scan_dir: Path, console) -> tuple[dict, Path]:
     """Handle interactive episode selection and configuration.
 
@@ -858,11 +997,13 @@ def run(
         wd = None  # Will be set after fetch
 
         # 2. Interactive selection: choose existing episode and configure pipeline
+        interactive_meta = None
+        interactive_wd = None
         if interactive_select:
             from .ui import make_console
 
             console = make_console()
-            meta, wd = _handle_interactive_mode(config, scan_dir, console)
+            interactive_meta, interactive_wd = _handle_interactive_mode(config, scan_dir, console)
 
             # Update local variables from modified config
             model = config["model"]
@@ -878,98 +1019,24 @@ def run(
             deepcast_pdf = config["deepcast_pdf"]
             yaml_analysis_type = config["yaml_analysis_type"]
 
-        # 1) FETCH → meta.json
-        if not interactive_select and youtube_url:
-            # Handle YouTube URLs directly
-            from .youtube import (
-                fetch_youtube_episode,
-                get_youtube_metadata,
-                is_youtube_url,
-            )
-
-            if not is_youtube_url(youtube_url):
-                raise ValidationError(f"Invalid YouTube URL: {youtube_url}")
-
-            progress.start_step("Fetching YouTube video metadata")
-
-            # Get metadata first to determine workdir
-            youtube_metadata = get_youtube_metadata(youtube_url)
-
-            # Create temporary meta for workdir determination
-            temp_meta = {
-                "show": youtube_metadata["channel"],
-                "episode_title": youtube_metadata["title"],
-                "episode_published": youtube_metadata.get("upload_date", ""),
-            }
-
-            # Now we can call fetch_youtube_episode with proper workdir
-            meta = temp_meta  # Will be replaced by full fetch
-
-            progress.complete_step(
-                f"YouTube metadata fetched: {meta.get('episode_title', 'Unknown')[:80]}"
-            )
-        elif not interactive_select:
-            # Handle RSS/podcast URLs
-            fetch_cmd = ["podx-fetch"]
-            if show:
-                fetch_cmd.extend(["--show", show])
-            elif rss_url:
-                fetch_cmd.extend(["--rss-url", rss_url])
-            else:
-                raise ValidationError(
-                    "Either --show, --rss-url, or --youtube-url must be provided."
-                )
-
-            if date:
-                fetch_cmd.extend(["--date", date])
-            if title_contains:
-                fetch_cmd.extend(["--title-contains", title_contains])
-
-            # Run fetch first to get metadata, then determine workdir
-            progress.start_step("Fetching episode metadata")
-            meta = _run(
-                fetch_cmd,
-                verbose=verbose,
-                save_to=None,  # Don't save yet, we'll save after determining workdir
-                label=None,  # Progress handles the display
-            )
-            progress.complete_step(
-                f"Episode fetched: {meta.get('episode_title', 'Unknown')}"
-            )
-
-        # Check for podcast-specific configuration after we have the show name
-        from .utils import apply_podcast_config
-
-        show_name = meta.get("show") or meta.get("show_name", "")
-
-        # Apply podcast-specific configuration from YAML or JSON
-        current_flags = {
-            "align": align,
-            "diarize": diarize,
-            "deepcast": deepcast,
-            "extract_markdown": extract_markdown,
-            "notion": notion,
-        }
-        config_result = apply_podcast_config(
-            show_name=show_name,
-            current_flags=current_flags,
-            deepcast_model=deepcast_model,
-            deepcast_temp=deepcast_temp,
-            notion=notion,
-            logger=logger,
+        # 3. Fetch episode metadata and determine working directory
+        meta, wd = _execute_fetch(
+            config=config,
+            interactive_mode_meta=interactive_meta,
+            interactive_mode_wd=interactive_wd,
+            progress=progress,
+            verbose=verbose,
         )
 
-        # Extract updated values from result
-        align = config_result.flags.get("align", align)
-        diarize = config_result.flags.get("diarize", diarize)
-        deepcast = config_result.flags.get("deepcast", deepcast)
-        extract_markdown = config_result.flags.get("extract_markdown", extract_markdown)
-        notion = config_result.flags.get("notion", notion)
-        deepcast_model = config_result.deepcast_model
-        deepcast_temp = config_result.deepcast_temp
-        yaml_analysis_type = config_result.yaml_analysis_type
-        if config_result.notion_db:
-            notion_db = config_result.notion_db
+        # Update local variables from podcast-specific config overrides
+        align = config["align"]
+        diarize = config["diarize"]
+        deepcast = config["deepcast"]
+        extract_markdown = config["extract_markdown"]
+        notion = config["notion"]
+        deepcast_model = config["deepcast_model"]
+        deepcast_temp = config["deepcast_temp"]
+        yaml_analysis_type = config["yaml_analysis_type"]
 
         # Show pipeline configuration (after YAML/JSON config is applied)
         steps = ["fetch", "transcode", "transcribe"]
@@ -995,24 +1062,13 @@ def run(
 
         print_podx_info(f"Pipeline: {' → '.join(steps)}")
 
-        # Determine workdir from metadata
-        if workdir:
-            # Override: use specified workdir
-            wd = Path(workdir)
-            logger.debug("Using specified workdir", workdir=str(workdir))
-        else:
-            # Default: use smart naming with spaces
-            from .utils import generate_workdir
-
-            show_name = meta.get("show", "Unknown Show")
-            episode_date = meta.get("episode_published") or date or "unknown"
-            wd = generate_workdir(show_name, episode_date)
-            logger.debug("Using smart workdir", workdir=str(wd))
-
+        # Working directory determined by _execute_fetch()
         wd.mkdir(parents=True, exist_ok=True)
 
         # For YouTube URLs, now do the full fetch with proper workdir
         if youtube_url:
+            from .youtube import fetch_youtube_episode
+
             progress.start_step("Downloading YouTube audio")
             meta = fetch_youtube_episode(youtube_url, wd)
             progress.complete_step(f"YouTube audio downloaded: {wd / '*.mp3'}")
