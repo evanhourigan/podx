@@ -2,7 +2,9 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
+
+from ..enums import AnalysisType, ASRPreset, ASRProvider, AudioFormat
 
 
 
@@ -25,13 +27,13 @@ class PipelineConfig:
     workdir: Optional[Path] = None
 
     # Audio configuration (use simple name for API consistency)
-    fmt: str = "wav16"  # Audio format: wav16, mp3, aac
+    fmt: Union[str, AudioFormat] = "wav16"  # Audio format: wav16, mp3, aac
 
     # Transcription configuration (match CLI names)
     model: str = "base"  # ASR model name
     compute: str = "int8"  # Compute type: int8, float16, float32
-    asr_provider: Optional[str] = None  # ASR provider: auto, local, openai, hf
-    preset: Optional[str] = None  # ASR preset: balanced, precision, recall
+    asr_provider: Union[str, ASRProvider, None] = None  # ASR provider: auto, local, openai, hf
+    preset: Union[str, ASRPreset, None] = None  # ASR preset: balanced, precision, recall
 
     # Pipeline flags
     align: bool = False
@@ -45,7 +47,7 @@ class PipelineConfig:
     # Deepcast configuration
     deepcast_model: str = "gpt-4"
     deepcast_temp: float = 0.7
-    analysis_type: Optional[str] = None  # Analysis type for deepcast
+    analysis_type: Union[str, AnalysisType, None] = None  # Analysis type for deepcast
     extract_markdown: bool = False
     deepcast_pdf: bool = False
 
@@ -89,19 +91,19 @@ class PipelineConfig:
             config.dual = False
             config.deepcast = True
         elif level == 2:
-            config.preset = "recall"
+            config.preset = ASRPreset.RECALL
             config.preprocess = True
             config.restore = True
             config.deepcast = True
             config.dual = False
         elif level == 3:
-            config.preset = "precision"
+            config.preset = ASRPreset.PRECISION
             config.preprocess = True
             config.restore = True
             config.deepcast = True
             config.dual = False
         elif level == 4:
-            config.preset = "balanced"
+            config.preset = ASRPreset.BALANCED
             config.preprocess = True
             config.restore = True
             config.deepcast = True
@@ -111,7 +113,7 @@ class PipelineConfig:
             config.preprocess = True
             config.restore = True
             config.deepcast = True
-            config.preset = config.preset or "balanced"
+            config.preset = config.preset or ASRPreset.BALANCED
 
         return config
 
