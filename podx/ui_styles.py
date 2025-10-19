@@ -78,5 +78,3 @@ def format_example_line(line: str) -> Text:
         else:
             text.append(tok)
     return text
-
-
