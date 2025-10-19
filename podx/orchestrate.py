@@ -6,7 +6,7 @@ import subprocess
 import time
 from pathlib import Path
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 # Use rich-click for colorized --help when available
 try:  # pragma: no cover
@@ -42,7 +42,6 @@ from . import (
     transcode,
     transcribe,
 )
-from .pricing import load_model_catalog, estimate_deepcast_cost  # type: ignore
 from .config import get_config
 from .errors import ValidationError
 from .help import help_cmd
@@ -62,12 +61,6 @@ from .yaml_config import get_yaml_config_manager
 setup_logging()
 logger = get_logger(__name__)
 
-# Optional rich for interactive select UI
-try:
-    from rich.panel import Panel
-    RICH_AVAILABLE = True
-except Exception:
-    RICH_AVAILABLE = False
 
 
 def _run(
@@ -158,6 +151,329 @@ def main():
     - All tools read JSON from stdin and write JSON to stdout so you can pipe them
     """
     pass
+
+
+def _build_pipeline_config(
+    show: Optional[str],
+    rss_url: Optional[str],
+    youtube_url: Optional[str],
+    date: Optional[str],
+    title_contains: Optional[str],
+    workdir: Optional[Path],
+    fmt: str,
+    model: str,
+    compute: str,
+    asr_provider: str,
+    preset: Optional[str],
+    align: bool,
+    preprocess: bool,
+    restore: bool,
+    diarize: bool,
+    deepcast: bool,
+    workflow: Optional[str],
+    fidelity: Optional[str],
+    dual: bool,
+    no_consensus: bool,
+    deepcast_model: str,
+    deepcast_temp: float,
+    extract_markdown: bool,
+    deepcast_pdf: bool,
+    notion: bool,
+    notion_db: Optional[str],
+    podcast_prop: str,
+    date_prop: str,
+    episode_prop: str,
+    model_prop: str,
+    asr_prop: str,
+    append_content: bool,
+    full: bool,
+    verbose: bool,
+    clean: bool,
+    no_keep_audio: bool,
+) -> dict:
+    """Build pipeline configuration from CLI arguments.
+
+    Applies preset transformations (--full, --workflow, --fidelity) to CLI flags
+    and returns a configuration dictionary ready for pipeline execution.
+
+    Args:
+        All CLI arguments from run() function
+
+    Returns:
+        Configuration dictionary with processed flags
+    """
+    # Start with all arguments in a dict (will be modified by presets)
+    config = {
+        "show": show,
+        "rss_url": rss_url,
+        "youtube_url": youtube_url,
+        "date": date,
+        "title_contains": title_contains,
+        "workdir": workdir,
+        "fmt": fmt,
+        "model": model,
+        "compute": compute,
+        "asr_provider": asr_provider,
+        "preset": preset,
+        "align": align,
+        "preprocess": preprocess,
+        "restore": restore,
+        "diarize": diarize,
+        "deepcast": deepcast,
+        "dual": dual,
+        "no_consensus": no_consensus,
+        "deepcast_model": deepcast_model,
+        "deepcast_temp": deepcast_temp,
+        "extract_markdown": extract_markdown,
+        "deepcast_pdf": deepcast_pdf,
+        "notion": notion,
+        "notion_db": notion_db,
+        "podcast_prop": podcast_prop,
+        "date_prop": date_prop,
+        "episode_prop": episode_prop,
+        "model_prop": model_prop,
+        "asr_prop": asr_prop,
+        "append_content": append_content,
+        "verbose": verbose,
+        "clean": clean,
+        "no_keep_audio": no_keep_audio,
+        "yaml_analysis_type": None,  # Will be set by interactive mode or workflow
+    }
+
+    # Handle convenience --full flag
+    if full:
+        config["align"] = True
+        config["deepcast"] = True
+        config["extract_markdown"] = True
+        config["notion"] = True
+
+    # Map --workflow presets first (can be combined with fidelity)
+    if workflow:
+        from .utils import apply_workflow_preset
+
+        workflow_flags = apply_workflow_preset(workflow)
+        config["align"] = workflow_flags.get("align", config["align"])
+        config["diarize"] = workflow_flags.get("diarize", config["diarize"])
+        config["deepcast"] = workflow_flags.get("deepcast", config["deepcast"])
+        config["extract_markdown"] = workflow_flags.get(
+            "extract_markdown", config["extract_markdown"]
+        )
+        config["notion"] = workflow_flags.get("notion", config["notion"])
+
+    # Map --fidelity to flags (lowest→highest)
+    # 1: deepcast only (use latest transcript)
+    # 2: recall + preprocess + restore + deepcast
+    # 3: precision + preprocess + restore + deepcast
+    # 4: balanced + preprocess + restore + deepcast
+    # 5: dual (precision+recall) + preprocess + restore + deepcast
+    if fidelity:
+        from .utils import apply_fidelity_preset
+
+        fid_flags = apply_fidelity_preset(fidelity, preset, interactive=False)
+        config["align"] = fid_flags.get("align", config["align"])
+        config["diarize"] = fid_flags.get("diarize", config["diarize"])
+        config["preprocess"] = fid_flags.get("preprocess", config["preprocess"])
+        config["restore"] = fid_flags.get("restore", config["restore"])
+        config["deepcast"] = fid_flags.get("deepcast", config["deepcast"])
+        config["dual"] = fid_flags.get("dual", config["dual"])
+        config["preset"] = fid_flags.get("preset", config["preset"])
+
+    return config
+
+
+def _handle_interactive_mode(config: dict, scan_dir: Path, console) -> tuple[dict, Path]:
+    """Handle interactive episode selection and configuration.
+
+    Displays rich table UI for episode selection, prompts for fidelity level,
+    model selection, and option toggles. Modifies config dict in place.
+
+    Args:
+        config: Pipeline configuration dictionary (modified in place)
+        scan_dir: Directory to scan for episodes
+        console: Rich console instance
+
+    Returns:
+        Tuple of (episode_metadata, working_directory)
+
+    Raises:
+        SystemExit: If user cancels selection
+    """
+    from .ui import Confirmation, select_deepcast_type, select_episode_interactive, select_fidelity_interactive
+    from .utils import apply_fidelity_preset
+
+    # 1. Episode selection
+    selected, meta = select_episode_interactive(
+        scan_dir=scan_dir,
+        show_filter=config["show"],
+        console=console,
+        run_passthrough_fn=_run_passthrough,
+    )
+
+    # 2. Fidelity choice with interactive mapping
+    from rich.panel import Panel
+
+    fidelity_level, fid_flags = select_fidelity_interactive(
+        console=console,
+        preset=config.get("preset"),
+        apply_fidelity_fn=apply_fidelity_preset,
+    )
+
+    # Update config with fidelity flags
+    config["align"] = fid_flags.get("align", config["align"])
+    config["diarize"] = fid_flags.get("diarize", config["diarize"])
+    config["preprocess"] = fid_flags.get("preprocess", config["preprocess"])
+    config["restore"] = fid_flags.get("restore", config["restore"])
+    config["deepcast"] = fid_flags.get("deepcast", config["deepcast"])
+    config["dual"] = fid_flags.get("dual", config["dual"])
+    config["preset"] = fid_flags.get("preset", config["preset"])
+
+    # Show resulting flags (yes/no) before overrides
+    def yn(val: bool) -> str:
+        return "yes" if val else "no"
+
+    summary = (
+        f"preset={config['preset'] or '-'}  align={yn(config['align'])}  "
+        f"diarize={yn(config['diarize'])}  preprocess={yn(config['preprocess'])}  "
+        f"restore={yn(config['restore'])}  deepcast={yn(config['deepcast'])}  "
+        f"dual={yn(config['dual'])}"
+    )
+    console.print(Panel(summary, title="Preset Applied", border_style="green"))
+
+    # 3. Model selection prompts
+    # Only prompt for ASR if we'll transcribe (dual or preset set or no transcripts)
+    will_transcribe = (
+        config["dual"] or config.get("preset") is not None or not any(selected.get("transcripts"))
+    )
+    if will_transcribe:
+        prompt_asr = input(
+            f"\nASR model (Enter to keep '{config['model']}', or type e.g. large-v3, small.en; Q=cancel): "
+        ).strip()
+        if prompt_asr.upper() in {"Q", "QUIT", "EXIT"}:
+            raise SystemExit(0)
+        if prompt_asr:
+            config["model"] = prompt_asr
+
+    # Only prompt for AI if deepcast will run
+    if config["deepcast"] or config["dual"]:
+        prompt_ai = input(
+            f"AI model for deepcast (Enter to keep '{config['deepcast_model']}', Q=cancel): "
+        ).strip()
+        if prompt_ai.upper() in {"Q", "QUIT", "EXIT"}:
+            raise SystemExit(0)
+        if prompt_ai:
+            config["deepcast_model"] = prompt_ai
+
+    # 4. Options panel: toggle steps and outputs
+    console.print(
+        Panel(
+            "Adjust options below (Enter keeps current): Q cancels",
+            title="Options",
+            border_style="blue",
+        )
+    )
+    config["align"] = Confirmation.yes_no("Align (WhisperX)", config["align"])
+    config["diarize"] = Confirmation.yes_no("Diarize (speaker labels)", config["diarize"])
+    config["preprocess"] = Confirmation.yes_no("Preprocess (merge/normalize)", config["preprocess"])
+    config["restore"] = (
+        Confirmation.yes_no("Semantic restore (LLM)", config["restore"])
+        if config["preprocess"]
+        else config["restore"]
+    )
+    config["deepcast"] = Confirmation.yes_no("Deepcast (AI analysis)", config["deepcast"])
+
+    # Only prompt for Dual mode when fidelity didn't already decide it
+    if fidelity_level not in {"5", "1", "2", "3", "4"}:
+        config["dual"] = Confirmation.yes_no("Dual mode (precision+recall)", config["dual"])
+
+    config["extract_markdown"] = Confirmation.yes_no("Save Markdown file", config["extract_markdown"])
+    config["deepcast_pdf"] = Confirmation.yes_no("Also render PDF (pandoc)", config["deepcast_pdf"])
+
+    # 5. Deepcast type selection
+    chosen_type = config.get("yaml_analysis_type")
+    if config["deepcast"] or config["dual"]:
+        chosen_type = select_deepcast_type(console, default_type=chosen_type)
+
+    # 6. Pipeline preview
+    stages = ["fetch", "transcode", "transcribe"]
+    if config["align"]:
+        stages.append("align")
+    if config["diarize"]:
+        stages.append("diarize")
+    if config["preprocess"]:
+        stages.append("preprocess" + ("+restore" if config["restore"] else ""))
+    if config["deepcast"]:
+        stages.append("deepcast")
+    if config["dual"]:
+        stages.append("agreement" + ("+consensus" if not config["no_consensus"] else ""))
+
+    outputs = []
+    if config["extract_markdown"]:
+        outputs.append("markdown")
+    if config["deepcast_pdf"]:
+        outputs.append("pdf")
+
+    preview = (
+        f"Pipeline: {' → '.join(stages)}\n"
+        f"ASR={config['model']} preset={config['preset'] or '-'} dual={yn(config['dual'])} "
+        f"align={yn(config['align'])} diarize={yn(config['diarize'])} "
+        f"preprocess={yn(config['preprocess'])} restore={yn(config['restore'])}\n"
+        f"AI={config['deepcast_model']} type={chosen_type or '-'} outputs={','.join(outputs) or '-'}"
+    )
+
+    # Cost estimate (best-effort)
+    try:
+        from .deepcast import estimate_deepcast_cost
+        from .model_catalog import load_model_catalog
+
+        provider = (
+            "openai"
+            if config["deepcast_model"].startswith("gpt") or "-" in config["deepcast_model"]
+            else "anthropic"
+        )
+        sel_dir = selected.get("directory") if isinstance(selected, dict) else None
+        latest_path = (
+            (sel_dir / "latest.json")
+            if sel_dir and (sel_dir / "latest.json").exists()
+            else None
+        )
+        if latest_path:
+            import json
+
+            transcript_json = json.loads(latest_path.read_text(encoding="utf-8"))
+            catalog = load_model_catalog(refresh=False)
+            est = estimate_deepcast_cost(
+                transcript_json, provider, config["deepcast_model"], catalog
+            )
+            preview += f"\nEstimated cost: ${est.total_usd:.2f}  (in≈{est.input_tokens:,} tok, out≈{est.output_tokens:,} tok)"
+        else:
+            preview += "\nEstimated cost: (no transcript yet; will compute after transcribe)"
+    except Exception:
+        pass
+
+    console.print(Panel(preview, title="Preview", border_style="green"))
+
+    # 7. Final confirmation (strict y/n validation)
+    while True:
+        cont = input("Proceed? (y/n; q cancel) [Y]: ").strip()
+        if not cont:
+            break
+        c = cont.lower()
+        if c in {"q", "quit", "exit"}:
+            console.print("[dim]Cancelled[/dim]")
+            raise SystemExit(0)
+        if c in {"y", "n"}:
+            if c == "n":
+                console.print("[dim]Cancelled[/dim]")
+                raise SystemExit(0)
+            break
+        print("Please enter 'y' or 'n' (or 'q' to cancel).")
+
+    # Update config with chosen analysis type
+    config["yaml_analysis_type"] = chosen_type
+
+    # Return metadata and working directory
+    workdir = selected["directory"]
+    return meta, workdir
 
 
 @main.command("run", help="Orchestrate the complete podcast processing pipeline.")
@@ -452,48 +768,81 @@ def run(
     Returns:
         Exits with status code 0 on success, non-zero on failure
     """
-    # Initialize variables that may be used conditionally later to prevent NameError
-    selected: Optional[Dict[str, Any]] = None
-    chosen_type: Optional[str] = None
-    preview: str = ""
+    # 1. Build pipeline configuration from CLI args with preset transformations
+    config = _build_pipeline_config(
+        show=show,
+        rss_url=rss_url,
+        youtube_url=youtube_url,
+        date=date,
+        title_contains=title_contains,
+        workdir=workdir,
+        fmt=fmt,
+        model=model,
+        compute=compute,
+        asr_provider=asr_provider,
+        preset=preset,
+        align=align,
+        preprocess=preprocess,
+        restore=restore,
+        diarize=diarize,
+        deepcast=deepcast,
+        workflow=workflow,
+        fidelity=fidelity,
+        dual=dual,
+        no_consensus=no_consensus,
+        deepcast_model=deepcast_model,
+        deepcast_temp=deepcast_temp,
+        extract_markdown=extract_markdown,
+        deepcast_pdf=deepcast_pdf,
+        notion=notion,
+        notion_db=notion_db,
+        podcast_prop=podcast_prop,
+        date_prop=date_prop,
+        episode_prop=episode_prop,
+        model_prop=model_prop,
+        asr_prop=asr_prop,
+        append_content=append_content,
+        full=full,
+        verbose=verbose,
+        clean=clean,
+        no_keep_audio=no_keep_audio,
+    )
 
-    # Ensure analysis type placeholder exists before any interactive flow references it
-    yaml_analysis_type: Optional[str] = None
-    # Handle convenience --full flag
-    if full:
-        align = True
-        deepcast = True
-        extract_markdown = True
-        notion = True
-
-    # Map --workflow presets first (can be combined with fidelity)
-    if workflow:
-        from .utils import apply_workflow_preset
-
-        workflow_flags = apply_workflow_preset(workflow)
-        align = workflow_flags.get("align", align)
-        diarize = workflow_flags.get("diarize", diarize)
-        deepcast = workflow_flags.get("deepcast", deepcast)
-        extract_markdown = workflow_flags.get("extract_markdown", extract_markdown)
-        notion = workflow_flags.get("notion", notion)
-
-    # Map --fidelity to flags (lowest→highest)
-    # 1: deepcast only (use latest transcript)
-    # 2: recall + preprocess + restore + deepcast
-    # 3: precision + preprocess + restore + deepcast
-    # 4: balanced + preprocess + restore + deepcast
-    # 5: dual (precision+recall) + preprocess + restore + deepcast
-    if fidelity:
-        from .utils import apply_fidelity_preset
-
-        fid_flags = apply_fidelity_preset(fidelity, preset, interactive=False)
-        align = fid_flags.get("align", align)
-        diarize = fid_flags.get("diarize", diarize)
-        preprocess = fid_flags.get("preprocess", preprocess)
-        restore = fid_flags.get("restore", restore)
-        deepcast = fid_flags.get("deepcast", deepcast)
-        dual = fid_flags.get("dual", dual)
-        preset = fid_flags.get("preset", preset)
+    # Unpack config to local variables (for existing pipeline code compatibility)
+    show = config["show"]
+    rss_url = config["rss_url"]
+    youtube_url = config["youtube_url"]
+    date = config["date"]
+    title_contains = config["title_contains"]
+    workdir = config["workdir"]
+    fmt = config["fmt"]
+    model = config["model"]
+    compute = config["compute"]
+    asr_provider = config["asr_provider"]
+    preset = config["preset"]
+    align = config["align"]
+    preprocess = config["preprocess"]
+    restore = config["restore"]
+    diarize = config["diarize"]
+    deepcast = config["deepcast"]
+    dual = config["dual"]
+    no_consensus = config["no_consensus"]
+    deepcast_model = config["deepcast_model"]
+    deepcast_temp = config["deepcast_temp"]
+    extract_markdown = config["extract_markdown"]
+    deepcast_pdf = config["deepcast_pdf"]
+    notion = config["notion"]
+    notion_db = config["notion_db"]
+    podcast_prop = config["podcast_prop"]
+    date_prop = config["date_prop"]
+    episode_prop = config["episode_prop"]
+    model_prop = config["model_prop"]
+    asr_prop = config["asr_prop"]
+    append_content = config["append_content"]
+    verbose = config["verbose"]
+    clean = config["clean"]
+    no_keep_audio = config["no_keep_audio"]
+    yaml_analysis_type = config["yaml_analysis_type"]
 
     # Print header and start progress tracking
     print_podx_header()
@@ -508,153 +857,26 @@ def run(
         # We'll determine the actual workdir after fetching metadata
         wd = None  # Will be set after fetch
 
-        # Interactive selection: choose existing episode to process
+        # 2. Interactive selection: choose existing episode and configure pipeline
         if interactive_select:
-            from .ui import make_console, select_episode_interactive
+            from .ui import make_console
 
             console = make_console()
+            meta, wd = _handle_interactive_mode(config, scan_dir, console)
 
-            # Use extracted episode selector
-            selected, meta = select_episode_interactive(
-                scan_dir=scan_dir,
-                show_filter=show,
-                console=console,
-                run_passthrough_fn=_run_passthrough,
-            )
-            # Fidelity choice with concise instructions
-            help_text = (
-                "1: Deepcast only — use latest transcript; skip preprocess/restore/align/diarize (fastest)\n"
-                "2: Recall — transcribe with recall preset; preprocess+restore; deepcast (higher recall)\n"
-                "3: Precision — transcribe with precision preset; preprocess+restore; deepcast (higher precision)\n"
-                "4: Balanced — transcribe with balanced preset; preprocess+restore; deepcast (recommended single-track)\n"
-                "5: Dual QA — precision & recall; preprocess+restore both; deepcast both; agreement (best)"
-            )
-            console.print(Panel(help_text, title="Choose Fidelity (1-5)", border_style="blue"))
-            fchoice = input("\nChoose preset [1-5] (Q=cancel): ").strip()
-            if fchoice.upper() in {"Q", "QUIT", "EXIT"}:
-                console.print("[dim]Cancelled[/dim]")
-                raise SystemExit(0)
-            if fchoice in {"5","4","3","2","1"}:
-                from .utils import apply_fidelity_preset
-
-                fidelity = fchoice
-                # Apply fidelity mapping using shared helper
-                fid_flags = apply_fidelity_preset(fidelity, preset, interactive=True)
-                align = fid_flags.get("align", align)
-                diarize = fid_flags.get("diarize", diarize)
-                preprocess = fid_flags.get("preprocess", preprocess)
-                restore = fid_flags.get("restore", restore)
-                deepcast = fid_flags.get("deepcast", deepcast)
-                dual = fid_flags.get("dual", dual)
-                preset = fid_flags.get("preset", preset)
-
-            # Show resulting flags (yes/no) before overrides
-            def yn(val: bool) -> str:
-                return "yes" if val else "no"
-            summary = (
-                f"preset={preset or '-'}  align={yn(align)}  diarize={yn(diarize)}  "
-                f"preprocess={yn(preprocess)}  restore={yn(restore)}  deepcast={yn(deepcast)}  dual={yn(dual)}"
-            )
-            console.print(Panel(summary, title="Preset Applied", border_style="green"))
-            # Optional: allow user to adjust ASR and AI models interactively
-            # Only prompt for ASR if we'll transcribe (dual or preset set or no transcripts)
-            will_transcribe = dual or preset is not None or not any(selected.get("transcripts"))
-            if will_transcribe:
-                prompt_asr = input(f"\nASR model (Enter to keep '{model}', or type e.g. large-v3, small.en; Q=cancel): ").strip()
-                if prompt_asr.upper() in {"Q","QUIT","EXIT"}:
-                    raise SystemExit(0)
-                if prompt_asr:
-                    model = prompt_asr
-            # Only prompt for AI if deepcast will run
-            if deepcast or dual:
-                prompt_ai = input(f"AI model for deepcast (Enter to keep '{deepcast_model}', Q=cancel): ").strip()
-                if prompt_ai.upper() in {"Q","QUIT","EXIT"}:
-                    raise SystemExit(0)
-                if prompt_ai:
-                    deepcast_model = prompt_ai
-
-            # Options panel: toggle steps and outputs
-            from .ui import Confirmation
-
-            console.print(Panel("Adjust options below (Enter keeps current): Q cancels", title="Options", border_style="blue"))
-            align = Confirmation.yes_no("Align (WhisperX)", align)
-            diarize = Confirmation.yes_no("Diarize (speaker labels)", diarize)
-            preprocess = Confirmation.yes_no("Preprocess (merge/normalize)", preprocess)
-            restore = Confirmation.yes_no("Semantic restore (LLM)", restore) if preprocess else restore
-            deepcast = Confirmation.yes_no("Deepcast (AI analysis)", deepcast)
-            # Only prompt for Dual mode when fidelity didn't already decide it
-            if fidelity not in {"5", "1", "2", "3", "4"}:
-                dual = Confirmation.yes_no("Dual mode (precision+recall)", dual)
-            extract_markdown = Confirmation.yes_no("Save Markdown file", extract_markdown)
-            deepcast_pdf = Confirmation.yes_no("Also render PDF (pandoc)", deepcast_pdf)
-
-            # Deepcast type override (canonical or alias), default from YAML
-            from .ui import select_deepcast_type
-
-            chosen_type = yaml_analysis_type
-            if deepcast or dual:
-                chosen_type = select_deepcast_type(console, default_type=yaml_analysis_type)
-
-            # Preview pipeline with optional cost estimate
-            stages = ["fetch", "transcode", "transcribe"]
-            if align:
-                stages.append("align")
-            if diarize:
-                stages.append("diarize")
-            if preprocess:
-                stages.append("preprocess" + ("+restore" if restore else ""))
-            if deepcast:
-                stages.append("deepcast")
-            if dual:
-                stages.append("agreement" + ("+consensus" if not no_consensus else ""))
-            outputs = []
-            if extract_markdown:
-                outputs.append("markdown")
-            if deepcast_pdf:
-                outputs.append("pdf")
-            preview = (
-                f"Pipeline: {' → '.join(stages)}\n"
-                f"ASR={model} preset={preset or '-'} dual={yn(dual)} align={yn(align)} diarize={yn(diarize)} preprocess={yn(preprocess)} restore={yn(restore)}\n"
-                f"AI={deepcast_model} type={chosen_type or '-'} outputs={','.join(outputs) or '-'}"
-            )
-            # Cost estimate (best-effort; ignores provider detection nuances)
-            try:
-                provider = "openai" if deepcast_model.startswith("gpt") or "-" in deepcast_model else "anthropic"
-                # Use the selected episode directory before we set wd
-                sel_dir = selected.get("directory") if isinstance(selected, dict) else None
-                latest_path = (sel_dir / "latest.json") if sel_dir and (sel_dir / "latest.json").exists() else None
-                transcript_json = json.loads(latest_path.read_text(encoding="utf-8")) if latest_path else None
-                if transcript_json:
-                    catalog = load_model_catalog(refresh=False)
-                    est = estimate_deepcast_cost(transcript_json, provider, deepcast_model, catalog)
-                    preview += f"\nEstimated cost: ${est.total_usd:.2f}  (in≈{est.input_tokens:,} tok, out≈{est.output_tokens:,} tok)"
-                else:
-                    preview += "\nEstimated cost: (no transcript yet; will compute after transcribe)"
-            except Exception:
-                pass
-            console.print(Panel(preview, title="Preview", border_style="green"))
-            # Strict proceed confirmation: only y/n (default yes on empty)
-            while True:
-                cont = input("Proceed? (y/n; q cancel) [Y]: ").strip()
-                if not cont:
-                    break
-                c = cont.lower()
-                if c in {"q", "quit", "exit"}:
-                    console.print("[dim]Cancelled[/dim]")
-                    raise SystemExit(0)
-                if c in {"y", "n"}:
-                    if c == "n":
-                        console.print("[dim]Cancelled[/dim]")
-                        raise SystemExit(0)
-                    break
-                print("Please enter 'y' or 'n' (or 'q' to cancel).")
-
-            # Use chosen_type downstream
-            yaml_analysis_type = chosen_type
-            # Load meta and set workdir
-            meta = json.loads(selected["meta_path"].read_text(encoding="utf-8"))
-            wd = selected["directory"]
-            # Skip fetch stage
+            # Update local variables from modified config
+            model = config["model"]
+            deepcast_model = config["deepcast_model"]
+            align = config["align"]
+            diarize = config["diarize"]
+            preprocess = config["preprocess"]
+            restore = config["restore"]
+            deepcast = config["deepcast"]
+            dual = config["dual"]
+            preset = config["preset"]
+            extract_markdown = config["extract_markdown"]
+            deepcast_pdf = config["deepcast_pdf"]
+            yaml_analysis_type = config["yaml_analysis_type"]
 
         # 1) FETCH → meta.json
         if not interactive_select and youtube_url:
