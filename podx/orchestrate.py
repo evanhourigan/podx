@@ -3016,5 +3016,250 @@ def config_databases():
     console.print(table)
 
 
+# ============================================================================
+# Plugin Management Commands
+# ============================================================================
+
+
+@main.group("plugin", help="Manage podx plugins")
+def plugin_group():
+    """Plugin management commands."""
+    pass
+
+
+@plugin_group.command("list")
+@click.option("--type", "-t", help="Filter by plugin type")
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed information")
+def plugin_list(type, verbose):
+    """List all available plugins."""
+    from rich.console import Console
+    from rich.table import Table
+
+    from .plugins import PluginManager, PluginType
+
+    console = Console()
+    manager = PluginManager()
+
+    # Discover all plugins
+    manager.discover_plugins()
+
+    # Filter by type if specified
+    plugin_type_filter = None
+    if type:
+        try:
+            plugin_type_filter = PluginType[type.upper()]
+        except KeyError:
+            console.print(f"❌ Invalid plugin type: {type}", style="red")
+            console.print(f"Valid types: {', '.join([t.value for t in PluginType])}")
+            return
+
+    plugins = manager.get_available_plugins(plugin_type_filter)
+
+    if not plugins:
+        console.print("📭 No plugins found.")
+        return
+
+    # Create table
+    if verbose:
+        table = Table(title="🔌 Available Podx Plugins (Detailed)")
+        table.add_column("Name", style="cyan")
+        table.add_column("Type", style="green")
+        table.add_column("Version")
+        table.add_column("Author")
+        table.add_column("Description")
+        table.add_column("Dependencies")
+
+        for name, meta in sorted(plugins.items()):
+            table.add_row(
+                name,
+                meta.plugin_type.value,
+                meta.version,
+                meta.author,
+                meta.description,
+                ", ".join(meta.dependencies) if meta.dependencies else "None",
+            )
+    else:
+        table = Table(title="🔌 Available Podx Plugins")
+        table.add_column("Name", style="cyan")
+        table.add_column("Type", style="green")
+        table.add_column("Version")
+        table.add_column("Description")
+
+        for name, meta in sorted(plugins.items()):
+            table.add_row(
+                name,
+                meta.plugin_type.value,
+                meta.version,
+                meta.description,
+            )
+
+    console.print(table)
+    console.print(f"\n✨ Total: {len(plugins)} plugin(s)")
+
+
+@plugin_group.command("validate")
+@click.argument("plugin_name")
+@click.option("--config-file", "-c", help="Path to plugin configuration file (JSON)")
+def plugin_validate(plugin_name, config_file):
+    """Validate a plugin and its configuration."""
+    from rich.console import Console
+
+    from .plugins import PluginManager
+
+    console = Console()
+    manager = PluginManager()
+
+    # Discover plugins
+    manager.discover_plugins()
+
+    # Get the plugin
+    plugin = manager.registry.get_plugin(plugin_name)
+    if not plugin:
+        console.print(f"❌ Plugin '{plugin_name}' not found", style="red")
+        return
+
+    console.print(f"🔍 Validating plugin: [cyan]{plugin_name}[/cyan]")
+    console.print()
+
+    # Display metadata
+    meta = plugin.metadata
+    console.print(f"📦 Type: {meta.plugin_type.value}")
+    console.print(f"📌 Version: {meta.version}")
+    console.print(f"👤 Author: {meta.author}")
+    console.print(f"📝 Description: {meta.description}")
+    console.print()
+
+    # Check dependencies
+    if meta.dependencies:
+        console.print("📚 Checking dependencies...")
+        all_deps_ok = True
+        for dep in meta.dependencies:
+            try:
+                __import__(dep.replace("-", "_"))
+                console.print(f"  ✅ {dep}")
+            except ImportError:
+                console.print(f"  ❌ {dep} (not installed)", style="red")
+                all_deps_ok = False
+
+        if not all_deps_ok:
+            console.print("\n⚠️  Some dependencies are missing. Install them to use this plugin.", style="yellow")
+        console.print()
+
+    # Validate configuration
+    if config_file:
+        console.print(f"⚙️  Validating configuration from: {config_file}")
+        try:
+            with open(config_file) as f:
+                config = json.load(f)
+
+            if plugin.validate_config(config):
+                console.print("  ✅ Configuration is valid", style="green")
+
+                # Try to initialize
+                try:
+                    plugin.initialize(config)
+                    console.print("  ✅ Plugin initialized successfully", style="green")
+
+                    # Test credentials if applicable
+                    if hasattr(plugin, "validate_credentials"):
+                        console.print("  🔐 Testing credentials...")
+                        if plugin.validate_credentials():
+                            console.print("  ✅ Credentials validated", style="green")
+                        else:
+                            console.print("  ❌ Credential validation failed", style="red")
+
+                except Exception as e:
+                    console.print(f"  ❌ Initialization failed: {e}", style="red")
+            else:
+                console.print("  ❌ Configuration is invalid", style="red")
+
+        except FileNotFoundError:
+            console.print(f"  ❌ Config file not found: {config_file}", style="red")
+        except json.JSONDecodeError as e:
+            console.print(f"  ❌ Invalid JSON: {e}", style="red")
+        except Exception as e:
+            console.print(f"  ❌ Validation error: {e}", style="red")
+    else:
+        console.print("💡 Tip: Use --config-file to validate a configuration")
+
+    console.print()
+    console.print("✅ Validation complete")
+
+
+@plugin_group.command("create")
+@click.argument("plugin_name")
+@click.argument("plugin_type")
+@click.option("--output-dir", "-o", default=".", help="Output directory for plugin file")
+def plugin_create(plugin_name, plugin_type, output_dir):
+    """Create a new plugin from template."""
+    from rich.console import Console
+
+    from .plugins import PluginType, create_plugin_template
+
+    console = Console()
+
+    # Validate plugin type
+    try:
+        ptype = PluginType[plugin_type.upper()]
+    except KeyError:
+        console.print(f"❌ Invalid plugin type: {plugin_type}", style="red")
+        console.print(f"Valid types: {', '.join([t.value for t in PluginType])}")
+        return
+
+    # Create plugin template
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    try:
+        plugin_file = create_plugin_template(ptype, plugin_name, output_path)
+        console.print(f"✅ Plugin template created: [cyan]{plugin_file}[/cyan]", style="green")
+        console.print()
+        console.print("📝 Next steps:")
+        console.print(f"  1. Edit the plugin file: {plugin_file}")
+        console.print(f"  2. Implement required methods for {ptype.value} plugin")
+        console.print(f"  3. Test your plugin with: podx plugin validate {plugin_name}")
+        console.print("  4. Install your plugin in ~/.podx/plugins/ or use it locally")
+
+    except Exception as e:
+        console.print(f"❌ Failed to create plugin: {e}", style="red")
+
+
+@plugin_group.command("types")
+def plugin_types():
+    """List all available plugin types."""
+    from rich.console import Console
+    from rich.table import Table
+
+    from .plugins import PluginType
+
+    console = Console()
+
+    table = Table(title="🔌 Podx Plugin Types")
+    table.add_column("Type", style="cyan")
+    table.add_column("Value", style="green")
+    table.add_column("Description")
+
+    descriptions = {
+        PluginType.SOURCE: "Alternative content sources (fetch podcasts from different platforms)",
+        PluginType.AUDIO: "Audio processing and transcoding",
+        PluginType.ASR: "Speech recognition / transcription",
+        PluginType.ALIGNMENT: "Timing alignment",
+        PluginType.DIARIZATION: "Speaker identification",
+        PluginType.EXPORT: "Export to different formats",
+        PluginType.ANALYSIS: "AI analysis and insights",
+        PluginType.PUBLISH: "Publishing to different platforms",
+        PluginType.PROCESSING: "Custom processing steps",
+    }
+
+    for ptype in PluginType:
+        table.add_row(
+            ptype.name,
+            ptype.value,
+            descriptions.get(ptype, ""),
+        )
+
+    console.print(table)
+
+
 if __name__ == "__main__":
     main()
