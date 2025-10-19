@@ -509,13 +509,20 @@ def _execute_transcribe(
             # Single track transcription
             progress.start_step(f"Transcribing with {model} model")
             step_start = time.time()
-            transcribe_cmd = ["podx-transcribe", "--model", model, "--compute", compute]
+            from .services import CommandBuilder
+
+            transcribe_cmd = (
+                CommandBuilder("podx-transcribe")
+                .add_option("--model", model)
+                .add_option("--compute", compute)
+            )
             if asr_provider and asr_provider != "auto":
-                transcribe_cmd += ["--asr-provider", asr_provider]
+                transcribe_cmd.add_option("--asr-provider", asr_provider)
             if preset:
-                transcribe_cmd += ["--preset", preset]
+                transcribe_cmd.add_option("--preset", preset)
+
             base = _run(
-                transcribe_cmd,
+                transcribe_cmd.build(),
                 stdin_payload=audio,
                 verbose=verbose,
                 save_to=transcript_file,
@@ -530,32 +537,38 @@ def _execute_transcribe(
             # Dual QA: precision & recall tracks
             progress.start_step(f"Dual QA: transcribing precision & recall with {model}")
             step_start = time.time()
+            from .services import CommandBuilder
+
             safe_model = sanitize_model_name(model)
             # Precision (resume if exists)
             t_prec = wd / f"transcript-{safe_model}-precision.json"
             if t_prec.exists():
                 prec = json.loads(t_prec.read_text())
             else:
-                cmd_prec = [
-                    "podx-transcribe", "--model", model, "--compute", compute,
-                    "--preset", "precision",
-                ]
+                cmd_prec = (
+                    CommandBuilder("podx-transcribe")
+                    .add_option("--model", model)
+                    .add_option("--compute", compute)
+                    .add_option("--preset", "precision")
+                )
                 if asr_provider and asr_provider != "auto":
-                    cmd_prec += ["--asr-provider", asr_provider]
-                prec = _run(cmd_prec, stdin_payload=audio, verbose=verbose, save_to=t_prec)
+                    cmd_prec.add_option("--asr-provider", asr_provider)
+                prec = _run(cmd_prec.build(), stdin_payload=audio, verbose=verbose, save_to=t_prec)
 
             # Recall (resume if exists)
             t_rec = wd / f"transcript-{safe_model}-recall.json"
             if t_rec.exists():
                 rec = json.loads(t_rec.read_text())
             else:
-                cmd_rec = [
-                    "podx-transcribe", "--model", model, "--compute", compute,
-                    "--preset", "recall",
-                ]
+                cmd_rec = (
+                    CommandBuilder("podx-transcribe")
+                    .add_option("--model", model)
+                    .add_option("--compute", compute)
+                    .add_option("--preset", "recall")
+                )
                 if asr_provider and asr_provider != "auto":
-                    cmd_rec += ["--asr-provider", asr_provider]
-                rec = _run(cmd_rec, stdin_payload=audio, verbose=verbose, save_to=t_rec)
+                    cmd_rec.add_option("--asr-provider", asr_provider)
+                rec = _run(cmd_rec.build(), stdin_payload=audio, verbose=verbose, save_to=t_rec)
 
             step_duration = time.time() - step_start
             progress.complete_step(
