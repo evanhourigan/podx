@@ -496,62 +496,6 @@ def run(
             extract_markdown = True
             notion = True
 
-    # Helper function to apply fidelity mapping
-    def _apply_fidelity(
-        fid: str,
-        current_preset: Optional[str],
-        interactive: bool = False
-    ) -> Dict[str, Any]:
-        """Apply fidelity level mapping to pipeline flags.
-
-        Returns dictionary with keys: align, diarize, preprocess, restore, deepcast, dual, preset
-        """
-        flags = {}
-        if fid == "1":
-            # Deepcast only; keep other flags off
-            flags = {
-                "align": False,
-                "diarize": False,
-                "preprocess": False,
-                "dual": False,
-                "deepcast": True,
-                "restore": False,
-                "preset": current_preset,
-            }
-        elif fid == "2":
-            flags = {
-                "preset": "recall" if interactive else (current_preset or "recall"),
-                "preprocess": True,
-                "restore": True,
-                "deepcast": True,
-                "dual": False,
-            }
-        elif fid == "3":
-            flags = {
-                "preset": "precision" if interactive else (current_preset or "precision"),
-                "preprocess": True,
-                "restore": True,
-                "deepcast": True,
-                "dual": False,
-            }
-        elif fid == "4":
-            flags = {
-                "preset": "balanced" if interactive else (current_preset or "balanced"),
-                "preprocess": True,
-                "restore": True,
-                "deepcast": True,
-                "dual": False,
-            }
-        elif fid == "5":
-            flags = {
-                "dual": True,
-                "preprocess": True,
-                "restore": True,
-                "deepcast": True,
-                "preset": current_preset or "balanced",
-            }
-        return flags
-
     # Map --fidelity to flags (lowest→highest)
     # 1: deepcast only (use latest transcript)
     # 2: recall + preprocess + restore + deepcast
@@ -559,7 +503,9 @@ def run(
     # 4: balanced + preprocess + restore + deepcast
     # 5: dual (precision+recall) + preprocess + restore + deepcast
     if fidelity:
-        fid_flags = _apply_fidelity(fidelity, preset, interactive=False)
+        from .utils import apply_fidelity_preset
+
+        fid_flags = apply_fidelity_preset(fidelity, preset, interactive=False)
         align = fid_flags.get("align", align)
         diarize = fid_flags.get("diarize", diarize)
         preprocess = fid_flags.get("preprocess", preprocess)
@@ -608,9 +554,11 @@ def run(
                 console.print("[dim]Cancelled[/dim]")
                 raise SystemExit(0)
             if fchoice in {"5","4","3","2","1"}:
+                from .utils import apply_fidelity_preset
+
                 fidelity = fchoice
                 # Apply fidelity mapping using shared helper
-                fid_flags = _apply_fidelity(fidelity, preset, interactive=True)
+                fid_flags = apply_fidelity_preset(fidelity, preset, interactive=True)
                 align = fid_flags.get("align", align)
                 diarize = fid_flags.get("diarize", diarize)
                 preprocess = fid_flags.get("preprocess", preprocess)
