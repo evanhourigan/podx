@@ -25,6 +25,11 @@ from ..ui_styles import (
 from .align_browser import AlignBrowser, scan_alignable_transcripts
 from .asr_selector import ASR_MODELS, get_most_sophisticated_model, select_asr_model
 from .confirmation import Confirmation
+from .deepcast_browser import (
+    DeepcastBrowser,
+    flatten_episodes_to_rows,
+    scan_deepcastable_episodes,
+)
 from .deepcast_selector import select_deepcast_type
 from .diarize_browser import DiarizeBrowser, scan_diarizable_transcripts
 from .episode_selector import (
@@ -61,15 +66,18 @@ __all__ = [
     "AlignBrowser",
     "ASR_MODELS",
     "Confirmation",
+    "DeepcastBrowser",
     "DiarizeBrowser",
     "EpisodeBrowser",
     "LiveTimer",
     "TranscodeBrowser",
     "TranscribeBrowser",
     "clean_cell",
+    "flatten_episodes_to_rows",
     "get_most_sophisticated_model",
     "sanitize_filename",
     "scan_alignable_transcripts",
+    "scan_deepcastable_episodes",
     "scan_diarizable_transcripts",
     "scan_episode_status",
     "scan_transcodable_episodes",
