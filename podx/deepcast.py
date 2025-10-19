@@ -10,12 +10,10 @@ Detects:
 from __future__ import annotations
 
 import json
-import math
 import os
 import re
 import sys
 import textwrap
-import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -49,6 +47,9 @@ from .prompt_templates import (
     get_template,
     map_to_canonical,
 )
+from .ui import LiveTimer
+from .utils import sanitize_model_name
+from .yaml_config import get_podcast_yaml_config
 
 # Canonical deepcast types presented to users
 CANONICAL_TYPES: list[PodcastType] = [
@@ -57,7 +58,6 @@ CANONICAL_TYPES: list[PodcastType] = [
     PodcastType.SOLO_COMMENTARY,          # host_analysis_mode
     PodcastType.GENERAL,                  # general
 ]
-from .yaml_config import get_podcast_yaml_config
 
 
 # Alias deepcast types that inject prompt hints but map to canonical templates
@@ -84,11 +84,6 @@ ALIAS_TYPES: dict[str, dict[str, Any]] = {
 
 
 # utils
-def sanitize_model_name(model: str) -> str:
-    """Convert AI model name to filename-safe format (dots and hyphens to underscores)."""
-    return model.replace(".", "_").replace("-", "_")
-
-
 def generate_deepcast_filename(
     asr_model: str,
     ai_model: str,
@@ -106,47 +101,6 @@ def generate_deepcast_filename(
         else ""
     )
     return f"deepcast-{asr_safe}-{ai_safe}-{type_safe}{ts}.{extension}"
-
-
-class LiveTimer:
-    """Display a live timer that updates every second in the console."""
-
-    def __init__(self, message: str = "Running"):
-        self.message = message
-        self.start_time = None
-        self.stop_flag = threading.Event()
-        self.thread = None
-
-    def _format_time(self, seconds: int) -> str:
-        """Format seconds as M:SS."""
-        minutes = seconds // 60
-        secs = seconds % 60
-        return f"{minutes}:{secs:02d}"
-
-    def _run(self):
-        """Run the timer loop."""
-        while not self.stop_flag.is_set():
-            elapsed = int(time.time() - self.start_time)
-            # Use \r to overwrite the line
-            print(f"\r{self.message} ({self._format_time(elapsed)})", end="", flush=True)
-            time.sleep(1)
-
-    def start(self):
-        """Start the timer."""
-        self.start_time = time.time()
-        self.stop_flag.clear()
-        self.thread = threading.Thread(target=self._run, daemon=True)
-        self.thread.start()
-
-    def stop(self) -> float:
-        """Stop the timer and return elapsed time."""
-        elapsed = time.time() - self.start_time
-        self.stop_flag.set()
-        if self.thread:
-            self.thread.join(timeout=2)
-        # Clear the line
-        print("\r" + " " * 80 + "\r", end="", flush=True)
-        return elapsed
 
 
 def _truncate_text(text: str, max_length: int = 50) -> str:
@@ -167,7 +121,7 @@ def parse_deepcast_metadata(deepcast_file: Path) -> Dict[str, str]:
         "deepcast_type": "unknown",
         "transcript_variant": "unknown"
     }
-    
+
     # Try to read from JSON file first
     try:
         data = json.loads(deepcast_file.read_text(encoding="utf-8"))
@@ -180,12 +134,12 @@ def parse_deepcast_metadata(deepcast_file: Path) -> Dict[str, str]:
             return metadata
     except Exception:
         pass
-    
+
     # Fall back to filename parsing
     # New format: deepcast-{asr}-{ai}-{type}.json
     # Legacy format: deepcast-{ai}.json
     filename = deepcast_file.stem
-    
+
     if filename.count("-") >= 3:  # New format
         parts = filename.split("-", 3)  # Split into at most 4 parts: "deepcast", asr, ai, type
         if len(parts) == 4:
@@ -195,7 +149,7 @@ def parse_deepcast_metadata(deepcast_file: Path) -> Dict[str, str]:
     elif filename.startswith("deepcast-"):  # Legacy format
         ai_model = filename[len("deepcast-"):].replace("_", ".")
         metadata["ai_model"] = ai_model
-    
+
     return metadata
 
 
@@ -205,7 +159,7 @@ def scan_deepcastable_episodes(scan_dir: Path) -> List[Dict[str, Any]]:
     Returns grouped data structure for complex table display.
     """
     episodes_dict = {}  # Key: (show, date, episode_dir)
-    
+
     # Find all transcript files (diarized, aligned, base)
     transcript_patterns = [
         "transcript-diarized-*.json",
@@ -214,17 +168,17 @@ def scan_deepcastable_episodes(scan_dir: Path) -> List[Dict[str, Any]]:
         "aligned-transcript-*.json",
         "transcript-*.json"
     ]
-    
+
     for pattern in transcript_patterns:
         for transcript_file in scan_dir.rglob(pattern):
             try:
                 # Skip if it's not a valid ASR transcript file
                 filename = transcript_file.stem
-                
+
                 # Extract ASR model
                 asr_model = None
                 transcript_variant = "base"
-                
+
                 if filename.startswith("transcript-diarized-"):
                     asr_model = filename[len("transcript-diarized-"):]
                     transcript_variant = "diarized"
@@ -242,13 +196,13 @@ def scan_deepcastable_episodes(scan_dir: Path) -> List[Dict[str, Any]]:
                     transcript_variant = "base"
                 else:
                     continue
-                
+
                 if not asr_model:
                     continue
-                
+
                 # Load transcript for metadata
                 transcript_data = json.loads(transcript_file.read_text(encoding="utf-8"))
-                
+
                 # Get episode directory and metadata
                 episode_dir = transcript_file.parent
                 episode_meta_file = episode_dir / "episode-meta.json"
@@ -258,7 +212,7 @@ def scan_deepcastable_episodes(scan_dir: Path) -> List[Dict[str, Any]]:
                         episode_meta = json.loads(episode_meta_file.read_text(encoding="utf-8"))
                     except Exception:
                         pass
-                
+
                 # Extract show and date
                 show = episode_meta.get("show") or transcript_data.get("show") or "Unknown"
                 date = episode_meta.get("episode_published", "")
@@ -272,12 +226,12 @@ def scan_deepcastable_episodes(scan_dir: Path) -> List[Dict[str, Any]]:
                 else:
                     # Try to extract from directory name
                     date = episode_dir.name if re.match(r"^\d{4}-\d{2}-\d{2}$", episode_dir.name) else "Unknown"
-                
+
                 title = episode_meta.get("episode_title") or transcript_data.get("episode_title") or "Unknown"
-                
+
                 # Create episode key
                 episode_key = (show, date, str(episode_dir))
-                
+
                 # Initialize episode entry if not exists
                 if episode_key not in episodes_dict:
                     episodes_dict[episode_key] = {
@@ -288,7 +242,7 @@ def scan_deepcastable_episodes(scan_dir: Path) -> List[Dict[str, Any]]:
                         "episode_meta": episode_meta,
                         "asr_models": {},  # Key: asr_model, Value: {variant, file, deepcasts}
                     }
-                
+
                 # Add ASR model entry (prefer diarized > aligned > base)
                 if asr_model not in episodes_dict[episode_key]["asr_models"]:
                     episodes_dict[episode_key]["asr_models"][asr_model] = {
@@ -303,23 +257,23 @@ def scan_deepcastable_episodes(scan_dir: Path) -> List[Dict[str, Any]]:
                     if priority.get(transcript_variant, 0) > priority.get(current, 0):
                         episodes_dict[episode_key]["asr_models"][asr_model]["variant"] = transcript_variant
                         episodes_dict[episode_key]["asr_models"][asr_model]["file"] = transcript_file
-                
-            except Exception as e:
+
+            except Exception:
                 continue
-    
+
     # Now scan for existing deepcast files
     for deepcast_file in scan_dir.rglob("deepcast-*.json"):
         try:
             metadata = parse_deepcast_metadata(deepcast_file)
             episode_dir = deepcast_file.parent
-            
+
             # Find matching episode
             for episode_key, episode_data in episodes_dict.items():
                 if str(episode_data["directory"]) == str(episode_dir):
                     asr_model = metadata["asr_model"]
                     ai_model = metadata["ai_model"]
                     deepcast_type = metadata["deepcast_type"]
-                    
+
                     # If ASR model doesn't exist, add it
                     if asr_model not in episode_data["asr_models"] and asr_model != "unknown":
                         episode_data["asr_models"][asr_model] = {
@@ -327,13 +281,13 @@ def scan_deepcastable_episodes(scan_dir: Path) -> List[Dict[str, Any]]:
                             "file": None,
                             "deepcasts": {},
                         }
-                    
+
                     # Add deepcast to the ASR model entry
                     if asr_model in episode_data["asr_models"] or asr_model == "unknown":
                         # For unknown ASR, try to match with any existing ASR model
                         if asr_model == "unknown" and episode_data["asr_models"]:
                             asr_model = list(episode_data["asr_models"].keys())[0]
-                        
+
                         if asr_model in episode_data["asr_models"]:
                             if ai_model not in episode_data["asr_models"][asr_model]["deepcasts"]:
                                 episode_data["asr_models"][asr_model]["deepcasts"][ai_model] = []
@@ -342,12 +296,12 @@ def scan_deepcastable_episodes(scan_dir: Path) -> List[Dict[str, Any]]:
                     break
         except Exception:
             continue
-    
+
     # Convert to list and sort
     episodes_list = list(episodes_dict.values())
     episodes_list.sort(key=lambda e: (e["show"], e["date"]), reverse=False)
     episodes_list.sort(key=lambda e: e["date"], reverse=True)  # Most recent first
-    
+
     return episodes_list
 
 
@@ -357,7 +311,7 @@ def flatten_episodes_to_rows(episodes: List[Dict[str, Any]]) -> List[Dict[str, A
     Each row represents one (Episode, ASR Model, AI Model) combination.
     """
     rows = []
-    
+
     for episode in episodes:
         # If no ASR models, create one row with blanks
         if not episode["asr_models"]:
@@ -370,7 +324,7 @@ def flatten_episodes_to_rows(episodes: List[Dict[str, Any]]) -> List[Dict[str, A
                 "transcript_file": None,
             })
             continue
-        
+
         # For each ASR model
         for asr_model, asr_data in episode["asr_models"].items():
             variant_suffix = ""
@@ -378,7 +332,7 @@ def flatten_episodes_to_rows(episodes: List[Dict[str, Any]]) -> List[Dict[str, A
                 variant_suffix = ", D"
             elif asr_data["variant"] == "aligned":
                 variant_suffix = ", A"
-            
+
             # If no deepcasts, create one row
             if not asr_data["deepcasts"]:
                 rows.append({
@@ -402,7 +356,7 @@ def flatten_episodes_to_rows(episodes: List[Dict[str, Any]]) -> List[Dict[str, A
                         "deepcast_types": types,
                         "transcript_file": asr_data["file"],
                     })
-    
+
     return rows
 
 
@@ -451,7 +405,7 @@ class DeepcastBrowser:
 
             for idx, row in enumerate(page_items, start=start_idx + 1):
                 episode = row["episode"]
-                
+
                 # Derive track and canonical type if available from file names/metadata later if needed
                 types_str = ", ".join(row["deepcast_types"]) if row["deepcast_types"] else ""
                 show = _truncate_text(episode["show"], 18)
@@ -616,19 +570,19 @@ def build_prompt_variant(has_time: bool, has_spk: bool) -> str:
     return textwrap.dedent(
         f"""
     Write concise, information-dense notes from a podcast transcript.
-    
+
     {time_text}
     {spk_text}
-    
+
     Output high-quality Markdown with these sections (only include a section if content exists):
-    
+
     # Episode Summary (6-12 sentences)
     ## Key Points (bulleted list of 12-24 items, each two to three sentences, with relevant context also specified in addition to the sentences.)
     ## Gold Nuggets (medium sized bulleted list of 6-12 items of surprising/novel insights, these should be also two sentences but specify relevant context as well.)
     ## Notable Quotes (each on its own line; include timecodes and speakers when available)
     ## Action Items / Resources (bullets)
     ## Timestamps Outline (10-20 coarse checkpoints)
-    
+
     Be faithful to the text; do not invent facts. Prefer short paragraphs and crisp bullets.
     If jargon or proper nouns appear, keep them verbatim.
     """
@@ -641,7 +595,7 @@ Extract key information from this transcript CHUNK.
 
 Return:
 - 3-6 Key Points
-- 2-5 Gold Nuggets  
+- 2-5 Gold Nuggets
 - 3-10 Notable Quotes (increased to capture more key insights and gold nuggets)
 - Any Action Items / Resources
 
@@ -664,7 +618,7 @@ After the Markdown, also prepare a concise JSON object with this structure:
 {
   "summary": "string",
   "key_points": ["string"],
-  "gold_nuggets": ["string"], 
+  "gold_nuggets": ["string"],
   "quotes": [{"quote": "string", "time": "string", "speaker": "string"}],
   "actions": ["string"],
   "outline": [{"label": "string", "time": "string"}]
@@ -709,7 +663,7 @@ def select_deepcast_type(row: Dict[str, Any], console: Console) -> Optional[str]
     episode = row["episode"]
     show_name = episode.get("show", "")
     default_type = None
-    
+
     # Try to get default from podcast config
     try:
         from .podcast_config import get_podcast_config
@@ -718,27 +672,27 @@ def select_deepcast_type(row: Dict[str, Any], console: Console) -> Optional[str]
             default_type = config.default_type
     except Exception:
         pass
-    
+
     # If no config default, use "general"
     if not default_type:
         default_type = "general"
-    
+
     # List canonical deepcast types plus friendly aliases
     all_types = [t.value for t in CANONICAL_TYPES] + list(ALIAS_TYPES.keys())
-    
+
     console.print("\n[bold cyan]Select a deepcast type:[/bold cyan]")
     for idx, dtype in enumerate(all_types, start=1):
         marker = " ← Default" if dtype == default_type else ""
         console.print(f"  {idx:2}  {dtype}{marker}")
-    
+
     choice = input(f"\n👉 Select deepcast type (1-{len(all_types)}) or Q to cancel: ").strip()
-    
+
     if choice.upper() in ["Q", "QUIT", "EXIT"]:
         return None
-    
+
     if not choice:
         return default_type
-    
+
     try:
         selection = int(choice)
         if 1 <= selection <= len(all_types):
@@ -754,12 +708,12 @@ def select_deepcast_type(row: Dict[str, Any], console: Console) -> Optional[str]
 def select_ai_model(console: Console) -> Optional[str]:
     """Prompt user to select AI model."""
     default_model = "gpt-4.1-mini"
-    
+
     choice = input(f"\n👉 Select AI model (e.g. gpt-4.1, gpt-4o, claude-4-sonnet; default: {default_model}) or Q to cancel: ").strip()
-    
+
     if choice.upper() in ["Q", "QUIT", "EXIT"]:
         return None
-    
+
     return choice if choice else default_model
 
 
@@ -1144,7 +1098,7 @@ def main(
         # Load the transcript file
         transcript_file = selected_row["transcript_file"]
         if not transcript_file or not transcript_file.exists():
-            console.print(f"[red]Transcript file not found[/red]")
+            console.print("[red]Transcript file not found[/red]")
             sys.exit(1)
 
         transcript = json.loads(transcript_file.read_text(encoding="utf-8"))
@@ -1214,7 +1168,7 @@ def main(
             console.print("\n[red]❌ Error: OpenAI library not installed[/red]")
             console.print("[yellow]Install with: pip install openai[/yellow]")
         raise SystemExit("Install OpenAI: pip install openai")
-    
+
     # Normal execution mode
     # Start live timer in interactive mode
     timer = None
@@ -1222,7 +1176,7 @@ def main(
         console = Console()
         timer = LiveTimer("Generating deepcast")
         timer.start()
-    
+
     try:
         md, json_data = deepcast(
             transcript,
@@ -1233,7 +1187,7 @@ def main(
             podcast_type,
             extra_system_instructions=extra_instructions,
         )
-    except SystemExit as e:
+    except SystemExit:
         if timer:
             timer.stop()
         raise
@@ -1243,7 +1197,7 @@ def main(
         if interactive and RICH_AVAILABLE:
             console.print(f"\n[red]❌ Error during deepcast generation: {e}[/red]")
         raise
-    
+
     # Stop timer and show completion message in interactive mode
     if timer:
         elapsed = timer.stop()
@@ -1259,7 +1213,7 @@ def main(
             transcript_variant = "diarized"
         elif first_seg.get("words"):
             transcript_variant = "aligned"
-    
+
     # If alias not provided via CLI, detect alias from YAML config so we can record it
     if alias_used is None:
         try:
@@ -1303,7 +1257,7 @@ def main(
         deepcast_type_str = podcast_type.value if podcast_type else "general"
         json_filename = generate_deepcast_filename(asr_model_str, model, deepcast_type_str, "json")
         json_output = Path(json_filename)
-    
+
     # Save to file
     json_output.write_text(
         json.dumps(unified, indent=2, ensure_ascii=False), encoding="utf-8"
