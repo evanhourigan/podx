@@ -201,9 +201,7 @@ class EpisodeBrowser:
         # Show navigation options
         options = []
         options.append(
-            "[cyan]1-{max_num}[/cyan]: Select episode".format(
-                max_num=len(self.episodes)
-            )
+            f"[cyan]1-{len(self.episodes)}[/cyan]: Select episode to download"
         )
 
         if self.current_page < self.total_pages - 1:
@@ -254,20 +252,20 @@ class EpisodeBrowser:
                         selected_episode = self.episodes[episode_num - 1]
                         if self.console:
                             self.console.print(
-                                f"✅ Selected episode {episode_num}: [green]{selected_episode['title']}[/green]"
+                                f"✅ Selected: [green]{selected_episode['title']}[/green]"
                             )
                         return selected_episode
                     else:
                         if self.console:
                             self.console.print(
-                                f"❌ Invalid episode number. Please choose 1-{len(self.episodes)}"
+                                f"[red]❌ Invalid choice. Please select 1-{len(self.episodes)}[/red]"
                             )
                 except ValueError:
                     pass
 
                 # Invalid input
                 if self.console:
-                    self.console.print("❌ Invalid input. Please try again.")
+                    self.console.print("[red]❌ Invalid input. Please enter a number.[/red]")
 
             except (KeyboardInterrupt, EOFError):
                 if self.console:

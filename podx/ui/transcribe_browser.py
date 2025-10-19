@@ -251,18 +251,32 @@ class TranscribeBrowser:
                     episode_num = int(user_input)
                     if 1 <= episode_num <= len(self.episodes):
                         selected_episode = self.episodes[episode_num - 1]
+                        # Show confirmation
+                        if self.console:
+                            # Load metadata to get title
+                            episode_meta_file = selected_episode["directory"] / "episode-meta.json"
+                            if episode_meta_file.exists():
+                                try:
+                                    import json
+                                    episode_meta = json.loads(episode_meta_file.read_text(encoding="utf-8"))
+                                    title = episode_meta.get("episode_title", "Unknown")
+                                except Exception:
+                                    title = "Unknown"
+                            else:
+                                title = "Unknown"
+                            self.console.print(f"✅ Selected: [green]{title}[/green]")
                         return selected_episode
                     else:
                         if self.console:
                             self.console.print(
-                                f"❌ Invalid episode number. Please choose 1-{len(self.episodes)}"
+                                f"[red]❌ Invalid choice. Please select 1-{len(self.episodes)}[/red]"
                             )
                 except ValueError:
                     pass
 
                 # Invalid input
                 if self.console:
-                    self.console.print("❌ Invalid input. Please try again.")
+                    self.console.print("[red]❌ Invalid input. Please enter a number.[/red]")
 
             except (KeyboardInterrupt, EOFError):
                 if self.console:
