@@ -49,12 +49,8 @@ from .logging import get_logger, setup_logging
 from .plugins import PluginManager, PluginType, get_registry
 from .progress import (
     PodxProgress,
-    format_duration,
     print_podx_header,
-    print_podx_info,
-    print_podx_success,
 )
-from .export import export_from_deepcast_json
 from .yaml_config import get_yaml_config_manager
 
 # Initialize logging
@@ -347,25 +343,27 @@ def _execute_fetch(
 
     # 3. RSS/Podcast mode
     else:
-        fetch_cmd = ["podx-fetch"]
+        from .services import CommandBuilder
+
+        fetch_cmd = CommandBuilder("podx-fetch")
         if config.get("show"):
-            fetch_cmd.extend(["--show", config["show"]])
+            fetch_cmd.add_option("--show", config["show"])
         elif config.get("rss_url"):
-            fetch_cmd.extend(["--rss-url", config["rss_url"]])
+            fetch_cmd.add_option("--rss-url", config["rss_url"])
         else:
             raise ValidationError(
                 "Either --show, --rss-url, or --youtube-url must be provided."
             )
 
         if config.get("date"):
-            fetch_cmd.extend(["--date", config["date"]])
+            fetch_cmd.add_option("--date", config["date"])
         if config.get("title_contains"):
-            fetch_cmd.extend(["--title-contains", config["title_contains"]])
+            fetch_cmd.add_option("--title-contains", config["title_contains"])
 
         # Run fetch first to get metadata
         progress.start_step("Fetching episode metadata")
         meta = _run(
-            fetch_cmd,
+            fetch_cmd.build(),
             verbose=verbose,
             save_to=None,  # Don't save yet, we'll save after determining workdir
             label=None,  # Progress handles the display
@@ -707,8 +705,11 @@ def _execute_enhancement(
         else:
             progress.start_step("Aligning transcript with audio")
             step_start = time.time()
+            from .services import CommandBuilder
+
+            align_cmd = CommandBuilder("podx-align")  # Audio path comes from transcript JSON
             aligned = _run(
-                ["podx-align"],  # Audio path comes from transcript JSON
+                align_cmd.build(),
                 stdin_payload=latest,
                 verbose=verbose,
                 save_to=aligned_file,
@@ -760,8 +761,11 @@ def _execute_enhancement(
                     f"Debug: Passing {latest_name} JSON to diarize with {len(latest.get('segments', []))} segments",
                     fg="yellow",
                 )
+            from .services import CommandBuilder
+
+            diarize_cmd = CommandBuilder("podx-diarize")  # Audio path comes from aligned transcript JSON
             diar = _run(
-                ["podx-diarize"],  # Audio path comes from aligned transcript JSON
+                diarize_cmd.build(),
                 stdin_payload=latest,
                 verbose=verbose,
                 save_to=diarized_file,
@@ -949,6 +953,472 @@ def _execute_deepcast(
                 )
                 progress.complete_step("Consensus created", 0)
                 results.update({"consensus": str(cons_out)})
+
+
+def _execute_notion_upload(
+    notion_db: str,
+    wd: Path,
+    results: dict,
+    deepcast_model: str,
+    model: str,
+    podcast_prop: str,
+    date_prop: str,
+    episode_prop: str,
+    model_prop: str,
+    asr_prop: str,
+    append_content: bool,
+    progress,
+    verbose: bool,
+) -> None:
+    """Execute Notion page creation/update with deepcast content.
+
+    Uploads transcript analysis to Notion database, preferring exported markdown
+    when available, falling back to model-specific deepcast files, and using
+    JSON-only mode when no markdown exists.
+
+    Args:
+        notion_db: Notion database ID or key from YAML config
+        wd: Working directory Path
+        results: Results dictionary containing output file paths
+        deepcast_model: AI model used for deepcast analysis
+        model: ASR model name
+        podcast_prop: Notion property name for podcast
+        date_prop: Notion property name for date
+        episode_prop: Notion property name for episode
+        model_prop: Notion property name for model
+        asr_prop: Notion property name for ASR provider
+        append_content: Append to existing page instead of replacing
+        progress: Progress tracker instance
+        verbose: Enable verbose logging
+
+    Side Effects:
+        - Creates/updates Notion page
+        - Saves notion.out.json to working directory
+        - Updates results dict with notion output path
+    """
+    import time
+
+    progress.start_step("Uploading to Notion")
+    step_start = time.time()
+
+    from .services import CommandBuilder
+
+    # Prefer exported.md if available, else model-specific deepcast outputs, fallback to latest.txt
+    model_suffix = deepcast_model.replace(".", "_").replace("-", "_")
+    exported_md = Path(results.get("exported_md", "")) if results.get("exported_md") else None
+    model_specific_md = wd / f"deepcast-brief-{model_suffix}.md"
+    model_specific_json = wd / f"deepcast-brief-{model_suffix}.json"
+
+    # Build command using CommandBuilder
+    cmd = CommandBuilder("podx-notion")
+
+    # If exported exists, use it directly
+    if exported_md and exported_md.exists():
+        md_path = str(exported_md)
+        json_path = (
+            str(model_specific_json) if model_specific_json.exists() else None
+        )
+        cmd.add_option("--markdown", md_path)
+        cmd.add_option("--meta", str(wd / "episode-meta.json"))
+        if json_path:
+            cmd.add_option("--json", json_path)
+    else:
+        # Find any deepcast files if model-specific ones don't exist
+        # Check for both new and legacy formats
+        deepcast_files = list(wd.glob("deepcast-*.md"))
+        fallback_md = deepcast_files[0] if deepcast_files else None
+
+        # Prefer unified JSON mode if no separate markdown file exists
+        if model_specific_json.exists() and not model_specific_md.exists():
+            # Use unified JSON mode (deepcast JSON contains markdown)
+            cmd.add_option("--input", str(model_specific_json))
+        else:
+            # Use separate markdown + JSON mode
+            md_path = (
+                str(model_specific_md)
+                if model_specific_md.exists()
+                else str(fallback_md) if fallback_md else str(wd / "latest.txt")
+            )
+            json_path = (
+                str(model_specific_json) if model_specific_json.exists() else None
+            )
+
+            cmd.add_option("--markdown", md_path)
+            cmd.add_option("--meta", str(wd / "episode-meta.json"))
+            if json_path:
+                cmd.add_option("--json", json_path)
+
+    # Add common options
+    cmd.add_option("--db", notion_db)
+    cmd.add_option("--podcast-prop", podcast_prop)
+    cmd.add_option("--date-prop", date_prop)
+    cmd.add_option("--episode-prop", episode_prop)
+    cmd.add_option("--model-prop", model_prop)
+    cmd.add_option("--asr-prop", asr_prop)
+    cmd.add_option("--deepcast-model", deepcast_model)
+    cmd.add_option("--asr-model", model)  # The ASR model from transcription
+
+    if append_content:
+        cmd.add_flag("--append-content")
+    # Default is replace, so no flag needed when append_content is False
+
+    _ = _run(
+        cmd.build(),
+        verbose=verbose,
+        save_to=wd / "notion.out.json",
+        label=None,  # Progress handles the display
+    )
+    step_duration = time.time() - step_start
+    progress.complete_step("Notion page created/updated", step_duration)
+    results.update({"notion": str(wd / "notion.out.json")})
+
+
+def _execute_cleanup(
+    clean: bool,
+    no_keep_audio: bool,
+    wd: Path,
+    latest_name: str,
+    transcoded_path: Path,
+    original_audio_path: Path | None,
+    progress,
+) -> None:
+    """Execute optional file cleanup after pipeline completion.
+
+    Removes intermediate transcript files and optionally audio files,
+    while preserving final artifacts like latest.json, exported files,
+    and deepcast outputs.
+
+    Args:
+        clean: Enable cleanup of intermediate files
+        no_keep_audio: Also remove audio files
+        wd: Working directory Path
+        latest_name: Name of the latest transcript (without extension)
+        transcoded_path: Path to transcoded audio file
+        original_audio_path: Path to original audio file (may be None)
+        progress: Progress tracker instance
+
+    Side Effects:
+        - Deletes intermediate transcript JSON files
+        - Optionally deletes audio files
+        - Logs cleanup actions
+    """
+    import time
+
+    if not clean:
+        return
+
+    progress.start_step("Cleaning up intermediate files")
+    step_start = time.time()
+
+    # Keep final artifacts (small pointers)
+    keep = {
+        wd / "latest.json",
+        wd / f"{latest_name}.txt",
+        wd / f"{latest_name}.srt",
+        wd / "notion.out.json",
+        wd / "episode-meta.json",
+        wd / "audio-meta.json",
+    }
+    # Keep all deepcast files (both new and legacy formats)
+    keep.update(wd.glob("deepcast-*.json"))
+    keep.update(wd.glob("deepcast-*.md"))
+
+    cleaned_files = 0
+
+    # Remove intermediate JSON files (both legacy and model-specific)
+    cleanup_patterns = [
+        "transcript.json",
+        "transcript-*.json",
+        # Legacy align/diarize formats (old)
+        "aligned-transcript.json",
+        "aligned-transcript-*.json",
+        "diarized-transcript.json",
+        "diarized-transcript-*.json",
+        # New align/diarize formats
+        "transcript-aligned.json",
+        "transcript-aligned-*.json",
+        "transcript-diarized.json",
+        "transcript-diarized-*.json",
+    ]
+    for pattern in cleanup_patterns:
+        for p in wd.glob(pattern):
+            if p.exists() and p not in keep:
+                try:
+                    p.unlink()
+                    cleaned_files += 1
+                    logger.debug("Cleaned intermediate file", file=str(p))
+                except Exception as e:
+                    logger.warning(
+                        "Failed to clean file", file=str(p), error=str(e)
+                    )
+
+    # Remove audio files if not keeping them
+    if no_keep_audio:
+        for p in [transcoded_path, original_audio_path]:
+            if p and p.exists():
+                try:
+                    p.unlink()
+                    cleaned_files += 1
+                    logger.debug("Cleaned audio file", file=str(p))
+                except Exception as e:
+                    logger.warning(
+                        "Failed to clean audio file", file=str(p), error=str(e)
+                    )
+
+    step_duration = time.time() - step_start
+    progress.complete_step(
+        f"Cleanup completed ({cleaned_files} files removed)", step_duration
+    )
+
+
+def _print_results_summary(
+    start_time: float,
+    steps: list[str],
+    wd: Path,
+    results: dict,
+) -> None:
+    """Print final pipeline summary with key results and JSON output.
+
+    Displays completion message with total duration, key output files,
+    and JSON results for programmatic use.
+
+    Args:
+        start_time: Pipeline start timestamp
+        steps: List of pipeline steps that were executed
+        wd: Working directory Path
+        results: Results dictionary with output file paths
+
+    Side Effects:
+        - Logs completion info
+        - Prints success message with duration
+        - Prints key file paths with emojis
+        - Prints full results as JSON
+    """
+    import json
+    import time
+
+    from .ui import format_duration, print_podx_info, print_podx_success
+
+    # Final summary
+    total_time = time.time() - start_time
+    logger.info(
+        "Pipeline completed",
+        total_duration=total_time,
+        steps_completed=len(steps),
+        workdir=str(wd),
+    )
+
+    print_podx_success(f"Pipeline completed in {format_duration(total_time)}")
+
+    # Show key results
+    key_files = []
+    if "latest_txt" in results:
+        key_files.append(f"📄 Transcript: {results['latest_txt']}")
+    if "latest_srt" in results:
+        key_files.append(f"📺 Subtitles: {results['latest_srt']}")
+    if "deepcast_md" in results:
+        key_files.append(f"🤖 Analysis: {results['deepcast_md']}")
+    if "notion" in results:
+        key_files.append(f"☁️ Notion: {results['notion']}")
+
+    if key_files:
+        print_podx_info("\n".join(key_files))
+
+    # Still print JSON for programmatic use
+    print(json.dumps(results, indent=2))
+
+
+def _display_pipeline_config(
+    align: bool,
+    diarize: bool,
+    deepcast: bool,
+    notion: bool,
+    show: str | None,
+    rss_url: str | None,
+    date: str | None,
+    model: str,
+    compute: str,
+) -> list[str]:
+    """Display pipeline configuration and return list of steps.
+
+    Builds the list of pipeline steps based on enabled features, logs the
+    configuration, and displays it to the user.
+
+    Args:
+        align: Whether alignment is enabled
+        diarize: Whether diarization is enabled
+        deepcast: Whether deepcast analysis is enabled
+        notion: Whether Notion upload is enabled
+        show: Podcast show name
+        rss_url: RSS feed URL
+        date: Episode date filter
+        model: ASR model name
+        compute: Compute type
+
+    Returns:
+        List of pipeline step names
+    """
+    from .progress import print_podx_info
+
+    steps = ["fetch", "transcode", "transcribe"]
+    if align:
+        steps.append("align")
+    if diarize:
+        steps.append("diarize")
+    steps.extend(["export"])
+    if deepcast:
+        steps.append("deepcast")
+    if notion:
+        steps.append("notion")
+
+    logger.info(
+        "Starting pipeline",
+        steps=steps,
+        show=show,
+        rss_url=rss_url,
+        date=date,
+        model=model,
+        compute=compute,
+    )
+
+    print_podx_info(f"Pipeline: {' → '.join(steps)}")
+
+    return steps
+
+
+def _execute_export_formats(
+    latest: dict,
+    latest_name: str,
+    wd: Path,
+    progress,
+    verbose: bool,
+) -> dict:
+    """Execute transcript export to TXT/SRT formats and build results dictionary.
+
+    Exports the latest transcript to text and subtitle formats, then constructs
+    the results dictionary with paths to all generated files.
+
+    Args:
+        latest: Latest transcript dictionary
+        latest_name: Name of the latest transcript file (without extension)
+        wd: Working directory path
+        progress: Progress tracker
+        verbose: Enable verbose logging
+
+    Returns:
+        Dictionary with paths to generated files (meta, audio, transcript, txt, srt)
+    """
+    import time
+    from .services import CommandBuilder
+
+    # Export to TXT/SRT formats
+    progress.start_step("Exporting transcript files")
+    step_start = time.time()
+
+    export_cmd = (
+        CommandBuilder("podx-export")
+        .add_option("--formats", "txt,srt")
+        .add_option("--output-dir", str(wd))
+        .add_option("--input", str(wd / f"{latest_name}.json"))
+        .add_flag("--replace")
+    )
+    export_result = _run(
+        export_cmd.build(),
+        stdin_payload=latest,
+        verbose=verbose,
+        label=None,  # Progress handles the display
+    )
+    step_duration = time.time() - step_start
+    progress.complete_step("Transcript files exported (TXT, SRT)", step_duration)
+
+    # Build results using export output paths when available
+    exported_files = (
+        export_result.get("files", {}) if isinstance(export_result, dict) else {}
+    )
+    results = {
+        "meta": str(wd / "episode-meta.json"),
+        "audio": str(wd / "audio-meta.json"),
+        "transcript": str(wd / f"{latest_name}.json"),
+        "latest_json": str(wd / "latest.json"),
+    }
+    if "txt" in exported_files:
+        results["latest_txt"] = exported_files["txt"]
+    else:
+        results["latest_txt"] = str(wd / f"{latest_name}.txt")
+    if "srt" in exported_files:
+        results["latest_srt"] = exported_files["srt"]
+    else:
+        results["latest_srt"] = str(wd / f"{latest_name}.srt")
+
+    return results
+
+
+def _execute_export_final(
+    dual: bool,
+    no_consensus: bool,
+    preset: str | None,
+    deepcast_pdf: bool,
+    wd: Path,
+    results: dict,
+) -> None:
+    """Execute final export of deepcast analysis to markdown/PDF.
+
+    Selects the appropriate deepcast output (consensus, recall, precision, or single),
+    exports it to timestamped markdown and optionally PDF files.
+
+    Args:
+        dual: Dual QA mode flag
+        no_consensus: Skip consensus (use recall if dual)
+        preset: ASR preset used (for track naming)
+        deepcast_pdf: Generate PDF output
+        wd: Working directory Path
+        results: Results dictionary (modified in place with exported paths)
+
+    Side Effects:
+        - Exports markdown to wd/exported-<timestamp>.md
+        - Optionally exports PDF to wd/exported-<timestamp>.pdf
+        - Updates results dict with exported_md and exported_pdf keys
+    """
+    import json
+
+    from .export_utils import export_from_deepcast_json
+
+    # Final export step (write exported-<timestamp>.* from consensus or selected track)
+    try:
+        export_source_path = None
+        export_track = None
+
+        if dual and not no_consensus:
+            cons = results.get("consensus")
+            if cons and Path(cons).exists():
+                export_source_path = Path(cons)
+                export_track = "consensus"
+
+        if export_source_path is None:
+            single = results.get("deepcast_json")
+            if single and Path(single).exists():
+                export_source_path = Path(single)
+                export_track = (preset or "balanced") if preset else "single"
+            else:
+                for key, trk in [("deepcast_recall", "recall"), ("deepcast_precision", "precision")]:
+                    p = results.get(key)
+                    if p and Path(p).exists():
+                        export_source_path = Path(p)
+                        export_track = trk
+                        break
+
+        if export_source_path and export_source_path.exists():
+            data = json.loads(export_source_path.read_text(encoding="utf-8"))
+            # Use unified exporter (handles deepcast and consensus JSON, and PDF auto-install)
+            try:
+                md_path, pdf_path = export_from_deepcast_json(data, wd, deepcast_pdf, track_hint=export_track)
+                results["exported_md"] = str(md_path)
+                if pdf_path is not None:
+                    results["exported_pdf"] = str(pdf_path)
+            except Exception:
+                pass
+    except Exception:
+        pass
 
 
 def _handle_interactive_mode(config: dict, scan_dir: Path, console) -> tuple[dict, Path]:
@@ -1570,28 +2040,17 @@ def run(
         yaml_analysis_type = config["yaml_analysis_type"]
 
         # Show pipeline configuration (after YAML/JSON config is applied)
-        steps = ["fetch", "transcode", "transcribe"]
-        if align:
-            steps.append("align")
-        if diarize:
-            steps.append("diarize")
-        steps.extend(["export"])
-        if deepcast:
-            steps.append("deepcast")
-        if notion:
-            steps.append("notion")
-
-        logger.info(
-            "Starting pipeline",
-            steps=steps,
+        steps = _display_pipeline_config(
+            align=align,
+            diarize=diarize,
+            deepcast=deepcast,
+            notion=notion,
             show=show,
             rss_url=rss_url,
             date=date,
             model=model,
             compute=compute,
         )
-
-        print_podx_info(f"Pipeline: {' → '.join(steps)}")
 
         # Working directory determined by _execute_fetch()
         wd.mkdir(parents=True, exist_ok=True)
@@ -1669,45 +2128,14 @@ def run(
         # Always keep a pointer to the latest JSON/SRT/TXT for convenience
         (wd / "latest.json").write_text(json.dumps(latest, indent=2), encoding="utf-8")
 
-        # quick TXT/SRT from whatever we have (prefer diarized/aligned if produced)
-        progress.start_step("Exporting transcript files")
-        step_start = time.time()
-        from .services import CommandBuilder
-
-        export_cmd = (
-            CommandBuilder("podx-export")
-            .add_option("--formats", "txt,srt")
-            .add_option("--output-dir", str(wd))
-            .add_option("--input", str(wd / f"{latest_name}.json"))
-            .add_flag("--replace")
-        )
-        export_result = _run(
-            export_cmd.build(),
-            stdin_payload=latest,
+        # Export to TXT/SRT formats and build results dictionary
+        results = _execute_export_formats(
+            latest=latest,
+            latest_name=latest_name,
+            wd=wd,
+            progress=progress,
             verbose=verbose,
-            label=None,  # Progress handles the display
         )
-        step_duration = time.time() - step_start
-        progress.complete_step("Transcript files exported (TXT, SRT)", step_duration)
-
-        # Build results using export output paths when available
-        exported_files = (
-            export_result.get("files", {}) if isinstance(export_result, dict) else {}
-        )
-        results = {
-            "meta": str(wd / "episode-meta.json"),
-            "audio": str(wd / "audio-meta.json"),
-            "transcript": str(wd / f"{latest_name}.json"),
-            "latest_json": str(wd / "latest.json"),
-        }
-        if "txt" in exported_files:
-            results["latest_txt"] = exported_files["txt"]
-        else:
-            results["latest_txt"] = str(wd / f"{latest_name}.txt")
-        if "srt" in exported_files:
-            results["latest_srt"] = exported_files["srt"]
-        else:
-            results["latest_srt"] = str(wd / f"{latest_name}.srt")
 
         # 7) DEEPCAST (optional) or implied by dual → deepcast for one or both
         _execute_deepcast(
@@ -1727,38 +2155,14 @@ def run(
         )
 
         # Final export step (write exported-<timestamp>.* from consensus or selected track)
-        try:
-            export_source_path = None
-            export_track = None
-            if dual and not no_consensus:
-                cons = results.get("consensus")
-                if cons and Path(cons).exists():
-                    export_source_path = Path(cons)
-                    export_track = "consensus"
-            if export_source_path is None:
-                single = results.get("deepcast_json")
-                if single and Path(single).exists():
-                    export_source_path = Path(single)
-                    export_track = (preset or "balanced") if preset else "single"
-                else:
-                    for key, trk in [("deepcast_recall", "recall"), ("deepcast_precision", "precision")]:
-                        p = results.get(key)
-                        if p and Path(p).exists():
-                            export_source_path = Path(p)
-                            export_track = trk
-                            break
-            if export_source_path and export_source_path.exists():
-                data = json.loads(export_source_path.read_text(encoding="utf-8"))
-                # Use unified exporter (handles deepcast and consensus JSON, and PDF auto-install)
-                try:
-                    md_path, pdf_path = export_from_deepcast_json(data, wd, deepcast_pdf, track_hint=export_track)
-                    results["exported_md"] = str(md_path)
-                    if pdf_path is not None:
-                        results["exported_pdf"] = str(pdf_path)
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        _execute_export_final(
+            dual=dual,
+            no_consensus=no_consensus,
+            preset=preset,
+            deepcast_pdf=deepcast_pdf,
+            wd=wd,
+            results=results,
+        )
 
         # 7) NOTION (optional) — requires DB id
         if notion and not dual:
@@ -1767,217 +2171,40 @@ def run(
                     "Please pass --db or set NOTION_DB_ID environment variable"
                 )
 
-            progress.start_step("Uploading to Notion")
-            step_start = time.time()
-            # Prefer exported.md if available, else model-specific deepcast outputs, fallback to latest.txt
-            model_suffix = deepcast_model.replace(".", "_").replace("-", "_")
-            exported_md = Path(results.get("exported_md", "")) if results.get("exported_md") else None
-            model_specific_md = wd / f"deepcast-brief-{model_suffix}.md"
-            model_specific_json = wd / f"deepcast-brief-{model_suffix}.json"
-
-            # If exported exists, use it directly
-            if exported_md and exported_md.exists():
-                md_path = str(exported_md)
-                json_path = (
-                    str(model_specific_json) if model_specific_json.exists() else None
-                )
-                cmd = [
-                    "podx-notion",
-                    "--markdown",
-                    md_path,
-                    "--meta",
-                    str(wd / "episode-meta.json"),
-                    "--db",
-                    notion_db,
-                    "--podcast-prop",
-                    podcast_prop,
-                    "--date-prop",
-                    date_prop,
-                    "--episode-prop",
-                    episode_prop,
-                    "--model-prop",
-                    model_prop,
-                    "--asr-prop",
-                    asr_prop,
-                    "--deepcast-model",
-                    deepcast_model,
-                    "--asr-model",
-                    model,
-                ]
-                if json_path:
-                    cmd += ["--json", json_path]
-            else:
-                # Find any deepcast files if model-specific ones don't exist
-                # Check for both new and legacy formats
-                deepcast_files = list(wd.glob("deepcast-*.md"))
-                fallback_md = deepcast_files[0] if deepcast_files else None
-
-            # Prefer unified JSON mode if no separate markdown file exists
-            if model_specific_json.exists() and not model_specific_md.exists():
-                # Use unified JSON mode (deepcast JSON contains markdown)
-                cmd = [
-                    "podx-notion",
-                    "--input",
-                    str(model_specific_json),
-                    "--db",
-                    notion_db,
-                    "--podcast-prop",
-                    podcast_prop,
-                    "--date-prop",
-                    date_prop,
-                    "--episode-prop",
-                    episode_prop,
-                    "--model-prop",
-                    model_prop,
-                    "--asr-prop",
-                    asr_prop,
-                    "--deepcast-model",
-                    deepcast_model,
-                    "--asr-model",
-                    model,  # The ASR model from transcription
-                ]
-            else:
-                # Use separate markdown + JSON mode
-                md_path = (
-                    str(model_specific_md)
-                    if model_specific_md.exists()
-                    else str(fallback_md) if fallback_md else str(wd / "latest.txt")
-                )
-                json_path = (
-                    str(model_specific_json) if model_specific_json.exists() else None
-                )
-
-                cmd = [
-                    "podx-notion",
-                    "--markdown",
-                    md_path,
-                    "--meta",
-                    str(wd / "episode-meta.json"),
-                    "--db",
-                    notion_db,
-                    "--podcast-prop",
-                    podcast_prop,
-                    "--date-prop",
-                    date_prop,
-                    "--episode-prop",
-                    episode_prop,
-                    "--model-prop",
-                    model_prop,
-                    "--asr-prop",
-                    asr_prop,
-                    "--deepcast-model",
-                    deepcast_model,
-                    "--asr-model",
-                    model,  # The ASR model from transcription
-                ]
-
-                if json_path:
-                    cmd += ["--json", json_path]
-
-            if append_content:
-                cmd += ["--append-content"]
-            # Default is replace, so no flag needed when append_content is False
-
-            _ = _run(
-                cmd,
+            _execute_notion_upload(
+                notion_db=notion_db,
+                wd=wd,
+                results=results,
+                deepcast_model=deepcast_model,
+                model=model,
+                podcast_prop=podcast_prop,
+                date_prop=date_prop,
+                episode_prop=episode_prop,
+                model_prop=model_prop,
+                asr_prop=asr_prop,
+                append_content=append_content,
+                progress=progress,
                 verbose=verbose,
-                save_to=wd / "notion.out.json",
-                label=None,  # Progress handles the display
             )
-            step_duration = time.time() - step_start
-            progress.complete_step("Notion page created/updated", step_duration)
-            results.update({"notion": str(wd / "notion.out.json")})
 
         # 8) Optional cleanup
-        if clean:
-            progress.start_step("Cleaning up intermediate files")
-            step_start = time.time()
-            # Keep final artifacts (small pointers)
-            keep = {
-                wd / "latest.json",
-                wd / f"{latest_name}.txt",
-                wd / f"{latest_name}.srt",
-                wd / "notion.out.json",
-                wd / "episode-meta.json",
-                wd / "audio-meta.json",
-            }
-            # Keep all deepcast files (both new and legacy formats)
-            keep.update(wd.glob("deepcast-*.json"))
-            keep.update(wd.glob("deepcast-*.md"))
-
-            cleaned_files = 0
-            # Remove intermediate JSON files (both legacy and model-specific)
-            cleanup_patterns = [
-                "transcript.json",
-                "transcript-*.json",
-                # Legacy align/diarize formats (old)
-                "aligned-transcript.json",
-                "aligned-transcript-*.json",
-                "diarized-transcript.json",
-                "diarized-transcript-*.json",
-                # New align/diarize formats
-                "transcript-aligned.json",
-                "transcript-aligned-*.json",
-                "transcript-diarized.json",
-                "transcript-diarized-*.json",
-            ]
-            for pattern in cleanup_patterns:
-                for p in wd.glob(pattern):
-                    if p.exists() and p not in keep:
-                        try:
-                            p.unlink()
-                            cleaned_files += 1
-                            logger.debug("Cleaned intermediate file", file=str(p))
-                        except Exception as e:
-                            logger.warning(
-                                "Failed to clean file", file=str(p), error=str(e)
-                            )
-
-            # Remove audio files if not keeping them
-            if no_keep_audio:
-                for p in [transcoded_path, original_audio_path]:
-                    if p and p.exists():
-                        try:
-                            p.unlink()
-                            cleaned_files += 1
-                            logger.debug("Cleaned audio file", file=str(p))
-                        except Exception as e:
-                            logger.warning(
-                                "Failed to clean audio file", file=str(p), error=str(e)
-                            )
-
-            step_duration = time.time() - step_start
-            progress.complete_step(
-                f"Cleanup completed ({cleaned_files} files removed)", step_duration
-            )
+        _execute_cleanup(
+            clean=clean,
+            no_keep_audio=no_keep_audio,
+            wd=wd,
+            latest_name=latest_name,
+            transcoded_path=transcoded_path,
+            original_audio_path=original_audio_path,
+            progress=progress,
+        )
 
     # Final summary
-    total_time = time.time() - start_time
-    logger.info(
-        "Pipeline completed",
-        total_duration=total_time,
-        steps_completed=len(steps),
-        workdir=str(wd),
+    _print_results_summary(
+        start_time=start_time,
+        steps=steps,
+        wd=wd,
+        results=results,
     )
-
-    print_podx_success(f"Pipeline completed in {format_duration(total_time)}")
-
-    # Show key results
-    key_files = []
-    if "latest_txt" in results:
-        key_files.append(f"📄 Transcript: {results['latest_txt']}")
-    if "latest_srt" in results:
-        key_files.append(f"📺 Subtitles: {results['latest_srt']}")
-    if "deepcast_md" in results:
-        key_files.append(f"🤖 Analysis: {results['deepcast_md']}")
-    if "notion" in results:
-        key_files.append(f"☁️ Notion: {results['notion']}")
-
-    if key_files:
-        print_podx_info("\n".join(key_files))
-
-    # Still print JSON for programmatic use
-    print(json.dumps(results, indent=2))
 
 
 # Add individual commands as subcommands to main CLI group
