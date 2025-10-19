@@ -97,8 +97,8 @@ def _semantic_restore_segments(texts: List[str], model: str, batch_size: int = 2
 
 
 @click.command()
-@click.option("--input", "input_file", type=click.Path(exists=True, path_type=Path), help="Read Transcript JSON from file instead of stdin")
-@click.option("--output", "output_file", type=click.Path(path_type=Path), help="Write processed Transcript JSON to file (also prints to stdout)")
+@click.option("--input", "-i", "input_file", type=click.Path(exists=True, path_type=Path), help="Read Transcript JSON from file instead of stdin")
+@click.option("--output", "-o", "output_file", type=click.Path(path_type=Path), help="Write processed Transcript JSON to file (also prints to stdout)")
 @click.option("--merge", "do_merge", is_flag=True, help="Merge adjacent short segments for readability")
 @click.option("--normalize", "do_normalize", is_flag=True, help="Normalize whitespace and punctuation in text")
 @click.option("--max-gap", type=float, default=1.0, help="Max gap (sec) to merge segments")
@@ -224,5 +224,3 @@ def main(input_file: Optional[Path], output_file: Optional[Path], do_merge: bool
 
 if __name__ == "__main__":
     main()
-
-

@@ -1153,6 +1153,13 @@ def upsert_page(
     "--dry-run", is_flag=True, help="Parse and print Notion payload (don't write)"
 )
 @click.option(
+    "--output",
+    "-o",
+    "output",
+    type=click.Path(path_type=Path),
+    help="Save summary JSON (page_id, url, properties) to file",
+)
+@click.option(
     "--interactive",
     is_flag=True,
     help="Interactive selection flow (show → date → model → run)",
@@ -1179,6 +1186,7 @@ def main(
     append_content: bool,
     cover_image: bool,
     dry_run: bool,
+    output: Optional[Path],
     interactive: bool,
 ):
     """
@@ -1564,11 +1572,23 @@ def main(
     if cover_url:
         _set_page_cover(client, page_id, cover_url)
 
-    if _HAS_RICH:
+    # Build result summary
+    result = {
+        "ok": True,
+        "page_id": page_id,
+        "url": f"https://notion.so/{page_id.replace('-', '')}",
+    }
+
+    # Save to output file if requested
+    if output:
+        output.write_text(json.dumps(result, indent=2), encoding="utf-8")
+
+    # Print result (interactive: rich message, non-interactive: JSON)
+    if _HAS_RICH and interactive:
         console = Console()
         console.print(f"[green]✅ Notion page updated: {page_id}[/green]")
     else:
-        print(json.dumps({"ok": True, "page_id": page_id}, indent=2))
+        print(json.dumps(result, indent=2))
 
 
 if __name__ == "__main__":

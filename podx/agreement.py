@@ -7,7 +7,7 @@ import click
 
 from .cli_shared import read_stdin_json
 from .logging import get_logger
-from .deepcast import parse_deepcast_metadata
+from .ui.deepcast_browser import parse_deepcast_metadata
 from .ui import (
     make_console,
     TABLE_BORDER_STYLE,
@@ -21,7 +21,6 @@ from .ui import (
 logger = get_logger(__name__)
 
 try:
-    from rich.console import Console
     from rich.table import Table
     RICH_AVAILABLE = True
 except Exception:
@@ -29,12 +28,13 @@ except Exception:
 
 
 @click.command()
-@click.option("--a", "input_a", type=click.Path(exists=True, path_type=Path), help="First deepcast JSON/MD (JSON preferred)")
-@click.option("--b", "input_b", type=click.Path(exists=True, path_type=Path), help="Second deepcast JSON/MD (JSON preferred)")
-@click.option("--model", default="gpt-4.1", help="OpenAI model for comparison")
+@click.option("--input", "-i", "input_file", type=click.Path(exists=True, path_type=Path), help="JSON file with keys: 'a' (first analysis) and 'b' (second analysis)")
+@click.option("--a", "input_a", type=click.Path(exists=True, path_type=Path), help="First deepcast JSON/MD (shortcut for --input)")
+@click.option("--b", "input_b", type=click.Path(exists=True, path_type=Path), help="Second deepcast JSON/MD (shortcut for --input)")
+@click.option("--model", default="gpt-4.1", help="LLM model for comparison: gpt-4.1, gpt-4.1-mini, gpt-4o, etc.")
 @click.option("--interactive", is_flag=True, help="Interactive browser to select two analyses to compare")
 @click.option("--scan-dir", type=click.Path(exists=True, path_type=Path), default=".", help="Directory to scan for deepcast files")
-def main(input_a: Optional[Path], input_b: Optional[Path], model: str, interactive: bool, scan_dir: Path):
+def main(input_file: Optional[Path], input_a: Optional[Path], input_b: Optional[Path], model: str, interactive: bool, scan_dir: Path):
     """
     Compare two deepcast analyses and output a structured agreement report.
     If JSON inputs are provided, extracts markdown internally.
@@ -142,23 +142,39 @@ def main(input_a: Optional[Path], input_b: Optional[Path], model: str, interacti
             console.print("[dim]Cancelled[/dim]")
             raise SystemExit(0)
         try:
-            i1 = int(choice1); i2 = int(choice2)
-            pa = rows[i1 - 1]["path"]; pb = rows[i2 - 1]["path"]
+            i1 = int(choice1)
+            i2 = int(choice2)
+            pa = rows[i1 - 1]["path"]
+            pb = rows[i2 - 1]["path"]
         except Exception:
             console.print("[red]Invalid selection[/red]")
             raise SystemExit(1)
-        input_a = pa; input_b = pb
+        input_a = pa
+        input_b = pb
 
-    if input_a and input_b:
+    # Priority: input_file > (input_a and input_b) > interactive > stdin
+    if input_file:
+        # Read structured JSON file with "a" and "b" keys containing file paths
+        with open(input_file, encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict) or not data.get("a") or not data.get("b"):
+            raise SystemExit("Input JSON must contain 'a' and 'b' keys with file paths")
+        input_a = Path(data["a"])
+        input_b = Path(data["b"])
         a_text = load_content(input_a)
         b_text = load_content(input_b)
-    else:
+    elif input_a and input_b:
+        a_text = load_content(input_a)
+        b_text = load_content(input_b)
+    elif not interactive:
         # Fallback: expect a JSON object with fields 'a' and 'b' on stdin
         data = read_stdin_json()
         if not data or not isinstance(data, dict) or not data.get("a") or not data.get("b"):
-            raise SystemExit("Provide --a and --b files or pipe JSON with fields 'a' and 'b'")
+            raise SystemExit("Provide --input/-i, or both --a and --b, or use --interactive")
         a_text = data["a"]
         b_text = data["b"]
+    else:
+        raise SystemExit("No input provided. Use --input/-i, --a/--b, --interactive, or pipe JSON")
 
     try:
         try:
@@ -197,5 +213,3 @@ def main(input_a: Optional[Path], input_b: Optional[Path], model: str, interacti
 
 if __name__ == "__main__":
     main()
-
-

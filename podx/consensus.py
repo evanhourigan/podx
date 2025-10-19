@@ -11,15 +11,13 @@ Features:
 from __future__ import annotations
 
 import json
-import os
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import click
 
-from .deepcast import parse_deepcast_metadata
+from .ui.deepcast_browser import parse_deepcast_metadata
 from .cli_shared import read_stdin_json
 from .ui import (
     make_console,
@@ -32,7 +30,6 @@ from .ui import (
 )
 
 try:
-    from rich.console import Console
     from rich.table import Table
     RICH_AVAILABLE = True
 except Exception:
@@ -142,14 +139,15 @@ def find_episode_rows(scan_dir: Path) -> List[Dict[str, Any]]:
         if not other_path.exists():
             continue
         # agreement optional
-        safe_ai = meta.get("ai_model", "").replace(".", "_")
         agr = None
         for p in episode_dir.glob("agreement-*.json"):
             agr = p
             break
 
         # episode meta
-        show = "Unknown"; date = "Unknown"; title = "Unknown"
+        show = "Unknown"
+        date = "Unknown"
+        title = "Unknown"
         try:
             em = json.loads((episode_dir / "episode-meta.json").read_text(encoding="utf-8"))
             show = em.get("show", show)
@@ -189,9 +187,9 @@ def find_episode_rows(scan_dir: Path) -> List[Dict[str, Any]]:
 
 
 @click.command()
-@click.option("--precision", type=click.Path(exists=True, path_type=Path), help="Precision deepcast JSON (from dual mode)")
-@click.option("--recall", type=click.Path(exists=True, path_type=Path), help="Recall deepcast JSON (from dual mode)")
-@click.option("--agreement", type=click.Path(exists=True, path_type=Path), help="Optional agreement JSON to inform confidence scores")
+@click.option("--precision", "-p", type=click.Path(exists=True, path_type=Path), help="Precision deepcast JSON (from dual mode)")
+@click.option("--recall", "-r", type=click.Path(exists=True, path_type=Path), help="Recall deepcast JSON (from dual mode)")
+@click.option("--agreement", "-a", type=click.Path(exists=True, path_type=Path), help="Optional agreement JSON to inform confidence scores")
 @click.option("--input", "-i", "inp", type=click.Path(exists=True, path_type=Path), help="Read inputs from a JSON file or stdin with keys: precision, recall, agreement (objects or file paths)")
 @click.option("--output", "-o", type=click.Path(path_type=Path), help="Output consensus JSON file")
 @click.option("--interactive", is_flag=True, help="Interactive browser to select eligible episodes")
@@ -310,7 +308,6 @@ def main(precision: Optional[Path], recall: Optional[Path], agreement: Optional[
     output.write_text(json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8")
     # In interactive mode, don't dump JSON to stdout; show a friendly message
     try:
-        import sys
         if interactive and RICH_AVAILABLE:
             console = make_console()
             console.print(f"[green]✅ Consensus saved to: {output}[/green]")
@@ -324,5 +321,3 @@ def main(precision: Optional[Path], recall: Optional[Path], agreement: Optional[
 
 if __name__ == "__main__":
     main()
-
-
