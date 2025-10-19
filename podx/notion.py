@@ -484,7 +484,7 @@ def _interactive_table_flow(
     # Promote consensus rows to the top order within same episode (show+date+title)
     rows.sort(key=lambda r: (r["show"], r["date"], r["title"], 0 if r.get("type") == "consensus" else 1, r["path"].stat().st_mtime), reverse=True)
     if not rows:
-        console.print(f"[red]No deepcast files found in {scan_dir}[/red]")
+        console.print(f"[red]❌ No deepcast files found in {scan_dir}[/red]")
         return None
 
     # Column widths with flexible Title
@@ -535,7 +535,7 @@ def _interactive_table_flow(
         if not (1 <= i <= len(rows)):
             raise ValueError
     except Exception:
-        console.print("[red]Invalid selection[/red]")
+        console.print("[red]❌ Invalid selection[/red]")
         return None
 
     chosen = rows[i - 1]
