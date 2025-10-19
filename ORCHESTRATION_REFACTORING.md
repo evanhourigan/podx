@@ -379,44 +379,272 @@ print(result.duration)
 
 ## Next Steps
 
-### 🔄 Phase 5: Integration (IN PROGRESS)
+### 🔄 Phase 5: Integration Analysis (IN PROGRESS)
 
-**Goal:** Wire existing services into orchestrate.py::run()
+**Goal:** Determine how to integrate services into orchestrate.py::run()
 
-**Approach:**
+**Progress:**
 1. ✅ Document existing services (this file)
 2. ✅ Commit current state (safe checkpoint)
-3. 🔄 Create `_build_pipeline_config()` helper
-4. 🔄 Create `_handle_interactive_mode()` helper
-5. 🔄 Replace run() body with service calls
-6. 🔄 Test thoroughly
-7. 🔄 Commit integrated version
+3. ✅ Analyze PipelineService compatibility with run()
+4. 🔄 Document compatibility issues found
+5. 🔄 Decide integration strategy
+6. 🔄 Implement chosen strategy
 
-**Target run() Structure (~200 lines):**
+---
+
+## Compatibility Analysis
+
+### 🔍 PipelineService vs run() Function Comparison
+
+**Current run() Function Structure (orchestrate.py:456-1219, ~764 lines):**
+
 ```python
-def run(...):  # All 38 CLI parameters preserved
-    # 1. Build config from args (~50 lines)
-    config = _build_pipeline_config(...)
+def run(...):  # 38 CLI parameters
+    # 1. Variable initialization (lines 456-461)
+    selected = None
+    chosen_type = None
+    preview = ""
+    yaml_analysis_type = None
 
-    # 2. Handle interactive mode (~50 lines)
-    if interactive_select:
-        meta, workdir = _handle_interactive_mode(config, ...)
-        config.workdir = workdir
+    # 2. Preset handling (lines 463-497)
+    if full: align=True, deepcast=True, extract_markdown=True, notion=True
+    if workflow: apply_workflow_preset(workflow)
+    if fidelity: apply_fidelity_preset(fidelity, preset)
 
-    # 3. Execute via service (~30 lines)
+    # 3. Start execution (lines 498-509)
     print_podx_header()
-    service = PipelineService(config)
-
+    start_time = time.time()
+    results = {}
     with PodxProgress() as progress:
-        result = service.execute(
-            skip_completed=True,
-            progress_callback=lambda step, status: progress.update(step, status)
-        )
+        wd = None  # Determined after fetch
 
-    # 4. Display results (~30 lines)
-    print_podx_success(f"Completed in {result.duration}s")
-    print(json.dumps(result.to_dict(), indent=2))
+        # 4. INTERACTIVE MODE (lines 511-597) ⚠️ NOT IN PipelineService
+        if interactive_select:
+            # 4a. Episode selection with rich table UI
+            selected, meta = select_episode_interactive(scan_dir, show, console)
+
+            # 4b. Fidelity choice (1-5) with detailed panel
+            console.print(Panel(help_text, title="Choose Fidelity (1-5)"))
+            fchoice = input("Choose preset [1-5]: ")
+            fid_flags = apply_fidelity_preset(fidelity, preset, interactive=True)
+            align, diarize, preprocess, restore, deepcast, dual = ...
+
+            # 4c. Model selection prompts
+            prompt_asr = input(f"ASR model (Enter to keep '{model}'): ")
+            prompt_ai = input(f"AI model (Enter to keep '{deepcast_model}'): ")
+
+            # 4d. Toggle options panel
+            align = Confirmation.yes_no("Align (WhisperX)", align)
+            diarize = Confirmation.yes_no("Diarize (speaker labels)", diarize)
+            preprocess = Confirmation.yes_no("Preprocess (merge/normalize)", preprocess)
+            restore = Confirmation.yes_no("Semantic restore (LLM)", restore)
+            deepcast = Confirmation.yes_no("Deepcast (AI analysis)", deepcast)
+            dual = Confirmation.yes_no("Dual mode (precision+recall)", dual)
+            extract_markdown = Confirmation.yes_no("Save Markdown file", extract_markdown)
+            deepcast_pdf = Confirmation.yes_no("Also render PDF (pandoc)", deepcast_pdf)
+
+            # 4e. Deepcast type selection
+            chosen_type = select_deepcast_type(console, default_type=yaml_analysis_type)
+
+            # 4f. Pipeline preview with cost estimate
+            stages = ["fetch", "transcode", "transcribe", ...]
+            if align: stages.append("align")
+            # ... build preview, show cost estimate
+
+            # 4g. Final confirmation
+            proceed = input("Proceed? [y/N]: ")
+
+        # 5. Execution (lines 652+)
+        # ... actual pipeline steps
 ```
+
+**PipelineService.execute() Structure (pipeline_service.py:126-205, ~80 lines):**
+
+```python
+def execute(self, skip_completed=True, progress_callback=None) -> PipelineResult:
+    start_time = time.time()
+    result = PipelineResult(workdir=Path("."))
+
+    try:
+        # 1. Fetch episode metadata (ALWAYS CALLS FETCH)
+        meta = self._execute_fetch(result, progress_callback)
+
+        # 2. Determine working directory (NEW GENERATION ONLY)
+        workdir = self._determine_workdir(meta)
+        result.workdir = workdir
+        workdir.mkdir(parents=True, exist_ok=True)
+
+        # 3. Save metadata
+        (workdir / "episode-meta.json").write_text(json.dumps(meta, indent=2))
+
+        # 4. Initialize state management
+        detector = ArtifactDetector(workdir)
+        artifacts = detector.detect_all()
+
+        # 5. Execute pipeline steps
+        self._execute_transcode(workdir, meta, artifacts, result, progress_callback)
+        latest = self._execute_transcribe(workdir, artifacts, result, skip_completed, progress_callback)
+        latest = self._execute_preprocess(workdir, latest, artifacts, result, skip_completed, progress_callback)
+        latest = self._execute_align(workdir, latest, artifacts, result, skip_completed, progress_callback)
+        latest = self._execute_diarize(workdir, latest, artifacts, result, skip_completed, progress_callback)
+
+        # 6. Export, deepcast, notion
+        self._execute_export(workdir, latest, result, progress_callback)
+        if self.config.deepcast or self.config.dual:
+            self._execute_deepcast(workdir, latest, result, progress_callback)  # ⚠️ SIMPLIFIED
+        if self.config.notion and not self.config.dual:
+            self._execute_notion(workdir, result, progress_callback)
+
+        # 7. Cleanup
+        if self.config.clean:
+            self._execute_cleanup(workdir, result, progress_callback)
+
+        result.duration = time.time() - start_time
+
+    except Exception as e:
+        result.errors.append(str(e))
+        raise
+
+    return result
+```
+
+---
+
+### ⚠️ Critical Compatibility Issues
+
+| Issue | Current run() | PipelineService | Impact |
+|-------|---------------|-----------------|--------|
+| **Interactive Mode** | Lines 511-597 (~87 lines) | ❌ Not supported | BLOCKER |
+| **Metadata Source** | Can use existing episode-meta.json | ✅ Always calls fetch | Major |
+| **Workdir Handling** | From selected episode OR generated | Only generated from meta | Major |
+| **Dual Mode** | Full support with dual transcription | ⚠️ Simplified (line 566 comment) | Major |
+| **Consensus** | Generates consensus/agreement artifacts | ❌ No support | Major |
+| **Analysis Type** | Interactive selection via select_deepcast_type() | config.analysis_type exists but unused | Medium |
+| **Cost Preview** | Shows estimated cost before execution | ❌ No preview | Medium |
+| **Final Confirmation** | "Proceed? [y/N]" prompt | ❌ No confirmation | Medium |
+
+**Detailed Issues:**
+
+**1. Interactive Mode (BLOCKER)**
+- Current run() has extensive interactive UI (87 lines):
+  - Episode selection from scanned directories
+  - Paginated table with rich formatting
+  - Fidelity choice (1-5) with detailed help
+  - Model selection prompts
+  - Boolean option toggles
+  - Deepcast type selection
+  - Pipeline preview with stages
+  - Cost estimation
+  - Final confirmation prompt
+- PipelineService has NONE of this - it's designed for programmatic use
+
+**2. Metadata Source Mismatch**
+- Interactive mode loads metadata from selected episode's `episode-meta.json`
+- PipelineService._execute_fetch() ALWAYS calls executor.fetch() for new episodes
+- No way to pass pre-loaded metadata to PipelineService.execute()
+
+**3. Workdir Handling**
+- Interactive mode: workdir = selected["directory"] (existing episode folder)
+- PipelineService._determine_workdir(): generates new workdir from show name + date
+- Cannot process existing episodes via PipelineService
+
+**4. Dual Mode Incomplete**
+- Current run() supports full dual mode:
+  - Transcribe with both precision and recall presets
+  - Preprocess both transcripts
+  - Generate deepcasts for both
+  - Create agreement/consensus artifacts
+  - Special handling throughout pipeline
+- PipelineService._execute_deepcast() has comment "Simplified version - full implementation would handle dual mode"
+- PipelineService._execute_transcribe() doesn't handle dual transcription
+
+**5. Missing Consensus Support**
+- Dual mode generates agreement-*.json and consensus-*.json artifacts
+- PipelineService has no code for consensus workflow
+- ArtifactDetector detects these files but PipelineService doesn't create them
+
+---
+
+### 🔀 Integration Strategy Options
+
+**Option 1: Extend PipelineService (HIGH EFFORT)**
+- Add interactive mode support to PipelineService
+- Add metadata injection (skip fetch)
+- Add existing workdir support
+- Complete dual mode implementation
+- Add consensus support
+- **Pros:** Full service-based architecture
+- **Cons:** ~2-3 weeks work, high risk, mixes UI concerns into service
+
+**Option 2: Hybrid Approach (RECOMMENDED)**
+- Keep orchestrate.py for CLI/UI/interactive concerns
+- Use PipelineService ONLY for programmatic/API usage
+- Extract helper functions in orchestrate.py:
+  - `_build_pipeline_config()` - convert CLI args to config
+  - `_handle_interactive_mode()` - all interactive UI logic
+  - `_execute_pipeline()` - direct subprocess execution (existing flow)
+- **Pros:** Clean separation, low risk, incremental improvement
+- **Cons:** orchestrate.py still ~1500 lines (down from 2354)
+
+**Option 3: Create CLIPipelineService (MEDIUM EFFORT)**
+- New service that wraps PipelineService
+- Adds CLI-specific features:
+  - Interactive mode support
+  - Pre-loaded metadata handling
+  - Existing workdir support
+  - Full dual mode
+  - Consensus support
+- orchestrate.py becomes thin wrapper around CLIPipelineService
+- **Pros:** Testable business logic, cleaner than Option 1
+- **Cons:** ~1-2 weeks work, two service layers
+
+---
+
+### ✅ Recommended Strategy: Option 2 (Hybrid Approach)
+
+**Rationale:**
+1. **PipelineService is well-designed for programmatic use** - Don't pollute it with CLI/UI concerns
+2. **Interactive mode is inherently CLI-specific** - Belongs in orchestrate.py, not in service layer
+3. **Dual mode is complex** - Current implementation works, don't rush to extract it
+4. **Clean separation of concerns:**
+   - `PipelineService` → Programmatic/API usage (future Python library)
+   - `orchestrate.py` → CLI/UI/interactive features
+5. **Low risk, incremental improvement** - Can extract more to services later
+
+**Implementation Plan:**
+
+Extract 2 helper functions from run(), keeping pipeline execution in place:
+
+1. **`_build_pipeline_config()`** - Convert CLI args to config dict (~80 lines)
+2. **`_handle_interactive_mode()`** - All interactive UI logic (~120 lines)
+
+Keep existing pipeline execution code (dual mode, consensus, etc.) in run() for now.
+
+**Benefits:**
+- ✅ Reduces orchestrate.py from 2,354 → ~1,200 lines (49% reduction)
+- ✅ Extracts 2 testable helper functions (~200 lines)
+- ✅ Clean separation: config building + interactive mode extracted
+- ✅ Zero risk - keeps working dual mode implementation
+- ✅ PipelineService remains clean for future API/library use
+- ✅ Can incrementally extract more later (dual mode, consensus, etc.)
+
+**Metrics After Hybrid Approach:**
+
+| Metric | Before | After | Improvement |
+|--------|--------|-------|-------------|
+| orchestrate.py LOC | 2,354 | ~1,200 | -49% |
+| Largest function | 764 | ~550 | -28% |
+| Testable helpers | 0 | 2 | +100% |
+| Service layer | Unused | Ready for API | ✅ |
+
+**Next Steps if Approved:**
+1. Extract `_build_pipeline_config()` helper
+2. Extract `_handle_interactive_mode()` helper
+3. Refactor run() to use helpers
+4. Test thoroughly
+5. Commit hybrid approach
+6. (Future) Incrementally extract dual mode to service layer
 
 ---
 
