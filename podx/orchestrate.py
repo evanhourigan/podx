@@ -956,34 +956,12 @@ def run(
 
         # 3) TRANSCRIBE → transcript-{model}.json (or dual precision/recall)
         # Prefer JSON content over filename to determine asr_model
-        def _discover_transcripts(dir_path: Path) -> Dict[str, Path]:
-            found: Dict[str, Path] = {}
-            for path in dir_path.glob("transcript-*.json"):
-                try:
-                    data = json.loads(path.read_text())
-                    asr_model_val = data.get("asr_model") or "unknown"
-                    found[asr_model_val] = path
-                except Exception:
-                    continue
-            # Legacy transcript.json
-            legacy = dir_path / "transcript.json"
-            if legacy.exists():
-                try:
-                    data = json.loads(legacy.read_text())
-                    asr_model_val = data.get("asr_model") or "unknown"
-                    found[asr_model_val] = legacy
-                except Exception:
-                    found["unknown"] = legacy
-            return found
+        from .utils import discover_transcripts, sanitize_model_name
 
-        existing_transcripts = _discover_transcripts(wd)
+        existing_transcripts = discover_transcripts(wd)
 
         # Proposed output filename (sanitized model to avoid colons/spaces)
-        def _sanitize(name: str) -> str:
-            import re as _re
-            return _re.sub(r"[^A-Za-z0-9._-]", "_", name)
-
-        transcript_file = wd / f"transcript-{_sanitize(model)}.json"
+        transcript_file = wd / f"transcript-{sanitize_model_name(model)}.json"
 
         # Check legacy transcript.json
         legacy_transcript = wd / "transcript.json"
@@ -1048,7 +1026,7 @@ def run(
                 # Dual QA: precision & recall tracks
                 progress.start_step(f"Dual QA: transcribing precision & recall with {model}")
                 step_start = time.time()
-                safe_model = _sanitize(model)
+                safe_model = sanitize_model_name(model)
                 # Precision (resume if exists)
                 t_prec = wd / f"transcript-{safe_model}-precision.json"
                 if t_prec.exists():
@@ -1108,7 +1086,7 @@ def run(
 
             if dual:
                 # Preprocess both precision & recall
-                safe_model = _sanitize(model)
+                safe_model = sanitize_model_name(model)
                 t_prec = wd / f"transcript-{safe_model}-precision.json"
                 t_rec = wd / f"transcript-{safe_model}-recall.json"
                 pre_prec = wd / f"transcript-preprocessed-{safe_model}-precision.json"
@@ -1131,7 +1109,7 @@ def run(
             else:
                 # Single-track: preprocess the latest transcript
                 used_model = (latest or {}).get("asr_model", model) if isinstance(latest, dict) else model
-                pre_file = wd / f"transcript-preprocessed-{_sanitize(used_model)}.json"
+                pre_file = wd / f"transcript-preprocessed-{sanitize_model_name(used_model)}.json"
                 latest = _run(
                     build_cmd(pre_file),
                     stdin_payload=latest,  # latest contains the base transcript JSON
@@ -1152,7 +1130,7 @@ def run(
         if align:
             # Get model from base transcript
             used_model = latest.get("asr_model", model)
-            aligned_file = wd / f"transcript-aligned-{_sanitize(used_model)}.json"
+            aligned_file = wd / f"transcript-aligned-{sanitize_model_name(used_model)}.json"
 
             # Also check legacy filenames
             legacy_aligned_new = wd / f"aligned-transcript-{used_model}.json"
@@ -1199,7 +1177,7 @@ def run(
         if diarize:
             # Get model from latest transcript
             used_model = latest.get("asr_model", model)
-            diarized_file = wd / f"transcript-diarized-{_sanitize(used_model)}.json"
+            diarized_file = wd / f"transcript-diarized-{sanitize_model_name(used_model)}.json"
 
             # Check if already exists (also check legacy filenames)
             legacy_diarized_new = wd / f"diarized-transcript-{used_model}.json"
@@ -1341,7 +1319,7 @@ def run(
                     # Dual: deepcast precision & recall (requires preprocessed precision/recall inputs)
                     progress.start_step(f"Analyzing precision & recall with {deepcast_model}")
                     step_start = time.time()
-                    safe_model = _sanitize(model)
+                    safe_model = sanitize_model_name(model)
                     pre_prec = wd / f"transcript-preprocessed-{safe_model}-precision.json"
                     pre_rec = wd / f"transcript-preprocessed-{safe_model}-recall.json"
                     meta_file = wd / "episode-meta.json"
