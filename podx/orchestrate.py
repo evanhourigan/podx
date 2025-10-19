@@ -1214,7 +1214,7 @@ def _print_results_summary(
     import json
     import time
 
-    from .ui import format_duration, print_podx_info, print_podx_success
+    from .progress import format_duration, print_podx_info, print_podx_success
 
     # Final summary
     total_time = time.time() - start_time
@@ -1282,7 +1282,6 @@ def _display_pipeline_config(
         steps.append("align")
     if diarize:
         steps.append("diarize")
-    steps.extend(["export"])
     if deepcast:
         steps.append("deepcast")
     if notion:
@@ -1398,7 +1397,7 @@ def _execute_export_final(
     """
     import json
 
-    from .export_utils import export_from_deepcast_json
+    from .export import export_from_deepcast_json
 
     # Final export step (write exported-<timestamp>.* from consensus or selected track)
     try:
@@ -1488,8 +1487,9 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
     def yn(val: bool) -> str:
         return "yes" if val else "no"
 
+    preset_value = config['preset'].value if hasattr(config['preset'], 'value') else config['preset']
     summary = (
-        f"preset={config['preset'] or '-'}  align={yn(config['align'])}  "
+        f"preset={preset_value or '-'}  align={yn(config['align'])}  "
         f"diarize={yn(config['diarize'])}  preprocess={yn(config['preprocess'])}  "
         f"restore={yn(config['restore'])}  deepcast={yn(config['deepcast'])}  "
         f"dual={yn(config['dual'])}"
@@ -1569,9 +1569,10 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
     if config["deepcast_pdf"]:
         outputs.append("pdf")
 
+    preset_display = config['preset'].value if hasattr(config['preset'], 'value') else config['preset']
     preview = (
         f"Pipeline: {' → '.join(stages)}\n"
-        f"ASR={config['model']} preset={config['preset'] or '-'} dual={yn(config['dual'])} "
+        f"ASR={config['model']} preset={preset_display or '-'} dual={yn(config['dual'])} "
         f"align={yn(config['align'])} diarize={yn(config['diarize'])} "
         f"preprocess={yn(config['preprocess'])} restore={yn(config['restore'])}\n"
         f"AI={config['deepcast_model']} type={chosen_type or '-'} outputs={','.join(outputs) or '-'}"
