@@ -23,6 +23,7 @@ from ..ui_styles import (
 
 # Import from new ui/ package modules
 from .confirmation import Confirmation
+from .deepcast_selector import select_deepcast_type
 from .episode_selector import (
     scan_episode_status,
     select_episode_interactive,
@@ -54,6 +55,7 @@ __all__ = [
     "clean_cell",
     "sanitize_filename",
     "scan_episode_status",
+    "select_deepcast_type",
     "select_episode_interactive",
     "select_fidelity_interactive",
 ]
