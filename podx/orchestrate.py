@@ -42,8 +42,6 @@ from . import (
     transcode,
     transcribe,
 )
-from .deepcast import CANONICAL_TYPES as DC_CANONICAL_TYPES  # type: ignore
-from .deepcast import ALIAS_TYPES as DC_ALIAS_TYPES  # type: ignore
 from .pricing import load_model_catalog, estimate_deepcast_cost  # type: ignore
 from .config import get_config
 from .errors import ValidationError
@@ -599,35 +597,11 @@ def run(
             deepcast_pdf = Confirmation.yes_no("Also render PDF (pandoc)", deepcast_pdf)
 
             # Deepcast type override (canonical or alias), default from YAML
+            from .ui import select_deepcast_type
+
             chosen_type = yaml_analysis_type
             if deepcast or dual:
-                type_prompt_default = chosen_type or "general"
-                # Build selectable list: canonical + aliases
-                type_options = [t.value for t in DC_CANONICAL_TYPES] + list(DC_ALIAS_TYPES.keys())
-                # Build short descriptions
-                desc: dict[str,str] = {
-                    "interview_guest_focused": "Interview; emphasize guest insights",
-                    "panel_discussion": "Multi-speaker panel; perspectives & dynamics",
-                    "solo_commentary": "Single voice; host analysis/thoughts",
-                    "general": "Generic structure; adapt to content",
-                    "host_moderated_panel": "Host sets sections; panel discussion per section",
-                    "cohost_commentary": "Two peers; back-and-forth commentary",
-                }
-                console.print("\n[bold cyan]Select Deepcast type:[/bold cyan]")
-                for i, tname in enumerate(type_options, start=1):
-                    marker = " ← default" if tname == type_prompt_default else ""
-                    d = desc.get(tname, "")
-                    console.print(f"  {i:2}  {tname}  [dim]{d}[/dim]{marker}")
-                t_in = input(f"👉 Choose 1-{len(type_options)} (Enter keeps '{type_prompt_default}', Q=cancel): ").strip()
-                if t_in.upper() in {"Q","QUIT","EXIT"}:
-                    raise SystemExit(0)
-                if t_in:
-                    try:
-                        t_idx = int(t_in)
-                        if 1 <= t_idx <= len(type_options):
-                            chosen_type = type_options[t_idx - 1]
-                    except ValueError:
-                        pass
+                chosen_type = select_deepcast_type(console, default_type=yaml_analysis_type)
 
             # Preview pipeline with optional cost estimate
             stages = ["fetch", "transcode", "transcribe"]
