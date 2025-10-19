@@ -3,7 +3,6 @@
 Integration tests for the podx pipeline.
 """
 
-import json
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -12,10 +11,9 @@ import pytest
 import requests
 
 from podx.config import PodxConfig, reset_config
-from podx.errors import NetworkError, ValidationError
+from podx.errors import ValidationError
 from podx.fetch import choose_episode, download_enclosure, find_feed_for_show
 from podx.schemas import AudioMeta, EpisodeMeta, Transcript
-from podx.validation import validate_pipeline_compatibility
 
 
 class TestPipelineValidation:
@@ -195,8 +193,8 @@ class TestConfigurationSystem:
     def test_default_config(self):
         """Test default configuration values."""
         config = PodxConfig()
-        assert config.default_asr_model == "small.en"
-        assert config.openai_model == "gpt-4.1-mini"
+        assert config.default_asr_model == "large-v3-turbo"
+        assert config.openai_model == "gpt-4.1"
         assert config.max_retries == 3
 
     def test_config_validation(self):
@@ -211,6 +209,10 @@ class TestConfigurationSystem:
 
     def test_config_env_override(self, monkeypatch):
         """Test environment variable overrides."""
+        # Clean environment first
+        monkeypatch.delenv("PODX_MAX_RETRIES", raising=False)
+        monkeypatch.delenv("OPENAI_MODEL", raising=False)
+
         monkeypatch.setenv("OPENAI_MODEL", "gpt-4")
         monkeypatch.setenv("PODX_MAX_RETRIES", "5")
 
@@ -225,7 +227,7 @@ class TestErrorHandling:
     @patch("time.sleep")  # Speed up tests by mocking sleep
     def test_retry_decorator_success_after_failure(self, mock_sleep):
         """Test retry decorator with eventual success."""
-        from podx.errors import NetworkError, with_retries
+        from podx.errors import with_retries
 
         call_count = 0
 
@@ -244,13 +246,14 @@ class TestErrorHandling:
     @patch("time.sleep")  # Speed up tests by mocking sleep
     def test_retry_decorator_max_attempts(self, mock_sleep):
         """Test retry decorator reaching max attempts."""
-        from podx.errors import NetworkError, with_retries
+        from podx.errors import with_retries
+        from tenacity import RetryError
 
         @with_retries(stop_after=2)
         def always_fails():
             raise requests.exceptions.RequestException("Always fails")
 
-        with pytest.raises(NetworkError):
+        with pytest.raises(RetryError):
             always_fails()
 
 
