@@ -49,9 +49,6 @@ from .fetch import _generate_workdir
 from .help import help_cmd
 from .logging import get_logger, setup_logging
 from .plugins import PluginManager, PluginType, get_registry
-from .podcast_config import (
-    get_podcast_config,
-)
 from .progress import (
     PodxProgress,
     format_duration,
@@ -60,11 +57,7 @@ from .progress import (
     print_podx_success,
 )
 from .export import export_from_deepcast_json
-from .yaml_config import (
-    get_notion_database_config,
-    get_podcast_yaml_config,
-    get_yaml_config_manager,
-)
+from .yaml_config import get_yaml_config_manager
 
 # Initialize logging
 setup_logging()
@@ -724,138 +717,38 @@ def run(
             )
 
         # Check for podcast-specific configuration after we have the show name
+        from .utils import apply_podcast_config
+
         show_name = meta.get("show") or meta.get("show_name", "")
 
-        # Try YAML config first, then fall back to JSON config
-        yaml_config = get_podcast_yaml_config(show_name) if show_name else None
-        json_config = get_podcast_config(show_name) if show_name else None
+        # Apply podcast-specific configuration from YAML or JSON
+        current_flags = {
+            "align": align,
+            "diarize": diarize,
+            "deepcast": deepcast,
+            "extract_markdown": extract_markdown,
+            "notion": notion,
+        }
+        config_result = apply_podcast_config(
+            show_name=show_name,
+            current_flags=current_flags,
+            deepcast_model=deepcast_model,
+            deepcast_temp=deepcast_temp,
+            notion=notion,
+            logger=logger,
+        )
 
-        # Apply podcast-specific defaults (YAML takes precedence over JSON)
-        active_config = yaml_config or json_config
-        config_type = "YAML" if yaml_config else "JSON" if json_config else None
-        yaml_analysis_type = None  # Initialize for later use
-
-        if active_config:
-            # Determine config type and extract settings
-            if yaml_config:
-                logger.info(
-                    "Found YAML podcast configuration",
-                    show=show_name,
-                    config_type=config_type,
-                )
-
-                # Apply YAML pipeline defaults
-                if yaml_config.pipeline:
-                    if not align and yaml_config.pipeline.align:
-                        align = True
-                        logger.info("Applied YAML config: align = True")
-                    if not diarize and yaml_config.pipeline.diarize:
-                        diarize = True
-                        logger.info("Applied YAML config: diarize = True")
-                    if not deepcast and yaml_config.pipeline.deepcast:
-                        deepcast = True
-                        logger.info("Applied YAML config: deepcast = True")
-                    if not extract_markdown and yaml_config.pipeline.extract_markdown:
-                        extract_markdown = True
-                        logger.info("Applied YAML config: extract_markdown = True")
-                    if not notion and yaml_config.pipeline.notion:
-                        notion = True
-                        logger.info("Applied YAML config: notion = True")
-
-                # Apply YAML analysis settings
-                if yaml_config.analysis:
-                    base_config = get_config()
-                    if (
-                        deepcast_model == base_config.openai_model
-                        and yaml_config.analysis.model
-                    ):
-                        deepcast_model = yaml_config.analysis.model
-                        logger.info("Applied YAML config model", model=deepcast_model)
-                    if (
-                        abs(deepcast_temp - base_config.openai_temperature) < 0.001
-                        and yaml_config.analysis.temperature
-                    ):
-                        deepcast_temp = yaml_config.analysis.temperature
-                        logger.info(
-                            "Applied YAML config temperature", temperature=deepcast_temp
-                        )
-                    # Store analysis type for later use in deepcast
-                    if yaml_config.analysis.type:
-                        yaml_analysis_type = yaml_config.analysis.type.value
-                        logger.info(
-                            "Applied YAML config analysis type", type=yaml_analysis_type
-                        )
-
-                # Handle Notion database selection
-                if yaml_config.notion_database and notion:
-                    notion_db_config = get_notion_database_config(
-                        yaml_config.notion_database
-                    )
-                    if notion_db_config:
-                        notion_db = notion_db_config.database_id
-                        logger.info(
-                            "Applied YAML Notion database",
-                            database=yaml_config.notion_database,
-                        )
-                        # Could also set environment variables for the token
-                        import os
-
-                        os.environ["NOTION_TOKEN"] = notion_db_config.token
-                        os.environ["NOTION_PODCAST_PROP"] = (
-                            notion_db_config.podcast_property
-                        )
-                        os.environ["NOTION_DATE_PROP"] = notion_db_config.date_property
-                        os.environ["NOTION_EPISODE_PROP"] = (
-                            notion_db_config.episode_property
-                        )
-
-            elif json_config:
-                logger.info(
-                    "Found JSON podcast configuration",
-                    show=show_name,
-                    config_type=json_config.podcast_type.value,
-                )
-
-                # Apply JSON defaults (original logic)
-                config_flags = json_config.default_flags
-
-                if not align and config_flags.get("align", False):
-                    align = True
-                    logger.info("Applied JSON config: align = True")
-                if not diarize and config_flags.get("diarize", False):
-                    diarize = True
-                    logger.info("Applied JSON config: diarize = True")
-                if not deepcast and config_flags.get("deepcast", False):
-                    deepcast = True
-                    logger.info("Applied JSON config: deepcast = True")
-                if not extract_markdown and (
-                    config_flags.get("extract_markdown", False)
-                    or json_config.extract_markdown
-                ):
-                    extract_markdown = True
-                    logger.info("Applied JSON config: extract_markdown = True")
-                if not notion and (
-                    config_flags.get("notion", False) or json_config.notion_upload
-                ):
-                    notion = True
-                    logger.info("Applied JSON config: notion = True")
-
-                # Apply model preferences
-                base_config = get_config()
-                if (
-                    deepcast_model == base_config.openai_model
-                    and json_config.deepcast_model
-                ):
-                    deepcast_model = json_config.deepcast_model
-                    logger.info("Applied JSON config model", model=deepcast_model)
-                if (
-                    abs(deepcast_temp - base_config.openai_temperature) < 0.001
-                    and json_config.temperature
-                ):
-                    deepcast_temp = json_config.temperature
-                    logger.info(
-                        "Applied JSON config temperature", temperature=deepcast_temp
-                    )
+        # Extract updated values from result
+        align = config_result.flags.get("align", align)
+        diarize = config_result.flags.get("diarize", diarize)
+        deepcast = config_result.flags.get("deepcast", deepcast)
+        extract_markdown = config_result.flags.get("extract_markdown", extract_markdown)
+        notion = config_result.flags.get("notion", notion)
+        deepcast_model = config_result.deepcast_model
+        deepcast_temp = config_result.deepcast_temp
+        yaml_analysis_type = config_result.yaml_analysis_type
+        if config_result.notion_db:
+            notion_db = config_result.notion_db
 
         # Show pipeline configuration (after YAML/JSON config is applied)
         steps = ["fetch", "transcode", "transcribe"]
