@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 try:
     from rich.panel import Panel
@@ -14,14 +14,15 @@ except ImportError:
 
 from ..logging import get_logger
 from ..ui_styles import (
+
     TABLE_BORDER_STYLE,
     TABLE_HEADER_STYLE,
     TABLE_NUM_STYLE,
     TABLE_SHOW_STYLE,
     TABLE_DATE_STYLE,
     TABLE_TITLE_COL_STYLE,
-    make_console,
 )
+from .interactive_browser import InteractiveBrowser
 
 logger = get_logger(__name__)
 
@@ -106,17 +107,18 @@ def scan_alignable_transcripts(scan_dir: Path) -> List[Dict[str, Any]]:
     return transcripts
 
 
-class AlignBrowser:
+class AlignBrowser(InteractiveBrowser):
     """Interactive browser for selecting transcripts to align."""
 
     def __init__(self, transcripts: List[Dict[str, Any]], items_per_page: int = 10):
-        self.transcripts = transcripts
-        self.items_per_page = items_per_page
-        self.console = make_console() if RICH_AVAILABLE else None
-        self.current_page = 0
-        self.total_pages = max(
-            1, (len(transcripts) + items_per_page - 1) // items_per_page
-        )
+        super().__init__(transcripts, items_per_page, item_name="transcript")
+        # Keep transcripts as alias for backward compatibility
+        self.transcripts = self.items
+
+    def _get_item_title(self, item: Dict[str, Any]) -> str:
+        """Get title of episode for selection confirmation."""
+        episode_meta = item.get("episode_meta", {})
+        return episode_meta.get("episode_title", "Unknown")
 
     def display_page(self) -> None:
         """Display current page with table and navigation options."""
@@ -125,8 +127,8 @@ class AlignBrowser:
 
         # Calculate page bounds
         start_idx = self.current_page * self.items_per_page
-        end_idx = min(start_idx + self.items_per_page, len(self.transcripts))
-        page_items = self.transcripts[start_idx:end_idx]
+        end_idx = min(start_idx + self.items_per_page, len(self.items))
+        page_items = self.items[start_idx:end_idx]
 
         # Create title (shortened per spec)
         title = f"🎙️ Episodes Available for Alignment (Page {self.current_page + 1}/{self.total_pages})"
@@ -181,7 +183,7 @@ class AlignBrowser:
         # Show navigation options in Panel
         options = []
         options.append(
-            f"[cyan]1-{len(self.transcripts)}[/cyan]: Select episode to align"
+            f"[cyan]1-{len(self.items)}[/cyan]: Select episode to align"
         )
 
         if self.current_page < self.total_pages - 1:
@@ -197,59 +199,3 @@ class AlignBrowser:
             options_text, title="Options", border_style="blue", padding=(0, 1)
         )
         self.console.print(panel)
-
-    def get_user_input(self) -> Optional[Dict[str, Any]]:
-        """Get user input and return selected item or None for quit."""
-        if not self.console:
-            return None
-
-        user_input = input("\n👉 Your choice: ").strip().upper()
-
-        # Quit
-        if user_input in ["Q", "QUIT", "EXIT"]:
-            self.console.print("👋 Goodbye!")
-            return None
-
-        # Next page
-        if user_input == "N" and self.current_page < self.total_pages - 1:
-            self.current_page += 1
-            return {}  # Signal page change
-
-        # Previous page
-        if user_input == "P" and self.current_page > 0:
-            self.current_page -= 1
-            return {}  # Signal page change
-
-        # Episode selection
-        try:
-            episode_num = int(user_input)
-            if 1 <= episode_num <= len(self.transcripts):
-                selected = self.transcripts[episode_num - 1]
-                # Show confirmation
-                title = selected["episode_meta"].get("episode_title", "Unknown")
-                self.console.print(f"✅ Selected: [green]{title}[/green]")
-                return selected
-            else:
-                self.console.print(
-                    f"[red]❌ Invalid choice. Please select 1-{len(self.transcripts)}[/red]"
-                )
-                return {}  # Stay on same page
-        except ValueError:
-            self.console.print("[red]❌ Invalid input. Please enter a number.[/red]")
-            return {}  # Stay on same page
-
-    def browse(self) -> Optional[Dict[str, Any]]:
-        """Main browsing loop. Returns selected transcript or None."""
-        if not self.console:
-            return None
-
-        while True:
-            self.console.clear()
-            self.display_page()
-            result = self.get_user_input()
-
-            # {} signals page change, keep looping
-            if result == {}:
-                continue
-            # None signals quit or actual selection
-            return result

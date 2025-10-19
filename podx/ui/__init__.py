@@ -39,6 +39,7 @@ from .episode_selector import (
 )
 from .fetch_browser import EpisodeBrowser
 from .formatters import clean_cell, sanitize_filename
+from .interactive_browser import InteractiveBrowser
 from .live_timer import LiveTimer
 from .transcode_browser import TranscodeBrowser, scan_transcodable_episodes
 from .transcribe_browser import TranscribeBrowser, scan_transcribable_episodes
@@ -69,6 +70,7 @@ __all__ = [
     "DeepcastBrowser",
     "DiarizeBrowser",
     "EpisodeBrowser",
+    "InteractiveBrowser",
     "LiveTimer",
     "TranscodeBrowser",
     "TranscribeBrowser",
