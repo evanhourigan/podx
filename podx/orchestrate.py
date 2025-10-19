@@ -726,8 +726,16 @@ def _execute_deepcast(
             # Agreement
             progress.start_step("Computing agreement between analyses")
             agr_out = wd / f"agreement-{safe_model}-{deepcast_model.replace('.', '_')}.json"
+            from .services import CommandBuilder
+
+            agreement_cmd = (
+                CommandBuilder("podx-agreement")
+                .add_option("--a", str(dc_prec))
+                .add_option("--b", str(dc_rec))
+                .add_option("--model", deepcast_model)
+            )
             _run(
-                ["podx-agreement", "--a", str(dc_prec), "--b", str(dc_rec), "--model", deepcast_model],
+                agreement_cmd.build(),
                 verbose=verbose,
                 save_to=agr_out,
             )
@@ -738,18 +746,15 @@ def _execute_deepcast(
             if not no_consensus:
                 progress.start_step("Merging consensus output")
                 cons_out = wd / f"consensus-{safe_model}-{deepcast_model.replace('.', '_')}.json"
+                consensus_cmd = (
+                    CommandBuilder("podx-consensus")
+                    .add_option("--precision", str(dc_prec))
+                    .add_option("--recall", str(dc_rec))
+                    .add_option("--agreement", str(agr_out))
+                    .add_option("--output", str(cons_out))
+                )
                 _run(
-                    [
-                        "podx-consensus",
-                        "--precision",
-                        str(dc_prec),
-                        "--recall",
-                        str(dc_rec),
-                        "--agreement",
-                        str(agr_out),
-                        "--output",
-                        str(cons_out),
-                    ],
+                    consensus_cmd.build(),
                     verbose=verbose,
                     save_to=cons_out,
                 )
