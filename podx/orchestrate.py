@@ -478,23 +478,14 @@ def run(
 
     # Map --workflow presets first (can be combined with fidelity)
     if workflow:
-        if workflow == "quick":
-            align = False
-            diarize = False
-            deepcast = False
-            extract_markdown = False
-            notion = False
-        elif workflow == "analyze":
-            align = True
-            diarize = False
-            deepcast = True
-            extract_markdown = True
-        elif workflow == "publish":
-            align = True
-            diarize = False
-            deepcast = True
-            extract_markdown = True
-            notion = True
+        from .utils import apply_workflow_preset
+
+        workflow_flags = apply_workflow_preset(workflow)
+        align = workflow_flags.get("align", align)
+        diarize = workflow_flags.get("diarize", diarize)
+        deepcast = workflow_flags.get("deepcast", deepcast)
+        extract_markdown = workflow_flags.get("extract_markdown", extract_markdown)
+        notion = workflow_flags.get("notion", notion)
 
     # Map --fidelity to flags (lowest→highest)
     # 1: deepcast only (use latest transcript)
