@@ -31,6 +31,7 @@ from .episode_selector import (
 )
 from .fetch_browser import EpisodeBrowser
 from .formatters import clean_cell, sanitize_filename
+from .transcribe_browser import TranscribeBrowser, scan_transcribable_episodes
 
 __all__ = [
     # From ui_styles.py
@@ -54,9 +55,11 @@ __all__ = [
     # From new ui/ package
     "Confirmation",
     "EpisodeBrowser",
+    "TranscribeBrowser",
     "clean_cell",
     "sanitize_filename",
     "scan_episode_status",
+    "scan_transcribable_episodes",
     "select_deepcast_type",
     "select_episode_interactive",
     "select_fidelity_interactive",
