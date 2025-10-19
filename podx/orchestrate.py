@@ -1957,42 +1957,6 @@ def run(
         no_keep_audio=no_keep_audio,
     )
 
-    # Unpack config to local variables (for existing pipeline code compatibility)
-    show = config["show"]
-    rss_url = config["rss_url"]
-    youtube_url = config["youtube_url"]
-    date = config["date"]
-    title_contains = config["title_contains"]
-    workdir = config["workdir"]
-    fmt = config["fmt"]
-    model = config["model"]
-    compute = config["compute"]
-    asr_provider = config["asr_provider"]
-    preset = config["preset"]
-    align = config["align"]
-    preprocess = config["preprocess"]
-    restore = config["restore"]
-    diarize = config["diarize"]
-    deepcast = config["deepcast"]
-    dual = config["dual"]
-    no_consensus = config["no_consensus"]
-    deepcast_model = config["deepcast_model"]
-    deepcast_temp = config["deepcast_temp"]
-    extract_markdown = config["extract_markdown"]
-    deepcast_pdf = config["deepcast_pdf"]
-    notion = config["notion"]
-    notion_db = config["notion_db"]
-    podcast_prop = config["podcast_prop"]
-    date_prop = config["date_prop"]
-    episode_prop = config["episode_prop"]
-    model_prop = config["model_prop"]
-    asr_prop = config["asr_prop"]
-    append_content = config["append_content"]
-    verbose = config["verbose"]
-    clean = config["clean"]
-    no_keep_audio = config["no_keep_audio"]
-    yaml_analysis_type = config["yaml_analysis_type"]
-
     # Print header and start progress tracking
     print_podx_header()
 
@@ -2015,61 +1979,37 @@ def run(
             console = make_console()
             interactive_meta, interactive_wd = _handle_interactive_mode(config, scan_dir, console)
 
-            # Update local variables from modified config
-            model = config["model"]
-            deepcast_model = config["deepcast_model"]
-            align = config["align"]
-            diarize = config["diarize"]
-            preprocess = config["preprocess"]
-            restore = config["restore"]
-            deepcast = config["deepcast"]
-            dual = config["dual"]
-            preset = config["preset"]
-            extract_markdown = config["extract_markdown"]
-            deepcast_pdf = config["deepcast_pdf"]
-            yaml_analysis_type = config["yaml_analysis_type"]
-
         # 3. Fetch episode metadata and determine working directory
         meta, wd = _execute_fetch(
             config=config,
             interactive_mode_meta=interactive_meta,
             interactive_mode_wd=interactive_wd,
             progress=progress,
-            verbose=verbose,
+            verbose=config["verbose"],
         )
-
-        # Update local variables from podcast-specific config overrides
-        align = config["align"]
-        diarize = config["diarize"]
-        deepcast = config["deepcast"]
-        extract_markdown = config["extract_markdown"]
-        notion = config["notion"]
-        deepcast_model = config["deepcast_model"]
-        deepcast_temp = config["deepcast_temp"]
-        yaml_analysis_type = config["yaml_analysis_type"]
 
         # Show pipeline configuration (after YAML/JSON config is applied)
         steps = _display_pipeline_config(
-            align=align,
-            diarize=diarize,
-            deepcast=deepcast,
-            notion=notion,
-            show=show,
-            rss_url=rss_url,
-            date=date,
-            model=model,
-            compute=compute,
+            align=config["align"],
+            diarize=config["diarize"],
+            deepcast=config["deepcast"],
+            notion=config["notion"],
+            show=config["show"],
+            rss_url=config["rss_url"],
+            date=config["date"],
+            model=config["model"],
+            compute=config["compute"],
         )
 
         # Working directory determined by _execute_fetch()
         wd.mkdir(parents=True, exist_ok=True)
 
         # For YouTube URLs, now do the full fetch with proper workdir
-        if youtube_url:
+        if config["youtube_url"]:
             from .youtube import fetch_youtube_episode
 
             progress.start_step("Downloading YouTube audio")
-            meta = fetch_youtube_episode(youtube_url, wd)
+            meta = fetch_youtube_episode(config["youtube_url"], wd)
             progress.complete_step(f"YouTube audio downloaded: {wd / '*.mp3'}")
         # Save metadata to the determined workdir
         (wd / "episode-meta.json").write_text(json.dumps(meta, indent=2))
@@ -2082,56 +2022,56 @@ def run(
         if audio_meta_file.exists():
             logger.info("Found existing audio metadata, skipping transcode")
             audio = json.loads(audio_meta_file.read_text())
-            progress.complete_step(f"Using existing {fmt} audio", 0)
+            progress.complete_step(f"Using existing {config['fmt']} audio", 0)
         else:
-            progress.start_step(f"Transcoding audio to {fmt}")
+            progress.start_step(f"Transcoding audio to {config['fmt']}")
             step_start = time.time()
             from .services import CommandBuilder
 
             transcode_cmd = (
                 CommandBuilder("podx-transcode")
-                .add_option("--to", fmt)
+                .add_option("--to", config["fmt"])
                 .add_option("--outdir", str(wd))
             )
             audio = _run(
                 transcode_cmd.build(),
                 stdin_payload=meta,
-                verbose=verbose,
+                verbose=config["verbose"],
                 save_to=audio_meta_file,
                 label=None,  # Progress handles the display
             )
             step_duration = time.time() - step_start
-            progress.complete_step(f"Audio transcoded to {fmt}", step_duration)
+            progress.complete_step(f"Audio transcoded to {config['fmt']}", step_duration)
 
         # Track transcoded audio path for cleanup
         transcoded_path = Path(audio["audio_path"])
 
         # 3) TRANSCRIBE → transcript-{model}.json (or dual precision/recall)
         latest, latest_name = _execute_transcribe(
-            model=model,
-            compute=compute,
-            asr_provider=asr_provider,
-            preset=preset,
-            dual=dual,
+            model=config["model"],
+            compute=config["compute"],
+            asr_provider=config["asr_provider"],
+            preset=config["preset"],
+            dual=config["dual"],
             audio=audio,
             wd=wd,
             progress=progress,
-            verbose=verbose,
+            verbose=config["verbose"],
         )
 
         # 4-6) ENHANCEMENT PIPELINE (preprocess, align, diarize)
         latest, latest_name = _execute_enhancement(
-            preprocess=preprocess,
-            restore=restore,
-            align=align,
-            diarize=diarize,
-            dual=dual,
-            model=model,
+            preprocess=config["preprocess"],
+            restore=config["restore"],
+            align=config["align"],
+            diarize=config["diarize"],
+            dual=config["dual"],
+            model=config["model"],
             latest=latest,
             latest_name=latest_name,
             wd=wd,
             progress=progress,
-            verbose=verbose,
+            verbose=config["verbose"],
         )
 
         # Always keep a pointer to the latest JSON/SRT/TXT for convenience
@@ -2143,63 +2083,63 @@ def run(
             latest_name=latest_name,
             wd=wd,
             progress=progress,
-            verbose=verbose,
+            verbose=config["verbose"],
         )
 
         # 7) DEEPCAST (optional) or implied by dual → deepcast for one or both
         _execute_deepcast(
-            deepcast=deepcast,
-            dual=dual,
-            no_consensus=no_consensus,
-            model=model,
-            deepcast_model=deepcast_model,
-            deepcast_temp=deepcast_temp,
-            yaml_analysis_type=yaml_analysis_type,
-            extract_markdown=extract_markdown,
-            deepcast_pdf=deepcast_pdf,
+            deepcast=config["deepcast"],
+            dual=config["dual"],
+            no_consensus=config["no_consensus"],
+            model=config["model"],
+            deepcast_model=config["deepcast_model"],
+            deepcast_temp=config["deepcast_temp"],
+            yaml_analysis_type=config["yaml_analysis_type"],
+            extract_markdown=config["extract_markdown"],
+            deepcast_pdf=config["deepcast_pdf"],
             wd=wd,
             results=results,
             progress=progress,
-            verbose=verbose,
+            verbose=config["verbose"],
         )
 
         # Final export step (write exported-<timestamp>.* from consensus or selected track)
         _execute_export_final(
-            dual=dual,
-            no_consensus=no_consensus,
-            preset=preset,
-            deepcast_pdf=deepcast_pdf,
+            dual=config["dual"],
+            no_consensus=config["no_consensus"],
+            preset=config["preset"],
+            deepcast_pdf=config["deepcast_pdf"],
             wd=wd,
             results=results,
         )
 
         # 7) NOTION (optional) — requires DB id
-        if notion and not dual:
-            if not notion_db:
+        if config["notion"] and not config["dual"]:
+            if not config["notion_db"]:
                 raise SystemExit(
                     "Please pass --db or set NOTION_DB_ID environment variable"
                 )
 
             _execute_notion_upload(
-                notion_db=notion_db,
+                notion_db=config["notion_db"],
                 wd=wd,
                 results=results,
-                deepcast_model=deepcast_model,
-                model=model,
-                podcast_prop=podcast_prop,
-                date_prop=date_prop,
-                episode_prop=episode_prop,
-                model_prop=model_prop,
-                asr_prop=asr_prop,
-                append_content=append_content,
+                deepcast_model=config["deepcast_model"],
+                model=config["model"],
+                podcast_prop=config["podcast_prop"],
+                date_prop=config["date_prop"],
+                episode_prop=config["episode_prop"],
+                model_prop=config["model_prop"],
+                asr_prop=config["asr_prop"],
+                append_content=config["append_content"],
                 progress=progress,
-                verbose=verbose,
+                verbose=config["verbose"],
             )
 
         # 8) Optional cleanup
         _execute_cleanup(
-            clean=clean,
-            no_keep_audio=no_keep_audio,
+            clean=config["clean"],
+            no_keep_audio=config["no_keep_audio"],
             wd=wd,
             latest_name=latest_name,
             transcoded_path=transcoded_path,
