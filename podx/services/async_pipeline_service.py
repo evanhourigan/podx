@@ -123,9 +123,12 @@ class AsyncPipelineService:
                 audio = json.loads(audio_meta_file.read_text())
                 await self._call_progress(progress_callback, "transcode", "Using existing transcoded audio")
             else:
+                # Convert fmt enum to string value if needed
+                fmt_value = self.config.fmt.value if hasattr(self.config.fmt, 'value') else self.config.fmt
+
                 audio = await self.executor.transcode(
                     meta=meta,
-                    fmt=self.config.fmt,
+                    fmt=fmt_value,
                     outdir=workdir,
                 )
                 audio_meta_file.write_text(json.dumps(audio, indent=2))
@@ -136,12 +139,15 @@ class AsyncPipelineService:
             # 4. Transcribe audio
             await self._call_progress(progress_callback, "transcribe", "Transcribing audio...")
 
+            # Convert preset enum to string value if needed
+            preset_value = self.config.preset.value if hasattr(self.config.preset, 'value') else self.config.preset
+
             transcript = await self.executor.transcribe(
                 audio=audio,
                 model=self.config.model,
                 compute=self.config.compute,
                 asr_provider=self.config.asr_provider or "auto",
-                preset=self.config.preset,
+                preset=preset_value,
             )
 
             transcript_file = workdir / f"transcript-{self.config.model}.json"
@@ -213,11 +219,14 @@ class AsyncPipelineService:
             if self.config.deepcast:
                 await self._call_progress(progress_callback, "deepcast", "Running AI analysis...")
 
+                # Convert analysis_type enum to string value if needed
+                analysis_type_value = self.config.analysis_type.value if hasattr(self.config.analysis_type, 'value') else self.config.analysis_type
+
                 deepcast_result = await self.executor.deepcast(
                     transcript=latest_transcript,
                     model=self.config.deepcast_model,
                     temperature=self.config.deepcast_temp,
-                    analysis_type=self.config.analysis_type,
+                    analysis_type=analysis_type_value,
                 )
 
                 model_suffix = self.config.deepcast_model.replace(".", "_").replace("-", "_")
