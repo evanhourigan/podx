@@ -368,6 +368,8 @@ def _scan_export_rows(scan_dir: Path) -> List[Dict[str, Any]]:
 
     Returns list of rows with: show, date, title, dir, path, ai, asr, type, track
     and groups can be derived by episode directory and show.
+
+    Optimized to use single directory scan and cache episode metadata.
     """
     def _format_date_ymd(s: Optional[str]) -> str:
         if not isinstance(s, str) or not s.strip():
@@ -384,86 +386,89 @@ def _scan_export_rows(scan_dir: Path) -> List[Dict[str, Any]]:
         t = s.strip()
         return t[-10:] if len(t) >= 10 else t
 
+    # Cache for episode metadata files (avoid reading same file multiple times)
+    episode_meta_cache: Dict[Path, Dict[str, Any]] = {}
+
+    def _get_episode_meta(episode_dir: Path) -> Dict[str, Any]:
+        """Get episode metadata with caching."""
+        if episode_dir not in episode_meta_cache:
+            em = episode_dir / "episode-meta.json"
+            if em.exists():
+                try:
+                    episode_meta_cache[episode_dir] = json.loads(em.read_text(encoding="utf-8"))
+                except Exception:
+                    episode_meta_cache[episode_dir] = {}
+            else:
+                episode_meta_cache[episode_dir] = {}
+        return episode_meta_cache[episode_dir]
+
     rows: List[Dict[str, Any]] = []
 
-    # Deepcast analyses
-    for analysis_file in scan_dir.rglob("deepcast-*.json"):
-        try:
-            data = json.loads(analysis_file.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        meta = data.get("deepcast_metadata", {})
-        ai = meta.get("model", "unknown")
-        asr = meta.get("asr_model", "unknown")
-        kind = meta.get("deepcast_type") or "general"
-        stem = analysis_file.stem
-        track = "S"
-        if stem.endswith("-precision"):
-            track = "P"
-        elif stem.endswith("-recall"):
-            track = "R"
-        # Episode metadata for show/title/date
-        episode_dir = analysis_file.parent
-        em = episode_dir / "episode-meta.json"
-        show = "Unknown"
-        title = "Unknown"
-        date = "Unknown"
-        if em.exists():
-            try:
-                emd = json.loads(em.read_text(encoding="utf-8"))
-                show = emd.get("show", show)
-                title = emd.get("episode_title", title)
-                dval = emd.get("episode_published") or emd.get("date")
-                date = _format_date_ymd(dval)
-            except Exception:
-                pass
-        rows.append({
-            "path": analysis_file,
-            "dir": episode_dir,
-            "show": show,
-            "date": date,
-            "title": title,
-            "ai": ai,
-            "asr": asr,
-            "type": kind,
-            "track": track,
-        })
+    # Single pass: scan for both deepcast and consensus files
+    # Pattern matches: deepcast-*.json, consensus-*.json
+    for analysis_file in scan_dir.rglob("*cast-*.json"):
+        name = analysis_file.name
 
-    # Consensus analyses
-    for analysis_file in scan_dir.rglob("consensus-*.json"):
+        # Skip if not a deepcast or consensus file
+        if not (name.startswith("deepcast-") or name.startswith("consensus-")):
+            continue
+
         try:
             data = json.loads(analysis_file.read_text(encoding="utf-8"))
         except Exception:
             continue
-        meta = data.get("consensus_metadata", {})
-        ai = meta.get("ai_model", "unknown")
-        asr = meta.get("asr_model", "unknown")
-        dc_type = meta.get("deepcast_type") or "general"
+
         episode_dir = analysis_file.parent
-        em = episode_dir / "episode-meta.json"
-        show = "Unknown"
-        title = "Unknown"
-        date = "Unknown"
-        if em.exists():
-            try:
-                emd = json.loads(em.read_text(encoding="utf-8"))
-                show = emd.get("show", show)
-                title = emd.get("episode_title", title)
-                dval = emd.get("episode_published") or emd.get("date")
-                date = _format_date_ymd(dval)
-            except Exception:
-                pass
-        rows.append({
-            "path": analysis_file,
-            "dir": episode_dir,
-            "show": show,
-            "date": date,
-            "title": title,
-            "ai": ai,
-            "asr": asr,
-            "type": dc_type,
-            "track": "C",
-        })
+
+        # Get cached episode metadata
+        emd = _get_episode_meta(episode_dir)
+        show = emd.get("show", "Unknown")
+        title = emd.get("episode_title", "Unknown")
+        dval = emd.get("episode_published") or emd.get("date")
+        date = _format_date_ymd(dval)
+
+        # Process based on file type
+        if name.startswith("deepcast-"):
+            meta = data.get("deepcast_metadata", {})
+            ai = meta.get("model", "unknown")
+            asr = meta.get("asr_model", "unknown")
+            kind = meta.get("deepcast_type") or "general"
+            stem = analysis_file.stem
+            track = "S"
+            if stem.endswith("-precision"):
+                track = "P"
+            elif stem.endswith("-recall"):
+                track = "R"
+
+            rows.append({
+                "path": analysis_file,
+                "dir": episode_dir,
+                "show": show,
+                "date": date,
+                "title": title,
+                "ai": ai,
+                "asr": asr,
+                "type": kind,
+                "track": track,
+            })
+
+        elif name.startswith("consensus-"):
+            meta = data.get("consensus_metadata", {})
+            ai = meta.get("ai_model", "unknown")
+            asr = meta.get("asr_model", "unknown")
+            dc_type = meta.get("deepcast_type") or "general"
+
+            rows.append({
+                "path": analysis_file,
+                "dir": episode_dir,
+                "show": show,
+                "date": date,
+                "title": title,
+                "ai": ai,
+                "asr": asr,
+                "type": dc_type,
+                "track": "C",
+            })
 
     # Newest first per date then by mtime
     rows.sort(key=lambda r: (r["date"], r["path"].stat().st_mtime), reverse=True)
