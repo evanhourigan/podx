@@ -164,6 +164,29 @@ def main(fmt, bitrate, outdir, input, output, interactive, scan_dir):
             )
         src = Path(meta["audio_path"])
 
+        # If audio_path doesn't exist, try to find it in outdir
+        if not src.exists() and outdir:
+            # Try to find audio file with same basename in outdir
+            audio_extensions = [".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac"]
+            for ext in audio_extensions:
+                candidate = outdir / (src.stem + ext)
+                if candidate.exists():
+                    logger.debug(
+                        "Audio path in metadata doesn't exist; found alternative",
+                        metadata_path=str(src),
+                        actual_path=str(candidate),
+                    )
+                    src = candidate
+                    break
+
+        # Final check: if source still doesn't exist, raise clear error
+        if not src.exists():
+            raise SystemExit(
+                f"Audio file not found: {src}\n"
+                f"Metadata may contain outdated path. "
+                f"Expected file in: {outdir if outdir else src.parent}"
+            )
+
     # Determine output directory
     if outdir:
         # Use specified outdir
