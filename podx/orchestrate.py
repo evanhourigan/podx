@@ -318,7 +318,23 @@ def _execute_fetch(
     """
     # 1. Interactive mode: metadata and workdir already determined
     if interactive_mode_meta is not None and interactive_mode_wd is not None:
-        return interactive_mode_meta, interactive_mode_wd
+        # Check if audio file exists; if not, need to fetch
+        audio_path = interactive_mode_meta.get("audio_path")
+        if audio_path and Path(audio_path).exists():
+            return interactive_mode_meta, interactive_mode_wd
+
+        # Audio missing - populate config from metadata and fall through to fetch
+        if interactive_mode_meta.get("show"):
+            config["show"] = interactive_mode_meta["show"]
+        if interactive_mode_meta.get("episode_published"):
+            config["date"] = interactive_mode_meta["episode_published"]
+        if interactive_mode_meta.get("episode_title"):
+            config["title_contains"] = interactive_mode_meta["episode_title"]
+        if interactive_mode_meta.get("feed"):
+            config["rss_url"] = interactive_mode_meta["feed"]
+
+        # Use the selected episode's workdir instead of generating a new one
+        config["workdir"] = interactive_mode_wd
 
     # 2. YouTube URL mode
     if config.get("youtube_url"):
@@ -368,6 +384,8 @@ def _execute_fetch(
             fetch_cmd.add_option("--date", config["date"])
         if config.get("title_contains"):
             fetch_cmd.add_option("--title-contains", config["title_contains"])
+        if config.get("workdir"):
+            fetch_cmd.add_option("--outdir", str(config["workdir"]))
 
         # Run fetch first to get metadata
         progress.start_step("Fetching episode metadata")
