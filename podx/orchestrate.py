@@ -423,14 +423,14 @@ def _execute_fetch(
     )
 
     # Update config with podcast-specific overrides
-    config["align"] = config_result["align"]
-    config["diarize"] = config_result["diarize"]
-    config["deepcast"] = config_result["deepcast"]
-    config["extract_markdown"] = config_result["extract_markdown"]
-    config["notion"] = config_result["notion"]
-    config["deepcast_model"] = config_result.get("deepcast_model", config["deepcast_model"])
-    config["deepcast_temp"] = config_result.get("deepcast_temp", config["deepcast_temp"])
-    config["yaml_analysis_type"] = config_result.get("analysis_type")
+    config["align"] = config_result.flags["align"]
+    config["diarize"] = config_result.flags["diarize"]
+    config["deepcast"] = config_result.flags["deepcast"]
+    config["extract_markdown"] = config_result.flags["extract_markdown"]
+    config["notion"] = config_result.flags["notion"]
+    config["deepcast_model"] = config_result.deepcast_model
+    config["deepcast_temp"] = config_result.deepcast_temp
+    config["yaml_analysis_type"] = config_result.yaml_analysis_type
 
     # 5. Determine working directory
     if config.get("workdir"):
