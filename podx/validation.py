@@ -11,7 +11,6 @@ from pydantic import ValidationError as PydanticValidationError
 
 from .errors import ValidationError
 from .logging import get_logger
-from .schemas import AudioMeta, DeepcastBrief, EpisodeMeta, Transcript
 
 logger = get_logger(__name__)
 
@@ -33,9 +32,9 @@ def validate_input(schema: Type[BaseModel]) -> Callable[[F], F]:
             if args:
                 data = args[0]
                 try:
-                    validated = schema.parse_obj(data)
+                    validated = schema.model_validate(data)
                     logger.debug("Input validation passed", schema=schema.__name__)
-                    return func(validated.dict(), *args[1:], **kwargs)
+                    return func(validated.model_dump(), *args[1:], **kwargs)
                 except PydanticValidationError as e:
                     logger.error(
                         "Input validation failed",
@@ -63,9 +62,9 @@ def validate_output(schema: Type[BaseModel]) -> Callable[[F], F]:
         def wrapper(*args, **kwargs):
             result = func(*args, **kwargs)
             try:
-                validated = schema.parse_obj(result)
+                _validated = schema.model_validate(result)  # Validate but don't use
                 logger.debug("Output validation passed", schema=schema.__name__)
-                return result  # Return original result, not validated.dict()
+                return result  # Return original result, not validated model
             except PydanticValidationError as e:
                 logger.error(
                     "Output validation failed",
@@ -110,7 +109,7 @@ def validate_pipeline_compatibility(
         True if compatible, False otherwise
     """
     try:
-        expected_schema.parse_obj(data)
+        expected_schema.model_validate(data)
         return True
     except PydanticValidationError:
         return False
@@ -128,7 +127,7 @@ def safe_parse(data: Dict[str, Any], schema: Type[BaseModel]) -> Union[BaseModel
         Parsed model instance or None if validation fails
     """
     try:
-        return schema.parse_obj(data)
+        return schema.model_validate(data)
     except PydanticValidationError as e:
         logger.debug("Validation failed", schema=schema.__name__, errors=e.errors())
         return None

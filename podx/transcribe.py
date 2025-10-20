@@ -270,7 +270,7 @@ def main(
 
         # Load audio metadata
         try:
-            meta = AudioMeta.parse_obj(selected["meta_data"])
+            meta = AudioMeta.model_validate(selected["meta_data"])
         except Exception as e:
             raise ValidationError(f"Invalid AudioMeta input: {e}") from e
 
@@ -293,7 +293,7 @@ def main(
 
         # Validate input data
         try:
-            meta = AudioMeta.parse_obj(raw_data)
+            meta = AudioMeta.model_validate(raw_data)
             audio = Path(meta.audio_path)
             logger.debug("Input validation passed", audio_path=str(audio))
         except Exception as e:
