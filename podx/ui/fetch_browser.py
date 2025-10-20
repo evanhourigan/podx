@@ -90,7 +90,7 @@ class EpisodeBrowser(InteractiveBrowser):
                 return False
 
             # Extract episode information
-            self.episodes = []
+            self.items.clear()  # Clear instead of creating new list to maintain alias
             for entry in feed.entries:
                 # Get audio URL from enclosures
                 audio_url = None
@@ -134,7 +134,7 @@ class EpisodeBrowser(InteractiveBrowser):
                     "link": entry.link if hasattr(entry, "link") else "",
                 }
 
-                self.episodes.append(episode)
+                self.items.append(episode)
 
             # Calculate pagination - update base class total_pages
             self.total_pages = max(1, (
