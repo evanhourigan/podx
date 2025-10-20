@@ -231,8 +231,8 @@ def main(input_file: Optional[Path], output_file: Optional[Path], do_merge: bool
     validated_segments: List[Dict[str, Any]] = []
     for s in segs:
         try:
-            validated = Segment.parse_obj(s)
-            validated_segments.append(validated.dict())
+            validated = Segment.model_validate(s)
+            validated_segments.append(validated.model_dump())
         except Exception as e:
             logger.debug("Dropping invalid segment", error=str(e))
 
