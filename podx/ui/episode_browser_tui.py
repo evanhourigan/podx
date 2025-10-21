@@ -99,6 +99,7 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
             with Vertical(id="fetch-detail-container"):
                 yield Static("Episode Details", id="fetch-detail-title")
                 yield Static("Select a show to see episodes", id="fetch-detail-content")
+        yield Footer()
 
     def on_mount(self) -> None:
         """Set up the modal on mount."""
@@ -333,22 +334,15 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
             episode: Episode dictionary to fetch
         """
         try:
-            from ..fetch import fetch_episode
-
-            # Prepare episode info
-            episode_info = {
-                "title": episode.get("title", "Unknown"),
-                "published": episode.get("published", "Unknown"),
-                "audio_url": episode.get("audio_url"),
-                "feed_url": episode.get("feed_url"),
-            }
+            from ..fetch import fetch_episode_from_feed
 
             # Fetch the episode
-            result = fetch_episode(
+            result = fetch_episode_from_feed(
                 show_name=self.show_name or "Unknown",
                 rss_url=self.feed_url or "",
-                episode_info=episode_info,
-                output_dir=str(self.scan_dir),
+                episode_published=episode.get("published", "Unknown"),
+                episode_title=episode.get("title", "Unknown"),
+                output_dir=self.scan_dir,
             )
 
             if result:
