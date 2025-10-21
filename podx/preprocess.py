@@ -12,11 +12,23 @@ from .validation import validate_output
 from .align import scan_alignable_transcripts
 
 try:
-    from rich.console import Console
-    from rich.table import Table
+    import importlib.util
+
+    TEXTUAL_AVAILABLE = importlib.util.find_spec("textual") is not None
+except ImportError:
+    TEXTUAL_AVAILABLE = False
+
+try:
     RICH_AVAILABLE = True
 except Exception:
     RICH_AVAILABLE = False
+
+# UI imports
+try:
+    from .ui import select_episode_for_processing
+except Exception:
+    def select_episode_for_processing(*args, **kwargs):
+        raise ImportError("UI module not available")
 
 logger = get_logger(__name__)
 
@@ -140,59 +152,21 @@ def main(input_file: Optional[Path], output_file: Optional[Path], do_merge: bool
     """
     # Interactive mode: browse transcripts and select one
     if interactive:
-        if not RICH_AVAILABLE:
-            raise SystemExit("Interactive mode requires rich library. Install with: pip install rich")
-        console = Console()
-        console.print(f"[dim]Scanning for transcripts in: {scan_dir}[/dim]")
-        transcripts = scan_alignable_transcripts(Path(scan_dir))
-        if not transcripts:
-            console.print(f"[red]No transcripts found in {scan_dir}[/red]")
-            raise SystemExit("No transcript-*.json files found")
+        if not TEXTUAL_AVAILABLE:
+            raise SystemExit("Interactive mode requires textual library. Install with: pip install textual")
 
-        table = Table(show_header=True, header_style="bold magenta", title="🎙️ Transcripts Available for Preprocess")
-        table.add_column("#", style="cyan", width=3, justify="right")
-        table.add_column("ASR", style="yellow", width=10)
-        table.add_column("Show", style="green", width=18)
-        table.add_column("Date", style="blue", width=12)
-        table.add_column("Title", style="white", width=45)
+        # Browse and select transcript using Textual TUI
+        logger.info(f"Scanning for transcripts in: {scan_dir}")
+        selected = select_episode_for_processing(
+            scan_dir=Path(scan_dir),
+            title="Select Transcript for Preprocessing",
+            episode_scanner=scan_alignable_transcripts,
+        )
 
-        for idx, item in enumerate(transcripts, start=1):
-            asr = item.get("asr_model", "?")
-            meta = item.get("episode_meta", {})
-            show = meta.get("show", "Unknown")
-            # Format date as YYYY-MM-DD when possible
-            date_val = meta.get("episode_published", "")
-            if date_val:
-                try:
-                    from dateutil import parser as dtparse
-                    parsed = dtparse.parse(date_val)
-                    date = parsed.strftime("%Y-%m-%d")
-                except Exception:
-                    date = date_val[:10] if len(date_val) >= 10 else date_val
-            else:
-                # Fallback to directory name
-                try:
-                    dir_name = item.get("directory").name  # type: ignore[attr-defined]
-                    date = dir_name if dir_name else "Unknown"
-                except Exception:
-                    date = "Unknown"
-            title = meta.get("episode_title", "Unknown")
-            table.add_row(str(idx), asr, show, date, title)
-
-        console.print(table)
-        choice = input(f"\n👉 Select transcript (1-{len(transcripts)}) or Q to cancel: ").strip().upper()
-        if choice in ["Q", "QUIT", "EXIT"]:
-            console.print("[dim]Cancelled[/dim]")
+        if not selected:
+            logger.info("User cancelled transcript selection")
             raise SystemExit(0)
-        try:
-            sel = int(choice)
-            if not (1 <= sel <= len(transcripts)):
-                raise ValueError("out of range")
-        except Exception:
-            console.print("[red]Invalid selection[/red]")
-            raise SystemExit(1)
 
-        selected = transcripts[sel - 1]
         raw = selected.get("transcript_data")
         # Choose output next to transcript
         outdir = selected.get("directory")

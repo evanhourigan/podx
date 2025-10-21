@@ -13,18 +13,20 @@ logger = get_logger(__name__)
 
 # Interactive browser imports (optional)
 try:
-    import rich  # noqa: F401
+    import importlib.util
 
-    RICH_AVAILABLE = True
+    TEXTUAL_AVAILABLE = importlib.util.find_spec("textual") is not None
 except ImportError:
-    RICH_AVAILABLE = False
+    TEXTUAL_AVAILABLE = False
 
 # Shared UI components
 try:
-    from .ui import TranscodeBrowser, scan_transcodable_episodes as scan_episodes
+    from .ui import scan_transcodable_episodes, select_episode_for_processing
 except Exception:
-    TranscodeBrowser = None
-    scan_episodes = None
+    from .ui.transcode_browser import scan_transcodable_episodes
+
+    def select_episode_for_processing(*args, **kwargs):
+        raise ImportError("UI module not available")
 
 
 def ffmpeg(args):
@@ -117,24 +119,18 @@ def main(fmt, bitrate, outdir, input, output, interactive, scan_dir):
     """
     # Handle interactive mode
     if interactive:
-        if not RICH_AVAILABLE:
+        if not TEXTUAL_AVAILABLE:
             raise SystemExit(
-                "Interactive mode requires rich library. Install with: pip install rich"
+                "Interactive mode requires textual library. Install with: pip install textual"
             )
 
-        # Scan for episodes
+        # Browse and select episode using Textual TUI
         logger.info(f"Scanning for episodes in: {scan_dir}")
-        episodes = scan_episodes(Path(scan_dir))
-
-        if not episodes:
-            logger.error(f"No episodes found in {scan_dir}")
-            raise SystemExit("No episodes with episode-meta.json found")
-
-        logger.info(f"Found {len(episodes)} episodes")
-
-        # Browse and select
-        browser = TranscodeBrowser(episodes, episodes_per_page=10)
-        selected = browser.browse()
+        selected = select_episode_for_processing(
+            scan_dir=Path(scan_dir),
+            title="Select Episode for Transcoding",
+            episode_scanner=scan_transcodable_episodes,
+        )
 
         if not selected:
             logger.info("User cancelled")
