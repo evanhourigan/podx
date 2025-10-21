@@ -1020,7 +1020,7 @@ class ModelLevelProcessingBrowser(App):
 
         table.add_column("ASR Model", key="model", width=16)
         table.add_column("Show", key="show", width=20)
-        table.add_column("Date", key="date", width=12)
+        table.add_column("Date", key="date", width=10)
         table.add_column("Title", key="title")
 
         # Add rows
