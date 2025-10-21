@@ -301,6 +301,7 @@ def fetch_episode_from_feed(
         "directory": str(workdir),
         "meta": meta,
         "meta_path": str(meta_file),
+        "date": episode_published,
     }
 
 
