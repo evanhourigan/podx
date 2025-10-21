@@ -234,6 +234,11 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
         status = self.query_one("#status-message", Static)
         status.update(f"✅ Loaded {len(self.rss_episodes)} episodes")
 
+        # Update search label to show show name
+        if self.show_name:
+            label = self.query_one("#search-label", Label)
+            label.update(f"Episodes for '{self.show_name}'")
+
         # Focus the table
         table.focus()
 
@@ -386,6 +391,8 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
 
 class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]]):
     """Interactive episode browser with cursor navigation and detail panel."""
+
+    TITLE = "Episodes Available for PodX Processing"
 
     CSS = """
     #main-container {
