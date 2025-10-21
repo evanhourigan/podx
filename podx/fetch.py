@@ -22,35 +22,12 @@ UA = "podx/1.0 (+mac cli)"
 
 # Interactive browser imports (optional)
 try:
-    from rich.console import Console
+    import importlib.util
 
-    RICH_AVAILABLE = True
+    TEXTUAL_AVAILABLE = importlib.util.find_spec("textual") is not None
 except ImportError:
-    RICH_AVAILABLE = False
+    TEXTUAL_AVAILABLE = False
 
-# Shared UI styling and components
-try:
-    from .ui import (
-        EpisodeBrowser,
-        make_console,
-        TABLE_BORDER_STYLE,
-        TABLE_HEADER_STYLE,
-        TABLE_NUM_STYLE,
-        TABLE_DATE_STYLE,
-        TABLE_TITLE_COL_STYLE,
-    )
-except Exception:
-    # Fallback if ui module is not available
-    from .ui.fetch_browser import EpisodeBrowser
-
-    def make_console():
-        return Console()
-
-    TABLE_BORDER_STYLE = "grey50"
-    TABLE_HEADER_STYLE = "bold magenta"
-    TABLE_NUM_STYLE = "cyan"
-    TABLE_DATE_STYLE = "bright_blue"
-    TABLE_TITLE_COL_STYLE = "white"
 
 
 def _truncate_text(text: str, max_length: int = 80) -> str:
@@ -373,46 +350,40 @@ def main(show, rss_url, date, title_contains, outdir, output, interactive):
 
     # Handle interactive mode
     if interactive:
-        # Check if rich is available
-        if not RICH_AVAILABLE:
+        # Check if textual is available
+        if not TEXTUAL_AVAILABLE:
             raise ValidationError(
-                "Interactive mode requires additional dependencies (rich). "
-                "Install with: pip install rich"
+                "Interactive mode requires textual. "
+                "Run: pip install textual"
             )
 
-        # Create and run browser
-        browser = EpisodeBrowser(
-            show_name=show or "Podcast", rss_url=rss_url, episodes_per_page=8
+        # Import the standalone fetch browser
+        from .ui.episode_browser_tui import run_fetch_browser_standalone
+
+        # Run the browser and get selected episode
+        result = run_fetch_browser_standalone(
+            show_name=show,
+            rss_url=rss_url,
+            output_dir=outdir or Path.cwd(),
         )
 
-        selected_episode = browser.browse()
-
-        if not selected_episode:
+        if not result:
             logger.info("User cancelled episode selection")
             sys.exit(0)
 
-        # Extract episode details from selection
-        # Convert browser episode format to fetch parameters
-        episode_date = selected_episode.get("published", "")
-        episode_title = selected_episode.get("title", "")
+        # Episode was fetched, extract metadata
+        meta = result.get("meta")
+        meta_file = result.get("meta_path")
 
-        # Override parameters with selection
-        date = episode_date
-        title_contains = None  # Use date matching instead
+        # In interactive mode, save metadata if not already saved
+        if output and meta and meta_file:
+            # Copy to requested output location
+            import shutil
+            shutil.copy(meta_file, output)
+            logger.info("Episode metadata copied", destination=str(output))
 
-        # Get the actual feed URL from browser
-        if browser.rss_url:
-            rss_url = browser.rss_url
-            feed_url = rss_url
-            show_name = show or "Podcast"
-
-        logger.info(
-            "Episode selected interactively",
-            title=episode_title,
-            date=episode_date,
-        )
-
-        # Continue with normal fetch logic using the selected episode's date
+        # Return the metadata
+        return meta
 
     # Get feed URL (skip if already set by interactive mode)
     if interactive and "feed_url" in locals():
