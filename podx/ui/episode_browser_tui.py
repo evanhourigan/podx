@@ -117,16 +117,108 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
     @on(Input.Submitted, "#search-input")
     def on_search_submitted(self, event: Input.Submitted) -> None:
         """Handle search submission."""
-        show_name = event.value.strip()
-        if not show_name:
+        input_value = event.value.strip()
+        if not input_value:
             return
 
-        self.show_name = show_name
         status = self.query_one("#status-message", Static)
-        status.update(f"🔍 Searching for '{show_name}'...")
 
-        # Run the search asynchronously
-        self.search_and_load(show_name)
+        # Check if input is a URL (RSS or YouTube)
+        if input_value.startswith(("http://", "https://", "www.")):
+            # Direct URL provided
+            self.feed_url = input_value if input_value.startswith("http") else f"https://{input_value}"
+            self.show_name = "Podcast"  # Default name, will be extracted from feed
+            status.update("📡 Loading episodes from URL...")
+            self.load_episodes_from_url(self.feed_url)
+        else:
+            # Show name search
+            self.show_name = input_value
+            status.update(f"🔍 Searching for '{input_value}'...")
+            self.search_and_load(input_value)
+
+    def _parse_feed_episodes(self, feed_url: str) -> None:
+        """Parse feed and extract episode information.
+
+        Args:
+            feed_url: RSS feed URL to parse
+        """
+        import feedparser
+
+        feed = feedparser.parse(feed_url)
+
+        if not feed.entries:
+            self.app.call_from_thread(self._show_error, "No episodes found in RSS feed")
+            return
+
+        # Extract show name from feed if not already set
+        if not self.show_name or self.show_name == "Podcast":
+            if hasattr(feed.feed, "title"):
+                self.show_name = feed.feed.title
+
+        # Extract episode information
+        episodes = []
+        for entry in feed.entries:
+            # Get audio URL
+            audio_url = None
+            if hasattr(entry, "enclosures") and entry.enclosures:
+                for enclosure in entry.enclosures:
+                    if enclosure.type and "audio" in enclosure.type:
+                        audio_url = enclosure.href
+                        break
+
+            # Get duration
+            duration = None
+            if hasattr(entry, "itunes_duration"):
+                try:
+                    duration_str = entry.itunes_duration
+                    try:
+                        duration = int(duration_str)
+                    except ValueError:
+                        parts = duration_str.split(":")
+                        if len(parts) == 3:  # HH:MM:SS
+                            duration = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+                        elif len(parts) == 2:  # MM:SS
+                            duration = int(parts[0]) * 60 + int(parts[1])
+                except (ValueError, AttributeError):
+                    pass
+
+            # Parse and format published date to YYYY-MM-DD
+            published_str = "Unknown"
+            if hasattr(entry, "published"):
+                try:
+                    from dateutil import parser as dtparse
+                    parsed_date = dtparse.parse(entry.published)
+                    published_str = parsed_date.strftime("%Y-%m-%d")
+                except Exception:
+                    # Fall back to raw published string if parsing fails
+                    published_str = entry.published
+
+            episode = {
+                "title": entry.title,
+                "published": published_str,
+                "description": entry.summary if hasattr(entry, "summary") else "",
+                "audio_url": audio_url,
+                "duration": duration,
+                "link": entry.link if hasattr(entry, "link") else "",
+                "feed_url": feed_url,
+            }
+
+            episodes.append(episode)
+
+        self.rss_episodes = episodes
+        self.app.call_from_thread(self._populate_table)
+
+    @work(exclusive=True, thread=True)
+    def load_episodes_from_url(self, feed_url: str) -> None:
+        """Load episodes directly from a feed URL.
+
+        Args:
+            feed_url: RSS feed URL to load
+        """
+        try:
+            self._parse_feed_episodes(feed_url)
+        except Exception as e:
+            self.app.call_from_thread(self._show_error, f"Error loading episodes: {str(e)}")
 
     @work(exclusive=True, thread=True)
     def search_and_load(self, show_name: str) -> None:
@@ -146,70 +238,11 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
 
             self.feed_url = feed_url
 
-            # Parse RSS feed
-            import feedparser
-
-            feed = feedparser.parse(feed_url)
-
-            if not feed.entries:
-                self.app.call_from_thread(self._show_error, "No episodes found in RSS feed")
-                return
-
-            # Extract episode information
-            episodes = []
-            for entry in feed.entries:
-                # Get audio URL
-                audio_url = None
-                if hasattr(entry, "enclosures") and entry.enclosures:
-                    for enclosure in entry.enclosures:
-                        if enclosure.type and "audio" in enclosure.type:
-                            audio_url = enclosure.href
-                            break
-
-                # Get duration
-                duration = None
-                if hasattr(entry, "itunes_duration"):
-                    try:
-                        duration_str = entry.itunes_duration
-                        try:
-                            duration = int(duration_str)
-                        except ValueError:
-                            parts = duration_str.split(":")
-                            if len(parts) == 3:  # HH:MM:SS
-                                duration = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
-                            elif len(parts) == 2:  # MM:SS
-                                duration = int(parts[0]) * 60 + int(parts[1])
-                    except (ValueError, AttributeError):
-                        pass
-
-                # Parse and format published date to YYYY-MM-DD
-                published_str = "Unknown"
-                if hasattr(entry, "published"):
-                    try:
-                        from dateutil import parser as dtparse
-                        parsed_date = dtparse.parse(entry.published)
-                        published_str = parsed_date.strftime("%Y-%m-%d")
-                    except Exception:
-                        # Fall back to raw published string if parsing fails
-                        published_str = entry.published
-
-                episode = {
-                    "title": entry.title,
-                    "published": published_str,
-                    "description": entry.summary if hasattr(entry, "summary") else "",
-                    "audio_url": audio_url,
-                    "duration": duration,
-                    "link": entry.link if hasattr(entry, "link") else "",
-                    "feed_url": feed_url,
-                }
-
-                episodes.append(episode)
-
-            self.rss_episodes = episodes
-            self.app.call_from_thread(self._populate_table)
+            # Parse feed and load episodes
+            self._parse_feed_episodes(feed_url)
 
         except Exception as e:
-            self.app.call_from_thread(self._show_error, f"Error loading episodes: {str(e)}")
+            self.app.call_from_thread(self._show_error, f"Error searching: {str(e)}")
 
     def _show_error(self, message: str) -> None:
         """Show an error message.
