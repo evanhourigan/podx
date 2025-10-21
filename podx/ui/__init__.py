@@ -26,6 +26,7 @@ from .align_browser import AlignBrowser, scan_alignable_transcripts
 from .asr_selector import ASR_MODELS, get_most_sophisticated_model, select_asr_model
 from .config_panel import configure_pipeline_interactive
 from .confirmation import Confirmation
+from .episode_browser_tui import select_episode_with_tui
 from .deepcast_browser import (
     DeepcastBrowser,
     flatten_episodes_to_rows,
@@ -89,5 +90,6 @@ __all__ = [
     "select_asr_model",
     "select_deepcast_type",
     "select_episode_interactive",
+    "select_episode_with_tui",
     "select_fidelity_interactive",
 ]

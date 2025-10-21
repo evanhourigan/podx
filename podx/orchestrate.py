@@ -1585,15 +1585,13 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
     Raises:
         SystemExit: If user cancels selection
     """
-    from .ui import select_episode_interactive, select_fidelity_interactive
+    from .ui import select_episode_with_tui, select_fidelity_interactive
     from .utils import apply_fidelity_preset
 
     # 1. Episode selection
-    selected, meta = select_episode_interactive(
+    selected, meta = select_episode_with_tui(
         scan_dir=scan_dir,
         show_filter=config["show"],
-        console=console,
-        run_passthrough_fn=_run_passthrough,
     )
 
     # 2. Fidelity choice with interactive mapping
