@@ -31,12 +31,12 @@ except ImportError:
 
 # Shared UI components
 try:
-    from .ui import scan_alignable_transcripts, select_episode_for_processing
+    from .ui import scan_alignable_transcripts
+    from .ui.episode_browser_tui import ModelLevelProcessingBrowser
 except Exception:
     from .ui.align_browser import scan_alignable_transcripts
 
-    def select_episode_for_processing(*args, **kwargs):
-        raise ImportError("UI module not available")
+    ModelLevelProcessingBrowser = None
 
 
 class LiveTimer:
@@ -127,13 +127,22 @@ def main(audio, input, output, interactive, scan_dir):
                 "Interactive mode requires textual library. Install with: pip install textual"
             )
 
-        # Browse and select transcript using Textual TUI
+        # Scan for transcripts
         logger.info(f"Scanning for transcripts in: {scan_dir}")
-        selected = select_episode_for_processing(
-            scan_dir=Path(scan_dir),
-            title="Select Transcript for Alignment",
-            episode_scanner=scan_alignable_transcripts,
-        )
+        transcripts = scan_alignable_transcripts(Path(scan_dir))
+
+        if not transcripts:
+            logger.error(f"No transcripts found in {scan_dir}")
+            raise SystemExit("No transcript-*.json files found")
+
+        logger.info(f"Found {len(transcripts)} transcripts")
+
+        # Use model-level browser
+        class AlignBrowser(ModelLevelProcessingBrowser):
+            TITLE = "Select Transcript for Alignment"
+
+        app = AlignBrowser(transcripts, model_key="asr_model", status_key="is_aligned")
+        selected = app.run()
 
         if not selected:
             logger.info("User cancelled transcript selection")
