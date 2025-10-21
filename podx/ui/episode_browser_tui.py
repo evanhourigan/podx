@@ -92,7 +92,7 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
                 yield Input(placeholder="Enter show name and press Enter...", id="search-input")
                 yield Static("", id="status-message")
             with Vertical(id="episode-table-container"):
-                yield DataTable(id="fetch-episode-table", cursor_type="row")
+                yield DataTable(id="fetch-episode-table", cursor_type="row", zebra_stripes=True)
             with Vertical(id="fetch-detail-container"):
                 yield Static("Episode Details", id="fetch-detail-title")
                 yield Static("Select a show to see episodes", id="fetch-detail-content")
@@ -434,28 +434,31 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
 
     DataTable {
         height: 100%;
+        background: $background;
     }
 
     DataTable > .datatable--header {
         background: $panel;
+        text-style: bold;
     }
 
     DataTable > .datatable--cursor {
-        background: $accent 30%;
+        background: $primary 20%;
     }
 
-    DataTable > .datatable--odd {
-        background: $background;
+    /* Zebra striping */
+    DataTable .datatable--even {
+        background: $surface 30%;
     }
 
-    DataTable > .datatable--even {
-        background: $surface;
+    DataTable .datatable--odd {
+        background: transparent;
     }
     """
 
     BINDINGS = [
         Binding("f", "open_fetch", "Fetch Episode", show=True),
-        Binding("enter", "select", "Select", show=True),
+        Binding("enter", "select", "Select & Continue", show=True),
         Binding("q", "quit_app", "Quit", show=True),
     ]
 
@@ -482,7 +485,7 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
         yield Header()
         with Vertical(id="main-container"):
             with Vertical(id="table-container"):
-                yield DataTable(id="episode-table", cursor_type="row")
+                yield DataTable(id="episode-table", cursor_type="row", zebra_stripes=True)
             with Vertical(id="detail-container"):
                 yield Static("Episode Details", id="detail-title")
                 yield Static("", id="detail-content")
@@ -555,7 +558,11 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
     @on(DataTable.RowHighlighted)
     def on_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         """Update detail panel when cursor moves."""
-        self._update_detail_panel(event.cursor_row)
+        try:
+            self._update_detail_panel(event.cursor_row)
+        except Exception:
+            # Ignore errors during highlight - can happen during screen transitions
+            pass
 
     def _update_detail_panel(self, row_index: int) -> None:
         """Update the detail panel with episode information.
@@ -679,6 +686,8 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
                 # Select the newly added episode (now at index 0)
                 table = self.query_one("#episode-table", DataTable)
                 table.move_cursor(row=0)
+                # Update detail panel after a short delay to ensure screen is ready
+                self.call_later(lambda: self._update_detail_panel(0))
 
         self.run_worker(open_fetch_modal())
 
