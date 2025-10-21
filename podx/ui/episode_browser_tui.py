@@ -954,6 +954,10 @@ def select_episode_for_processing(
     Raises:
         SystemExit: If no episodes found
     """
+    import json
+
+    from dateutil import parser as dtparse
+
     from .episode_selector import scan_episode_status
 
     # Use custom scanner if provided, otherwise use default
@@ -962,20 +966,76 @@ def select_episode_for_processing(
     else:
         episodes = scan_episode_status(scan_dir)
 
+    if not episodes:
+        print(f"❌ No episodes found in {scan_dir}")
+        raise SystemExit(1)
+
+    # Normalize episode structure - some scanners return different formats
+    normalized_episodes = []
+    for ep in episodes:
+        # If already has top-level show/date/title, use as-is
+        if "show" in ep and "date" in ep and "title" in ep:
+            normalized_episodes.append(ep)
+        else:
+            # Extract from episode-meta.json or meta_data
+            episode_dir = ep.get("directory")
+            if not episode_dir:
+                continue
+
+            # Try to load episode-meta.json
+            episode_meta_path = episode_dir / "episode-meta.json"
+            if episode_meta_path.exists():
+                try:
+                    episode_meta = json.loads(
+                        episode_meta_path.read_text(encoding="utf-8")
+                    )
+                except Exception:
+                    episode_meta = {}
+            else:
+                episode_meta = ep.get("meta_data", {})
+
+            # Extract show, date, title
+            show_val = episode_meta.get("show", "Unknown")
+            date_val = episode_meta.get("episode_published", "")
+
+            # Format date YYYY-MM-DD when possible
+            if date_val:
+                try:
+                    parsed = dtparse.parse(date_val)
+                    date_fmt = parsed.strftime("%Y-%m-%d")
+                except Exception:
+                    date_fmt = date_val[:10] if len(date_val) >= 10 else date_val
+            else:
+                date_fmt = episode_dir.name
+
+            title_val = episode_meta.get("episode_title", "Unknown")
+
+            # Create normalized episode with top-level keys
+            normalized_ep = dict(ep)  # Copy original data
+            normalized_ep["show"] = show_val
+            normalized_ep["date"] = date_fmt
+            normalized_ep["title"] = title_val
+            normalized_episodes.append(normalized_ep)
+
+    if not normalized_episodes:
+        print(f"❌ No episodes found in {scan_dir}")
+        raise SystemExit(1)
+
     # Optional filter by --show if provided
     if show_filter:
         s_l = show_filter.lower()
-        episodes = [e for e in episodes if s_l in (e.get("show", "").lower())]
+        normalized_episodes = [
+            e for e in normalized_episodes if s_l in (e.get("show", "").lower())
+        ]
 
-    if not episodes:
-        if show_filter:
-            print(f"❌ No episodes found for show '{show_filter}' in {scan_dir}")
-        else:
-            print(f"❌ No episodes found in {scan_dir}")
+    if not normalized_episodes:
+        print(f"❌ No episodes found for show '{show_filter}' in {scan_dir}")
         raise SystemExit(1)
 
     # Sort newest first
-    episodes_sorted = sorted(episodes, key=lambda x: (x["date"], x["show"]), reverse=True)
+    episodes_sorted = sorted(
+        normalized_episodes, key=lambda x: (x["date"], x["show"]), reverse=True
+    )
 
     # Run the TUI with custom title
     class ProcessingBrowser(EpisodeBrowserTUI):
