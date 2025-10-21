@@ -1455,6 +1455,120 @@ def _execute_export_final(
         pass
 
 
+def _build_episode_metadata_display(
+    selected: Dict[str, Any], meta: Dict[str, Any], config: Dict[str, Any]
+) -> str:
+    """Build episode metadata display for preview panel.
+
+    Args:
+        selected: Selected episode dictionary from scan
+        meta: Episode metadata from episode-meta.json
+        config: Pipeline configuration (for cost estimation)
+
+    Returns:
+        Formatted metadata string
+    """
+    from .utils.file_utils import format_duration
+
+    # Basic metadata
+    show = selected.get("show", "Unknown")
+    date = selected.get("date", "Unknown")
+    title = selected.get("title", "Unknown")
+
+    # Get duration from transcript if available
+    duration_seconds = None
+    sel_dir = selected.get("directory")
+    transcript_json = None
+    if sel_dir:
+        latest_path = sel_dir / "latest.json"
+        if latest_path.exists():
+            try:
+                import json
+                transcript_json = json.loads(latest_path.read_text(encoding=DEFAULT_ENCODING))
+                segments = transcript_json.get("segments", [])
+                if segments:
+                    duration_seconds = int(max(s.get("end", 0) for s in segments))
+            except Exception:
+                pass
+
+    # If no transcript, try to get from audio file using ffprobe
+    if duration_seconds is None and sel_dir:
+        audio_path = meta.get("audio_path")
+        if audio_path and Path(audio_path).exists():
+            try:
+                import subprocess
+                result = subprocess.run(
+                    ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                     "-of", "default=noprint_wrappers=1:nokey=1", audio_path],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0:
+                    duration_seconds = int(float(result.stdout.strip()))
+            except Exception:
+                pass
+
+    duration_str = format_duration(duration_seconds)
+
+    # Processing status
+    num_transcripts = len(selected.get("transcripts", []))
+    num_aligned = len(selected.get("aligned", []))
+    num_diarized = len(selected.get("diarized", []))
+    num_deepcasts = len(selected.get("deepcasts", []))
+    has_consensus = selected.get("has_consensus", False)
+    last_run = selected.get("last_run", "Never")
+
+    # Build processing summary
+    processing_parts = []
+    if num_transcripts > 0:
+        processing_parts.append(f"{num_transcripts} transcript{'s' if num_transcripts > 1 else ''}")
+    if num_aligned > 0:
+        processing_parts.append(f"{num_aligned} aligned")
+    if num_diarized > 0:
+        processing_parts.append(f"{num_diarized} diarized")
+    if num_deepcasts > 0:
+        processing_parts.append(f"{num_deepcasts} deepcast{'s' if num_deepcasts > 1 else ''}")
+    if has_consensus:
+        processing_parts.append("consensus")
+
+    if processing_parts:
+        processing_status = f"Existing: {', '.join(processing_parts)}"
+        processing_status += f"\nLast run: {last_run}"
+    else:
+        processing_status = "No existing processed versions"
+
+    # Cost estimate (if deepcast enabled and transcript available)
+    cost_str = ""
+    if (config.get("deepcast") or config.get("dual")) and transcript_json:
+        try:
+            from .deepcast import estimate_deepcast_cost
+            from .model_catalog import load_model_catalog
+
+            provider = (
+                "openai"
+                if config["deepcast_model"].startswith(OPENAI_MODEL_PREFIX) or "-" in config["deepcast_model"]
+                else "anthropic"
+            )
+            catalog = load_model_catalog(refresh=False)
+            est = estimate_deepcast_cost(
+                transcript_json, provider, config["deepcast_model"], catalog
+            )
+            cost_str = f"\nEstimated cost: ${est.total_usd:.2f} (in≈{est.input_tokens:,} tok, out≈{est.output_tokens:,} tok)"
+        except Exception:
+            pass
+
+    # Build final display
+    metadata = (
+        f"Show: {show}\n"
+        f"Title: {title}\n"
+        f"Released: {date}\n"
+        f"Duration: {duration_str}"
+        f"{cost_str}\n"
+        f"\n{processing_status}"
+    )
+
+    return metadata
+
+
 def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: Any) -> tuple[Dict[str, Any], Path]:
     """Handle interactive episode selection and configuration.
 
@@ -1568,7 +1682,11 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
     if config["deepcast"] or config["dual"]:
         chosen_type = select_deepcast_type(console, default_type=chosen_type)
 
-    # 6. Pipeline preview
+    # 6. Episode metadata display
+    episode_metadata = _build_episode_metadata_display(selected, meta, config)
+    console.print(Panel(episode_metadata, title="Episode", border_style="cyan"))
+
+    # 7. Pipeline preview
     stages = ["fetch", "transcode", "transcribe"]
     if config["align"]:
         stages.append("align")
@@ -1596,37 +1714,7 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
         f"AI={config['deepcast_model']} type={chosen_type or '-'} outputs={','.join(outputs) or '-'}"
     )
 
-    # Cost estimate (best-effort)
-    try:
-        from .deepcast import estimate_deepcast_cost
-        from .model_catalog import load_model_catalog
-
-        provider = (
-            "openai"
-            if config["deepcast_model"].startswith(OPENAI_MODEL_PREFIX) or "-" in config["deepcast_model"]
-            else "anthropic"
-        )
-        sel_dir = selected.get("directory") if isinstance(selected, dict) else None
-        latest_path = (
-            (sel_dir / "latest.json")
-            if sel_dir and (sel_dir / "latest.json").exists()
-            else None
-        )
-        if latest_path:
-            import json
-
-            transcript_json = json.loads(latest_path.read_text(encoding=DEFAULT_ENCODING))
-            catalog = load_model_catalog(refresh=False)
-            est = estimate_deepcast_cost(
-                transcript_json, provider, config["deepcast_model"], catalog
-            )
-            preview += f"\nEstimated cost: ${est.total_usd:.2f}  (in≈{est.input_tokens:,} tok, out≈{est.output_tokens:,} tok)"
-        else:
-            preview += "\nEstimated cost: (no transcript yet; will compute after transcribe)"
-    except Exception:
-        pass
-
-    console.print(Panel(preview, title="Preview", border_style="green"))
+    console.print(Panel(preview, title="Pipeline", border_style="green"))
 
     # 7. Final confirmation (strict y/n validation)
     while True:
