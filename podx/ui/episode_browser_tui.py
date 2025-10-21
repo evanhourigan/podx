@@ -225,9 +225,9 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
             title = self._truncate(ep.get("title", "Unknown"), 58)
 
             table.add_row(
-                Text(date_str, style="dim green"),
-                Text(title, style="dim white"),
-                Text(duration_str, style="dim cyan"),
+                Text(date_str, style="green"),
+                Text(title, style="white"),
+                Text(duration_str, style="cyan"),
             )
 
         # Update status
@@ -437,15 +437,19 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
     }
 
     DataTable > .datatable--header {
-        background: $boost;
-    }
-
-    DataTable > .datatable--odd-row {
-        background: $surface;
-    }
-
-    DataTable > .datatable--even-row {
         background: $panel;
+    }
+
+    DataTable > .datatable--cursor {
+        background: $accent 30%;
+    }
+
+    DataTable > .datatable--odd {
+        background: $background;
+    }
+
+    DataTable > .datatable--even {
+        background: $surface;
     }
     """
 
@@ -524,15 +528,15 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
             last_run_display = last_run if (has_processing and last_run) else "-"
 
             table.add_row(
-                Text(ep.get("show", "Unknown"), style="dim magenta"),
-                Text(ep.get("date", "Unknown"), style="dim green"),
-                Text(self._truncate(ep.get("title", "Unknown"), 48), style="dim white"),
-                Text(asr_val, style="dim cyan"),
-                Text(aln_val, style="dim yellow"),
-                Text(diar_val, style="dim blue"),
-                Text(deep_val, style="dim red"),
-                Text(proc_flags or "-", style="dim bright_magenta"),
-                Text(last_run_display, style="dim"),
+                Text(ep.get("show", "Unknown"), style="magenta"),
+                Text(ep.get("date", "Unknown"), style="green"),
+                Text(self._truncate(ep.get("title", "Unknown"), 48), style="white"),
+                Text(asr_val, style="cyan"),
+                Text(aln_val, style="yellow"),
+                Text(diar_val, style="blue"),
+                Text(deep_val, style="red"),
+                Text(proc_flags or "-", style="bright_magenta"),
+                Text(last_run_display, style="white"),
             )
 
         # Focus the table
@@ -708,15 +712,15 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
             last_run_display = last_run if (has_processing and last_run) else "-"
 
             table.add_row(
-                Text(ep.get("show", "Unknown"), style="dim magenta"),
-                Text(ep.get("date", "Unknown"), style="dim green"),
-                Text(self._truncate(ep.get("title", "Unknown"), 48), style="dim white"),
-                Text(asr_val, style="dim cyan"),
-                Text(aln_val, style="dim yellow"),
-                Text(diar_val, style="dim blue"),
-                Text(deep_val, style="dim red"),
-                Text(proc_flags or "-", style="dim bright_magenta"),
-                Text(last_run_display, style="dim"),
+                Text(ep.get("show", "Unknown"), style="magenta"),
+                Text(ep.get("date", "Unknown"), style="green"),
+                Text(self._truncate(ep.get("title", "Unknown"), 48), style="white"),
+                Text(asr_val, style="cyan"),
+                Text(aln_val, style="yellow"),
+                Text(diar_val, style="blue"),
+                Text(deep_val, style="red"),
+                Text(proc_flags or "-", style="bright_magenta"),
+                Text(last_run_display, style="white"),
             )
 
     def action_quit_app(self) -> None:
