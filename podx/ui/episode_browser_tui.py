@@ -6,9 +6,11 @@ from typing import Any, Dict, List, Optional, Tuple
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import Container, Vertical
+from textual.coordinate import Coordinate
 from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Header, Input, Label, Static
+from rich.text import Text
 
 
 class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
@@ -508,7 +510,7 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
     BINDINGS = [
         Binding("f", "open_fetch", "Fetch Episode", show=True),
         Binding("enter", "select", "Select & Continue", show=True),
-        Binding("escape,q", "quit_app", "Cancel", show=True),
+        Binding("escape", "quit_app", "Cancel", show=True),
     ]
 
     def __init__(
@@ -934,6 +936,174 @@ def run_fetch_browser_standalone(
     return app.run()
 
 
+class SimpleProcessingBrowser(App):
+    """Simplified episode browser for processing commands (transcode, transcribe, etc)."""
+
+    TITLE = "Select Episode for Processing"
+
+    CSS = """
+    Screen {
+        background: $background;
+    }
+
+    DataTable {
+        height: 100%;
+        background: $background;
+    }
+
+    DataTable > .datatable--header {
+        text-style: bold;
+        background: $boost;
+    }
+
+    DataTable > .datatable--cursor {
+        background: $secondary 30%;
+    }
+
+    DataTable .datatable--even {
+        background: $surface 30%;
+    }
+
+    DataTable .datatable--odd {
+        background: transparent;
+    }
+
+    #detail-panel {
+        height: 8;
+        border-top: solid $primary;
+        padding: 1 2;
+        background: $panel;
+    }
+
+    #detail-content {
+        height: 100%;
+    }
+    """
+
+    BINDINGS = [
+        Binding("enter", "select", "Select & Continue", show=True),
+        Binding("escape", "quit_app", "Cancel", show=True),
+    ]
+
+    def __init__(self, episodes: List[Dict[str, Any]]):
+        super().__init__()
+        self.episodes = episodes
+        self.selected_episode = None
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield DataTable(id="episode-table", cursor_type="row", zebra_stripes=True)
+        yield Container(
+            Static(id="detail-content"),
+            id="detail-panel",
+        )
+        yield Footer()
+
+    def on_mount(self) -> None:
+        table = self.query_one("#episode-table", DataTable)
+
+        # Add columns
+        table.add_column("#", key="num", width=4)
+        table.add_column("Status", key="status", width=24)
+        table.add_column("Show", key="show", width=20)
+        table.add_column("Date", key="date", width=12)
+        table.add_column("Title", key="title")
+
+        # Add rows
+        for idx, ep in enumerate(self.episodes, start=1):
+            # Determine status from episode data
+            status = self._get_episode_status(ep)
+
+            table.add_row(
+                Text(str(idx), style="cyan"),
+                Text(status, style="magenta"),
+                Text(ep.get("show", "Unknown"), style="green"),
+                Text(ep.get("date", "Unknown"), style="blue"),
+                Text(ep.get("title", "Unknown"), style="white"),
+                key=str(idx - 1),
+            )
+
+        # Set focus
+        table.focus()
+
+        # Show initial detail
+        if self.episodes:
+            self._update_detail_panel(self.episodes[0])
+
+    def _get_episode_status(self, episode: Dict[str, Any]) -> str:
+        """Get status string for episode based on available data."""
+        # Check for transcripts
+        if "transcripts" in episode and episode["transcripts"]:
+            models = list(episode["transcripts"].keys())
+            return f"✓ {', '.join(models)}"
+
+        # Check if audio_meta exists (for transcode)
+        if episode.get("audio_meta"):
+            return "✓ Done"
+
+        # Check if is_transcoded flag exists
+        if episode.get("is_transcoded"):
+            return "✓ Done"
+
+        # Check for transcript files (for align/diarize/preprocess)
+        if "transcript_data" in episode or "aligned_data" in episode:
+            asr_model = episode.get("asr_model", "unknown")
+            return f"✓ {asr_model}"
+
+        return "○ New"
+
+    def _update_detail_panel(self, episode: Dict[str, Any]) -> None:
+        """Update detail panel with episode information."""
+        try:
+            detail = self.query_one("#detail-content", Static)
+            show = episode.get("show", "Unknown")
+            date = episode.get("date", "Unknown")
+            title = episode.get("title", "Unknown")
+            directory = episode.get("directory", "")
+
+            content = f"""[bold cyan]{show}[/bold cyan] • {date}
+[white]{title}[/white]
+[dim]{directory}[/dim]"""
+
+            detail.update(content)
+        except Exception:
+            pass
+
+    @on(DataTable.RowHighlighted, "#episode-table")
+    def on_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        """Handle row highlight to update detail panel."""
+        try:
+            row_key = event.row_key
+            if row_key is not None:
+                idx = int(row_key.value)
+                if 0 <= idx < len(self.episodes):
+                    self.call_later(self._update_detail_panel, self.episodes[idx])
+        except Exception:
+            pass
+
+    @on(DataTable.RowSelected, "#episode-table")
+    def on_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Handle row selection (Enter key pressed)."""
+        self.action_select()
+
+    def action_select(self) -> None:
+        """Select current episode and exit."""
+        table = self.query_one("#episode-table", DataTable)
+        if table.cursor_row is not None:
+            row_key = table.coordinate_to_cell_key(
+                Coordinate(table.cursor_row, 0)
+            ).row_key
+            if row_key is not None:
+                idx = int(row_key.value)
+                if 0 <= idx < len(self.episodes):
+                    self.selected_episode = self.episodes[idx]
+                    self.exit(self.selected_episode)
+
+    def action_quit_app(self) -> None:
+        """Quit without selection."""
+        self.exit(None)
+
+
 def select_episode_for_processing(
     scan_dir: Path,
     title: str = "Select Episode for Processing",
@@ -1037,16 +1207,14 @@ def select_episode_for_processing(
         normalized_episodes, key=lambda x: (x["date"], x["show"]), reverse=True
     )
 
-    # Run the TUI with custom title
-    class ProcessingBrowser(EpisodeBrowserTUI):
+    # Run the simplified TUI with custom title
+    class CustomProcessingBrowser(SimpleProcessingBrowser):
         TITLE = title
 
-    app = ProcessingBrowser(episodes_sorted, scan_dir)
+    app = CustomProcessingBrowser(episodes_sorted)
     result = app.run()
 
-    if result == (None, None):
+    if result is None:
         raise SystemExit(0)
 
-    # Return just the episode dict (not the meta)
-    selected, _ = result
-    return selected
+    return result
