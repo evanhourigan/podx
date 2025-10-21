@@ -182,9 +182,20 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
                     except (ValueError, AttributeError):
                         pass
 
+                # Parse and format published date to YYYY-MM-DD
+                published_str = "Unknown"
+                if hasattr(entry, "published"):
+                    try:
+                        from dateutil import parser as dtparse
+                        parsed_date = dtparse.parse(entry.published)
+                        published_str = parsed_date.strftime("%Y-%m-%d")
+                    except Exception:
+                        # Fall back to raw published string if parsing fails
+                        published_str = entry.published
+
                 episode = {
                     "title": entry.title,
-                    "published": entry.published if hasattr(entry, "published") else "Unknown",
+                    "published": published_str,
                     "description": entry.summary if hasattr(entry, "summary") else "",
                     "audio_url": audio_url,
                     "duration": duration,
