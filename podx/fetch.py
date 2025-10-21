@@ -236,6 +236,97 @@ def download_enclosure(entry, out_dir: Path) -> Path:
     return dest
 
 
+def fetch_episode_from_feed(
+    show_name: str,
+    rss_url: str,
+    episode_published: str,
+    episode_title: str,
+    output_dir: Path,
+) -> dict:
+    """Fetch a specific episode from an RSS feed.
+
+    Args:
+        show_name: Name of the podcast show
+        rss_url: RSS feed URL
+        episode_published: Publication date of the episode
+        episode_title: Title of the episode
+        output_dir: Directory to save the episode to
+
+    Returns:
+        Dictionary with episode metadata and directory
+
+    Raises:
+        ValidationError: If episode cannot be found or downloaded
+    """
+    logger.info(
+        "Fetching episode from feed",
+        show=show_name,
+        title=episode_title,
+        date=episode_published,
+    )
+
+    # Parse feed
+    logger.debug("Parsing RSS feed", url=rss_url)
+    f = feedparser.parse(rss_url)
+    if f.bozo or not f.entries:
+        # Try with UA
+        try:
+            session = requests.Session()
+            session.headers.update({"User-Agent": UA})
+            r = session.get(rss_url, timeout=30, allow_redirects=True, verify=True)
+            r.raise_for_status()
+            f = feedparser.parse(r.content)
+        except Exception as e:
+            reason = getattr(f, "bozo_exception", None)
+            raise ValidationError(
+                f"Failed to parse feed: {rss_url}"
+                + (f" (reason: {reason})" if reason else "")
+            ) from e
+    if not f.entries:
+        raise ValidationError(f"No episodes found in feed: {rss_url}")
+
+    # Find the episode by matching title and date
+    ep = choose_episode(f.entries, episode_published, None)
+    if not ep:
+        raise ValidationError(
+            f"Episode not found: {episode_title} ({episode_published})"
+        )
+
+    # Create output directory
+    workdir = output_dir / show_name / episode_published
+    workdir.mkdir(parents=True, exist_ok=True)
+
+    # Download audio
+    audio_path = download_enclosure(ep, workdir)
+
+    # Build metadata
+    meta: EpisodeMeta = {
+        "show": show_name,
+        "feed": rss_url,
+        "episode_title": ep.get("title", ""),
+        "episode_published": (ep.get("published") or ep.get("updated") or ""),
+        "audio_path": str(audio_path.resolve()),
+    }
+
+    # Add image URL if available
+    if f.feed.get("image", {}).get("href"):
+        meta["image_url"] = f.feed["image"]["href"]
+
+    # Save metadata
+    meta_file = workdir / "episode-meta.json"
+    meta_file.write_text(
+        json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    logger.info("Episode metadata saved", file=str(meta_file))
+
+    # Return episode info
+    return {
+        "directory": str(workdir),
+        "meta": meta,
+        "meta_path": str(meta_file),
+    }
+
+
 @click.command()
 @click.option("--show", help="Podcast show name (iTunes search).")
 @click.option("--rss-url", help="Direct RSS feed URL (alternative to --show).")
