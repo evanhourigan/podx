@@ -24,6 +24,7 @@ from ..ui_styles import (
 # Import from new ui/ package modules
 from .align_browser import AlignBrowser, scan_alignable_transcripts
 from .asr_selector import ASR_MODELS, get_most_sophisticated_model, select_asr_model
+from .config_panel import configure_pipeline_interactive
 from .confirmation import Confirmation
 from .deepcast_browser import (
     DeepcastBrowser,
@@ -75,6 +76,7 @@ __all__ = [
     "TranscodeBrowser",
     "TranscribeBrowser",
     "clean_cell",
+    "configure_pipeline_interactive",
     "flatten_episodes_to_rows",
     "get_most_sophisticated_model",
     "sanitize_filename",

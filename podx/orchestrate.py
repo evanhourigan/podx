@@ -45,7 +45,6 @@ from . import (
 from .config import get_config
 from .constants import (
     DEFAULT_ENCODING,
-    FIDELITY_LEVELS,
     JSON_INDENT,
     MIN_NOTION_DB_ID_LENGTH,
     OPENAI_MODEL_PREFIX,
@@ -1573,7 +1572,7 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
     """Handle interactive episode selection and configuration.
 
     Displays rich table UI for episode selection, prompts for fidelity level,
-    model selection, and option toggles. Modifies config dict in place.
+    then shows interactive configuration panel. Modifies config dict in place.
 
     Args:
         config: Pipeline configuration dictionary (modified in place)
@@ -1586,7 +1585,7 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
     Raises:
         SystemExit: If user cancels selection
     """
-    from .ui import Confirmation, select_deepcast_type, select_episode_interactive, select_fidelity_interactive
+    from .ui import select_episode_interactive, select_fidelity_interactive
     from .utils import apply_fidelity_preset
 
     # 1. Episode selection
@@ -1628,59 +1627,17 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
     )
     console.print(Panel(summary, title="Preset Applied", border_style="green"))
 
-    # 3. Model selection prompts
-    # Only prompt for ASR if we'll transcribe (dual or preset set or no transcripts)
-    will_transcribe = (
-        config["dual"] or config.get("preset") is not None or not any(selected.get("transcripts"))
-    )
-    if will_transcribe:
-        prompt_asr = input(
-            f"\nASR model (Enter to keep '{config['model']}', or type e.g. large-v3, small.en; Q=cancel): "
-        ).strip()
-        if prompt_asr.upper() in {"Q", "QUIT", "EXIT"}:
-            raise SystemExit(0)
-        if prompt_asr:
-            config["model"] = prompt_asr
+    # 3. Interactive configuration panel
+    from .ui import configure_pipeline_interactive
 
-    # Only prompt for AI if deepcast will run
-    if config["deepcast"] or config["dual"]:
-        prompt_ai = input(
-            f"AI model for deepcast (Enter to keep '{config['deepcast_model']}', Q=cancel): "
-        ).strip()
-        if prompt_ai.upper() in {"Q", "QUIT", "EXIT"}:
-            raise SystemExit(0)
-        if prompt_ai:
-            config["deepcast_model"] = prompt_ai
+    updated_config = configure_pipeline_interactive(config)
+    if updated_config is None:
+        console.print("[dim]Cancelled[/dim]")
+        raise SystemExit(0)
 
-    # 4. Options panel: toggle steps and outputs
-    console.print(
-        Panel(
-            "Adjust options below (Enter keeps current): Q cancels",
-            title="Options",
-            border_style="blue",
-        )
-    )
-    config["align"] = Confirmation.yes_no("Align (WhisperX)", config["align"])
-    config["diarize"] = Confirmation.yes_no("Diarize (speaker labels)", config["diarize"])
-    config["preprocess"] = Confirmation.yes_no("Preprocess (merge/normalize)", config["preprocess"])
-    config["restore"] = (
-        Confirmation.yes_no("Semantic restore (LLM)", config["restore"])
-        if config["preprocess"]
-        else config["restore"]
-    )
-    config["deepcast"] = Confirmation.yes_no("Deepcast (AI analysis)", config["deepcast"])
-
-    # Only prompt for Dual mode when fidelity didn't already decide it
-    if fidelity_level not in FIDELITY_LEVELS:
-        config["dual"] = Confirmation.yes_no("Dual mode (precision+recall)", config["dual"])
-
-    config["extract_markdown"] = Confirmation.yes_no("Save Markdown file", config["extract_markdown"])
-    config["deepcast_pdf"] = Confirmation.yes_no("Also render PDF (pandoc)", config["deepcast_pdf"])
-
-    # 5. Deepcast type selection
+    # Merge updated config back
+    config.update(updated_config)
     chosen_type = config.get("yaml_analysis_type")
-    if config["deepcast"] or config["dual"]:
-        chosen_type = select_deepcast_type(console, default_type=chosen_type)
 
     # 6. Episode metadata display
     episode_metadata = _build_episode_metadata_display(selected, meta, config)
