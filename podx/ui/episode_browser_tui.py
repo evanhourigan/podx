@@ -99,14 +99,16 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
 
     def on_mount(self) -> None:
         """Set up the modal on mount."""
+        from rich.text import Text
+
         # Focus the search input
         self.query_one("#search-input", Input).focus()
 
         # Set up the table
         table = self.query_one("#fetch-episode-table", DataTable)
-        table.add_column("Date", width=12)
-        table.add_column("Title", width=60)
-        table.add_column("Duration", width=10)
+        table.add_column(Text("Date", style="bold green"), width=12)
+        table.add_column(Text("Title", style="bold white"), width=60)
+        table.add_column(Text("Duration", style="bold cyan"), width=10)
 
     @on(Input.Submitted, "#search-input")
     def on_search_submitted(self, event: Input.Submitted) -> None:
@@ -208,6 +210,8 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
         table = self.query_one("#fetch-episode-table", DataTable)
         table.clear()
 
+        from rich.text import Text
+
         from ..utils import format_date, format_duration
 
         for ep in self.rss_episodes:
@@ -220,7 +224,11 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
             # Truncate title
             title = self._truncate(ep.get("title", "Unknown"), 58)
 
-            table.add_row(date_str, title, duration_str)
+            table.add_row(
+                Text(date_str, style="dim green"),
+                Text(title, style="dim white"),
+                Text(duration_str, style="dim cyan"),
+            )
 
         # Update status
         status = self.query_one("#status-message", Static)
@@ -420,6 +428,18 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
     DataTable {
         height: 100%;
     }
+
+    DataTable > .datatable--header {
+        background: $boost;
+    }
+
+    DataTable > .datatable--odd-row {
+        background: $surface;
+    }
+
+    DataTable > .datatable--even-row {
+        background: $panel;
+    }
     """
 
     BINDINGS = [
@@ -497,15 +517,15 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
             last_run_display = last_run if (has_processing and last_run) else "-"
 
             table.add_row(
-                ep.get("show", "Unknown"),
-                ep.get("date", "Unknown"),
-                self._truncate(ep.get("title", "Unknown"), 48),
-                asr_val,
-                aln_val,
-                diar_val,
-                deep_val,
-                proc_flags or "-",
-                last_run_display,
+                Text(ep.get("show", "Unknown"), style="dim magenta"),
+                Text(ep.get("date", "Unknown"), style="dim green"),
+                Text(self._truncate(ep.get("title", "Unknown"), 48), style="dim white"),
+                Text(asr_val, style="dim cyan"),
+                Text(aln_val, style="dim yellow"),
+                Text(diar_val, style="dim blue"),
+                Text(deep_val, style="dim red"),
+                Text(proc_flags or "-", style="dim bright_magenta"),
+                Text(last_run_display, style="dim"),
             )
 
         # Focus the table
@@ -653,6 +673,8 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
 
     def _refresh_table(self) -> None:
         """Refresh the episode table with current episodes list."""
+        from rich.text import Text
+
         table = self.query_one("#episode-table", DataTable)
         table.clear()
 
@@ -679,15 +701,15 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
             last_run_display = last_run if (has_processing and last_run) else "-"
 
             table.add_row(
-                ep.get("show", "Unknown"),
-                ep.get("date", "Unknown"),
-                self._truncate(ep.get("title", "Unknown"), 48),
-                asr_val,
-                aln_val,
-                diar_val,
-                deep_val,
-                proc_flags or "-",
-                last_run_display,
+                Text(ep.get("show", "Unknown"), style="dim magenta"),
+                Text(ep.get("date", "Unknown"), style="dim green"),
+                Text(self._truncate(ep.get("title", "Unknown"), 48), style="dim white"),
+                Text(asr_val, style="dim cyan"),
+                Text(aln_val, style="dim yellow"),
+                Text(diar_val, style="dim blue"),
+                Text(deep_val, style="dim red"),
+                Text(proc_flags or "-", style="dim bright_magenta"),
+                Text(last_run_display, style="dim"),
             )
 
     def action_quit_app(self) -> None:
