@@ -15,6 +15,14 @@ logger = get_logger(__name__)
 
 # Interactive browser imports (optional)
 try:
+    import importlib.util
+
+    TEXTUAL_AVAILABLE = importlib.util.find_spec("textual") is not None
+except ImportError:
+    TEXTUAL_AVAILABLE = False
+
+# Rich console for live timer
+try:
     from rich.console import Console
 
     RICH_AVAILABLE = True
@@ -23,10 +31,12 @@ except ImportError:
 
 # Shared UI components
 try:
-    from .ui import AlignBrowser, scan_alignable_transcripts
+    from .ui import scan_alignable_transcripts, select_episode_for_processing
 except Exception:
-    AlignBrowser = None
-    scan_alignable_transcripts = None
+    from .ui.align_browser import scan_alignable_transcripts
+
+    def select_episode_for_processing(*args, **kwargs):
+        raise ImportError("UI module not available")
 
 
 class LiveTimer:
@@ -112,39 +122,34 @@ def main(audio, input, output, interactive, scan_dir):
     """
     # Handle interactive mode
     if interactive:
-        if not RICH_AVAILABLE:
+        if not TEXTUAL_AVAILABLE:
             raise SystemExit(
-                "Interactive mode requires rich library. Install with: pip install rich"
+                "Interactive mode requires textual library. Install with: pip install textual"
             )
 
-        console = Console()
-
-        # Scan for transcripts
+        # Browse and select transcript using Textual TUI
         logger.info(f"Scanning for transcripts in: {scan_dir}")
-        transcripts = scan_alignable_transcripts(Path(scan_dir))
-
-        if not transcripts:
-            logger.error(f"No transcripts found in {scan_dir}")
-            raise SystemExit("No transcript-*.json files found")
-
-        logger.info(f"Found {len(transcripts)} transcripts")
-
-        # Browse and select transcript
-        browser = AlignBrowser(transcripts, items_per_page=10)
-        selected = browser.browse()
+        selected = select_episode_for_processing(
+            scan_dir=Path(scan_dir),
+            title="Select Transcript for Alignment",
+            episode_scanner=scan_alignable_transcripts,
+        )
 
         if not selected:
             logger.info("User cancelled transcript selection")
             sys.exit(0)
 
         # Check if already aligned - confirm if so
-        if selected["is_aligned"]:
-            console.print(
-                f"\n[yellow]⚠ This transcript is already aligned (model: {selected['asr_model']})[/yellow]"
-            )
+        if selected.get("is_aligned"):
+            console = Console() if RICH_AVAILABLE else None
+            if console:
+                console.print(
+                    f"\n[yellow]⚠ This transcript is already aligned (model: {selected['asr_model']})[/yellow]"
+                )
             confirm = input("Re-align anyway? (yes/no): ").strip().lower()
             if confirm not in ["yes", "y"]:
-                console.print("[dim]Alignment cancelled.[/dim]")
+                if console:
+                    console.print("[dim]Alignment cancelled.[/dim]")
                 sys.exit(0)
 
         # Use selected transcript

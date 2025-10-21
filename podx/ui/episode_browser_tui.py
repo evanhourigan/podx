@@ -932,3 +932,61 @@ def run_fetch_browser_standalone(
     """
     app = StandaloneFetchBrowser(show_name, rss_url, output_dir)
     return app.run()
+
+
+def select_episode_for_processing(
+    scan_dir: Path,
+    title: str = "Select Episode for Processing",
+    show_filter: Optional[str] = None,
+    episode_scanner: Optional[callable] = None,
+) -> Optional[Dict[str, Any]]:
+    """Select an episode for processing using the Textual TUI.
+
+    Args:
+        scan_dir: Directory to scan for episodes
+        title: Window title for the browser
+        show_filter: Optional show name filter
+        episode_scanner: Optional custom scanner function (default: scan_episode_status)
+
+    Returns:
+        Selected episode dictionary, or None if cancelled
+
+    Raises:
+        SystemExit: If no episodes found
+    """
+    from .episode_selector import scan_episode_status
+
+    # Use custom scanner if provided, otherwise use default
+    if episode_scanner:
+        episodes = episode_scanner(scan_dir)
+    else:
+        episodes = scan_episode_status(scan_dir)
+
+    # Optional filter by --show if provided
+    if show_filter:
+        s_l = show_filter.lower()
+        episodes = [e for e in episodes if s_l in (e.get("show", "").lower())]
+
+    if not episodes:
+        if show_filter:
+            print(f"❌ No episodes found for show '{show_filter}' in {scan_dir}")
+        else:
+            print(f"❌ No episodes found in {scan_dir}")
+        raise SystemExit(1)
+
+    # Sort newest first
+    episodes_sorted = sorted(episodes, key=lambda x: (x["date"], x["show"]), reverse=True)
+
+    # Run the TUI with custom title
+    class ProcessingBrowser(EpisodeBrowserTUI):
+        TITLE = title
+
+    app = ProcessingBrowser(episodes_sorted, scan_dir)
+    result = app.run()
+
+    if result == (None, None):
+        raise SystemExit(0)
+
+    # Return just the episode dict (not the meta)
+    selected, _ = result
+    return selected
