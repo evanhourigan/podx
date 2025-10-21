@@ -700,15 +700,29 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
         async def open_fetch_modal() -> None:
             result = await self.push_screen_wait(FetchModal(self.scan_dir))
             if result:
-                # Episode was fetched, add it to the list and select it
+                # Episode was fetched, add it to the list and sort it
                 episode, meta = result
-                self.episodes.insert(0, episode)  # Add to beginning
+                self.episodes.append(episode)
+
+                # Re-sort episodes (newest first, same as initial sort)
+                self.episodes.sort(key=lambda x: (x["date"], x["show"]), reverse=True)
+
+                # Find the index of the newly added episode
+                episode_path = episode.get("directory")
+                new_index = 0
+                for idx, ep in enumerate(self.episodes):
+                    if ep.get("directory") == episode_path:
+                        new_index = idx
+                        break
+
+                # Refresh table with sorted episodes
                 self._refresh_table()
-                # Select the newly added episode (now at index 0)
+
+                # Select the newly added episode at its sorted position
                 table = self.query_one("#episode-table", DataTable)
-                table.move_cursor(row=0)
+                table.move_cursor(row=new_index)
                 # Update detail panel after a short delay to ensure screen is ready
-                self.call_later(lambda: self._update_detail_panel(0))
+                self.call_later(lambda: self._update_detail_panel(new_index))
 
         self.run_worker(open_fetch_modal())
 
