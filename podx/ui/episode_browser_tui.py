@@ -49,9 +49,12 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
     }
 
     #fetch-detail-container {
-        height: 30%;
+        height: auto;
+        min-height: 10;
+        max-height: 30%;
         border: solid $accent;
         padding: 1;
+        margin-bottom: 1;
     }
 
     #fetch-detail-title {
@@ -69,7 +72,7 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
 
     BINDINGS = [
         Binding("escape", "dismiss", "Cancel", show=True),
-        Binding("enter", "fetch_selected", "Fetch", show=True),
+        Binding("enter", "fetch_selected", "Fetch Episode", show=True),
     ]
 
     def __init__(self, scan_dir: Path, *args: Any, **kwargs: Any) -> None:
@@ -257,6 +260,11 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
         """Update detail panel when cursor moves in fetch table."""
         self._update_fetch_detail(event.cursor_row)
 
+    @on(DataTable.RowSelected, "#fetch-episode-table")
+    def on_fetch_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Handle row selection in fetch table (Enter key pressed)."""
+        self.action_fetch_selected()
+
     def _update_fetch_detail(self, row_index: int) -> None:
         """Update the fetch detail panel with episode information.
 
@@ -282,6 +290,9 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
 
         description = ep.get("description", "")
         if description:
+            # Strip HTML tags
+            import re
+            description = re.sub(r'<[^>]+>', '', description)
             # Truncate long descriptions
             if len(description) > 200:
                 description = description[:197] + "..."
@@ -563,6 +574,11 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
         except Exception:
             # Ignore errors during highlight - can happen during screen transitions
             pass
+
+    @on(DataTable.RowSelected, "#episode-table")
+    def on_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Handle row selection (Enter key pressed)."""
+        self.action_select()
 
     def _update_detail_panel(self, row_index: int) -> None:
         """Update the detail panel with episode information.
