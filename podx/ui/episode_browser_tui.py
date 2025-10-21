@@ -1014,14 +1014,14 @@ class ModelLevelProcessingBrowser(App):
     def on_mount(self) -> None:
         table = self.query_one("#item-table", DataTable)
 
-        # Add columns - conditionally include checkmark column
+        # Add columns - conditionally include checkmark column (no heading, 2 chars wide)
         if self.has_checkmarks:
-            table.add_column("✓", key="check", width=3)
+            table.add_column("", key="check", width=2)
 
+        table.add_column("ASR Model", key="model", width=16)
         table.add_column("Show", key="show", width=20)
         table.add_column("Date", key="date", width=12)
         table.add_column("Title", key="title")
-        table.add_column("ASR Model", key="model", width=18)
 
         # Add rows
         for idx, item in enumerate(self.items):
@@ -1053,18 +1053,18 @@ class ModelLevelProcessingBrowser(App):
                 check_mark = "✓" if is_complete else ""
                 table.add_row(
                     Text(check_mark, style="green"),
+                    Text(model_name, style="magenta"),
                     Text(show, style="green"),
                     Text(date, style="blue"),
                     Text(title, style="white"),
-                    Text(model_name, style="magenta"),
                     key=str(idx),
                 )
             else:
                 table.add_row(
+                    Text(model_name, style="magenta"),
                     Text(show, style="green"),
                     Text(date, style="blue"),
                     Text(title, style="white"),
-                    Text(model_name, style="magenta"),
                     key=str(idx),
                 )
 
