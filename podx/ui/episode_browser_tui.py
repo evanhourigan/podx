@@ -475,7 +475,7 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
     BINDINGS = [
         Binding("f", "open_fetch", "Fetch Episode", show=True),
         Binding("enter", "select", "Select & Continue", show=True),
-        Binding("q", "quit_app", "Quit", show=True),
+        Binding("escape,q", "quit_app", "Cancel", show=True),
     ]
 
     def __init__(
