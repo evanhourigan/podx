@@ -89,7 +89,7 @@ class TestEpisodeArtifacts:
         """Test has_deepcast returns True when deepcast analyses exist."""
         artifacts = EpisodeArtifacts(
             working_dir=tmp_path,
-            deepcasts=[tmp_path / "deepcast-brief.json"],
+            deepcasts=[tmp_path / "deepcast.json"],
         )
         assert artifacts.has_deepcast is True
 
@@ -256,7 +256,7 @@ class TestArtifactDetector:
 
     def test_detect_deepcast(self, tmp_path):
         """Test detection of deepcast analyses."""
-        deepcast1 = tmp_path / "deepcast-brief.json"
+        deepcast1 = tmp_path / "deepcast.json"
         deepcast2 = tmp_path / "deepcast-quotes.json"
         deepcast1.write_text("{}", encoding="utf-8")
         deepcast2.write_text("{}", encoding="utf-8")
@@ -343,7 +343,7 @@ class TestArtifactDetector:
 
     def test_detect_completed_steps_deepcast(self, tmp_path):
         """Test detect_completed_steps detects DEEPCAST step."""
-        (tmp_path / "deepcast-brief.json").write_text("{}", encoding="utf-8")
+        (tmp_path / "deepcast.json").write_text("{}", encoding="utf-8")
 
         detector = ArtifactDetector(tmp_path)
         completed = detector.detect_completed_steps()
@@ -364,7 +364,7 @@ class TestArtifactDetector:
         (tmp_path / "episode-meta.json").write_text("{}", encoding="utf-8")
         (tmp_path / "audio-meta.json").write_text("{}", encoding="utf-8")
         (tmp_path / "transcript-base.json").write_text("{}", encoding="utf-8")
-        (tmp_path / "deepcast-brief.json").write_text("{}", encoding="utf-8")
+        (tmp_path / "deepcast.json").write_text("{}", encoding="utf-8")
 
         detector = ArtifactDetector(tmp_path)
         completed = detector.detect_completed_steps()
@@ -610,7 +610,7 @@ class TestRunState:
         """Test get_artifacts returns EpisodeArtifacts."""
         # Create artifacts
         (tmp_path / "episode-meta.json").write_text("{}", encoding="utf-8")
-        (tmp_path / "deepcast-brief.json").write_text("{}", encoding="utf-8")
+        (tmp_path / "deepcast.json").write_text("{}", encoding="utf-8")
 
         state = RunState(tmp_path)
         artifacts = state.get_artifacts()

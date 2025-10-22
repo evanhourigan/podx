@@ -536,7 +536,7 @@ class TestExecuteDeepcast:
         (tmp_path / "episode-meta.json").write_text("{}", encoding="utf-8")
 
         # Create markdown output
-        md_file = tmp_path / "deepcast-brief-gpt_4o.md"
+        md_file = tmp_path / "deepcast-gpt_4o.md"
         md_file.write_text("# Deepcast Analysis", encoding="utf-8")
 
         config = PipelineConfig(
@@ -590,7 +590,7 @@ class TestExecuteNotion:
     def test_execute_notion_calls_executor(self, tmp_path):
         """Test _execute_notion calls executor when deepcast markdown exists."""
         # Create deepcast markdown
-        md_file = tmp_path / "deepcast-brief-gpt_4o.md"
+        md_file = tmp_path / "deepcast-gpt_4o.md"
         md_file.write_text("# Analysis", encoding="utf-8")
 
         config = PipelineConfig(
@@ -620,7 +620,7 @@ class TestExecuteCleanup:
         # Create files to keep
         (tmp_path / "latest.json").write_text("{}", encoding="utf-8")
         (tmp_path / "episode-meta.json").write_text("{}", encoding="utf-8")
-        (tmp_path / "deepcast-brief.json").write_text("{}", encoding="utf-8")
+        (tmp_path / "deepcast.json").write_text("{}", encoding="utf-8")
 
         # Create files to remove
         (tmp_path / "transcript-base.json").write_text("{}", encoding="utf-8")
@@ -638,7 +638,7 @@ class TestExecuteCleanup:
         # Files to keep should still exist
         assert (tmp_path / "latest.json").exists()
         assert (tmp_path / "episode-meta.json").exists()
-        assert (tmp_path / "deepcast-brief.json").exists()
+        assert (tmp_path / "deepcast.json").exists()
 
         # Intermediate files should be removed
         assert not (tmp_path / "transcript-base.json").exists()
@@ -650,9 +650,9 @@ class TestExecuteCleanup:
     def test_execute_cleanup_keeps_deepcast_files(self, tmp_path):
         """Test _execute_cleanup keeps all deepcast files."""
         # Create deepcast files (should be kept)
-        (tmp_path / "deepcast-brief.json").write_text("{}", encoding="utf-8")
+        (tmp_path / "deepcast.json").write_text("{}", encoding="utf-8")
         (tmp_path / "deepcast-quotes.json").write_text("{}", encoding="utf-8")
-        (tmp_path / "deepcast-brief.md").write_text("", encoding="utf-8")
+        (tmp_path / "deepcast.md").write_text("", encoding="utf-8")
 
         # Create transcript file (should be removed)
         (tmp_path / "transcript-base.json").write_text("{}", encoding="utf-8")
@@ -666,9 +666,9 @@ class TestExecuteCleanup:
         service._execute_cleanup(tmp_path, result, progress_callback=None)
 
         # Deepcast files should be kept
-        assert (tmp_path / "deepcast-brief.json").exists()
+        assert (tmp_path / "deepcast.json").exists()
         assert (tmp_path / "deepcast-quotes.json").exists()
-        assert (tmp_path / "deepcast-brief.md").exists()
+        assert (tmp_path / "deepcast.md").exists()
 
         # Transcript should be removed
         assert not (tmp_path / "transcript-base.json").exists()

@@ -488,7 +488,7 @@ class PipelineService:
 
         # Simplified version - full implementation would handle dual mode
         model_suffix = self.config.deepcast_model.replace(".", "_").replace("-", "_")
-        json_out = workdir / f"deepcast-brief-{model_suffix}.json"
+        json_out = workdir / f"deepcast-{model_suffix}.json"
         latest_path = workdir / "latest.json"
         meta_path = workdir / "episode-meta.json"
 
@@ -510,7 +510,7 @@ class PipelineService:
         result.artifacts["deepcast_json"] = str(json_out)
 
         # Check for markdown output
-        md_out = workdir / f"deepcast-brief-{model_suffix}.md"
+        md_out = workdir / f"deepcast-{model_suffix}.md"
         if md_out.exists():
             result.artifacts["deepcast_md"] = str(md_out)
 
@@ -541,7 +541,7 @@ class PipelineService:
 
         # Find deepcast markdown file
         model_suffix = self.config.deepcast_model.replace(".", "_").replace("-", "_")
-        deepcast_path = workdir / f"deepcast-brief-{model_suffix}.md"
+        deepcast_path = workdir / f"deepcast-{model_suffix}.md"
 
         if not deepcast_path.exists():
             logger.warning("No deepcast markdown found, skipping Notion upload")

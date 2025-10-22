@@ -69,7 +69,7 @@ def test_single_mode_fresh_analysis(mock_run, mock_build_cmd):
     # Verify analysis ran
     mock_run.assert_called_once()
     assert "deepcast_json" in results
-    assert "deepcast-brief-gpt_4.json" in results["deepcast_json"]
+    assert "deepcast-gpt_4.json" in results["deepcast_json"]
     progress.start_step.assert_called_once()
     progress.complete_step.assert_called_once()
 
@@ -343,7 +343,7 @@ def test_results_dict_updates(mock_run, mock_build_cmd):
     assert "existing_key" in results
     assert results["existing_key"] == "existing_value"
     assert "deepcast_json" in results
-    assert "deepcast-brief-gpt_4o.json" in results["deepcast_json"]
+    assert "deepcast-gpt_4o.json" in results["deepcast_json"]
 
 
 @patch("podx.utils.build_deepcast_command")

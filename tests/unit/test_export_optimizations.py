@@ -38,7 +38,7 @@ class TestEpisodeMetadataCache:
                     "deepcast_type": "brief",
                 }
             }
-            (episode_dir / f"deepcast-brief-{i}.json").write_text(
+            (episode_dir / f"deepcast-{i}.json").write_text(
                 json.dumps(deepcast_data)
             )
 
@@ -76,7 +76,7 @@ class TestEpisodeMetadataCache:
                 "deepcast_type": "brief",
             }
         }
-        (episode_dir / "deepcast-brief.json").write_text(json.dumps(deepcast_data))
+        (episode_dir / "deepcast.json").write_text(json.dumps(deepcast_data))
 
         rows = _scan_export_rows(tmp_path / "show")
 
@@ -104,7 +104,7 @@ class TestEpisodeMetadataCache:
                 "deepcast_type": "brief",
             }
         }
-        (episode_dir / "deepcast-brief.json").write_text(json.dumps(deepcast_data))
+        (episode_dir / "deepcast.json").write_text(json.dumps(deepcast_data))
 
         rows = _scan_export_rows(tmp_path / "show")
 
@@ -162,18 +162,18 @@ class TestSinglePassScanning:
             "deepcast_metadata": {"model": "gpt-4.1", "asr_model": "base"}
         }
 
-        (episode_dir / "deepcast-brief.json").write_text(json.dumps(deepcast_data))
+        (episode_dir / "deepcast.json").write_text(json.dumps(deepcast_data))
         (episode_dir / "deepcast-summary.json").write_text(json.dumps(deepcast_data))
-        (episode_dir / "deepcast-brief-precision.json").write_text(json.dumps(deepcast_data))
+        (episode_dir / "deepcast-precision.json").write_text(json.dumps(deepcast_data))
 
         rows = _scan_export_rows(tmp_path)
 
         # Should find all deepcast files
         assert len(rows) == 3
         names = {row["path"].name for row in rows}
-        assert "deepcast-brief.json" in names
+        assert "deepcast.json" in names
         assert "deepcast-summary.json" in names
-        assert "deepcast-brief-precision.json" in names
+        assert "deepcast-precision.json" in names
 
     def test_ignores_non_matching_files(self, tmp_path):
         """Test that scan ignores files that don't match the pattern."""
@@ -187,7 +187,7 @@ class TestSinglePassScanning:
             "deepcast_metadata": {"model": "gpt-4.1", "asr_model": "base"}
         }
 
-        (episode_dir / "deepcast-brief.json").write_text(json.dumps(deepcast_data))
+        (episode_dir / "deepcast.json").write_text(json.dumps(deepcast_data))
         (episode_dir / "transcript.json").write_text("{}")  # Should be ignored
         (episode_dir / "episode-meta.json").write_text("{}")  # Should be ignored
         (episode_dir / "forecast.json").write_text("{}")  # Should be ignored (not *cast-*)
@@ -197,7 +197,7 @@ class TestSinglePassScanning:
 
         # Should only find deepcast file
         assert len(rows) == 1
-        assert rows[0]["path"].name == "deepcast-brief.json"
+        assert rows[0]["path"].name == "deepcast.json"
 
 
 class TestPerformanceCharacteristics:
@@ -227,7 +227,7 @@ class TestPerformanceCharacteristics:
             }
         }
         for i in range(100):
-            (episode_dir / f"deepcast-brief-{i}.json").write_text(
+            (episode_dir / f"deepcast-{i}.json").write_text(
                 json.dumps(deepcast_data)
             )
 
@@ -308,7 +308,7 @@ class TestDeepcastMetadataExtraction:
                 "deepcast_type": "brief",
             }
         }
-        (episode_dir / "deepcast-brief.json").write_text(json.dumps(deepcast_data))
+        (episode_dir / "deepcast.json").write_text(json.dumps(deepcast_data))
 
         rows = _scan_export_rows(tmp_path)
 
@@ -333,7 +333,7 @@ class TestDeepcastMetadataExtraction:
                 "deepcast_type": "brief",
             }
         }
-        (episode_dir / "deepcast-brief-precision.json").write_text(
+        (episode_dir / "deepcast-precision.json").write_text(
             json.dumps(deepcast_data)
         )
 
@@ -356,7 +356,7 @@ class TestDeepcastMetadataExtraction:
                 "deepcast_type": "brief",
             }
         }
-        (episode_dir / "deepcast-brief-recall.json").write_text(json.dumps(deepcast_data))
+        (episode_dir / "deepcast-recall.json").write_text(json.dumps(deepcast_data))
 
         rows = _scan_export_rows(tmp_path)
 
@@ -382,7 +382,7 @@ class TestDateFormatting:
         (episode_dir / "episode-meta.json").write_text(json.dumps(episode_meta))
 
         deepcast_data = {"deepcast_metadata": {"model": "gpt-4.1", "asr_model": "base"}}
-        (episode_dir / "deepcast-brief.json").write_text(json.dumps(deepcast_data))
+        (episode_dir / "deepcast.json").write_text(json.dumps(deepcast_data))
 
         rows = _scan_export_rows(tmp_path)
 
@@ -400,7 +400,7 @@ class TestDateFormatting:
         (episode_dir / "episode-meta.json").write_text(json.dumps(episode_meta))
 
         deepcast_data = {"deepcast_metadata": {"model": "gpt-4.1", "asr_model": "base"}}
-        (episode_dir / "deepcast-brief.json").write_text(json.dumps(deepcast_data))
+        (episode_dir / "deepcast.json").write_text(json.dumps(deepcast_data))
 
         rows = _scan_export_rows(tmp_path)
 
@@ -422,7 +422,7 @@ class TestDateFormatting:
         (episode_dir / "episode-meta.json").write_text(json.dumps(episode_meta))
 
         deepcast_data = {"deepcast_metadata": {"model": "gpt-4.1", "asr_model": "base"}}
-        (episode_dir / "deepcast-brief.json").write_text(json.dumps(deepcast_data))
+        (episode_dir / "deepcast.json").write_text(json.dumps(deepcast_data))
 
         rows = _scan_export_rows(tmp_path)
 

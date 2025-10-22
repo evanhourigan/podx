@@ -297,25 +297,26 @@ def _list_deepcast_models(workdir: Path) -> List[str]:
     files = list(workdir.glob("deepcast-*.json"))
     for f in files:
         # Try to extract AI model from filename
-        # New format: deepcast-{asr}-{ai}-{type}.json -> extract {ai}
-        # Legacy format: deepcast-{ai}.json or deepcast-brief-{ai}.json -> extract {ai}
+        # Complex format: deepcast-{asr}-{ai}-{type}.json -> extract {ai}
+        # Simple format: deepcast-{ai}.json -> extract {ai}
+        # Legacy format: deepcast-brief-{ai}.json -> extract {ai} (backward compatibility)
         stem = f.stem
         if stem.startswith("deepcast-brief-"):
-            # Legacy: deepcast-brief-{ai}
+            # Legacy: deepcast-brief-{ai} (backward compatibility)
             suffix = stem[len("deepcast-brief-"):].replace("_", ".")
             models.append(suffix)
-        elif stem.count("-") >= 3:
-            # New format: deepcast-{asr}-{ai}-{type}
-            parts = stem.split("-")
-            if len(parts) >= 3:
-                ai_model = parts[2].replace("_", ".")
-                if ai_model not in models:
-                    models.append(ai_model)
         elif stem.startswith("deepcast-"):
-            # Legacy: deepcast-{ai}
-            suffix = stem[len("deepcast-"):].replace("_", ".")
-            if suffix not in models:
+            if stem.count("-") == 1:
+                # Simple format: deepcast-{ai}
+                suffix = stem[len("deepcast-"):].replace("_", ".")
                 models.append(suffix)
+            elif stem.count("-") >= 3:
+                # Complex format: deepcast-{asr}-{ai}-{type}
+                parts = stem.split("-")
+                if len(parts) >= 3:
+                    ai_model = parts[2].replace("_", ".")
+                    if ai_model not in models:
+                        models.append(ai_model)
     # Deduplicate and return unique models
     return list(dict.fromkeys(models))  # Preserve order while deduplicating
 

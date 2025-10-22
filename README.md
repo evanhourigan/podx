@@ -156,7 +156,7 @@ podx run --show "Lex Fridman" --date 2024-10-15 --full
 # 📁 Lex_Fridman_Podcast/2024-10-15/
 #    ├── transcript-large-v3.json       (Word-level transcript)
 #    ├── transcript.txt, transcript.srt (Human-readable formats)
-#    ├── deepcast-brief.md              (AI analysis with insights)
+#    ├── deepcast.md              (AI analysis with insights)
 #    └── notion.out.json                (Notion page URL)
 ```
 
@@ -195,7 +195,7 @@ podx run --show "Lex Fridman Podcast" --date 2024-10-15 \
 
 # Output:
 # ✅ Transcript saved to Lex_Fridman_Podcast/2024-10-15/transcript-large-v3.json
-# ✅ Analysis saved to Lex_Fridman_Podcast/2024-10-15/deepcast-brief.md
+# ✅ Analysis saved to Lex_Fridman_Podcast/2024-10-15/deepcast.md
 # ✅ Notion page created: https://notion.so/...
 ```
 
