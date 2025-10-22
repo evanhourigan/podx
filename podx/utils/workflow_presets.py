@@ -49,30 +49,3 @@ def apply_fidelity_preset(
     }
 
     return flags
-
-
-def apply_workflow_preset(workflow: str) -> Dict[str, Any]:
-    """Apply workflow preset to pipeline flags.
-
-    This delegates to PipelineConfig.from_workflow() to ensure single source
-    of truth for workflow mappings.
-
-    Args:
-        workflow: Workflow name (quick, analyze, publish)
-
-    Returns:
-        Dictionary with pipeline flags
-    """
-    # Delegate to domain factory method
-    config = PipelineConfig.from_workflow(workflow)
-
-    # Convert to dict for backward compatibility with orchestrate.py
-    flags = {
-        "align": config.align,
-        "diarize": config.diarize,
-        "deepcast": config.deepcast,
-        "extract_markdown": config.extract_markdown,
-        "notion": config.notion,
-    }
-
-    return flags

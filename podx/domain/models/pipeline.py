@@ -117,38 +117,6 @@ class PipelineConfig:
 
         return config
 
-    @classmethod
-    def from_workflow(cls, workflow_name: str, **kwargs) -> "PipelineConfig":
-        """Create config from workflow preset.
-
-        Args:
-            workflow_name: Workflow name (quick, analyze, publish)
-            **kwargs: Additional configuration overrides
-
-        Returns:
-            PipelineConfig instance with workflow settings applied
-        """
-        config = cls(**kwargs)
-
-        if workflow_name == "quick":
-            config.align = False
-            config.diarize = False
-            config.deepcast = False
-            config.extract_markdown = False
-            config.notion = False
-        elif workflow_name == "analyze":
-            config.align = True
-            config.diarize = False
-            config.deepcast = True
-            config.extract_markdown = True
-        elif workflow_name == "publish":
-            config.align = True
-            config.diarize = False
-            config.deepcast = True
-            config.extract_markdown = True
-            config.notion = True
-
-        return config
 
 
 @dataclass
