@@ -1334,7 +1334,7 @@ def _build_episode_metadata_display(
 
     # Cost estimate (if deepcast enabled and transcript available)
     cost_str = ""
-    if (config.get("deepcast") or config.get("dual")) and transcript_json:
+    if config.get("deepcast") and transcript_json:
         try:
             from .deepcast import estimate_deepcast_cost
             from .model_catalog import load_model_catalog
@@ -1417,8 +1417,7 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
     summary = (
         f"preset={preset_value or '-'}  align={yn(config['align'])}  "
         f"diarize={yn(config['diarize'])}  preprocess={yn(config['preprocess'])}  "
-        f"restore={yn(config['restore'])}  deepcast={yn(config['deepcast'])}  "
-        f"dual={yn(config['dual'])}"
+        f"restore={yn(config['restore'])}  deepcast={yn(config['deepcast'])}"
     )
     console.print(Panel(summary, title="Preset Applied", border_style="green"))
 
@@ -1898,13 +1897,12 @@ def run(
         # Track transcoded audio path for cleanup
         transcoded_path = Path(audio["audio_path"])
 
-        # 3) TRANSCRIBE → transcript-{model}.json (or dual precision/recall)
+        # 3) TRANSCRIBE → transcript-{model}.json
         latest, latest_name = _execute_transcribe(
             model=config["model"],
             compute=config["compute"],
             asr_provider=config["asr_provider"],
             preset=config["preset"],
-            dual=config["dual"],
             audio=audio,
             wd=wd,
             progress=progress,
@@ -1917,7 +1915,6 @@ def run(
             restore=config["restore"],
             align=config["align"],
             diarize=config["diarize"],
-            dual=config["dual"],
             model=config["model"],
             latest=latest,
             latest_name=latest_name,
