@@ -173,7 +173,6 @@ def _build_pipeline_config(
     restore: bool,
     diarize: bool,
     deepcast: bool,
-    workflow: Optional[str],
     fidelity: Optional[str],
     deepcast_model: str,
     deepcast_temp: float,
@@ -194,7 +193,7 @@ def _build_pipeline_config(
 ) -> Dict[str, Any]:
     """Build pipeline configuration from CLI arguments.
 
-    Applies preset transformations (--full, --workflow, --fidelity) to CLI flags
+    Applies preset transformations (--full, --fidelity) to CLI flags
     and returns a configuration dictionary ready for pipeline execution.
 
     Args:
@@ -245,19 +244,6 @@ def _build_pipeline_config(
         config["deepcast"] = True
         config["extract_markdown"] = True
         config["notion"] = True
-
-    # Map --workflow presets first (can be combined with fidelity)
-    if workflow:
-        from .utils import apply_workflow_preset
-
-        workflow_flags = apply_workflow_preset(workflow)
-        config["align"] = workflow_flags.get("align", config["align"])
-        config["diarize"] = workflow_flags.get("diarize", config["diarize"])
-        config["deepcast"] = workflow_flags.get("deepcast", config["deepcast"])
-        config["extract_markdown"] = workflow_flags.get(
-            "extract_markdown", config["extract_markdown"]
-        )
-        config["notion"] = workflow_flags.get("notion", config["notion"])
 
     # Map --fidelity to flags (lowest→highest)
     # 1: deepcast only (use latest transcript)
@@ -1544,12 +1530,6 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
     help="Run LLM summarization (default: no AI analysis)",
 )
 @click.option(
-    "--workflow",
-    type=click.Choice(["quick", "analyze", "publish"]),
-    default=None,
-    help="Preconfigured workflow: quick(fetch+transcribe), analyze(transcribe+align+deepcast), publish(full pipeline)",
-)
-@click.option(
     "--fidelity",
     type=click.Choice(["5", "4", "3", "2", "1"]),
     default=None,
@@ -1667,7 +1647,6 @@ def run(
     restore: bool,
     diarize: bool,
     deepcast: bool,
-    workflow: str | None,
     fidelity: str | None,
     interactive_select: bool,
     scan_dir: Path,
@@ -1724,7 +1703,6 @@ def run(
         restore: Enable semantic restore (LLM-based)
         diarize: Enable speaker diarization (WhisperX)
         deepcast: Enable AI analysis
-        workflow: Workflow preset (quick/analyze/publish)
         fidelity: Fidelity level 1-5 (1=fastest, 5=best quality)
         interactive_select: Use interactive episode selection UI
         scan_dir: Directory to scan for episodes in interactive mode
@@ -1770,7 +1748,6 @@ def run(
         restore=restore,
         diarize=diarize,
         deepcast=deepcast,
-        workflow=workflow,
         fidelity=fidelity,
         deepcast_model=deepcast_model,
         deepcast_temp=deepcast_temp,
