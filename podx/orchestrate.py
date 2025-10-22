@@ -173,7 +173,6 @@ def _build_pipeline_config(
     restore: bool,
     diarize: bool,
     deepcast: bool,
-    fidelity: Optional[str],
     deepcast_model: str,
     deepcast_temp: float,
     extract_markdown: bool,
@@ -193,7 +192,7 @@ def _build_pipeline_config(
 ) -> Dict[str, Any]:
     """Build pipeline configuration from CLI arguments.
 
-    Applies preset transformations (--full, --fidelity) to CLI flags
+    Applies preset transformations (--full) to CLI flags
     and returns a configuration dictionary ready for pipeline execution.
 
     Args:
@@ -214,7 +213,6 @@ def _build_pipeline_config(
         "model": model,
         "compute": compute,
         "asr_provider": asr_provider,
-        "preset": None,  # Preset system removed in v2.0 - kept for fidelity system compatibility
         "align": align,
         "preprocess": preprocess,
         "restore": restore,
@@ -244,24 +242,6 @@ def _build_pipeline_config(
         config["deepcast"] = True
         config["extract_markdown"] = True
         config["notion"] = True
-
-    # Map --fidelity to flags (lowest→highest)
-    # 1: deepcast only (use latest transcript)
-    # 2: recall + preprocess + restore + deepcast
-    # 3: precision + preprocess + restore + deepcast
-    # 4: balanced + preprocess + restore + deepcast
-    # 5: dual (precision+recall) + preprocess + restore + deepcast
-    if fidelity:
-        from .utils import apply_fidelity_preset
-
-        fid_flags = apply_fidelity_preset(fidelity, config["preset"], interactive=False)
-        config["align"] = fid_flags.get("align", config["align"])
-        config["diarize"] = fid_flags.get("diarize", config["diarize"])
-        config["preprocess"] = fid_flags.get("preprocess", config["preprocess"])
-        config["restore"] = fid_flags.get("restore", config["restore"])
-        config["deepcast"] = fid_flags.get("deepcast", config["deepcast"])
-        config["dual"] = fid_flags.get("dual", config["dual"])
-        config["preset"] = fid_flags.get("preset", config["preset"])
 
     return config
 
@@ -1347,8 +1327,8 @@ def _build_episode_metadata_display(
 def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: Any) -> tuple[Dict[str, Any], Path]:
     """Handle interactive episode selection and configuration.
 
-    Displays rich table UI for episode selection, prompts for fidelity level,
-    then shows interactive configuration panel. Modifies config dict in place.
+    Displays rich table UI for episode selection and interactive
+    configuration panel. Modifies config dict in place.
 
     Args:
         config: Pipeline configuration dictionary (modified in place)
@@ -1361,8 +1341,8 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
     Raises:
         SystemExit: If user cancels selection
     """
-    from .ui import select_episode_with_tui, select_fidelity_interactive
-    from .utils import apply_fidelity_preset
+    from .ui import select_episode_with_tui
+    from rich.panel import Panel
 
     # 1. Episode selection
     selected, meta = select_episode_with_tui(
@@ -1370,37 +1350,7 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
         show_filter=config["show"],
     )
 
-    # 2. Fidelity choice with interactive mapping
-    from rich.panel import Panel
-
-    fidelity_level, fid_flags = select_fidelity_interactive(
-        console=console,
-        preset=config.get("preset"),
-        apply_fidelity_fn=apply_fidelity_preset,
-    )
-
-    # Update config with fidelity flags
-    config["align"] = fid_flags.get("align", config["align"])
-    config["diarize"] = fid_flags.get("diarize", config["diarize"])
-    config["preprocess"] = fid_flags.get("preprocess", config["preprocess"])
-    config["restore"] = fid_flags.get("restore", config["restore"])
-    config["deepcast"] = fid_flags.get("deepcast", config["deepcast"])
-    config["dual"] = fid_flags.get("dual", config["dual"])
-    config["preset"] = fid_flags.get("preset", config["preset"])
-
-    # Show resulting flags (yes/no) before overrides
-    def yn(val: bool) -> str:
-        return "yes" if val else "no"
-
-    preset_value = config['preset'].value if hasattr(config['preset'], 'value') else config['preset']
-    summary = (
-        f"preset={preset_value or '-'}  align={yn(config['align'])}  "
-        f"diarize={yn(config['diarize'])}  preprocess={yn(config['preprocess'])}  "
-        f"restore={yn(config['restore'])}  deepcast={yn(config['deepcast'])}"
-    )
-    console.print(Panel(summary, title="Preset Applied", border_style="green"))
-
-    # 3. Interactive configuration panel
+    # 2. Interactive configuration panel
     from .ui import configure_pipeline_interactive
 
     updated_config = configure_pipeline_interactive(config)
@@ -1433,10 +1383,12 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
     if config["deepcast_pdf"]:
         outputs.append("pdf")
 
-    preset_display = config['preset'].value if hasattr(config['preset'], 'value') else config['preset']
+    def yn(val: bool) -> str:
+        return "yes" if val else "no"
+
     preview = (
         f"Pipeline: {' → '.join(stages)}\n"
-        f"ASR={config['model']} preset={preset_display or '-'} "
+        f"ASR={config['model']} "
         f"align={yn(config['align'])} diarize={yn(config['diarize'])} "
         f"preprocess={yn(config['preprocess'])} restore={yn(config['restore'])}\n"
         f"AI={config['deepcast_model']} type={chosen_type or '-'} outputs={','.join(outputs) or '-'}"
@@ -1528,12 +1480,6 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
     "--deepcast",
     is_flag=True,
     help="Run LLM summarization (default: no AI analysis)",
-)
-@click.option(
-    "--fidelity",
-    type=click.Choice(["5", "4", "3", "2", "1"]),
-    default=None,
-    help="Fidelity 1-5: 1=deepcast only, 2=recall+preprocess+restore+deepcast, 3=precision+preprocess+restore+deepcast, 4=balanced+preprocess+restore+deepcast, 5=dual (precision+recall)+preprocess+restore+deepcast",
 )
 @click.option(
     "--interactive",
@@ -1647,7 +1593,6 @@ def run(
     restore: bool,
     diarize: bool,
     deepcast: bool,
-    fidelity: str | None,
     interactive_select: bool,
     scan_dir: Path,
     fetch_new: bool,
@@ -1703,7 +1648,6 @@ def run(
         restore: Enable semantic restore (LLM-based)
         diarize: Enable speaker diarization (WhisperX)
         deepcast: Enable AI analysis
-        fidelity: Fidelity level 1-5 (1=fastest, 5=best quality)
         interactive_select: Use interactive episode selection UI
         scan_dir: Directory to scan for episodes in interactive mode
         fetch_new: Force fetch new episode (skip interactive selection)
@@ -1748,7 +1692,6 @@ def run(
         restore=restore,
         diarize=diarize,
         deepcast=deepcast,
-        fidelity=fidelity,
         deepcast_model=deepcast_model,
         deepcast_temp=deepcast_temp,
         extract_markdown=extract_markdown,

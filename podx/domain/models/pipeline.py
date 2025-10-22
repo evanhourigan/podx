@@ -66,56 +66,6 @@ class PipelineConfig:
     clean: bool = False
     no_keep_audio: bool = False
 
-    @classmethod
-    def from_fidelity(cls, level: int, **kwargs) -> "PipelineConfig":
-        """Create config from fidelity preset (1-5).
-
-        Args:
-            level: Fidelity level 1-5
-                1: Deepcast only (fastest)
-                2: Recall preset + preprocess + restore + deepcast
-                3: Precision preset + preprocess + restore + deepcast
-                4: Balanced preset + preprocess + restore + deepcast (recommended)
-                5: Dual QA (precision + recall) + preprocess + restore (best quality)
-            **kwargs: Additional configuration overrides
-
-        Returns:
-            PipelineConfig instance with fidelity settings applied
-        """
-        config = cls(**kwargs)
-
-        if level == 1:
-            config.align = False
-            config.diarize = False
-            config.preprocess = False
-            config.dual = False
-            config.deepcast = True
-        elif level == 2:
-            config.preset = ASRPreset.RECALL
-            config.preprocess = True
-            config.restore = True
-            config.deepcast = True
-            config.dual = False
-        elif level == 3:
-            config.preset = ASRPreset.PRECISION
-            config.preprocess = True
-            config.restore = True
-            config.deepcast = True
-            config.dual = False
-        elif level == 4:
-            config.preset = ASRPreset.BALANCED
-            config.preprocess = True
-            config.restore = True
-            config.deepcast = True
-            config.dual = False
-        elif level == 5:
-            config.dual = True
-            config.preprocess = True
-            config.restore = True
-            config.deepcast = True
-            config.preset = config.preset or ASRPreset.BALANCED
-
-        return config
 
 
 
