@@ -89,14 +89,14 @@ class LiveTimer:
     "--audio",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     required=False,
-    help="Audio file path (optional if specified in aligned transcript JSON)",
+    help="Audio file path (optional if specified in transcript JSON)",
 )
 @click.option(
     "--input",
     "-i",
     "input_file",
     type=click.Path(exists=True, path_type=Path),
-    help="Read AlignedTranscript JSON from file instead of stdin",
+    help="Read Transcript JSON from file instead of stdin",
 )
 @click.option(
     "--output",
@@ -107,19 +107,22 @@ class LiveTimer:
 @click.option(
     "--interactive",
     is_flag=True,
-    help="Interactive browser to select aligned transcripts for diarization",
+    help="Interactive browser to select transcripts for diarization",
 )
 @click.option(
     "--scan-dir",
     type=click.Path(exists=True, path_type=Path),
     default=".",
-    help="Directory to scan for aligned transcripts (default: current directory)",
+    help="Directory to scan for transcripts (default: current directory)",
 )
 def main(audio, input_file, output, interactive, scan_dir):
     """
-    Read aligned JSON on stdin -> WhisperX diarization -> print diarized JSON to stdout.
+    Read transcript JSON -> WhisperX align + diarize -> print diarized JSON to stdout.
 
-    With --interactive, browse aligned transcripts and select one to diarize.
+    Runs alignment internally before diarization. Alignment adds word-level timing,
+    then diarization assigns speakers to each word.
+
+    With --interactive, browse base transcripts and select one to diarize.
     """
     # Handle interactive mode
     if interactive:
@@ -128,11 +131,11 @@ def main(audio, input_file, output, interactive, scan_dir):
                 "Interactive mode requires textual library. Install with: pip install textual"
             )
 
-        # Browse and select aligned transcript using Textual TUI
-        logger.info(f"Scanning for aligned transcripts in: {scan_dir}")
+        # Browse and select base transcript using Textual TUI
+        logger.info(f"Scanning for transcripts in: {scan_dir}")
         selected = select_episode_for_processing(
             scan_dir=Path(scan_dir),
-            title="Select Aligned Transcript for Diarization",
+            title="Select Transcript for Diarization",
             episode_scanner=scan_diarizable_transcripts,
         )
 
@@ -153,8 +156,8 @@ def main(audio, input_file, output, interactive, scan_dir):
                     console.print("[dim]Diarization cancelled.[/dim]")
                 sys.exit(0)
 
-        # Use selected aligned transcript
-        aligned = selected["aligned_data"]
+        # Use selected base transcript
+        transcript = selected["transcript_data"]
         audio = selected["audio_path"]
         output = selected["diarized_file"]
 
@@ -162,26 +165,26 @@ def main(audio, input_file, output, interactive, scan_dir):
         # Non-interactive mode
         # Read input
         if input_file:
-            aligned = json.loads(input_file.read_text())
+            transcript = json.loads(input_file.read_text())
         else:
-            aligned = read_stdin_json()
+            transcript = read_stdin_json()
 
-        if not aligned or "segments" not in aligned:
+        if not transcript or "segments" not in transcript:
             raise SystemExit(
-                "input must contain AlignedTranscript JSON with 'segments' field"
+                "input must contain Transcript JSON with 'segments' field"
             )
 
-    # Preserve metadata from input aligned transcript
-    asr_model = aligned.get("asr_model")
-    language = aligned.get("language", "en")
+    # Preserve metadata from input transcript
+    asr_model = transcript.get("asr_model")
+    language = transcript.get("language", "en")
 
     # Get audio path from --audio flag or from JSON (non-interactive mode)
     if not interactive and not audio:
-        if "audio_path" not in aligned:
+        if "audio_path" not in transcript:
             raise SystemExit(
-                "--audio flag required when aligned transcript JSON has no 'audio_path' field"
+                "--audio flag required when transcript JSON has no 'audio_path' field"
             )
-        audio = Path(aligned["audio_path"])
+        audio = Path(transcript["audio_path"])
         if not audio.exists():
             raise SystemExit(f"Audio file not found: {audio}")
 
@@ -192,35 +195,57 @@ def main(audio, input_file, output, interactive, scan_dir):
     # Suppress WhisperX debug output that contaminates stdout
     from contextlib import redirect_stdout
 
-    from whisperx import diarize
+    import whisperx
 
-    # Start live timer in interactive mode
+    # Start live timer in interactive mode (covers both align + diarize)
     # Save original stdout before redirecting, so timer can still display
     timer = None
     original_stdout = sys.stdout
     if interactive and RICH_AVAILABLE:
         console = Console()
-        timer = LiveTimer("Diarizing", output_stream=original_stdout)
+        timer = LiveTimer("Aligning + Diarizing", output_stream=original_stdout)
         timer.start()
 
     try:
+        # Step 1: Alignment - add word-level timing using WhisperX
         with redirect_stdout(open(os.devnull, "w")), redirect_stderr(open(os.devnull, "w")):
-            dia = diarize.DiarizationPipeline(
+            # Load alignment model
+            model_a, metadata = whisperx.load_align_model(
+                language_code=language, device="cpu"
+            )
+
+            # Load audio
+            audio_data = whisperx.load_audio(str(audio))
+
+            # Align segments
+            aligned_result = whisperx.align(
+                transcript["segments"],
+                model_a,
+                metadata,
+                audio_data,
+                device="cpu",
+                return_char_alignments=False,
+            )
+            aligned = aligned_result  # Contains aligned segments with word-level timing
+
+        # Step 2: Diarization - assign speakers to words
+        with redirect_stdout(open(os.devnull, "w")), redirect_stderr(open(os.devnull, "w")):
+            dia = whisperx.diarize.DiarizationPipeline(
                 use_auth_token=os.getenv("HUGGINGFACE_TOKEN"), device="cpu"
             )
             diarized = dia(str(audio))
-            final = diarize.assign_word_speakers(diarized, aligned)
+            final = whisperx.diarize.assign_word_speakers(diarized, aligned)
     except Exception as e:
         if timer:
             timer.stop()
-        raise SystemExit(f"Diarization failed: {e}") from e
+        raise SystemExit(f"Alignment + diarization failed: {e}") from e
 
     # Stop timer and show completion message in interactive mode
     if timer:
         elapsed = timer.stop()
         minutes = int(elapsed // 60)
         seconds = int(elapsed % 60)
-        console.print(f"[green]✓ Diarize completed in {minutes}:{seconds:02d}[/green]")
+        console.print(f"[green]✓ Alignment + diarization completed in {minutes}:{seconds:02d}[/green]")
 
     # Preserve metadata from input transcript (always use absolute path)
     final["audio_path"] = str(
