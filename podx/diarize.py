@@ -10,16 +10,9 @@ import click
 
 from .cli_shared import print_json, read_stdin_json
 from .logging import get_logger
+from .ui.diarize_browser import DiarizeTwoPhase
 
 logger = get_logger(__name__)
-
-# Interactive browser imports (optional)
-try:
-    import importlib.util
-
-    TEXTUAL_AVAILABLE = importlib.util.find_spec("textual") is not None
-except ImportError:
-    TEXTUAL_AVAILABLE = False
 
 # Rich console for live timer
 try:
@@ -28,15 +21,6 @@ try:
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
-
-# Shared UI components
-try:
-    from .ui import scan_diarizable_transcripts, select_episode_for_processing
-except Exception:
-    from .ui.diarize_browser import scan_diarizable_transcripts
-
-    def select_episode_for_processing(*args, **kwargs):
-        raise ImportError("UI module not available")
 
 
 class LiveTimer:
@@ -126,18 +110,15 @@ def main(audio, input_file, output, interactive, scan_dir):
     """
     # Handle interactive mode
     if interactive:
-        if not TEXTUAL_AVAILABLE:
+        if not RICH_AVAILABLE:
             raise SystemExit(
-                "Interactive mode requires textual library. Install with: pip install textual"
+                "Interactive mode requires rich library. Install with: pip install rich"
             )
 
-        # Browse and select base transcript using Textual TUI
-        logger.info(f"Scanning for transcripts in: {scan_dir}")
-        selected = select_episode_for_processing(
-            scan_dir=Path(scan_dir),
-            title="Select Transcript for Diarization",
-            episode_scanner=scan_diarizable_transcripts,
-        )
+        # Two-phase selection: episode → base transcript
+        logger.info(f"Scanning for episodes in: {scan_dir}")
+        browser = DiarizeTwoPhase(scan_dir=Path(scan_dir))
+        selected = browser.browse()
 
         if not selected:
             logger.info("User cancelled transcript selection")
@@ -145,15 +126,13 @@ def main(audio, input_file, output, interactive, scan_dir):
 
         # Check if already diarized - confirm if so
         if selected.get("is_diarized"):
-            console = Console() if RICH_AVAILABLE else None
-            if console:
-                console.print(
-                    f"\n[yellow]⚠ This transcript is already diarized (model: {selected['asr_model']})[/yellow]"
-                )
+            console = Console()
+            console.print(
+                f"\n[yellow]⚠ This transcript is already diarized (model: {selected['asr_model']})[/yellow]"
+            )
             confirm = input("Re-diarize anyway? (yes/no): ").strip().lower()
             if confirm not in ["yes", "y"]:
-                if console:
-                    console.print("[dim]Diarization cancelled.[/dim]")
+                console.print("[dim]Diarization cancelled.[/dim]")
                 sys.exit(0)
 
         # Use selected base transcript
