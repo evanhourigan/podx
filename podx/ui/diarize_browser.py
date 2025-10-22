@@ -1,4 +1,4 @@
-"""Interactive browser for selecting base transcripts to diarize."""
+"""Interactive two-phase browser for selecting base transcripts to diarize."""
 
 import json
 from pathlib import Path
@@ -14,21 +14,21 @@ except ImportError:
 
 from ..logging import get_logger
 from ..ui_styles import (
-
     TABLE_BORDER_STYLE,
     TABLE_HEADER_STYLE,
     TABLE_NUM_STYLE,
-    TABLE_SHOW_STYLE,
-    TABLE_DATE_STYLE,
     TABLE_TITLE_COL_STYLE,
 )
-from .interactive_browser import InteractiveBrowser
+from .two_phase_browser import TwoPhaseTranscriptBrowser
 
 logger = get_logger(__name__)
 
 
 def scan_diarizable_transcripts(scan_dir: Path) -> List[Dict[str, Any]]:
     """
+    DEPRECATED: Legacy function for backward compatibility.
+    Use DiarizeTwoPhase.browse() for interactive selection instead.
+
     Scan directory for base transcript files.
     Returns list of base transcripts with their metadata and diarization status.
 
@@ -118,35 +118,116 @@ def scan_diarizable_transcripts(scan_dir: Path) -> List[Dict[str, Any]]:
     return transcripts
 
 
-class DiarizeBrowser(InteractiveBrowser):
-    """Interactive browser for selecting base transcripts to diarize."""
+class DiarizeTwoPhase(TwoPhaseTranscriptBrowser):
+    """Two-phase browser: select episode → select base transcript to diarize."""
 
-    def __init__(self, transcripts: List[Dict[str, Any]], items_per_page: int = 10):
-        super().__init__(transcripts, items_per_page, item_name="transcript")
-        # Keep transcripts as alias for backward compatibility
-        self.transcripts = self.items
+    def scan_transcripts(self, episode_dir: Path) -> List[Dict[str, Any]]:
+        """Scan episode directory for base (non-diarized, non-preprocessed) transcripts.
 
-    def _get_item_title(self, item: Dict[str, Any]) -> str:
-        """Get title of episode for selection confirmation."""
-        episode_meta = item.get("episode_meta", {})
-        return episode_meta.get("episode_title", "Unknown")
+        Args:
+            episode_dir: Episode directory to scan
 
-    def display_page(self) -> None:
-        """Display current page with table and navigation options."""
+        Returns:
+            List of base transcript dictionaries with metadata
+        """
+        transcripts = []
+
+        # Find all base transcript files in this episode directory
+        for transcript_file in episode_dir.glob("transcript-*.json"):
+            # Skip non-base transcript files
+            filename = transcript_file.stem
+            if any(keyword in filename for keyword in ["diarized", "preprocessed", "aligned"]):
+                continue
+
+            try:
+                # Load transcript data
+                transcript_data = json.loads(transcript_file.read_text(encoding="utf-8"))
+
+                # Extract ASR model from filename
+                if filename.startswith("transcript-"):
+                    asr_model = filename[len("transcript-") :]
+                else:
+                    continue
+
+                # Get audio path
+                audio_path = transcript_data.get("audio_path")
+                if not audio_path:
+                    continue
+
+                audio_path = Path(audio_path)
+                if not audio_path.exists():
+                    continue
+
+                # Check if diarized version exists
+                diarized_file_new = episode_dir / f"transcript-diarized-{asr_model}.json"
+                diarized_file_legacy = episode_dir / f"diarized-transcript-{asr_model}.json"
+                is_diarized = diarized_file_new.exists() or diarized_file_legacy.exists()
+                diarized_file = diarized_file_new
+
+                # Load episode metadata
+                episode_meta_file = episode_dir / "episode-meta.json"
+                episode_meta = {}
+                if episode_meta_file.exists():
+                    try:
+                        episode_meta = json.loads(
+                            episode_meta_file.read_text(encoding="utf-8")
+                        )
+                    except Exception:
+                        pass
+
+                transcripts.append(
+                    {
+                        "transcript_file": transcript_file,
+                        "transcript_data": transcript_data,
+                        "audio_path": audio_path,
+                        "asr_model": asr_model,
+                        "is_diarized": is_diarized,
+                        "diarized_file": diarized_file,
+                        "episode_meta": episode_meta,
+                        "directory": episode_dir,
+                    }
+                )
+            except Exception as e:
+                logger.debug(f"Failed to parse {transcript_file}: {e}")
+                continue
+
+        # Sort by ASR model name
+        transcripts.sort(key=lambda t: t["asr_model"])
+        return transcripts
+
+    def get_transcript_title(self, transcript: Dict[str, Any]) -> str:
+        """Get display title for transcript confirmation.
+
+        Args:
+            transcript: Transcript dictionary
+
+        Returns:
+            Title string combining model and status
+        """
+        asr_model = transcript["asr_model"]
+        status = "✓ diarized" if transcript["is_diarized"] else "○ not diarized"
+        return f"{asr_model} ({status})"
+
+    def display_transcript_page(self, browser) -> None:
+        """Display transcript selection table for current page.
+
+        Args:
+            browser: TranscriptBrowser instance with pagination info
+        """
         if not self.console:
             return
 
         # Calculate page bounds
-        start_idx = self.current_page * self.items_per_page
-        end_idx = min(start_idx + self.items_per_page, len(self.items))
-        page_items = self.items[start_idx:end_idx]
+        start_idx = browser.current_page * browser.items_per_page
+        end_idx = min(start_idx + browser.items_per_page, len(browser.items))
+        page_items = browser.items[start_idx:end_idx]
 
-        # Create title (shortened per spec)
-        title = f"🎙️ Episodes Available for Diarization (Page {self.current_page + 1}/{self.total_pages})"
+        # Create title
+        title = f"📝 Select Base Transcript to Diarize (Page {browser.current_page + 1}/{browser.total_pages})"
 
         # Compute dynamic Title width
         term_width = self.console.size.width
-        fixed_widths = {"num": 4, "status": 24, "show": 20, "date": 12}
+        fixed_widths = {"num": 4, "model": 30, "status": 20}
         borders_allowance = 16
         title_width = max(30, term_width - sum(fixed_widths.values()) - borders_allowance)
 
@@ -157,50 +238,36 @@ class DiarizeBrowser(InteractiveBrowser):
             title=title,
             expand=False,
         )
-        table.add_column("#", style=TABLE_NUM_STYLE, width=fixed_widths["num"], justify="right", no_wrap=True)
-        table.add_column("Status", style="magenta", width=fixed_widths["status"], no_wrap=True, overflow="ellipsis")
-        table.add_column("Show", style=TABLE_SHOW_STYLE, width=fixed_widths["show"], no_wrap=True, overflow="ellipsis")
-        table.add_column("Date", style=TABLE_DATE_STYLE, width=fixed_widths["date"], no_wrap=True)
-        table.add_column("Title", style=TABLE_TITLE_COL_STYLE, width=title_width, no_wrap=True, overflow="ellipsis")
+        table.add_column(
+            "#", style=TABLE_NUM_STYLE, width=fixed_widths["num"], justify="right", no_wrap=True
+        )
+        table.add_column(
+            "ASR Model", style="cyan", width=fixed_widths["model"], no_wrap=True, overflow="ellipsis"
+        )
+        table.add_column(
+            "Status", style="magenta", width=fixed_widths["status"], no_wrap=True
+        )
+        table.add_column(
+            "Episode Title", style=TABLE_TITLE_COL_STYLE, width=title_width, no_wrap=True, overflow="ellipsis"
+        )
 
         for idx, item in enumerate(page_items, start=start_idx + 1):
-            episode_meta = item["episode_meta"]
             asr_model = item["asr_model"]
-            status = f"✓ {asr_model}" if item["is_diarized"] else f"○ {asr_model}"
+            status = "✓ Diarized" if item["is_diarized"] else "○ Not diarized"
+            episode_title = item["episode_meta"].get("episode_title", "Unknown")
 
-            show = episode_meta.get("show", "Unknown")
-
-            # Format date to YYYY-MM-DD
-            date_str = episode_meta.get("episode_published", "")
-            if date_str:
-                try:
-                    from dateutil import parser as dtparse
-
-                    parsed = dtparse.parse(date_str)
-                    date = parsed.strftime("%Y-%m-%d")
-                except Exception:
-                    date = date_str[:10] if len(date_str) >= 10 else date_str
-            else:
-                # Try to extract from directory name
-                parts = str(item["directory"]).split("/")
-                date = parts[-1] if parts else "Unknown"
-
-            title_text = episode_meta.get("episode_title", "Unknown")
-
-            table.add_row(str(idx), status, show, date, title_text)
+            table.add_row(str(idx), asr_model, status, episode_title)
 
         self.console.print(table)
 
         # Show navigation options in Panel
         options = []
-        options.append(
-            f"[cyan]1-{len(self.items)}[/cyan]: Select episode to diarize"
-        )
+        options.append(f"[cyan]1-{len(browser.items)}[/cyan]: Select transcript")
 
-        if self.current_page < self.total_pages - 1:
+        if browser.current_page < browser.total_pages - 1:
             options.append("[yellow]N[/yellow]: Next page")
 
-        if self.current_page > 0:
+        if browser.current_page > 0:
             options.append("[yellow]P[/yellow]: Previous page")
 
         options.append("[red]Q[/red]: Quit")
