@@ -2117,24 +2117,18 @@ def notion_cmd(ctx):
     help="ASR provider for transcribe",
 )
 @click.option(
-    "--preset",
-    type=click.Choice(["balanced", "precision", "recall"]),
-    default=None,
-    help="Decoding preset for transcribe",
-)
-@click.option(
     "--compute",
     default=lambda: get_config().default_compute,
     type=click.Choice(["int8", "int8_float16", "float16", "float32"]),
     help="Compute type",
 )
 @click.option("-v", "--verbose", is_flag=True, help="Print interstitial outputs")
-def quick(show, rss_url, youtube_url, date, title_contains, model, asr_provider, preset, compute, verbose):
+def quick(show, rss_url, youtube_url, date, title_contains, model, asr_provider, compute, verbose):
     """Quick workflow: fetch + transcribe only (fastest option)."""
-    click.secho("[deprecated] Use: podx run --workflow quick", fg="yellow")
-    click.echo("🚀 Running quick transcription workflow (alias of run --workflow quick)...")
+    click.secho("[deprecated] Use: podx run (with no extra flags)", fg="yellow")
+    click.echo("🚀 Running quick transcription workflow...")
 
-    # Use the existing run command but with minimal options
+    # Use the existing run command but with minimal options (all flags defaulted to False)
     ctx = click.get_current_context()
     ctx.invoke(
         run,
@@ -2146,9 +2140,12 @@ def quick(show, rss_url, youtube_url, date, title_contains, model, asr_provider,
         model=model,
         compute=compute,
         asr_provider=asr_provider,
-        preset=preset,
+        align=False,
+        diarize=False,
+        deepcast=False,
+        extract_markdown=False,
+        notion=False,
         verbose=verbose,
-        workflow="quick",
         clean=False,
         model_prop="Model",
     )
@@ -2170,12 +2167,6 @@ def quick(show, rss_url, youtube_url, date, title_contains, model, asr_provider,
     type=click.Choice(["auto", "local", "openai", "hf"]),
     default="auto",
     help="ASR provider for transcribe",
-)
-@click.option(
-    "--preset",
-    type=click.Choice(["balanced", "precision", "recall"]),
-    default=None,
-    help="Decoding preset for transcribe",
 )
 @click.option(
     "--compute",
@@ -2214,15 +2205,14 @@ def analyze(
     title_contains,
     model,
     asr_provider,
-    preset,
     compute,
     deepcast_model,
     podcast_type,
     verbose,
 ):
     """Analysis workflow: transcribe + align + AI analysis (recommended)."""
-    click.secho("[deprecated] Use: podx run --workflow analyze", fg="yellow")
-    click.echo("🤖 Running analysis workflow (alias of run --workflow analyze)...")
+    click.secho("[deprecated] Use: podx run --align --deepcast --extract-markdown", fg="yellow")
+    click.echo("🤖 Running analysis workflow...")
 
     ctx = click.get_current_context()
     ctx.invoke(
@@ -2235,10 +2225,11 @@ def analyze(
         model=model,
         compute=compute,
         asr_provider=asr_provider,
-        preset=preset,
+        align=True,
+        deepcast=True,
+        extract_markdown=True,
         deepcast_model=deepcast_model,
         verbose=verbose,
-        workflow="analyze",
         clean=False,
         model_prop="Model",
     )
@@ -2293,11 +2284,11 @@ def publish(
     verbose,
 ):
     """Publishing workflow: full pipeline + Notion upload (complete)."""
-    click.secho("[deprecated] Use: podx run --workflow publish", fg="yellow")
-    click.echo("📝 Running publishing workflow (alias of run --workflow publish)...")
+    click.secho("[deprecated] Use: podx run --align --deepcast --extract-markdown --notion", fg="yellow")
+    click.echo("📝 Running publishing workflow...")
 
     ctx = click.get_current_context()
-        # Equivalent to selecting the publish workflow
+    # Equivalent to selecting the publish workflow
     ctx.invoke(
         run,
         show=show,
@@ -2307,8 +2298,11 @@ def publish(
         title_contains=title_contains,
         notion_db=notion_db,
         deepcast_model=deepcast_model,
+        align=True,
+        deepcast=True,
+        extract_markdown=True,
+        notion=True,
         verbose=verbose,
-        workflow="publish",
         clean=False,
         model_prop="Model",
     )
