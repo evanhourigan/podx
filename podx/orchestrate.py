@@ -1463,8 +1463,8 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
 )
 @click.option(
     "--preprocess/--no-preprocess",
-    default=False,
-    help="Run preprocessing (merge/normalize) before alignment/deepcast",
+    default=True,
+    help="Run preprocessing (merge/normalize) before alignment/deepcast (default: enabled)",
 )
 @click.option(
     "--restore/--no-restore",
@@ -1472,14 +1472,14 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
     help="When preprocessing, attempt semantic restore using an LLM",
 )
 @click.option(
-    "--diarize",
-    is_flag=True,
-    help="Run diarization (default: no diarization)",
+    "--diarize/--no-diarize",
+    default=True,
+    help="Run diarization (default: enabled; use --no-diarize to skip)",
 )
 @click.option(
-    "--deepcast",
-    is_flag=True,
-    help="Run LLM summarization (default: no AI analysis)",
+    "--deepcast/--no-deepcast",
+    default=True,
+    help="Run LLM summarization (default: enabled; use --no-deepcast to skip)",
 )
 @click.option(
     "--interactive",
@@ -1510,9 +1510,10 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
     help="OpenAI temperature for deepcast",
 )
 @click.option(
-    "--extract-markdown",
-    is_flag=True,
-    help="Also extract raw markdown file when running deepcast",
+    "--extract-markdown/--no-markdown",
+    "extract_markdown",
+    default=True,
+    help="Extract markdown file when running deepcast (default: enabled)",
 )
 @click.option(
     "--deepcast-pdf",
