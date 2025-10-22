@@ -31,7 +31,7 @@ from .deepcast_browser import (
     scan_deepcastable_episodes,
 )
 from .deepcast_selector import select_deepcast_type
-from .diarize_browser import DiarizeBrowser, scan_diarizable_transcripts
+from .diarize_browser import DiarizeTwoPhase, scan_diarizable_transcripts
 from .episode_browser_tui import select_episode_for_processing, select_episode_with_tui
 from .episode_selector import scan_episode_status, select_episode_interactive
 from .fetch_browser import EpisodeBrowser
@@ -40,6 +40,9 @@ from .interactive_browser import InteractiveBrowser
 from .live_timer import LiveTimer
 from .transcode_browser import TranscodeBrowser, scan_transcodable_episodes
 from .transcribe_browser import TranscribeBrowser, scan_transcribable_episodes
+
+# Backward compatibility alias
+DiarizeBrowser = DiarizeTwoPhase
 
 __all__ = [
     # From ui_styles.py
