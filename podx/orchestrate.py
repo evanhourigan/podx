@@ -167,7 +167,6 @@ def _build_pipeline_config(
     model: str,
     compute: str,
     asr_provider: str,
-    align: bool,
     preprocess: bool,
     restore: bool,
     diarize: bool,
@@ -212,7 +211,6 @@ def _build_pipeline_config(
         "model": model,
         "compute": compute,
         "asr_provider": asr_provider,
-        "align": align,
         "preprocess": preprocess,
         "restore": restore,
         "diarize": diarize,
@@ -237,7 +235,6 @@ def _build_pipeline_config(
 
     # Handle convenience --full flag
     if full:
-        config["align"] = True
         config["deepcast"] = True
         config["extract_markdown"] = True
         config["notion"] = True
@@ -1510,7 +1507,7 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
 @click.option(
     "--full",
     is_flag=True,
-    help="Enable full pipeline: --align --deepcast --extract-markdown --notion (convenience flag)",
+    help="Enable full pipeline: --deepcast --extract-markdown --notion (convenience flag)",
 )
 @click.option("-v", "--verbose", is_flag=True, help="Print interstitial outputs")
 @click.option(

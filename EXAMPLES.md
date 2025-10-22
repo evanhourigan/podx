@@ -9,7 +9,7 @@ Real-world examples of using podx for different podcast processing workflows.
 ```bash
 # Simple processing with manual flags
 podx run --show "Lex Fridman Podcast" --date 2025-08-15 \
-  --align --deepcast --extract-markdown --notion
+  --diarize --deepcast --extract-markdown --notion
 
 # Process with specific model and temperature
 podx run --show "The Tim Ferriss Show" --date 2025-08-10 \
@@ -221,7 +221,7 @@ podx deepcast --output analysis.json --extract-markdown
 
 # Custom pipeline with specific steps
 podx run --show "Tech Podcast" --date 2025-08-15 \
-  --align --deepcast --extract-markdown \
+  --diarize --deepcast --extract-markdown \
   --deepcast-model gpt-4.1 --deepcast-temp 0.1 \
   --no-notion  # Skip Notion upload
 ```

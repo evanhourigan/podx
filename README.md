@@ -6,7 +6,7 @@
 
 Transform podcast audio into structured insights with AI-powered transcription, analysis, and multi-platform publishing.
 
-[![Version 1.0.0](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/yourusername/podx/releases/tag/v1.0.0)
+[![Version 2.0.0](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/yourusername/podx/releases/tag/v2.0.0)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests 332/332](https://img.shields.io/badge/tests-332%2F332%20passing-success.svg)](tests/)
@@ -30,27 +30,28 @@ Traditional podcast processing is **manual, time-consuming, and doesn't scale**.
 ```bash
 # From raw podcast URL to searchable transcript + AI analysis + Notion page
 podx run --show "Lenny's Podcast" --date 2024-10-15 \
-  --align --diarize --deepcast --notion
+  --diarize --deepcast --notion
 ```
 
 **Result:** Word-level transcripts with speaker attribution, AI-generated summaries, key insights, and beautifully formatted Notion pages—all automated.
 
 ---
 
-## 🎉 What's New in v1.0
+## 🎉 What's New in v2.0 - The iPhone Moment
 
-**First stable release!** Production-ready with API stability guarantees and major performance improvements:
+**Major simplification!** PodX v2.0 dramatically streamlines the user experience by removing complexity and making intelligent defaults:
 
-- **🚀 4x-20x Faster** - Optimized deepcast (4x), export (10x), and preprocessing (20x)
-- **🔒 Stable Public API** - Semantic versioning commitment (see [`API_STABILITY.md`](API_STABILITY.md))
-- **🧪 100% Test Coverage** - 332 comprehensive tests, all passing
-- **🔐 Security Audit** - Full security review with vulnerability reporting (see [`SECURITY.md`](SECURITY.md))
-- **⚡ Async Support** - Concurrent pipeline execution with `AsyncPipelineService`
-- **📚 Type-Safe Enums** - `ASRPreset.PRECISION` instead of `"precision"` strings
-- **🔌 Plugin System** - Extensible architecture with 7 builtin plugins
-- **📦 Pinned Dependencies** - Reproducible builds with `~=` version constraints
+- **🎯 Unified Alignment** - Word-level timing now integrated into `podx-diarize` (removed separate `podx-align` command)
+- **📊 Smart Defaults** - Diarization, preprocessing, deepcast, and markdown extraction enabled by default
+- **🔥 Removed Fidelity System** - No more confusing 1-5 fidelity levels; use explicit flags instead
+- **⚡ Removed Workflow Presets** - No more `--quick`/`--analyze`/`--publish`; clearer explicit options
+- **🧹 Simplified Export** - `podx-export` now focuses solely on transcript format conversion
+- **🎨 Two-Phase UI** - New interactive browsers for `podx-preprocess` and `podx-diarize` for better control
+- **📝 Cleaner CLI** - Removed redundant options, simplified flag structure
 
-**Upgrading from v0.x?** See [`MIGRATION.md`](MIGRATION.md) for the upgrade guide.
+**The result?** PodX v2.0 is simpler, more intuitive, and easier to use while maintaining all the power.
+
+**Upgrading from v1.x?** Most changes are backward compatible. Remove `--fidelity` flags and workflow presets from your scripts.
 
 ---
 
@@ -69,17 +70,16 @@ podx run --show "Lenny's Podcast" --date 2024-10-15 \
 
 - **📝 YAML Configuration** - Podcast-specific settings with intelligent defaults
 - **🔄 Resume & Recovery** - Automatic state management and crash recovery
-- **⚙️ Fidelity Levels** - Presets from "fast preview" to "production quality"
 - **🎨 Rich Output Formats** - SRT, VTT, TXT, Markdown, JSON, Notion pages
 - **🌊 Unix Philosophy** - Composable CLI tools with JSON stdin/stdout
 - **📦 Comprehensive Testing** - 332 tests with 100% success rate (313 unit + 19 integration)
 
 ### 🎓 Advanced Capabilities
 
-- **Dual QA Transcription** - Parallel precision + recall tracks with consensus merging
 - **Semantic Restoration** - AI-powered correction of transcription errors
 - **Length-Adaptive Analysis** - More insights from longer episodes, concise for shorter ones
 - **Interactive Workflows** - Visual episode browsers with pagination and filtering
+- **Two-Phase Processing** - Interactive transcript and episode selection for preprocessing and diarization
 - **State Persistence** - Run-state tracking for large batch processing
 - **Plugin Marketplace** - Pip-installable extensions via entry points
 
@@ -105,20 +105,20 @@ PodX follows a **composable pipeline architecture** where each command does one 
                                                                       │
                     ┌─────────────────────────────────────────────────┤
                     │                                                 │
-           ┌────────▼────────┐      ┌───────────────┐      ┌─────────▼───────┐
-           │  P4: ALIGNMENT  │      │  P5: DIARIZE  │      │  P6: EXPORT     │
-           │  podx-align     │─────▶│  podx-diarize │─────▶│  podx-export    │
-           │  (Word Times)   │      │  (Speakers)   │      │  (SRT/TXT/MD)   │
-           └─────────────────┘      └───────────────┘      └─────────┬───────┘
+           ┌───────────────┐      ┌─────────▼───────┐
+           │  P4: DIARIZE  │      │  P5: EXPORT     │
+           │  podx-diarize │─────▶│  podx-export    │
+           │  (Speakers +  │      │  (SRT/TXT/MD)   │
+           │   Alignment)  │      │                 │
+           └───────────────┘      └─────────┬───────┘
                                                                       │
                     ┌─────────────────────────────────────────────────┤
                     │                                                 │
            ┌────────▼────────┐      ┌───────────────┐       ┌────────▼────────┐
-           │  P7: ANALYSIS   │      │  P8: PUBLISH  │       │  UTILITIES      │
+           │  P6: ANALYSIS   │      │  P7: PUBLISH  │       │  UTILITIES      │
            │  podx-deepcast  │─────▶│  podx-notion  │       │  podx-models    │
            │  (AI Insights)  │      │  (Integrate)  │       │  podx-list      │
-           └─────────────────┘      └───────────────┘       │  podx-agreement │
-                                                             └─────────────────┘
+           └─────────────────┘      └───────────────┘       └─────────────────┘
 
                             📊 All steps output JSON for piping
                             🔄 Resume from any point with state tracking
@@ -154,21 +154,20 @@ podx run --show "Lex Fridman" --date 2024-10-15 --full
 
 # That's it! Check your output:
 # 📁 Lex_Fridman_Podcast/2024-10-15/
-#    ├── transcript-large-v3.json       (Word-level transcript)
+#    ├── transcript-diarized.json      (Word-level transcript with speakers)
 #    ├── transcript.txt, transcript.srt (Human-readable formats)
-#    ├── deepcast.md              (AI analysis with insights)
-#    └── notion.out.json                (Notion page URL)
+#    ├── deepcast.md                   (AI analysis with insights)
+#    └── notion.out.json               (Notion page URL)
 ```
 
 **What just happened?**
 - ✅ Downloaded episode audio from RSS feed
 - ✅ Transcribed with Whisper (large-v3-turbo)
-- ✅ Added word-level timestamps
-- ✅ Identified speakers
+- ✅ Added word-level timestamps and identified speakers (via diarization)
 - ✅ Generated AI summary with key insights
 - ✅ Published to Notion with rich formatting
 
-**No AI keys?** No problem! Skip `--full` and just use `--align` for basic transcription with timestamps.
+**No AI keys?** No problem! Skip `--full` and use `--no-deepcast --no-notion` for just transcription with speaker diarization.
 
 ---
 
@@ -191,10 +190,10 @@ export NOTION_TOKEN=secret_...
 
 # 2. Process a podcast with one command
 podx run --show "Lex Fridman Podcast" --date 2024-10-15 \
-  --align --diarize --deepcast --notion
+  --diarize --deepcast --notion
 
 # Output:
-# ✅ Transcript saved to Lex_Fridman_Podcast/2024-10-15/transcript-large-v3.json
+# ✅ Transcript saved to Lex_Fridman_Podcast/2024-10-15/transcript-diarized.json
 # ✅ Analysis saved to Lex_Fridman_Podcast/2024-10-15/deepcast.md
 # ✅ Notion page created: https://notion.so/...
 ```
@@ -214,7 +213,7 @@ podx config init
 # 2. Edit ~/.podx/config.yaml with your podcast preferences
 # 3. Run with automatic settings
 podx run --show "Lenny's Podcast" --date 2024-10-15
-# ↳ Auto-applies: --align --deepcast --notion --extract-markdown
+# ↳ Auto-applies: --diarize --deepcast --notion --extract-markdown
 # ↳ Uses: interview_guest_focused analysis type
 # ↳ Routes to: work Notion database
 ```
@@ -249,15 +248,12 @@ podx-transcode      # Convert audio formats (wav, mp3, aac)
 
 # Transcription Pipeline
 podx-transcribe     # Speech-to-text (Whisper models)
-podx-align          # Word-level timestamps (WhisperX)
-podx-diarize        # Speaker identification (WhisperX)
+podx-diarize        # Speaker identification + word-level timestamps (WhisperX)
 podx-preprocess     # Transcript normalization & restoration
 
 # Analysis & Export
 podx-deepcast       # AI-powered analysis (GPT-4, Claude)
 podx-export         # Format conversion (SRT, VTT, TXT, MD)
-podx-agreement      # Compare analyses
-podx-consensus      # Merge dual transcripts
 
 # Publishing
 podx-notion         # Upload to Notion
@@ -291,21 +287,6 @@ podx-fetch --show "Huberman Lab" --interactive
 # Select episode (1-10, N/P, F=filter, Q=quit): _
 ```
 
-### Fidelity Levels
-
-Balance speed vs. quality with preset fidelity levels:
-
-```bash
-# Fidelity 1: Fast preview (deepcast only, ~2 min)
-podx run --show "The Daily" --date 2024-10-15 --fidelity 1
-
-# Fidelity 3: Production quality (precision, align, diarize, ~15 min)
-podx run --show "The Daily" --date 2024-10-15 --fidelity 3
-
-# Fidelity 5: Maximum quality (dual QA, preprocessing, restore, ~30 min)
-podx run --show "The Daily" --date 2024-10-15 --fidelity 5
-```
-
 ### Composable Unix Pipeline
 
 Build custom workflows with stdin/stdout:
@@ -319,7 +300,6 @@ podx-fetch --show "Reply All" --date 2024-10-15 \
 
 # Advanced pipeline with analysis
 cat transcript.json \
-  | podx-align --audio audio.wav \
   | podx-diarize --audio audio.wav \
   | podx-deepcast --model gpt-4 \
   | tee analysis.json \
@@ -339,7 +319,7 @@ podcasts:
       type: "interview_guest_focused"
       custom_prompts: "Focus on product management frameworks..."
     pipeline:
-      align: true
+      diarize: true
       deepcast: true
       notion: true
     notion_database: "work"
@@ -417,28 +397,26 @@ Real-world performance on a MacBook Pro M2 (16GB RAM).
 - 🚀 **8-25x faster than real-time** for transcription
 - ⚡ **v1.0 is 4-20x faster** than v0.x (optimized preprocessing, deepcast, export)
 - 💰 **$0.06-0.78 per episode** depending on configuration
-- 🎯 **Complete processing in ~20% of episode length** (fidelity 3)
+- 🎯 **Complete processing in ~20% of episode length** (full pipeline with diarization)
 - 💻 **Runs entirely on your machine** (except optional AI features)
 
 ### Optimization Tips
 
 ```bash
-# 1. Use fidelity presets for common workflows
-podx run --fidelity 2  # Balanced: good quality, ~15 min for 60min episode
-
-# 2. Skip unnecessary steps
+# 1. Skip unnecessary steps for faster processing
 podx run --no-diarize  # If you don't need speaker labels
+podx run --no-deepcast  # Skip AI analysis for quick transcription
 
-# 3. Use turbo models for speed
+# 2. Use turbo models for speed
 podx run --model large-v3-turbo  # 30% faster, 95% accuracy
 
-# 4. Batch process multiple episodes
+# 3. Batch process multiple episodes
 for date in 2024-10-{01..15}; do
-  podx run --show "My Podcast" --date $date --fidelity 2
+  podx run --show "My Podcast" --date $date
 done
 
-# 5. Use dual mode only when quality is critical
-podx run --dual  # 2x time, but highest accuracy with consensus
+# 4. Use preprocessing only when needed
+podx run --no-preprocess  # Skip normalization/restoration if not needed
 ```
 
 ---
@@ -453,25 +431,16 @@ podx-fetch --show "Lex Fridman" --date 2024-10-15 \
   | podx-transcode --to wav16 \
   | podx-transcribe --model large-v3 --preset precision \
   | podx-preprocess --merge --normalize \
-  | podx-align \
+  | podx-diarize \
   | podx-deepcast --model gpt-4 --type interview_guest_focused \
   | tee result.json \
   | jq '.summary'  # Extract just the summary
 
 # Example 2: Parallel processing with xargs
 cat episodes.txt | xargs -P 4 -I {} \
-  podx run --show "My Show" --date {} --fidelity 2
+  podx run --show "My Show" --date {}
 
-# Example 3: Compare multiple AI models
-for model in gpt-4 gpt-4-mini claude-sonnet; do
-  podx-deepcast --model $model < transcript.json \
-    > analysis-$model.json
-done
-
-# Then compare them
-podx-agreement --a analysis-gpt-4.json --b analysis-claude-sonnet.json
-
-# Example 4: Custom analysis workflow
+# Example 3: Custom analysis workflow
 podx-transcribe < audio-meta.json \
   | podx-preprocess --restore --restore-model gpt-4-mini \
   | podx-deepcast --type panel_discussion \
@@ -486,12 +455,12 @@ podx-transcribe < audio-meta.json \
 podx-list --scan-dir ~/podcasts \
   | jq -r '.[] | .show + " " + .date' \
   | while read show date; do
-      podx run --show "$show" --date "$date" --fidelity 2
+      podx run --show "$show" --date "$date"
     done
 
 # Resume failed runs automatically
 find ~/podcasts -name "episode-meta.json" -exec dirname {} \; \
-  | xargs -I {} podx run --workdir {} --fidelity 3
+  | xargs -I {} podx run --workdir {}
 
 # Weekly automation with cron
 # Add to crontab: 0 9 * * MON /path/to/weekly-podx.sh
@@ -502,7 +471,7 @@ LAST_MONDAY=$(date -d "last monday" +%Y-%m-%d)
 
 for show in "${SHOWS[@]}"; do
   podx run --show "$show" --date "$LAST_MONDAY" \
-    --fidelity 3 --notion --notion-db "$NOTION_DB"
+    --notion --notion-db "$NOTION_DB"
 done
 ```
 
@@ -775,10 +744,10 @@ We welcome contributions! Here's how to get started:
 - ⏳ Progress tracking for long-running jobs
 
 **v0.4.0 - Enhanced Analysis**
-- ⏳ Multi-model analysis with consensus
 - ⏳ Custom analysis templates
 - ⏳ Topic extraction and tagging
 - ⏳ Sentiment analysis
+- ⏳ Multi-model comparison workflows
 
 **v0.5.0 - Ecosystem**
 - ⏳ Web UI for visual pipeline management
