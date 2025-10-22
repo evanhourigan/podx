@@ -351,40 +351,6 @@ After:  "So, the main thing is we need to focus on quality."
 
 ---
 
-## Preprocess Scanner Behavior (Resolved)
-
-**Question:** When showing transcripts for preprocessing, should intermediate transcripts be listed?
-
-**Example Scenario:**
-- Episode has multiple transcripts:
-  - `medium` base
-  - `medium` aligned
-  - `medium` aligned → preprocessed ✓
-  - `large-v3` base
-  - `large-v3` aligned
-  - `large-v3` diarized
-  - `large-v3` diarized → preprocessed ✓
-  - `tiny` base
-  - `tiny` base → preprocessed ✓
-
-**Answer:** Show only the **most processed non-preprocessed version** of each model.
-
-**Reasoning:**
-- Preprocessing the same content at different stages (base vs aligned) produces the same cleaned text
-- Alignment/diarization data is discarded during preprocessing
-- No reason to preprocess both `medium base` and `medium aligned` - they're the same content
-- Show the "best" source (diarized > aligned > base) per model
-
-**Result for scenario above:**
-The preprocess browser shows **3 rows**:
-1. `large-v3 (diarized)` ✓
-2. `medium (aligned)` ✓
-3. `tiny (base)` ✓
-
-Intermediate transcripts (`medium base`, `large-v3 base`, `large-v3 aligned`) are NOT shown.
-
----
-
 ## Questions & Open Issues
 
 1. **Should preprocessing be encouraged or discouraged?**
@@ -412,15 +378,7 @@ Intermediate transcripts (`medium base`, `large-v3 base`, `large-v3 aligned`) ar
 
 - **Scanners:**
   - `podx/ui/align_browser.py::scan_alignable_transcripts()`
-    - Shows: Base transcripts only (skips aligned/diarized/preprocessed)
-    - Checkmark: If aligned version exists
   - `podx/ui/diarize_browser.py::scan_diarizable_transcripts()`
-    - Shows: Aligned transcripts only (skips diarized/preprocessed)
-    - Checkmark: If diarized version exists
-  - `podx/ui/preprocess_browser.py::scan_preprocessable_transcripts()`
-    - Shows: Most processed non-preprocessed version per model (diarized > aligned > base)
-    - Checkmark: If preprocessed version exists
-    - Display: Includes source type (e.g., "large-v3 (diarized)")
   - `podx/ui/transcribe_browser.py::scan_transcribable_episodes()`
   - `podx/ui/transcode_browser.py::scan_transcodable_episodes()`
 
@@ -441,4 +399,3 @@ Intermediate transcripts (`medium base`, `large-v3 base`, `large-v3 aligned`) ar
 | Date | Change | Notes |
 |------|--------|-------|
 | 2025-01-21 | Initial document | Captured current understanding of pipeline |
-| 2025-01-21 | Added preprocess scanner | Documented "most processed version" logic for preprocess browser |
