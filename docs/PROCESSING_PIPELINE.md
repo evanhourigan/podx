@@ -1,37 +1,35 @@
 # PodX Processing Pipeline & State Graph
 
-**Last Updated:** 2025-01-21
+**Last Updated:** 2025-10-21
 **Status:** Active Knowledge Base
+**Version:** 2.0.0
 
 ## Overview
 
-This document tracks the current understanding of PodX's transcript processing pipeline, state transitions, and the planned PodGraph metadata system.
+This document tracks PodX's simplified transcript processing pipeline, state transitions, and the planned PodGraph metadata system.
+
+**Major Change in v2.0:** Alignment is no longer a user-visible state. It happens internally as part of diarization, simplifying the pipeline and removing user confusion about processing order.
 
 ---
 
-## Current Processing State Graph
+## Current Processing State Graph (v2.0)
 
 ```
 Base Transcript (fresh ASR output)
-    ├──> Aligned (WhisperX word-level alignment)
-    │      └──> Diarized (speaker labels)
-    │             └──> Preprocessed (text cleanup) [TERMINAL]
+    ├──> Diarized (speaker labels + word-level alignment)
+    │      └──> Preprocessed (text cleanup) [TERMINAL]
     │
-    └──> Preprocessed (merged/normalized/LLM-cleaned) [TERMINAL - BREAKS ALIGNMENT]
+    └──> Preprocessed (single-speaker: merged/normalized/LLM-cleaned) [TERMINAL]
 ```
 
 ### Valid Transitions
 
 | From State | To State | Valid? | Notes |
 |------------|----------|--------|-------|
-| Base | Aligned | ✅ Yes | Adds word-level timestamps via WhisperX |
-| Base | Preprocessed | ⚠️ Yes but... | Text cleanup works, but can't align/diarize after |
-| Aligned | Diarized | ✅ Yes | Adds speaker labels to aligned words |
-| Aligned | Preprocessed | ⚠️ Yes but... | Terminal state - no more audio ops possible |
-| Diarized | Preprocessed | ✅ Yes | Final text cleanup before analysis |
-| Preprocessed | Aligned | ❌ No | Scanner skips preprocessed files |
-| Preprocessed | Diarized | ❌ No | Text no longer matches audio |
-| Diarized | Aligned | ❌ No | Scanner skips diarized files; order wrong anyway |
+| Base | Diarized | ✅ Yes | Runs alignment internally, then adds speaker labels |
+| Base | Preprocessed | ✅ Yes | For single-speaker content; skips diarization |
+| Diarized | Preprocessed | ✅ Yes | Final text cleanup before deepcast analysis |
+| Preprocessed | Diarized | ❌ No | Text no longer matches audio word-for-word |
 
 ---
 
@@ -65,53 +63,17 @@ Base Transcript (fresh ASR output)
 
 ---
 
-### 2. Aligned Transcript (`transcript-aligned-{model}.json`)
-
-**Source:** `podx-align`
-**Input:** Base transcript + audio file
-**Output:** JSON with word-level timestamps
-
-**What it does:**
-- Uses WhisperX to align words to precise timestamps
-- Improves timestamp accuracy significantly
-- Required for high-quality diarization
-
-**File naming:** `transcript-aligned-large-v3.json`
-
-**Contains:**
-```json
-{
-  "audio_path": "/path/to/audio.wav",
-  "language": "en",
-  "asr_model": "large-v3",
-  "segments": [
-    {
-      "start": 0.0,
-      "end": 5.2,
-      "text": "Welcome to the show.",
-      "words": [
-        {"word": "Welcome", "start": 0.0, "end": 0.5},
-        {"word": "to", "start": 0.6, "end": 0.7},
-        {"word": "the", "start": 0.75, "end": 0.9},
-        {"word": "show", "start": 1.0, "end": 1.4}
-      ]
-    }
-  ]
-}
-```
-
----
-
-### 3. Diarized Transcript (`transcript-diarized-{model}.json`)
+### 2. Diarized Transcript (`transcript-diarized-{model}.json`)
 
 **Source:** `podx-diarize`
-**Input:** Aligned transcript + audio file
-**Output:** JSON with speaker labels
+**Input:** Base transcript + audio file
+**Output:** JSON with speaker labels and word-level timestamps
 
 **What it does:**
-- Uses WhisperX diarization pipeline
+- Runs WhisperX alignment internally (word-level timestamps)
+- Runs WhisperX diarization pipeline (speaker detection)
 - Assigns speaker labels to words/segments
-- Requires aligned transcript for best results
+- **Note:** Alignment happens automatically as part of diarization - users don't need to run alignment separately
 
 **File naming:** `transcript-diarized-large-v3.json`
 
@@ -137,10 +99,10 @@ Base Transcript (fresh ASR output)
 
 ---
 
-### 4. Preprocessed Transcript (`transcript-preprocessed-{model}.json`)
+### 3. Preprocessed Transcript (`transcript-preprocessed-{model}.json`)
 
 **Source:** `podx-preprocess`
-**Input:** Any transcript (base, aligned, or diarized)
+**Input:** Any transcript (base or diarized)
 **Output:** JSON with cleaned/merged segments
 
 **What it does (all optional via flags):**
@@ -190,54 +152,56 @@ After:  "So, the main thing is we need to focus on quality."
 
 ---
 
-## Recommended Processing Flow
+## Recommended Processing Flow (v2.0 Defaults)
 
 ```
 1. Transcribe (Base)
    transcript-large-v3.json
      ↓
-2. Align [OPTIONAL but recommended]
-   transcript-aligned-large-v3.json
-     ↓
-3. Diarize [OPTIONAL]
+2. Diarize (includes alignment internally) [DEFAULT - disable with --no-diarize]
    transcript-diarized-large-v3.json
      ↓
-4. Preprocess [OPTIONAL cleanup - TERMINAL STATE]
+3. Preprocess (merge/normalize/restore) [DEFAULT - TERMINAL STATE]
    transcript-preprocessed-large-v3.json
      ↓
-5. Deepcast Analysis
+4. Deepcast Analysis [DEFAULT]
    deepcast-large-v3-gpt4-interview.json
+     ↓
+5. Export Markdown [DEFAULT]
+   deepcast-large-v3-gpt4-interview.md
 ```
+
+**Note:** In v2.0, steps 2-5 are enabled by default. Use `--no-diarize` for single-speaker content.
 
 ---
 
-## Current Issues & Confusion
+## v2.0 Resolved Issues
 
-### 1. **Preprocessing Can Happen Too Early**
-- If you preprocess a base transcript, you can't align it later
-- No validation prevents this invalid flow
+### ✅ **Removed Confusing Alignment Step**
+- **v1.0 Problem:** Users had to understand when to align vs. diarize
+- **v2.0 Solution:** Alignment happens automatically as part of diarization
+- **Result:** Simpler mental model, one less command to learn
 
-### 2. **File Naming Doesn't Show Lineage**
-- `transcript-preprocessed-large-v3.json` doesn't indicate if it came from:
-  - Base → Preprocessed
-  - Aligned → Preprocessed
-  - Diarized → Preprocessed
-- All three have different quality/capabilities
+### ✅ **Clear Default Pipeline**
+- **v1.0 Problem:** No clear "best practice" path, users unsure what flags to use
+- **v2.0 Solution:** Sensible defaults (diarize + preprocess + deepcast + markdown)
+- **Result:** Just run `podx run` and get useful output
 
-### 3. **No Clear "Best Practice" Path**
-- Should preprocessing happen at all?
-- When is merging beneficial vs. harmful?
-- When to use semantic restore?
+### ✅ **Removed Dual-Track Complexity**
+- **v1.0 Problem:** Precision/recall dual-track with unmeasured quality benefit
+- **v2.0 Solution:** Removed dual-track, presets, fidelity levels entirely
+- **Result:** 5× faster processing, simpler file organization
 
-### 4. **Scanner Logic is Fragile**
-- Each command has its own scanner that skips certain file patterns
-- Easy to miss edge cases
-- Hard to maintain consistency
+## Remaining Issues (Future PodGraph Work)
 
-### 5. **Metadata Duplication**
+### 1. **Metadata Duplication**
 - Episode info (show, title, date) duplicated in every JSON file
 - Easy to get out of sync
 - No single source of truth
+
+### 2. **File Lineage Not Explicit**
+- `transcript-preprocessed-large-v3.json` doesn't explicitly indicate source (base vs. diarized)
+- PodGraph manifest will track processing history
 
 ---
 
@@ -336,7 +300,7 @@ After:  "So, the main thing is we need to focus on quality."
 
 ---
 
-## File Naming Conventions (Current)
+## File Naming Conventions (v2.0)
 
 | Type | Pattern | Example |
 |------|---------|---------|
@@ -344,52 +308,51 @@ After:  "So, the main thing is we need to focus on quality."
 | Original audio | `{title}.{ext}` | `episode.mp3` |
 | Transcoded audio | `audio-meta.json` + `{title}.wav` | `episode.wav` |
 | Base transcript | `transcript-{model}.json` | `transcript-large-v3.json` |
-| Aligned transcript | `transcript-aligned-{model}.json` | `transcript-aligned-large-v3.json` |
 | Diarized transcript | `transcript-diarized-{model}.json` | `transcript-diarized-large-v3.json` |
 | Preprocessed transcript | `transcript-preprocessed-{model}.json` | `transcript-preprocessed-large-v3.json` |
-| Deepcast analysis | `deepcast-{asr}-{ai}-{type}[-{track}].json` | `deepcast-large-v3-gpt4-interview-precision.json` |
+| Deepcast JSON | `deepcast-{asr}-{ai}-{type}.json` | `deepcast-large-v3-gpt4-interview.json` |
+| Deepcast Markdown | `deepcast-{asr}-{ai}-{type}.md` | `deepcast-large-v3-gpt4-interview.md` |
+
+**Note:** Aligned transcripts (`transcript-aligned-*.json`) no longer exist in v2.0. Alignment happens internally during diarization.
 
 ---
 
-## Questions & Open Issues
+## v2.0 Design Decisions
 
-1. **Should preprocessing be encouraged or discouraged?**
-   - Merging can improve readability
-   - But semantic restore might hallucinate
-   - When is it worth the tradeoff?
+1. **✅ Preprocessing is encouraged (default)**
+   - Merging improves readability for LLM analysis
+   - Semantic restore is opt-in (`--restore` flag) due to cost/hallucination risk
+   - Default: merge + normalize only
 
-2. **What about combined states?**
-   - Should we support `transcript-aligned-preprocessed-{model}.json`?
-   - Or is that too complex?
+2. **✅ No combined state files**
+   - Clean separation: base → diarized → preprocessed
+   - No `transcript-aligned-preprocessed-*.json` complexity
 
-3. **How to handle re-processing?**
-   - If you align twice, which file wins?
-   - Version numbers in filenames?
-   - Keep history in manifest?
+3. **✅ Re-processing overwrites**
+   - Running same step twice overwrites the file
+   - PodGraph manifest will track history in future
 
-4. **Should diarization require alignment?**
-   - Technically it works better with aligned
-   - But could work on base transcripts
-   - Should we enforce the requirement?
+4. **✅ Diarization always includes alignment**
+   - Alignment is not optional - always runs before diarization
+   - Users don't need to understand the distinction
 
 ---
 
-## Related Files
+## Related Files (v2.0)
 
 - **Scanners:**
-  - `podx/ui/align_browser.py::scan_alignable_transcripts()`
-  - `podx/ui/diarize_browser.py::scan_diarizable_transcripts()`
+  - `podx/ui/diarize_browser.py::scan_diarizable_transcripts()` (base transcripts only)
+  - `podx/ui/preprocess_browser.py::scan_preprocessable_transcripts()` (most-processed per model)
   - `podx/ui/transcribe_browser.py::scan_transcribable_episodes()`
   - `podx/ui/transcode_browser.py::scan_transcodable_episodes()`
 
 - **Processing Commands:**
   - `podx/transcribe.py`
-  - `podx/align.py`
-  - `podx/diarize.py`
+  - `podx/diarize.py` (includes internal alignment)
   - `podx/preprocess.py`
 
 - **UI:**
-  - `podx/ui/episode_browser_tui.py::ModelLevelProcessingBrowser` (for align/diarize)
+  - `podx/ui/two_phase_browser.py::TwoPhaseTranscriptBrowser` (episode → transcript selection)
   - `podx/ui/episode_browser_tui.py::SimpleProcessingBrowser` (for transcode/transcribe)
 
 ---
@@ -399,3 +362,4 @@ After:  "So, the main thing is we need to focus on quality."
 | Date | Change | Notes |
 |------|--------|-------|
 | 2025-01-21 | Initial document | Captured current understanding of pipeline |
+| 2025-10-21 | v2.0 major update | Removed alignment as user-visible state, removed dual-track/presets/workflows, new defaults |
