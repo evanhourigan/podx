@@ -5,7 +5,7 @@ Structured logging configuration for podx.
 
 import logging
 import sys
-from typing import Any, Dict
+from typing import Any
 
 import structlog
 from structlog.typing import EventDict, Processor

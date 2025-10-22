@@ -6,7 +6,6 @@ Shows Show, Date, Title with compact status counts.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -96,5 +95,3 @@ def main(scan_dir: Path, show: Optional[str], interactive: bool):
 
 if __name__ == "__main__":
     main()
-
-

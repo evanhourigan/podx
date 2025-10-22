@@ -3,8 +3,6 @@
 Centralized configuration management for podx.
 """
 
-import os
-from pathlib import Path
 from typing import Optional
 
 from pydantic import Field, validator

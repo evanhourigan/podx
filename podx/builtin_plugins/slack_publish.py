@@ -4,10 +4,8 @@ Slack publishing plugin for podx.
 This plugin publishes podcast analysis and summaries to Slack channels.
 """
 
-import json
 import os
-from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, Union
 
 from podx.logging import get_logger
 from podx.plugins import PluginMetadata, PluginType, PublishPlugin
@@ -16,7 +14,6 @@ from podx.schemas import DeepcastBrief, Transcript
 logger = get_logger(__name__)
 
 try:
-    import slack_sdk
     from slack_sdk import WebClient
     from slack_sdk.errors import SlackApiError
 
