@@ -52,3 +52,6 @@ episodes/
 
 # Testing
 .coverage
+
+# Claude Code local settings (user-specific)
+.claude/settings.local.json
