@@ -43,6 +43,7 @@ from .fetch_browser import EpisodeBrowser
 from .formatters import clean_cell, sanitize_filename
 from .interactive_browser import InteractiveBrowser
 from .live_timer import LiveTimer
+from .preprocess_browser import scan_preprocessable_transcripts
 from .transcode_browser import TranscodeBrowser, scan_transcodable_episodes
 from .transcribe_browser import TranscribeBrowser, scan_transcribable_episodes
 
@@ -85,6 +86,7 @@ __all__ = [
     "scan_deepcastable_episodes",
     "scan_diarizable_transcripts",
     "scan_episode_status",
+    "scan_preprocessable_transcripts",
     "scan_transcodable_episodes",
     "scan_transcribable_episodes",
     "select_asr_model",
