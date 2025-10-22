@@ -33,7 +33,6 @@ except Exception:  # pragma: no cover
 
 # Import individual command modules for CLI integration
 from . import (
-    align,
     deepcast,
     diarize,
     export,
@@ -580,56 +579,7 @@ def _execute_enhancement(
         step_duration = time.time() - step_start
         progress.complete_step("Preprocessing completed", step_duration)
 
-    # 5) ALIGN (optional)
-    if align:
-        # Get model from base transcript
-        used_model = latest.get("asr_model", model)
-        aligned_file = wd / f"transcript-aligned-{sanitize_model_name(used_model)}.json"
-
-        # Also check legacy filenames
-        legacy_aligned_new = wd / f"aligned-transcript-{used_model}.json"
-        legacy_aligned = wd / "aligned-transcript.json"
-        if aligned_file.exists():
-            logger.info(
-                f"Found existing aligned transcript ({used_model}), skipping alignment"
-            )
-            aligned = json.loads(aligned_file.read_text())
-            progress.complete_step(
-                f"Using existing aligned transcript ({used_model})", 0
-            )
-            latest = aligned
-            latest_name = f"transcript-aligned-{used_model}"
-        elif legacy_aligned_new.exists():
-            logger.info(f"Found existing legacy aligned transcript ({used_model}), using it")
-            aligned = json.loads(legacy_aligned_new.read_text())
-            progress.complete_step("Using existing aligned transcript", 0)
-            latest = aligned
-            latest_name = f"transcript-aligned-{used_model}"
-        elif legacy_aligned.exists():
-            logger.info("Found existing legacy aligned transcript, using it")
-            aligned = json.loads(legacy_aligned.read_text())
-            progress.complete_step("Using existing aligned transcript", 0)
-            latest = aligned
-            latest_name = "transcript-aligned"
-        else:
-            progress.start_step("Aligning transcript with audio")
-            step_start = time.time()
-            from .services import CommandBuilder
-
-            align_cmd = CommandBuilder("podx-align")  # Audio path comes from transcript JSON
-            aligned = _run(
-                align_cmd.build(),
-                stdin_payload=latest,
-                verbose=verbose,
-                save_to=aligned_file,
-                label=None,  # Progress handles the display
-            )
-            step_duration = time.time() - step_start
-            progress.complete_step("Audio alignment completed", step_duration)
-            latest = aligned
-            latest_name = f"transcript-aligned-{used_model}"
-
-    # 6) DIARIZE (optional)
+    # 5) DIARIZE (optional)
     if diarize:
         # Get model from latest transcript
         used_model = latest.get("asr_model", model)
@@ -1457,14 +1407,9 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
     help="Compute type",
 )
 @click.option(
-    "--align",
-    is_flag=True,
-    help="Run WhisperX alignment (default: no alignment)",
-)
-@click.option(
     "--preprocess/--no-preprocess",
     default=True,
-    help="Run preprocessing (merge/normalize) before alignment/deepcast (default: enabled)",
+    help="Run preprocessing (merge/normalize) before diarization/deepcast (default: enabled)",
 )
 @click.option(
     "--restore/--no-restore",
@@ -1589,7 +1534,6 @@ def run(
     model: str,
     compute: str,
     asr_provider: str,
-    align: bool,
     preprocess: bool,
     restore: bool,
     diarize: bool,
@@ -1688,7 +1632,6 @@ def run(
         model=model,
         compute=compute,
         asr_provider=asr_provider,
-        align=align,
         preprocess=preprocess,
         restore=restore,
         diarize=diarize,
@@ -1953,20 +1896,6 @@ def transcribe_cmd(ctx):
     sys.argv = ["podx-transcribe"] + sys.argv[2:]
     try:
         transcribe.main()
-    finally:
-        sys.argv = original_argv
-
-
-@main.command("align")
-@click.pass_context
-def align_cmd(ctx):
-    """Add word-level timing alignment to transcripts using WhisperX."""
-    import sys
-
-    original_argv = sys.argv.copy()
-    sys.argv = ["podx-align"] + sys.argv[2:]
-    try:
-        align.main()
     finally:
         sys.argv = original_argv
 
