@@ -1563,14 +1563,18 @@ def run(
     This function handles the end-to-end workflow from episode fetch to publication,
     supporting various pipeline configurations and resume capabilities.
 
-    Pipeline Flow:
+    Pipeline Flow (v2.0 - simplified):
         1. Source Selection: Fetch from RSS, YouTube, or interactive browser
         2. Audio Processing: Transcode to target format
         3. Transcription: ASR transcription
-        4. Enhancement: Alignment, diarization, preprocessing
-        5. Analysis: AI-powered deepcast with configurable types
-        6. Export: Markdown, PDF, and format conversions
+        4. Enhancement: Diarization (with internal alignment), preprocessing
+        5. Analysis: AI-powered deepcast with configurable types (default: ON)
+        6. Export: Markdown extraction (default: ON)
         7. Publication: Optional Notion upload
+
+    v2.0 Defaults (enabled by default):
+        - Diarization, Preprocessing, Deepcast, Markdown extraction
+        - Use --no-diarize, --no-preprocess, --no-deepcast, --no-markdown to disable
 
     Resume Support:
         The function detects existing artifacts and offers to skip completed steps,
@@ -2083,8 +2087,8 @@ def analyze(
     podcast_type,
     verbose,
 ):
-    """Analysis workflow: transcribe + align + AI analysis (recommended)."""
-    click.secho("[deprecated] Use: podx run --align --deepcast --extract-markdown", fg="yellow")
+    """Analysis workflow: transcribe + AI analysis (recommended)."""
+    click.secho("[deprecated] Use: podx run (deepcast + markdown enabled by default in v2.0)", fg="yellow")
     click.echo("🤖 Running analysis workflow...")
 
     ctx = click.get_current_context()
@@ -2157,7 +2161,7 @@ def publish(
     verbose,
 ):
     """Publishing workflow: full pipeline + Notion upload (complete)."""
-    click.secho("[deprecated] Use: podx run --align --deepcast --extract-markdown --notion", fg="yellow")
+    click.secho("[deprecated] Use: podx run --notion (deepcast + markdown enabled by default in v2.0)", fg="yellow")
     click.echo("📝 Running publishing workflow...")
 
     ctx = click.get_current_context()
