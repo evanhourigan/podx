@@ -16,6 +16,8 @@ from rich.text import Text
 class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
     """Modal screen for fetching episodes from RSS feeds."""
 
+    ENABLE_COMMAND_PALETTE = False
+
     CSS = """
     FetchModal {
         align: center middle;
@@ -444,6 +446,7 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
     """Interactive episode browser with cursor navigation and detail panel."""
 
     TITLE = "Episodes Available for PodX Processing"
+    ENABLE_COMMAND_PALETTE = False
 
     CSS = """
     #main-container {
@@ -533,7 +536,7 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
 
     def compose(self) -> ComposeResult:
         """Compose the application layout."""
-        yield Header()
+        yield Header(show_clock=False, icon="")
         with Vertical(id="main-container"):
             with Vertical(id="table-container"):
                 yield DataTable(id="episode-table", cursor_type="row", zebra_stripes=True)
@@ -858,6 +861,7 @@ class StandaloneFetchBrowser(App[Optional[Dict[str, Any]]]):
     """Standalone fetch browser for podx-fetch --interactive."""
 
     TITLE = "Podcast Episode Fetch"
+    ENABLE_COMMAND_PALETTE = False
 
     def __init__(
         self,
@@ -883,7 +887,7 @@ class StandaloneFetchBrowser(App[Optional[Dict[str, Any]]]):
     def compose(self) -> ComposeResult:
         """Compose the application layout."""
         # Just show a simple message and immediately open the fetch modal
-        yield Header()
+        yield Header(show_clock=False, icon="")
         yield Static("Loading fetch browser...", id="loading-message")
         yield Footer()
 
@@ -940,6 +944,7 @@ class ModelLevelProcessingBrowser(App):
     """Browser for model-level commands (align, diarize, preprocess) - one row per ASR model."""
 
     TITLE = "Select Transcript for Processing"
+    ENABLE_COMMAND_PALETTE = False
 
     CSS = """
     Screen {
@@ -1003,7 +1008,7 @@ class ModelLevelProcessingBrowser(App):
         self.has_checkmarks = any(item.get(status_key, False) for item in items)
 
     def compose(self) -> ComposeResult:
-        yield Header()
+        yield Header(show_clock=False, icon="")
         yield DataTable(id="item-table", cursor_type="row", zebra_stripes=True)
         yield Container(
             Static(id="detail-content"),
@@ -1147,6 +1152,7 @@ class SimpleProcessingBrowser(App):
     """Simplified episode browser for processing commands (transcode, transcribe, etc)."""
 
     TITLE = "Select Episode for Processing"
+    ENABLE_COMMAND_PALETTE = False
 
     CSS = """
     Screen {
@@ -1198,7 +1204,7 @@ class SimpleProcessingBrowser(App):
         self.selected_episode = None
 
     def compose(self) -> ComposeResult:
-        yield Header()
+        yield Header(show_clock=False, icon="")
         yield DataTable(id="episode-table", cursor_type="row", zebra_stripes=True)
         yield Container(
             Static(id="detail-content"),
