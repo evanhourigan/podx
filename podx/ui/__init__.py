@@ -22,11 +22,9 @@ from ..ui_styles import (
 )
 
 # Import from new ui/ package modules
-from .align_browser import AlignBrowser, scan_alignable_transcripts
 from .asr_selector import ASR_MODELS, get_most_sophisticated_model, select_asr_model
 from .config_panel import configure_pipeline_interactive
 from .confirmation import Confirmation
-from .episode_browser_tui import select_episode_with_tui, select_episode_for_processing
 from .deepcast_browser import (
     DeepcastBrowser,
     flatten_episodes_to_rows,
@@ -34,11 +32,8 @@ from .deepcast_browser import (
 )
 from .deepcast_selector import select_deepcast_type
 from .diarize_browser import DiarizeBrowser, scan_diarizable_transcripts
-from .episode_selector import (
-    scan_episode_status,
-    select_episode_interactive,
-    select_fidelity_interactive,
-)
+from .episode_browser_tui import select_episode_for_processing, select_episode_with_tui
+from .episode_selector import scan_episode_status, select_episode_interactive
 from .fetch_browser import EpisodeBrowser
 from .formatters import clean_cell, sanitize_filename
 from .interactive_browser import InteractiveBrowser
@@ -66,7 +61,6 @@ __all__ = [
     "make_console",
     "format_example_line",
     # From new ui/ package
-    "AlignBrowser",
     "ASR_MODELS",
     "Confirmation",
     "DeepcastBrowser",
@@ -81,7 +75,6 @@ __all__ = [
     "flatten_episodes_to_rows",
     "get_most_sophisticated_model",
     "sanitize_filename",
-    "scan_alignable_transcripts",
     "scan_deepcastable_episodes",
     "scan_diarizable_transcripts",
     "scan_episode_status",
@@ -89,8 +82,7 @@ __all__ = [
     "scan_transcribable_episodes",
     "select_asr_model",
     "select_deepcast_type",
+    "select_episode_for_processing",
     "select_episode_interactive",
     "select_episode_with_tui",
-    "select_episode_for_processing",
-    "select_fidelity_interactive",
 ]
