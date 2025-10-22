@@ -5,9 +5,8 @@ Allows users to predefine analysis settings for specific podcasts.
 """
 
 import json
-import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 from pydantic import BaseModel, Field, validator
 

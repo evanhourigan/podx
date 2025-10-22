@@ -4,11 +4,10 @@ YouTube source plugin for podx.
 This plugin allows downloading and processing YouTube videos as podcast episodes.
 """
 
-import os
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from podx.logging import get_logger
 from podx.plugins import PluginMetadata, PluginType, SourcePlugin

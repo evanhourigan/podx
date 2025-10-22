@@ -7,10 +7,9 @@ YAML-based configuration system for podx with support for:
 - Hierarchical configuration inheritance
 """
 
-import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import yaml
 from pydantic import BaseModel, Field, validator
@@ -217,7 +216,7 @@ class YamlConfigManager:
             return self._config
         except Exception as e:
             print(f"Warning: Failed to load YAML config: {e}")
-            print(f"Using default configuration...")
+            print("Using default configuration...")
             self._config = PodxYamlConfig()
             return self._config
 

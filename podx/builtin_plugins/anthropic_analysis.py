@@ -5,7 +5,6 @@ This plugin provides AI analysis using Anthropic's Claude models as an alternati
 """
 
 import os
-from pathlib import Path
 from typing import Any, Dict, List
 
 from podx.logging import get_logger
@@ -175,7 +174,7 @@ class AnthropicAnalysisPlugin(AnalysisPlugin):
 
 **Instructions:**
 1. Provide a brief executive summary (3-4 sentences)
-2. Extract 8-12 key insights or main points 
+2. Extract 8-12 key insights or main points
 3. Identify any notable quotes with speaker attribution
 4. List any actionable items or resources mentioned
 5. Create a brief outline with timestamps if available

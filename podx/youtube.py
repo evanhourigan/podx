@@ -8,7 +8,7 @@ import json
 import re
 from pathlib import Path
 from typing import Any, Dict, Optional
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
 import yt_dlp
 from rich.console import Console
@@ -16,7 +16,6 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from .errors import NetworkError, ValidationError
 from .logging import get_logger
-from .schemas import EpisodeMeta
 
 logger = get_logger()
 console = Console()
@@ -101,7 +100,7 @@ def download_youtube_audio(
             console=console,
             transient=True,
         ) as progress:
-            task = progress.add_task("Downloading YouTube audio...", total=None)
+            _task = progress.add_task("Downloading YouTube audio...", total=None)
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
