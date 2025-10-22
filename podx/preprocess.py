@@ -8,27 +8,13 @@ import click
 from .cli_shared import print_json, read_stdin_json
 from .logging import get_logger
 from .schemas import Segment, Transcript
+from .ui.preprocess_browser import PreprocessTwoPhase
 from .validation import validate_output
-from .align import scan_alignable_transcripts
-
-try:
-    import importlib.util
-
-    TEXTUAL_AVAILABLE = importlib.util.find_spec("textual") is not None
-except ImportError:
-    TEXTUAL_AVAILABLE = False
 
 try:
     RICH_AVAILABLE = True
 except Exception:
     RICH_AVAILABLE = False
-
-# UI imports
-try:
-    from .ui import select_episode_for_processing
-except Exception:
-    def select_episode_for_processing(*args, **kwargs):
-        raise ImportError("UI module not available")
 
 logger = get_logger(__name__)
 
@@ -152,16 +138,13 @@ def main(input_file: Optional[Path], output_file: Optional[Path], do_merge: bool
     """
     # Interactive mode: browse transcripts and select one
     if interactive:
-        if not TEXTUAL_AVAILABLE:
-            raise SystemExit("Interactive mode requires textual library. Install with: pip install textual")
+        if not RICH_AVAILABLE:
+            raise SystemExit("Interactive mode requires rich library. Install with: pip install rich")
 
-        # Browse and select transcript using Textual TUI
-        logger.info(f"Scanning for transcripts in: {scan_dir}")
-        selected = select_episode_for_processing(
-            scan_dir=Path(scan_dir),
-            title="Select Transcript for Preprocessing",
-            episode_scanner=scan_alignable_transcripts,
-        )
+        # Two-phase selection: episode → most-processed transcript
+        logger.info(f"Scanning for episodes in: {scan_dir}")
+        browser = PreprocessTwoPhase(scan_dir=Path(scan_dir))
+        selected = browser.browse()
 
         if not selected:
             logger.info("User cancelled transcript selection")
