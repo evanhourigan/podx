@@ -119,12 +119,10 @@ class ConfigPanel(App[Dict[str, Any]]):
 
     # Mapping of config keys to display info (keyboard key, display name, option type)
     OPTION_INFO = {
-        "align": ("A", "Align (WhisperX)", "toggle"),
         "diarize": ("D", "Diarize (speakers)", "toggle"),
         "preprocess": ("P", "Preprocess (merge/norm)", "toggle"),
         "restore": ("R", "Restore (LLM semantic)", "toggle"),
         "deepcast": ("C", "Deepcast (AI analysis)", "toggle"),
-        "dual": ("U", "Dual mode (prec+recall)", "toggle"),
         "model": ("M", "ASR Model", "text"),
         "deepcast_model": ("I", "AI Model", "text"),
         "yaml_analysis_type": ("T", "Deepcast Type", "select"),
@@ -210,19 +208,17 @@ class ConfigPanel(App[Dict[str, Any]]):
     """
 
     BINDINGS = [
-        Binding("a", "toggle_align", "Toggle Align", show=False),
         Binding("d", "toggle_diarize", "Toggle Diarize", show=False),
         Binding("p", "toggle_preprocess", "Toggle Preprocess", show=False),
         Binding("r", "toggle_restore", "Toggle Restore", show=False),
         Binding("c", "toggle_deepcast", "Toggle Deepcast", show=False),
-        Binding("u", "toggle_dual", "Toggle Dual", show=False),
         Binding("m", "edit_asr_model", "Edit ASR Model", show=False),
         Binding("i", "edit_ai_model", "Edit AI Model", show=False),
         Binding("t", "select_deepcast_type", "Select Type", show=False),
         Binding("x", "toggle_markdown", "Toggle Markdown", show=False),
         Binding("f", "toggle_pdf", "Toggle PDF", show=False),
         Binding("enter", "confirm", "Continue", show=True),
-        Binding("q", "cancel", "Cancel", show=True),
+        Binding("escape", "cancel", "Cancel", show=True),
     ]
 
     def __init__(self, config: Dict[str, Any], *args: Any, **kwargs: Any) -> None:
@@ -240,12 +236,10 @@ class ConfigPanel(App[Dict[str, Any]]):
         with Vertical(id="config-container"):
             yield Static("Pipeline Configuration", id="config-title")
 
-            yield self._make_option("A", "Align (WhisperX)", "align")
             yield self._make_option("D", "Diarize (speakers)", "diarize")
             yield self._make_option("P", "Preprocess (merge/norm)", "preprocess")
             yield self._make_option("R", "Restore (LLM semantic)", "restore")
             yield self._make_option("C", "Deepcast (AI analysis)", "deepcast")
-            yield self._make_option("U", "Dual mode (prec+recall)", "dual")
 
             yield Static("─" * 60, classes="section-divider")
 
@@ -259,7 +253,7 @@ class ConfigPanel(App[Dict[str, Any]]):
             yield self._make_option("F", "Render PDF", "deepcast_pdf")
 
             yield Static(
-                "Press key to toggle • Enter to continue • Q to cancel", id="instructions"
+                "Press key to toggle • Enter to continue • Esc to cancel", id="instructions"
             )
         yield Footer()
 
@@ -385,11 +379,6 @@ class ConfigPanel(App[Dict[str, Any]]):
             f"[option-value]{value:<20}[/option-value] [option-hint]\\[select][/option-hint]"
         )
 
-    def action_toggle_align(self) -> None:
-        """Toggle align option."""
-        self.config["align"] = not self.config.get("align", False)
-        self._update_option("align")
-
     def action_toggle_diarize(self) -> None:
         """Toggle diarize option."""
         self.config["diarize"] = not self.config.get("diarize", False)
@@ -409,11 +398,6 @@ class ConfigPanel(App[Dict[str, Any]]):
         """Toggle deepcast option."""
         self.config["deepcast"] = not self.config.get("deepcast", False)
         self._update_option("deepcast")
-
-    def action_toggle_dual(self) -> None:
-        """Toggle dual mode option."""
-        self.config["dual"] = not self.config.get("dual", False)
-        self._update_option("dual")
 
     def action_toggle_markdown(self) -> None:
         """Toggle extract markdown option."""
