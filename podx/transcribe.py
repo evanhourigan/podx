@@ -142,12 +142,6 @@ def _truncate_text(text: str, max_length: int = 60) -> str:
     help="ASR provider (auto-detect by model prefix/alias if 'auto')",
 )
 @click.option(
-    "--preset",
-    type=click.Choice(["balanced", "precision", "recall"]),
-    default=None,
-    help="High-level decoding preset (defaults to balanced behavior)",
-)
-@click.option(
     "--expert",
     is_flag=True,
     help="Show and enable expert decoder flags (for advanced users)",
@@ -155,12 +149,12 @@ def _truncate_text(text: str, max_length: int = 60) -> str:
 @click.option(
     "--vad-filter/--no-vad",
     default=None,
-    help="Enable/disable VAD filtering (overrides preset)",
+    help="Enable/disable VAD filtering (default: enabled)",
 )
 @click.option(
     "--condition-on-previous-text/--no-condition-on-previous-text",
     default=None,
-    help="Condition decoding on previous text (overrides preset; local only)",
+    help="Condition decoding on previous text (default: enabled; local only)",
 )
 @click.option(
     "--decode-option",
@@ -205,7 +199,6 @@ def main(
     interactive,
     scan_dir,
     asr_provider,
-    preset,
     expert,
     vad_filter,
     condition_on_previous_text,
@@ -319,20 +312,10 @@ def main(
             timer = LiveTimer("Transcribing")
             timer.start()
 
-        # Determine decode parameters (preset -> defaults -> explicit overrides)
-        # Defaults emulate current behavior
+        # Determine decode parameters (defaults to VAD=True, condition=True)
+        # Can be overridden by explicit --vad-filter and --condition-on-previous-text flags
         use_vad = True if vad_filter is None else bool(vad_filter)
-        use_condition = None if condition_on_previous_text is None else bool(condition_on_previous_text)
-        if preset:
-            if preset == "balanced":
-                use_vad = True if vad_filter is None else use_vad
-                use_condition = True if condition_on_previous_text is None else use_condition
-            elif preset == "precision":
-                use_vad = True if vad_filter is None else use_vad
-                use_condition = True if condition_on_previous_text is None else use_condition
-            elif preset == "recall":
-                use_vad = False if vad_filter is None else use_vad
-                use_condition = False if condition_on_previous_text is None else use_condition
+        use_condition = True if condition_on_previous_text is None else bool(condition_on_previous_text)
 
         # Parse additional decode options
         extra_kwargs: Dict[str, Any] = {}
@@ -492,7 +475,6 @@ def main(
         "language": detected_language,
         "asr_model": model,
         "asr_provider": provider,
-        "preset": preset,
         "decoder_options": {"vad_filter": use_vad} if provider == "local" else None,
         "segments": segments,
         "text": "\n".join(full_text_lines).strip(),

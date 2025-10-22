@@ -183,7 +183,6 @@ def main(input_file: Optional[Path], output_file: Optional[Path], do_merge: bool
         "language": raw.get("language"),
         "asr_model": raw.get("asr_model"),
         "asr_provider": raw.get("asr_provider"),
-        "preset": raw.get("preset"),
         "decoder_options": raw.get("decoder_options"),
     }
 
