@@ -1207,8 +1207,6 @@ def _execute_export_formats(
 
 
 def _execute_export_final(
-    dual: bool,
-    no_consensus: bool,
     preset: str | None,
     deepcast_pdf: bool,
     wd: Path,
@@ -1216,12 +1214,9 @@ def _execute_export_final(
 ) -> None:
     """Execute final export of deepcast analysis to markdown/PDF.
 
-    Selects the appropriate deepcast output (consensus, recall, precision, or single),
-    exports it to timestamped markdown and optionally PDF files.
+    Exports deepcast output to timestamped markdown and optionally PDF files.
 
     Args:
-        dual: Dual QA mode flag
-        no_consensus: Skip consensus (use recall if dual)
         preset: ASR preset used (for track naming)
         deepcast_pdf: Generate PDF output
         wd: Working directory Path
@@ -1236,33 +1231,15 @@ def _execute_export_final(
 
     from .export import export_from_deepcast_json
 
-    # Final export step (write exported-<timestamp>.* from consensus or selected track)
+    # Final export step (write exported-<timestamp>.* from deepcast output)
     try:
-        export_source_path = None
-        export_track = None
+        single = results.get("deepcast_json")
+        if single and Path(single).exists():
+            export_source_path = Path(single)
+            export_track = (preset or "balanced") if preset else "single"
 
-        if dual and not no_consensus:
-            cons = results.get("consensus")
-            if cons and Path(cons).exists():
-                export_source_path = Path(cons)
-                export_track = "consensus"
-
-        if export_source_path is None:
-            single = results.get("deepcast_json")
-            if single and Path(single).exists():
-                export_source_path = Path(single)
-                export_track = (preset or "balanced") if preset else "single"
-            else:
-                for key, trk in [("deepcast_recall", "recall"), ("deepcast_precision", "precision")]:
-                    p = results.get(key)
-                    if p and Path(p).exists():
-                        export_source_path = Path(p)
-                        export_track = trk
-                        break
-
-        if export_source_path and export_source_path.exists():
             data = json.loads(export_source_path.read_text(encoding=DEFAULT_ENCODING))
-            # Use unified exporter (handles deepcast and consensus JSON, and PDF auto-install)
+            # Use unified exporter (handles deepcast JSON, and PDF auto-install)
             try:
                 md_path, pdf_path = export_from_deepcast_json(data, wd, deepcast_pdf, track_hint=export_track)
                 results["exported_md"] = str(md_path)
@@ -1471,8 +1448,6 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
         stages.append("preprocess" + ("+restore" if config["restore"] else ""))
     if config["deepcast"]:
         stages.append("deepcast")
-    if config["dual"]:
-        stages.append("agreement" + ("+consensus" if not config["no_consensus"] else ""))
 
     outputs = []
     if config["extract_markdown"]:
@@ -1483,7 +1458,7 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
     preset_display = config['preset'].value if hasattr(config['preset'], 'value') else config['preset']
     preview = (
         f"Pipeline: {' → '.join(stages)}\n"
-        f"ASR={config['model']} preset={preset_display or '-'} dual={yn(config['dual'])} "
+        f"ASR={config['model']} preset={preset_display or '-'} "
         f"align={yn(config['align'])} diarize={yn(config['diarize'])} "
         f"preprocess={yn(config['preprocess'])} restore={yn(config['restore'])}\n"
         f"AI={config['deepcast_model']} type={chosen_type or '-'} outputs={','.join(outputs) or '-'}"
@@ -1737,7 +1712,7 @@ def run(
     Pipeline Flow:
         1. Source Selection: Fetch from RSS, YouTube, or interactive browser
         2. Audio Processing: Transcode to target format
-        3. Transcription: ASR with optional dual-track QA (precision + recall)
+        3. Transcription: ASR transcription
         4. Enhancement: Alignment, diarization, preprocessing
         5. Analysis: AI-powered deepcast with configurable types
         6. Export: Markdown, PDF, and format conversions
@@ -1766,8 +1741,6 @@ def run(
         deepcast: Enable AI analysis
         workflow: Workflow preset (quick/analyze/publish)
         fidelity: Fidelity level 1-5 (1=fastest, 5=best quality)
-        dual: Enable dual QA mode (precision + recall)
-        no_consensus: Skip consensus generation in dual mode
         interactive_select: Use interactive episode selection UI
         scan_dir: Directory to scan for episodes in interactive mode
         fetch_new: Force fetch new episode (skip interactive selection)
@@ -1980,10 +1953,8 @@ def run(
             verbose=config["verbose"],
         )
 
-        # Final export step (write exported-<timestamp>.* from consensus or selected track)
+        # Final export step (write exported-<timestamp>.* from deepcast)
         _execute_export_final(
-            dual=config["dual"],
-            no_consensus=config["no_consensus"],
             preset=config["preset"],
             deepcast_pdf=config["deepcast_pdf"],
             wd=wd,
@@ -1991,7 +1962,7 @@ def run(
         )
 
         # 7) NOTION (optional) — requires DB id
-        if config["notion"] and not config["dual"]:
+        if config["notion"]:
             if not config["notion_db"]:
                 raise SystemExit(
                     "Please pass --db or set NOTION_DB_ID environment variable"
