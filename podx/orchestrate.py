@@ -176,8 +176,6 @@ def _build_pipeline_config(
     deepcast: bool,
     workflow: Optional[str],
     fidelity: Optional[str],
-    dual: bool,
-    no_consensus: bool,
     deepcast_model: str,
     deepcast_temp: float,
     extract_markdown: bool,
@@ -224,8 +222,6 @@ def _build_pipeline_config(
         "restore": restore,
         "diarize": diarize,
         "deepcast": deepcast,
-        "dual": dual,
-        "no_consensus": no_consensus,
         "deepcast_model": deepcast_model,
         "deepcast_temp": deepcast_temp,
         "extract_markdown": extract_markdown,
@@ -449,23 +445,20 @@ def _execute_transcribe(
     compute: str,
     asr_provider: str,
     preset: Optional[str],
-    dual: bool,
     audio: dict,
     wd: Path,
     progress,
     verbose: bool,
 ) -> tuple[dict, str]:
-    """Execute transcription step with single or dual QA mode.
+    """Execute transcription step.
 
-    Handles transcript discovery, resume support, and dual-track transcription
-    (precision + recall presets).
+    Handles transcript discovery and resume support.
 
     Args:
         model: ASR model name (e.g., "large-v3")
         compute: Compute type (int8, float16, float32)
         asr_provider: ASR provider (auto, local, openai, hf)
         preset: Optional ASR preset (balanced, precision, recall)
-        dual: Enable dual QA mode (precision + recall tracks)
         audio: Audio metadata dict from transcode step
         wd: Working directory Path
         progress: Progress tracker instance
@@ -478,7 +471,6 @@ def _execute_transcribe(
 
     Resume Support:
         - Reuses existing transcripts for the same model
-        - In dual mode, resumes from existing precision/recall files
         - Falls back to best available model if exact match not found
     """
     import json
@@ -501,7 +493,7 @@ def _execute_transcribe(
         except Exception:
             existing_transcripts["unknown"] = legacy_transcript
 
-    if not dual and transcript_file.exists():
+    if transcript_file.exists():
         # Use existing transcript for this specific model
         logger.info(
             f"Found existing transcript for model {model}, skipping transcription"
@@ -511,7 +503,7 @@ def _execute_transcribe(
             f"Using existing transcript ({model}) - {len(base.get('segments', []))} segments",
             0,
         )
-    elif not dual and existing_transcripts:
+    elif existing_transcripts:
         # Found transcripts with other models - pick the most sophisticated among known order
         order = ["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"]
         available = list(existing_transcripts.keys())
@@ -529,90 +521,39 @@ def _execute_transcribe(
             0,
         )
     else:
-        if not dual:
-            # Single track transcription
-            progress.start_step(f"Transcribing with {model} model")
-            step_start = time.time()
-            from .services import CommandBuilder
+        # Single track transcription
+        progress.start_step(f"Transcribing with {model} model")
+        step_start = time.time()
+        from .services import CommandBuilder
 
-            transcribe_cmd = (
-                CommandBuilder("podx-transcribe")
-                .add_option("--model", model)
-                .add_option("--compute", compute)
-            )
-            if asr_provider and asr_provider != "auto":
-                # Convert asr_provider enum to string value if needed
-                asr_provider_value = asr_provider.value if hasattr(asr_provider, 'value') else asr_provider
-                transcribe_cmd.add_option("--asr-provider", asr_provider_value)
-            if preset:
-                # Convert preset enum to string value if needed
-                preset_value = preset.value if hasattr(preset, 'value') else preset
-                transcribe_cmd.add_option("--preset", preset_value)
+        transcribe_cmd = (
+            CommandBuilder("podx-transcribe")
+            .add_option("--model", model)
+            .add_option("--compute", compute)
+        )
+        if asr_provider and asr_provider != "auto":
+            # Convert asr_provider enum to string value if needed
+            asr_provider_value = asr_provider.value if hasattr(asr_provider, 'value') else asr_provider
+            transcribe_cmd.add_option("--asr-provider", asr_provider_value)
+        if preset:
+            # Convert preset enum to string value if needed
+            preset_value = preset.value if hasattr(preset, 'value') else preset
+            transcribe_cmd.add_option("--preset", preset_value)
 
-            base = _run(
-                transcribe_cmd.build(),
-                stdin_payload=audio,
-                verbose=verbose,
-                save_to=transcript_file,
-                label=None,
-            )
-            step_duration = time.time() - step_start
-            progress.complete_step(
-                f"Transcription complete - {len(base.get('segments', []))} segments",
-                step_duration,
-            )
-        else:
-            # Dual QA: precision & recall tracks
-            progress.start_step(f"Dual QA: transcribing precision & recall with {model}")
-            step_start = time.time()
-            from .services import CommandBuilder
+        base = _run(
+            transcribe_cmd.build(),
+            stdin_payload=audio,
+            verbose=verbose,
+            save_to=transcript_file,
+            label=None,
+        )
+        step_duration = time.time() - step_start
+        progress.complete_step(
+            f"Transcription complete - {len(base.get('segments', []))} segments",
+            step_duration,
+        )
 
-            safe_model = sanitize_model_name(model)
-            # Precision (resume if exists)
-            t_prec = wd / f"transcript-{safe_model}-precision.json"
-            if t_prec.exists():
-                prec = json.loads(t_prec.read_text())
-            else:
-                cmd_prec = (
-                    CommandBuilder("podx-transcribe")
-                    .add_option("--model", model)
-                    .add_option("--compute", compute)
-                    .add_option("--preset", "precision")
-                )
-                if asr_provider and asr_provider != "auto":
-                    # Convert asr_provider enum to string value if needed
-                    asr_provider_value = asr_provider.value if hasattr(asr_provider, 'value') else asr_provider
-                    cmd_prec.add_option("--asr-provider", asr_provider_value)
-                prec = _run(cmd_prec.build(), stdin_payload=audio, verbose=verbose, save_to=t_prec)
-
-            # Recall (resume if exists)
-            t_rec = wd / f"transcript-{safe_model}-recall.json"
-            if t_rec.exists():
-                rec = json.loads(t_rec.read_text())
-            else:
-                cmd_rec = (
-                    CommandBuilder("podx-transcribe")
-                    .add_option("--model", model)
-                    .add_option("--compute", compute)
-                    .add_option("--preset", "recall")
-                )
-                if asr_provider and asr_provider != "auto":
-                    # Convert asr_provider enum to string value if needed
-                    asr_provider_value = asr_provider.value if hasattr(asr_provider, 'value') else asr_provider
-                    cmd_rec.add_option("--asr-provider", asr_provider_value)
-                rec = _run(cmd_rec.build(), stdin_payload=audio, verbose=verbose, save_to=t_rec)
-
-            step_duration = time.time() - step_start
-            progress.complete_step(
-                f"Dual transcription completed (precision: {len(prec.get('segments', []))} segs; recall: {len(rec.get('segments', []))} segs)",
-                step_duration,
-            )
-            # Set latest to recall by default
-            latest = rec
-            latest_name = f"transcript-{safe_model}-recall"
-            return latest, latest_name
-
-    # Single mode: set latest and latest_name
+    # Set latest and latest_name
     latest = base
     latest_name = f"transcript-{base.get('asr_model', model)}"
     return latest, latest_name
@@ -623,7 +564,6 @@ def _execute_enhancement(
     restore: bool,
     align: bool,
     diarize: bool,
-    dual: bool,
     model: str,
     latest: dict,
     latest_name: str,
@@ -641,7 +581,6 @@ def _execute_enhancement(
         restore: Enable semantic restore in preprocessing
         align: Enable word-level alignment (WhisperX)
         diarize: Enable speaker diarization
-        dual: Dual QA mode flag (affects preprocessing behavior)
         model: ASR model name (for file naming)
         latest: Latest transcript dict (input)
         latest_name: Latest transcript filename without extension (input)
@@ -662,45 +601,22 @@ def _execute_enhancement(
 
     from .utils import build_preprocess_command, sanitize_model_name
 
-    # 4) PREPROCESS (optional or implied by --dual)
-    if preprocess or dual:
+    # 4) PREPROCESS (optional)
+    if preprocess:
         progress.start_step("Preprocessing transcript (merge/normalize)")
         step_start = time.time()
 
-        if dual:
-            # Preprocess both precision & recall
-            safe_model = sanitize_model_name(model)
-            t_prec = wd / f"transcript-{safe_model}-precision.json"
-            t_rec = wd / f"transcript-{safe_model}-recall.json"
-            pre_prec = wd / f"transcript-preprocessed-{safe_model}-precision.json"
-            pre_rec = wd / f"transcript-preprocessed-{safe_model}-recall.json"
-
-            _ = _run(
-                build_preprocess_command(pre_prec, restore) + ["--input", str(t_prec)],
-                stdin_payload=None,
-                verbose=verbose,
-                save_to=pre_prec,
-            )
-            out_rec = _run(
-                build_preprocess_command(pre_rec, restore) + ["--input", str(t_rec)],
-                stdin_payload=None,
-                verbose=verbose,
-                save_to=pre_rec,
-            )
-            latest = out_rec
-            latest_name = f"transcript-preprocessed-{safe_model}-recall"
-        else:
-            # Single-track: preprocess the latest transcript
-            used_model = (latest or {}).get("asr_model", model) if isinstance(latest, dict) else model
-            pre_file = wd / f"transcript-preprocessed-{sanitize_model_name(used_model)}.json"
-            latest = _run(
-                build_preprocess_command(pre_file, restore),
-                stdin_payload=latest,  # latest contains the base transcript JSON
-                verbose=verbose,
-                save_to=pre_file,
-                label=None,
-            )
-            latest_name = f"transcript-preprocessed-{used_model}"
+        # Preprocess the latest transcript
+        used_model = (latest or {}).get("asr_model", model) if isinstance(latest, dict) else model
+        pre_file = wd / f"transcript-preprocessed-{sanitize_model_name(used_model)}.json"
+        latest = _run(
+            build_preprocess_command(pre_file, restore),
+            stdin_payload=latest,  # latest contains the base transcript JSON
+            verbose=verbose,
+            save_to=pre_file,
+            label=None,
+        )
+        latest_name = f"transcript-preprocessed-{used_model}"
 
         step_duration = time.time() - step_start
         progress.complete_step("Preprocessing completed", step_duration)
@@ -1792,16 +1708,6 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
     help="When used with --interactive and --show, open fetch browser to add new episodes before selection",
 )
 @click.option(
-    "--dual",
-    is_flag=True,
-    help="Run precision+recall QA: two ASR tracks (precision & recall) + preprocess(+restore) + deepcast both + agreement",
-)
-@click.option(
-    "--no-consensus",
-    is_flag=True,
-    help="In dual mode, skip consensus merge step",
-)
-@click.option(
     "--deepcast-model",
     default=lambda: get_config().openai_model,
     help="OpenAI model for AI analysis",
@@ -1899,8 +1805,6 @@ def run(
     deepcast: bool,
     workflow: str | None,
     fidelity: str | None,
-    dual: bool,
-    no_consensus: bool,
     interactive_select: bool,
     scan_dir: Path,
     fetch_new: bool,
@@ -2007,8 +1911,6 @@ def run(
         deepcast=deepcast,
         workflow=workflow,
         fidelity=fidelity,
-        dual=dual,
-        no_consensus=no_consensus,
         deepcast_model=deepcast_model,
         deepcast_temp=deepcast_temp,
         extract_markdown=extract_markdown,
