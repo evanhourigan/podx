@@ -9,6 +9,7 @@ from .cli_shared import print_json, read_stdin_json
 from .logging import get_logger
 from .schemas import Segment, Transcript
 from .validation import validate_output
+from .align import scan_alignable_transcripts
 
 try:
     import importlib.util
@@ -24,11 +25,10 @@ except Exception:
 
 # UI imports
 try:
-    from .ui import scan_preprocessable_transcripts
-    from .ui.episode_browser_tui import ModelLevelProcessingBrowser
+    from .ui import select_episode_for_processing
 except Exception:
-    from .ui.preprocess_browser import scan_preprocessable_transcripts
-    ModelLevelProcessingBrowser = None
+    def select_episode_for_processing(*args, **kwargs):
+        raise ImportError("UI module not available")
 
 logger = get_logger(__name__)
 
@@ -155,44 +155,17 @@ def main(input_file: Optional[Path], output_file: Optional[Path], do_merge: bool
         if not TEXTUAL_AVAILABLE:
             raise SystemExit("Interactive mode requires textual library. Install with: pip install textual")
 
-        # Scan for preprocessable transcripts
+        # Browse and select transcript using Textual TUI
         logger.info(f"Scanning for transcripts in: {scan_dir}")
-        transcripts = scan_preprocessable_transcripts(Path(scan_dir))
-
-        if not transcripts:
-            logger.error(f"No transcripts found in {scan_dir}")
-            raise SystemExit("No transcript files found")
-
-        logger.info(f"Found {len(transcripts)} preprocessable transcripts")
-
-        # Use model-level browser
-        class PreprocessBrowser(ModelLevelProcessingBrowser):
-            TITLE = "Select Transcript for Preprocessing"
-
-        app = PreprocessBrowser(transcripts, model_key="model_display", status_key="is_preprocessed")
-        selected = app.run()
+        selected = select_episode_for_processing(
+            scan_dir=Path(scan_dir),
+            title="Select Transcript for Preprocessing",
+            episode_scanner=scan_alignable_transcripts,
+        )
 
         if not selected:
             logger.info("User cancelled transcript selection")
             raise SystemExit(0)
-
-        # Check if already preprocessed - confirm if so
-        if selected.get("is_preprocessed"):
-            try:
-                from rich.console import Console
-                console = Console()
-                console.print(
-                    f"\n[yellow]⚠ This transcript is already preprocessed (source: {selected['source_type']})[/yellow]"
-                )
-            except Exception:
-                pass
-            confirm = input("Re-preprocess anyway? (yes/no): ").strip().lower()
-            if confirm not in ["yes", "y"]:
-                try:
-                    console.print("[dim]Preprocessing cancelled.[/dim]")
-                except Exception:
-                    pass
-                raise SystemExit(0)
 
         raw = selected.get("transcript_data")
         # Choose output next to transcript
