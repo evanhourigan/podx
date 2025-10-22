@@ -20,7 +20,6 @@ from ..domain.constants import (
 )
 
 try:
-    from rich.panel import Panel
     from rich.table import Table
 
     RICH_AVAILABLE = True
@@ -311,45 +310,3 @@ def select_episode_interactive(
     meta = json.loads(selected["meta_path"].read_text(encoding="utf-8"))
 
     return selected, meta
-
-
-def select_fidelity_interactive(
-    console,
-    preset: Optional[str],
-    apply_fidelity_fn,
-) -> Tuple[str, Dict[str, Any]]:
-    """Interactively select fidelity level.
-
-    Args:
-        console: Rich console instance
-        preset: Current preset value
-        apply_fidelity_fn: Function to apply fidelity mapping
-
-    Returns:
-        Tuple of (fidelity_level, flags_dict)
-
-    Raises:
-        SystemExit: If user cancels
-    """
-    help_text = (
-        "1: Deepcast only — use latest transcript; skip preprocess/restore/align/diarize (fastest)\n"
-        "2: Recall — transcribe with recall preset; preprocess+restore; deepcast (higher recall)\n"
-        "3: Precision — transcribe with precision preset; preprocess+restore; deepcast (higher precision)\n"
-        "4: Balanced — transcribe with balanced preset; preprocess+restore; deepcast (recommended single-track)\n"
-        "5: Dual QA — precision & recall; preprocess+restore both; deepcast both; agreement (best)"
-    )
-
-    console.print(Panel(help_text, title="Choose Fidelity (1-5)", border_style="blue"))
-    fchoice = input("\nChoose preset [1-5] (Q=cancel): ").strip()
-
-    if fchoice.upper() in {"Q", "QUIT", "EXIT"}:
-        console.print("[dim]Cancelled[/dim]")
-        raise SystemExit(0)
-
-    if fchoice in {"5", "4", "3", "2", "1"}:
-        fidelity = fchoice
-        fid_flags = apply_fidelity_fn(fidelity, preset, interactive=True)
-        return fidelity, fid_flags
-
-    # Default to balanced if invalid
-    return "4", apply_fidelity_fn("4", preset, interactive=True)
