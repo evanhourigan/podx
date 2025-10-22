@@ -94,6 +94,7 @@ class LiveTimer:
 @click.option(
     "--input",
     "-i",
+    "input_file",
     type=click.Path(exists=True, path_type=Path),
     help="Read Transcript JSON from file instead of stdin",
 )
@@ -114,7 +115,7 @@ class LiveTimer:
     default=".",
     help="Directory to scan for transcripts (default: current directory)",
 )
-def main(audio, input, output, interactive, scan_dir):
+def main(audio, input_file, output, interactive, scan_dir):
     """
     Read coarse Transcript JSON on stdin -> WhisperX align -> print aligned JSON to stdout.
 
@@ -169,8 +170,8 @@ def main(audio, input, output, interactive, scan_dir):
     else:
         # Non-interactive mode
         # Read input
-        if input:
-            base = json.loads(input.read_text())
+        if input_file:
+            base = json.loads(input_file.read_text())
         else:
             base = read_stdin_json()
 
