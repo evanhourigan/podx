@@ -731,8 +731,6 @@ def _execute_enhancement(
 
 def _execute_deepcast(
     deepcast: bool,
-    dual: bool,
-    no_consensus: bool,
     model: str,
     deepcast_model: str,
     deepcast_temp: float,
@@ -744,16 +742,13 @@ def _execute_deepcast(
     progress,
     verbose: bool,
 ) -> None:
-    """Execute deepcast analysis step with single or dual QA mode.
+    """Execute deepcast analysis step.
 
-    Handles AI-powered transcript analysis with optional dual-track QA
-    (precision + recall), agreement computation, and consensus generation.
+    Handles AI-powered transcript analysis.
 
     Args:
         deepcast: Enable deepcast analysis
-        dual: Enable dual QA mode (precision + recall analyses)
-        no_consensus: Skip consensus generation in dual mode
-        model: ASR model name (for file naming in dual mode)
+        model: ASR model name (for file naming)
         deepcast_model: AI model for deepcast analysis
         deepcast_temp: Temperature for deepcast LLM calls
         yaml_analysis_type: Optional analysis type from YAML config
@@ -767,20 +762,15 @@ def _execute_deepcast(
     Side Effects:
         - Updates results dict with deepcast output paths
         - Creates deepcast JSON/MD files in working directory
-        - In dual mode: creates precision, recall, agreement, consensus files
 
     Resume Support:
-        - Reuses existing deepcast analysis in single mode
-        - Always runs fresh in dual mode
-
-    Raises:
-        ValidationError: If dual mode lacks preprocessed precision/recall transcripts
+        - Reuses existing deepcast analysis if available
     """
     import time
 
-    from .utils import build_deepcast_command, sanitize_model_name
+    from .utils import build_deepcast_command
 
-    if not (deepcast or dual):
+    if not deepcast:
         return
 
     # Use model-specific filenames to allow multiple analyses
@@ -788,121 +778,35 @@ def _execute_deepcast(
     json_out = wd / f"deepcast-brief-{model_suffix}.json"
     md_out = wd / f"deepcast-brief-{model_suffix}.md"
 
-    if json_out.exists() and not dual:
+    if json_out.exists():
         logger.info("Found existing deepcast analysis, skipping AI analysis")
         progress.complete_step("Using existing AI analysis", 0)
         results.update({"deepcast_json": str(json_out)})
         if extract_markdown and md_out.exists():
             results.update({"deepcast_md": str(md_out)})
     else:
-        if not dual:
-            # Single-track deepcast always reads the latest processed transcript
-            progress.start_step(f"Analyzing transcript with {deepcast_model}")
-            step_start = time.time()
-            latest_path = wd / "latest.json"
-            meta_file = wd / "episode-meta.json"
+        # Single-track deepcast always reads the latest processed transcript
+        progress.start_step(f"Analyzing transcript with {deepcast_model}")
+        step_start = time.time()
+        latest_path = wd / "latest.json"
+        meta_file = wd / "episode-meta.json"
 
-            cmd = build_deepcast_command(
-                input_path=latest_path,
-                output_path=json_out,
-                model=deepcast_model,
-                temperature=deepcast_temp,
-                meta_path=meta_file,
-                analysis_type=yaml_analysis_type,
-                extract_markdown=extract_markdown,
-                generate_pdf=deepcast_pdf,
-            )
-            _run(cmd, verbose=verbose, save_to=None, label=None)
-            step_duration = time.time() - step_start
-            progress.complete_step("AI analysis completed", step_duration)
-            results.update({"deepcast_json": str(json_out)})
-            if extract_markdown and md_out.exists():
-                results.update({"deepcast_md": str(md_out)})
-        else:
-            # Dual: deepcast precision & recall (requires preprocessed precision/recall inputs)
-            progress.start_step(f"Analyzing precision & recall with {deepcast_model}")
-            step_start = time.time()
-            safe_model = sanitize_model_name(model)
-            pre_prec = wd / f"transcript-preprocessed-{safe_model}-precision.json"
-            pre_rec = wd / f"transcript-preprocessed-{safe_model}-recall.json"
-            meta_file = wd / "episode-meta.json"
-
-            if not pre_prec.exists() or not pre_rec.exists():
-                raise ValidationError(
-                    "Dual deepcast requires preprocessed precision/recall transcripts; rerun with preprocess enabled or Fidelity 5."
-                )
-
-            # Precision analysis
-            dc_prec = wd / f"deepcast-{safe_model}-{deepcast_model.replace('.', '_')}-precision.json"
-            cmd_prec = build_deepcast_command(
-                input_path=pre_prec,
-                output_path=dc_prec,
-                model=deepcast_model,
-                temperature=deepcast_temp,
-                meta_path=meta_file,
-                analysis_type=yaml_analysis_type,
-                extract_markdown=extract_markdown,
-                generate_pdf=deepcast_pdf,
-            )
-            _run(cmd_prec, verbose=verbose, save_to=None, label=None)
-
-            # Recall analysis
-            dc_rec = wd / f"deepcast-{safe_model}-{deepcast_model.replace('.', '_')}-recall.json"
-            cmd_rec = build_deepcast_command(
-                input_path=pre_rec,
-                output_path=dc_rec,
-                model=deepcast_model,
-                temperature=deepcast_temp,
-                meta_path=meta_file,
-                analysis_type=yaml_analysis_type,
-                extract_markdown=extract_markdown,
-                generate_pdf=deepcast_pdf,
-            )
-            _run(cmd_rec, verbose=verbose, save_to=None, label=None)
-            step_duration = time.time() - step_start
-            progress.complete_step("Dual deepcast analyses completed", step_duration)
-            results.update({
-                "deepcast_precision": str(dc_prec),
-                "deepcast_recall": str(dc_rec),
-            })
-
-            # Agreement
-            progress.start_step("Computing agreement between analyses")
-            agr_out = wd / f"agreement-{safe_model}-{deepcast_model.replace('.', '_')}.json"
-            from .services import CommandBuilder
-
-            agreement_cmd = (
-                CommandBuilder("podx-agreement")
-                .add_option("--a", str(dc_prec))
-                .add_option("--b", str(dc_rec))
-                .add_option("--model", deepcast_model)
-            )
-            _run(
-                agreement_cmd.build(),
-                verbose=verbose,
-                save_to=agr_out,
-            )
-            progress.complete_step("Agreement computed", 0)
-            results.update({"agreement": str(agr_out)})
-
-            # Consensus (unless disabled)
-            if not no_consensus:
-                progress.start_step("Merging consensus output")
-                cons_out = wd / f"consensus-{safe_model}-{deepcast_model.replace('.', '_')}.json"
-                consensus_cmd = (
-                    CommandBuilder("podx-consensus")
-                    .add_option("--precision", str(dc_prec))
-                    .add_option("--recall", str(dc_rec))
-                    .add_option("--agreement", str(agr_out))
-                    .add_option("--output", str(cons_out))
-                )
-                _run(
-                    consensus_cmd.build(),
-                    verbose=verbose,
-                    save_to=cons_out,
-                )
-                progress.complete_step("Consensus created", 0)
-                results.update({"consensus": str(cons_out)})
+        cmd = build_deepcast_command(
+            input_path=latest_path,
+            output_path=json_out,
+            model=deepcast_model,
+            temperature=deepcast_temp,
+            meta_path=meta_file,
+            analysis_type=yaml_analysis_type,
+            extract_markdown=extract_markdown,
+            generate_pdf=deepcast_pdf,
+        )
+        _run(cmd, verbose=verbose, save_to=None, label=None)
+        step_duration = time.time() - step_start
+        progress.complete_step("AI analysis completed", step_duration)
+        results.update({"deepcast_json": str(json_out)})
+        if extract_markdown and md_out.exists():
+            results.update({"deepcast_md": str(md_out)})
 
 
 def _execute_notion_upload(
@@ -2061,11 +1965,9 @@ def run(
             verbose=config["verbose"],
         )
 
-        # 7) DEEPCAST (optional) or implied by dual → deepcast for one or both
+        # 7) DEEPCAST (optional)
         _execute_deepcast(
             deepcast=config["deepcast"],
-            dual=config["dual"],
-            no_consensus=config["no_consensus"],
             model=config["model"],
             deepcast_model=config["deepcast_model"],
             deepcast_temp=config["deepcast_temp"],
