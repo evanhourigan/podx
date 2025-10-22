@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..domain.constants import (
-    COLUMN_WIDTH_ALIGN,
     COLUMN_WIDTH_ASR,
     COLUMN_WIDTH_DATE,
     COLUMN_WIDTH_DEEP,
@@ -15,7 +14,6 @@ from ..domain.constants import (
     COLUMN_WIDTH_LAST_RUN,
     COLUMN_WIDTH_PROC,
     COLUMN_WIDTH_SHOW,
-    COLUMN_WIDTH_TRK,
     EPISODES_PER_PAGE,
     MIN_TITLE_COLUMN_WIDTH,
     TABLE_BORDER_PADDING,
@@ -67,9 +65,6 @@ def scan_episode_status(root: Path) -> List[Dict[str, Any]]:
         # Scan for artifacts
         audio_meta = (ep_dir / "audio-meta.json").exists()
         transcripts = list(ep_dir.glob("transcript-*.json"))
-        aligned = list(ep_dir.glob("transcript-aligned-*.json")) or list(
-            ep_dir.glob("aligned-transcript-*.json")
-        )
         diarized = list(ep_dir.glob("transcript-diarized-*.json")) or list(
             ep_dir.glob("diarized-transcript-*.json")
         )
@@ -78,24 +73,18 @@ def scan_episode_status(root: Path) -> List[Dict[str, Any]]:
 
         # Newest file time as last run
         try:
-            all_files = transcripts + aligned + diarized + deepcasts
+            all_files = transcripts + diarized + deepcasts
             newest = max([p.stat().st_mtime for p in all_files] or [meta_path.stat().st_mtime])
             last_run = time.strftime("%Y-%m-%d %H:%M", time.localtime(newest))
         except Exception:
             last_run = ""
 
-        # Build processing flags summary from artifacts
+        # Build processing flags summary from artifacts (P=preprocess, D=diarize)
         proc_flags = []
         if list(ep_dir.glob("transcript-preprocessed-*.json")):
             proc_flags.append("P")
-        if aligned:
-            proc_flags.append("A")
         if diarized:
             proc_flags.append("D")
-        if list(ep_dir.glob("agreement-*.json")):
-            proc_flags.append("Q")
-
-        has_consensus = bool(list(ep_dir.glob("consensus-*.json")))
 
         episodes.append(
             {
@@ -106,10 +95,8 @@ def scan_episode_status(root: Path) -> List[Dict[str, Any]]:
                 "title": title_val,
                 "audio_meta": audio_meta,
                 "transcripts": transcripts,
-                "aligned": aligned,
                 "diarized": diarized,
                 "deepcasts": deepcasts,
-                "has_consensus": has_consensus,
                 "notion": notion_out,
                 "last_run": last_run,
                 "processing_flags": "".join(proc_flags),
@@ -193,10 +180,8 @@ def select_episode_interactive(
             + COLUMN_WIDTH_SHOW
             + COLUMN_WIDTH_DATE
             + COLUMN_WIDTH_ASR
-            + COLUMN_WIDTH_ALIGN
             + COLUMN_WIDTH_DIAR
             + COLUMN_WIDTH_DEEP
-            + COLUMN_WIDTH_TRK
             + COLUMN_WIDTH_PROC
             + COLUMN_WIDTH_LAST_RUN
         )
@@ -239,16 +224,10 @@ def select_episode_interactive(
             "ASR", style="yellow", width=COLUMN_WIDTH_ASR, no_wrap=True, justify="right"
         )
         table.add_column(
-            "Align", style="yellow", width=COLUMN_WIDTH_ALIGN, no_wrap=True, justify="center"
-        )
-        table.add_column(
             "Diar", style="yellow", width=COLUMN_WIDTH_DIAR, no_wrap=True, justify="center"
         )
         table.add_column(
             "Deep", style="yellow", width=COLUMN_WIDTH_DEEP, no_wrap=True, justify="right"
-        )
-        table.add_column(
-            "Trk", style="yellow", width=COLUMN_WIDTH_TRK, no_wrap=True, justify="center"
         )
         table.add_column("Proc", style="yellow", width=COLUMN_WIDTH_PROC, no_wrap=True)
         table.add_column("Last Run", style="white", width=COLUMN_WIDTH_LAST_RUN, no_wrap=True)
@@ -257,11 +236,9 @@ def select_episode_interactive(
         for idx, e in enumerate(eps_sorted[start:end], start=start + 1):
             asr_count_val = len(e["transcripts"]) if e["transcripts"] else 0
             asr_count = "-" if asr_count_val == 0 else str(asr_count_val)
-            align_ok = "✓" if e["aligned"] else "○"
             diar_ok = "✓" if e["diarized"] else "○"
             dc_count_val = len(e["deepcasts"]) if e["deepcasts"] else 0
             dc_count = "[dim]-[/dim]" if dc_count_val == 0 else str(dc_count_val)
-            trk = "C" if e.get("has_consensus") else "-"
             proc = e.get("processing_flags", "")
 
             # Sanitize problematic characters
@@ -274,10 +251,8 @@ def select_episode_interactive(
                 e["date"],
                 title_cell,
                 asr_count,
-                align_ok,
                 diar_ok,
                 dc_count,
-                trk,
                 proc,
                 e["last_run"],
             )

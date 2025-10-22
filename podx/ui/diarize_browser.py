@@ -1,4 +1,4 @@
-"""Interactive browser for selecting aligned transcripts to diarize."""
+"""Interactive browser for selecting base transcripts to diarize."""
 
 import json
 from pathlib import Path
@@ -29,80 +29,85 @@ logger = get_logger(__name__)
 
 def scan_diarizable_transcripts(scan_dir: Path) -> List[Dict[str, Any]]:
     """
-    Scan directory for aligned transcript files (both new and legacy formats).
-    Returns list of aligned transcripts with their metadata and diarization status.
+    Scan directory for base transcript files.
+    Returns list of base transcripts with their metadata and diarization status.
+
+    In v2.0, diarization runs alignment internally, so we scan for base
+    (non-aligned) transcripts instead of aligned ones.
     """
     transcripts = []
     seen_transcripts = set()  # Track unique transcripts to avoid duplicates
 
-    # Find all aligned transcript files (new format: transcript-aligned-*.json, legacy: aligned-transcript-*.json)
-    for pattern in ["transcript-aligned-*.json", "aligned-transcript-*.json"]:
-        for aligned_file in scan_dir.rglob(pattern):
-            try:
-                # Load aligned transcript data
-                aligned_data = json.loads(aligned_file.read_text(encoding="utf-8"))
+    # Find all base transcript files (format: transcript-{model}.json)
+    for transcript_file in scan_dir.rglob("transcript-*.json"):
+        # Skip non-base transcript files (diarized, preprocessed, aligned)
+        filename = transcript_file.stem
+        if any(keyword in filename for keyword in ["diarized", "preprocessed", "aligned"]):
+            continue
 
-                # Extract ASR model from filename
-                filename = aligned_file.stem
-                if filename.startswith("transcript-aligned-"):
-                    asr_model = filename[len("transcript-aligned-") :]
-                elif filename.startswith("aligned-transcript-"):
-                    asr_model = filename[len("aligned-transcript-") :]
-                else:
-                    continue
+        try:
+            # Load transcript data
+            transcript_data = json.loads(transcript_file.read_text(encoding="utf-8"))
 
-                # Create unique key to avoid duplicates (episode dir + asr model)
-                unique_key = (str(aligned_file.parent), asr_model)
-                if unique_key in seen_transcripts:
-                    continue
-                seen_transcripts.add(unique_key)
-
-                # Get audio path
-                audio_path = aligned_data.get("audio_path")
-                if not audio_path:
-                    continue
-
-                audio_path = Path(audio_path)
-                if not audio_path.exists():
-                    continue
-
-                # Check if diarized version exists (new format first, then legacy)
-                diarized_file_new = (
-                    aligned_file.parent / f"transcript-diarized-{asr_model}.json"
-                )
-                diarized_file_legacy = (
-                    aligned_file.parent / f"diarized-transcript-{asr_model}.json"
-                )
-                is_diarized = diarized_file_new.exists() or diarized_file_legacy.exists()
-                # Use new format for output
-                diarized_file = diarized_file_new
-
-                # Try to get episode metadata for better display
-                episode_meta_file = aligned_file.parent / "episode-meta.json"
-                episode_meta = {}
-                if episode_meta_file.exists():
-                    try:
-                        episode_meta = json.loads(
-                            episode_meta_file.read_text(encoding="utf-8")
-                        )
-                    except Exception:
-                        episode_meta = {}
-
-                transcripts.append(
-                    {
-                        "aligned_file": aligned_file,
-                        "aligned_data": aligned_data,
-                        "audio_path": audio_path,
-                        "asr_model": asr_model,
-                        "is_diarized": is_diarized,
-                        "diarized_file": diarized_file,
-                        "episode_meta": episode_meta,
-                        "directory": aligned_file.parent,
-                    }
-                )
-            except Exception as e:
-                logger.debug(f"Failed to parse {aligned_file}: {e}")
+            # Extract ASR model from filename
+            # Format: transcript-{model}.json
+            if filename.startswith("transcript-"):
+                asr_model = filename[len("transcript-") :]
+            else:
                 continue
+
+            # Create unique key to avoid duplicates (episode dir + asr model)
+            unique_key = (str(transcript_file.parent), asr_model)
+            if unique_key in seen_transcripts:
+                continue
+            seen_transcripts.add(unique_key)
+
+            # Get audio path
+            audio_path = transcript_data.get("audio_path")
+            if not audio_path:
+                continue
+
+            audio_path = Path(audio_path)
+            if not audio_path.exists():
+                continue
+
+            # Check if diarized version exists (new format first, then legacy)
+            diarized_file_new = (
+                transcript_file.parent / f"transcript-diarized-{asr_model}.json"
+            )
+            diarized_file_legacy = (
+                transcript_file.parent / f"diarized-transcript-{asr_model}.json"
+            )
+            is_diarized = diarized_file_new.exists() or diarized_file_legacy.exists()
+            # Use new format for output
+            diarized_file = diarized_file_new
+
+            # Try to get episode metadata for better display
+            episode_meta_file = transcript_file.parent / "episode-meta.json"
+            episode_meta = {}
+            if episode_meta_file.exists():
+                try:
+                    episode_meta = json.loads(
+                        episode_meta_file.read_text(encoding="utf-8")
+                    )
+                except Exception:
+                    episode_meta = {}
+
+            transcripts.append(
+                {
+                    "transcript_file": transcript_file,
+                    "transcript_data": transcript_data,
+                    "audio_path": audio_path,
+                    "asr_model": asr_model,
+                    "is_diarized": is_diarized,
+                    "diarized_file": diarized_file,
+                    "episode_meta": episode_meta,
+                    "directory": transcript_file.parent,
+                }
+            )
+        except Exception as e:
+            logger.debug(f"Failed to parse {transcript_file}: {e}")
+            continue
 
     # Sort by date (most recent first) then by show name
     def sort_key(t):
@@ -114,7 +119,7 @@ def scan_diarizable_transcripts(scan_dir: Path) -> List[Dict[str, Any]]:
 
 
 class DiarizeBrowser(InteractiveBrowser):
-    """Interactive browser for selecting aligned transcripts to diarize."""
+    """Interactive browser for selecting base transcripts to diarize."""
 
     def __init__(self, transcripts: List[Dict[str, Any]], items_per_page: int = 10):
         super().__init__(transcripts, items_per_page, item_name="transcript")
