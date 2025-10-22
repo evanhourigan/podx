@@ -94,6 +94,7 @@ class LiveTimer:
 @click.option(
     "--input",
     "-i",
+    "input_file",
     type=click.Path(exists=True, path_type=Path),
     help="Read AlignedTranscript JSON from file instead of stdin",
 )
@@ -114,7 +115,7 @@ class LiveTimer:
     default=".",
     help="Directory to scan for aligned transcripts (default: current directory)",
 )
-def main(audio, input, output, interactive, scan_dir):
+def main(audio, input_file, output, interactive, scan_dir):
     """
     Read aligned JSON on stdin -> WhisperX diarization -> print diarized JSON to stdout.
 
@@ -160,8 +161,8 @@ def main(audio, input, output, interactive, scan_dir):
     else:
         # Non-interactive mode
         # Read input
-        if input:
-            aligned = json.loads(input.read_text())
+        if input_file:
+            aligned = json.loads(input_file.read_text())
         else:
             aligned = read_stdin_json()
 
