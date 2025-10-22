@@ -519,7 +519,7 @@ if transcript_path.name == "transcript.json":
 **Legacy patterns to warn on:**
 - `transcript.json` → `transcript-{model}.json`
 - `aligned-transcript-*.json` → `transcript-aligned-{model}.json`
-- `deepcast-brief-{ai}.json` → `deepcast-{asr}-{ai}-{type}-{timestamp}.json`
+- `deepcast-{ai}.json` → `deepcast-{asr}-{ai}-{type}-{timestamp}.json`
 
 **Files to Update:**
 - `podx/orchestrate.py` (file detection logic)

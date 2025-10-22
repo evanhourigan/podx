@@ -6,15 +6,13 @@ Shows what files exist, which models have been used, and processing history.
 
 import json
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 import click
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 
-from .fetch import find_feed_for_show
 from .youtube import get_youtube_metadata, is_youtube_url
 
 
@@ -83,15 +81,17 @@ def scan_episode_files(workdir: Path) -> Dict[str, any]:
     # Scan for deepcast analyses (both new and legacy formats)
     deepcast_files = list(workdir.glob("deepcast-*.json"))
     for file_path in deepcast_files:
-        # Extract model name from filename (handle both formats)
+        # Extract model name from filename (handle all formats)
         stem = file_path.stem
         if stem.startswith("deepcast-brief-"):
+            # Legacy format: deepcast-brief-{ai} (backward compatibility)
             model_name = stem.replace("deepcast-brief-", "")
         elif stem.count("-") >= 3:
-            # New format: deepcast-{asr}-{ai}-{type}
+            # Complex format: deepcast-{asr}-{ai}-{type}
             parts = stem.split("-")
             model_name = parts[2] if len(parts) >= 3 else "unknown"
         else:
+            # Simple format: deepcast-{ai}
             model_name = stem.replace("deepcast-", "")
         try:
             with open(file_path, "r") as f:
@@ -359,7 +359,7 @@ def main(
                 info = scan_episode_files(workdir)
                 display_episode_info(info, show_files=files)
             else:
-                click.echo(f"❌ Could not determine episode date from YouTube metadata")
+                click.echo("❌ Could not determine episode date from YouTube metadata")
 
         except Exception as e:
             click.echo(f"❌ Error processing YouTube URL: {e}")

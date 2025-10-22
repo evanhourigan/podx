@@ -230,7 +230,7 @@ class AsyncPipelineService:
                 )
 
                 model_suffix = self.config.deepcast_model.replace(".", "_").replace("-", "_")
-                deepcast_file = workdir / f"deepcast-brief-{model_suffix}.json"
+                deepcast_file = workdir / f"deepcast-{model_suffix}.json"
                 deepcast_file.write_text(json.dumps(deepcast_result, indent=2))
                 result.artifacts["deepcast"] = str(deepcast_file)
                 result.steps_completed.append("deepcast")

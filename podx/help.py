@@ -24,7 +24,6 @@ except Exception:  # pragma: no cover
     import click
 from rich.console import Console
 from rich.markdown import Markdown
-from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
@@ -91,7 +90,7 @@ def get_examples() -> Dict[str, List[str]]:
             "podx run --rss-url '...' --date 2024-01-15 --preprocess --restore --align --deepcast",
             "",
             "# Agreement check between two analyses",
-            "podx-agreement --a deepcast-brief-large_v3.json --b deepcast-brief-tiny.json",
+            "podx-agreement --a deepcast-large_v3.json --b deepcast-tiny.json",
         ],
     }
 
@@ -236,8 +235,6 @@ podx COMMAND --help     # Help for specific command
 @click.option("--pipeline", is_flag=True, help="Show pipeline flow diagram")
 def help_cmd(examples: bool, pipeline: bool):
     """Enhanced help system for podx."""
-    console = Console()
-
     if examples:
         print_examples()
         return

@@ -214,7 +214,7 @@ exported-{track}-{timestamp}.md                # Export markdown
 ```
 transcript.json                    # Old single transcript
 aligned-transcript-*.json          # Old align format
-deepcast-brief-{ai}.json          # Old deepcast format
+deepcast-{ai}.json          # Old deepcast format
 ```
 
 **Issues:**
@@ -544,7 +544,7 @@ podx-notion -i deepcast.json -o notion-result.json
 **Estimated Effort:** 8-12 hours
 
 1. **Add deprecation warnings for legacy filenames**
-   - Warn on: `transcript.json`, `aligned-transcript-*.json`, `deepcast-brief-*.json`
+   - Warn on: `transcript.json`, `aligned-transcript-*.json`, `deepcast-*.json`
 
 2. **Enforce Pydantic schema validation**
    - All commands use models from `podx/schemas.py`

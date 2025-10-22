@@ -734,8 +734,8 @@ def _execute_deepcast(
 
     # Use model-specific filenames to allow multiple analyses
     model_suffix = deepcast_model.replace(".", "_").replace("-", "_")
-    json_out = wd / f"deepcast-brief-{model_suffix}.json"
-    md_out = wd / f"deepcast-brief-{model_suffix}.md"
+    json_out = wd / f"deepcast-{model_suffix}.json"
+    md_out = wd / f"deepcast-{model_suffix}.md"
 
     if json_out.exists():
         logger.info("Found existing deepcast analysis, skipping AI analysis")
@@ -819,8 +819,8 @@ def _execute_notion_upload(
     # Prefer exported.md if available, else model-specific deepcast outputs, fallback to latest.txt
     model_suffix = deepcast_model.replace(".", "_").replace("-", "_")
     exported_md = Path(results.get("exported_md", "")) if results.get("exported_md") else None
-    model_specific_md = wd / f"deepcast-brief-{model_suffix}.md"
-    model_specific_json = wd / f"deepcast-brief-{model_suffix}.json"
+    model_specific_md = wd / f"deepcast-{model_suffix}.md"
+    model_specific_json = wd / f"deepcast-{model_suffix}.json"
 
     # Build command using CommandBuilder
     cmd = CommandBuilder("podx-notion")

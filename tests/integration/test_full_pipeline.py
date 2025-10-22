@@ -256,7 +256,7 @@ class TestPipelineResumeAndRecovery:
         )
 
         # Create deepcast
-        deepcast_file = working_dir / "deepcast-brief-large-v3-turbo-gpt-4.1.json"
+        deepcast_file = working_dir / "deepcast-large-v3-turbo-gpt-4.1.json"
         deepcast_file.write_text(json.dumps({"content": "Analysis"}))
 
         # Detect all
@@ -307,7 +307,7 @@ class TestConfigurationPropagation:
                 "temperature": 0.2,
             },
         }
-        deepcast_file = tmp_path / "deepcast-brief.json"
+        deepcast_file = tmp_path / "deepcast.json"
         deepcast_file.write_text(json.dumps(deepcast_data))
 
         # Read and verify
@@ -366,7 +366,7 @@ class TestFileSystemIntegration:
             "transcript-aligned-large-v3-turbo.json",
             "transcript-diarized-large-v3-turbo.json",
             "transcript-preprocessed-large-v3-turbo.json",
-            "deepcast-brief-large-v3-turbo-gpt-4.1.json",
+            "deepcast-large-v3-turbo-gpt-4.1.json",
         ]
 
         for filename in files:
