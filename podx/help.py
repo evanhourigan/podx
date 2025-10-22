@@ -47,7 +47,7 @@ def get_examples() -> Dict[str, List[str]]:
         ],
         "Advanced Pipeline": [
             "# Full pipeline with AI analysis",
-            "podx run --show 'The Podcast' --date 2024-01-15 --align --diarize --deepcast",
+            "podx run --show 'The Podcast' --date 2024-01-15 --diarize --deepcast",
             "",
             "# Upload to Notion",
             "podx run --show 'The Podcast' --date 2024-01-15 --deepcast --notion",
@@ -87,10 +87,7 @@ def get_examples() -> Dict[str, List[str]]:
             "podx-preprocess --merge --normalize -i transcript.json -o transcript-preprocessed.json",
             "",
             "# Run with orchestrator (with semantic restore)",
-            "podx run --rss-url '...' --date 2024-01-15 --preprocess --restore --align --deepcast",
-            "",
-            "# Agreement check between two analyses",
-            "podx-agreement --a deepcast-large_v3.json --b deepcast-tiny.json",
+            "podx run --rss-url '...' --date 2024-01-15 --preprocess --restore --deepcast",
         ],
     }
 
@@ -134,12 +131,10 @@ def print_pipeline_flow():
         ("2. Transcode", "podx-transcode", "EpisodeMeta JSON", "AudioMeta JSON", "No"),
         ("3. Transcribe", "podx-transcribe", "AudioMeta JSON", "Transcript JSON", "No"),
         ("4. Preprocess", "podx-preprocess", "Any Transcript", "Preprocessed JSON", "Yes"),
-        ("5. Align", "podx-align", "Transcript JSON", "Aligned JSON", "Yes"),
-        ("6. Diarize", "podx-diarize", "Aligned JSON", "Diarized JSON", "Yes"),
-        ("7. Export", "podx-export", "Any Transcript", "TXT/SRT/VTT files", "No"),
-        ("8. Deepcast", "podx-deepcast", "Any Transcript", "AI Analysis", "Yes"),
-        ("9. Agreement", "podx-agreement", "Two deepcasts", "Agreement JSON", "Yes"),
-        ("10. Notion", "podx-notion", "Deepcast output", "Notion page", "Yes"),
+        ("5. Diarize", "podx-diarize", "Transcript JSON", "Diarized JSON", "Yes"),
+        ("6. Export", "podx-export", "Any Transcript", "TXT/SRT/VTT files", "No"),
+        ("7. Deepcast", "podx-deepcast", "Any Transcript", "AI Analysis", "Yes"),
+        ("8. Notion", "podx-notion", "Deepcast output", "Notion page", "Yes"),
     ]
 
     for step, tool, input_type, output_type, optional in pipeline_steps:
@@ -204,7 +199,7 @@ each tool does one thing well and can be combined via pipes.
 podx run --show "This American Life" --date 2024-01-15
 
 # Full pipeline with AI analysis
-podx run --show "Radio Lab" --date 2024-01-15 --align --diarize --deepcast --notion
+podx run --show "Radio Lab" --date 2024-01-15 --diarize --deepcast --notion
 
 ## 🔧 Available Tools (All composable)
 
@@ -212,12 +207,9 @@ podx run --show "Radio Lab" --date 2024-01-15 --align --diarize --deepcast --not
 - `podx-transcode` - Convert audio formats
 - `podx-transcribe` - Speech-to-text with Whisper
 - `podx-preprocess` - Merge/normalize/restore transcript
-- `podx-align` - Word-level timing alignment
-- `podx-diarize` - Speaker identification
+- `podx-diarize` - Speaker identification with word-level alignment
 - `podx-export` - Export to various formats
 - `podx-deepcast` - AI-powered analysis
-- `podx-agreement` - Compare two analyses (semantic diff; reads JSON from stdin)
-- `podx-consensus` - Merge precision+recall analyses to a unified result (reads JSON from stdin)
 - `podx-notion` - Upload to Notion database
 - `podx run` - Orchestrate full pipeline
 

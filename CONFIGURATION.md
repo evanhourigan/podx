@@ -35,7 +35,7 @@ podx config show
 podx run --show "Lenny's Podcast" --date 2025-08-17
 
 # The above automatically applies:
-# --align --deepcast --extract-markdown --notion
+# --diarize --deepcast --extract-markdown --notion
 # Routes to "work" Notion database
 # Uses interview_guest_focused analysis
 # Applies custom product management prompts
