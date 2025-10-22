@@ -1,5 +1,5 @@
 # Claude Code Context Recovery File
-**Last Updated**: 2025-10-22 17:07:52 UTC
+**Last Updated**: 2025-10-22 17:15:11 UTC
 **Project**: PodX v2.0 - Textual TUI Enhancement
 **Session**: Post-Migration Maintenance
 
@@ -96,8 +96,13 @@ podx/ui/two_phase_browser.py - Base class for two-phase workflows
 ### Current Blockers
 - None
 
-### Known Limitations
-- **Terminal Corruption on Kill**: Textual TUI apps can corrupt terminal if killed unexpectedly (expected behavior, not a bug)
+### Known Limitations & Critical Issues
+- **⚠️ CRITICAL: Terminal Corruption on Kill**:
+  - Textual TUI apps corrupt terminal if killed with `timeout` or Ctrl+C
+  - Makes terminal and Claude Code session UNRECOVERABLE
+  - **SOLUTION**: Never test TUI in Claude Code session - use separate terminal
+  - See TESTING_TUI.md for safe testing procedures
+  - This is why context recovery system exists!
 
 ## 📋 Next Steps
 
@@ -199,6 +204,7 @@ Target:     Consistent TUI experience everywhere (ACHIEVED)
 **Key Context Files**:
 - `.claude/CONTEXT.md` - This file (always check first!)
 - `SESSION_1_SUMMARY.md` - Latest session summary
+- `TESTING_TUI.md` - **CRITICAL: Read before testing TUI apps!**
 - `README.md` - Project documentation
 - `podx/ui/episode_browser_tui.py` - Main TUI implementation
 - Git history - Complete audit trail
