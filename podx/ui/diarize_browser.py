@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 try:
     from rich.panel import Panel
@@ -19,6 +19,7 @@ from ..ui_styles import (
     TABLE_NUM_STYLE,
     TABLE_TITLE_COL_STYLE,
 )
+from .episode_browser_tui import ModelLevelProcessingBrowser, select_episode_with_tui
 from .two_phase_browser import TwoPhaseTranscriptBrowser
 
 logger = get_logger(__name__)
@@ -277,3 +278,38 @@ class DiarizeTwoPhase(TwoPhaseTranscriptBrowser):
             options_text, title="Options", border_style="blue", padding=(0, 1)
         )
         self.console.print(panel)
+
+    def browse(self) -> Optional[Dict[str, Any]]:
+        """Run two-phase selection using Textual TUI: episode → transcript.
+
+        Returns:
+            Selected transcript dictionary, or None if cancelled
+        """
+        # Phase 1: Select episode using Textual TUI
+        try:
+            episode, episode_meta = select_episode_with_tui(
+                self.scan_dir, show_filter=self.show_filter
+            )
+        except SystemExit:
+            return None
+
+        if not episode:
+            return None
+
+        # Phase 2: Select transcript using Textual TUI
+        transcripts = self.scan_transcripts(episode["directory"])
+
+        if not transcripts:
+            print(f"❌ No base transcripts found in episode: {episode.get('title', 'Unknown')}")
+            return None
+
+        # Use ModelLevelProcessingBrowser for transcript selection
+        app = ModelLevelProcessingBrowser(
+            items=transcripts,
+            model_key="asr_model",
+            status_key="is_diarized",
+        )
+        app.TITLE = "Select Base Transcript to Diarize"
+        selected_transcript = app.run()
+
+        return selected_transcript
