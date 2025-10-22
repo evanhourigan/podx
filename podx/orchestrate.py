@@ -168,7 +168,6 @@ def _build_pipeline_config(
     model: str,
     compute: str,
     asr_provider: str,
-    preset: Optional[str],
     align: bool,
     preprocess: bool,
     restore: bool,
@@ -216,7 +215,7 @@ def _build_pipeline_config(
         "model": model,
         "compute": compute,
         "asr_provider": asr_provider,
-        "preset": preset,
+        "preset": None,  # Preset system removed in v2.0 - kept for fidelity system compatibility
         "align": align,
         "preprocess": preprocess,
         "restore": restore,
@@ -269,7 +268,7 @@ def _build_pipeline_config(
     if fidelity:
         from .utils import apply_fidelity_preset
 
-        fid_flags = apply_fidelity_preset(fidelity, preset, interactive=False)
+        fid_flags = apply_fidelity_preset(fidelity, config["preset"], interactive=False)
         config["align"] = fid_flags.get("align", config["align"])
         config["diarize"] = fid_flags.get("diarize", config["diarize"])
         config["preprocess"] = fid_flags.get("preprocess", config["preprocess"])
@@ -444,7 +443,6 @@ def _execute_transcribe(
     model: str,
     compute: str,
     asr_provider: str,
-    preset: Optional[str],
     audio: dict,
     wd: Path,
     progress,
@@ -458,7 +456,6 @@ def _execute_transcribe(
         model: ASR model name (e.g., "large-v3")
         compute: Compute type (int8, float16, float32)
         asr_provider: ASR provider (auto, local, openai, hf)
-        preset: Optional ASR preset (balanced, precision, recall)
         audio: Audio metadata dict from transcode step
         wd: Working directory Path
         progress: Progress tracker instance
@@ -535,10 +532,6 @@ def _execute_transcribe(
             # Convert asr_provider enum to string value if needed
             asr_provider_value = asr_provider.value if hasattr(asr_provider, 'value') else asr_provider
             transcribe_cmd.add_option("--asr-provider", asr_provider_value)
-        if preset:
-            # Convert preset enum to string value if needed
-            preset_value = preset.value if hasattr(preset, 'value') else preset
-            transcribe_cmd.add_option("--preset", preset_value)
 
         base = _run(
             transcribe_cmd.build(),
@@ -1520,12 +1513,6 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
     help="ASR provider (auto-detect by model prefix/alias if 'auto')",
 )
 @click.option(
-    "--preset",
-    type=click.Choice(["balanced", "precision", "recall"]),
-    default=None,
-    help="High-level decoding preset for transcribe",
-)
-@click.option(
     "--compute",
     default=lambda: get_config().default_compute,
     type=click.Choice(["int8", "int8_float16", "float16", "float32"]),
@@ -1675,7 +1662,6 @@ def run(
     model: str,
     compute: str,
     asr_provider: str,
-    preset: str | None,
     align: bool,
     preprocess: bool,
     restore: bool,
@@ -1779,7 +1765,6 @@ def run(
         model=model,
         compute=compute,
         asr_provider=asr_provider,
-        preset=preset,
         align=align,
         preprocess=preprocess,
         restore=restore,
@@ -1902,7 +1887,6 @@ def run(
             model=config["model"],
             compute=config["compute"],
             asr_provider=config["asr_provider"],
-            preset=config["preset"],
             audio=audio,
             wd=wd,
             progress=progress,
