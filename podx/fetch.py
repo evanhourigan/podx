@@ -37,9 +37,15 @@ def _truncate_text(text: str, max_length: int = 80) -> str:
     return text[: max_length - 3] + "..."
 
 
-@with_retries(retry_on=(requests.exceptions.RequestException, NetworkError))
-def find_feed_for_show(show_name: str) -> str:
-    """Find RSS feed URL for a podcast show using iTunes API."""
+def search_podcasts(show_name: str) -> list:
+    """Search for podcasts using iTunes API.
+
+    Args:
+        show_name: Name of show to search for
+
+    Returns:
+        List of podcast result dictionaries from iTunes API
+    """
     q = {"media": "podcast", "term": show_name}
     url = "https://itunes.apple.com/search?" + urlencode(q)
 
@@ -81,6 +87,14 @@ def find_feed_for_show(show_name: str) -> str:
     results = data.get("results") or []
     if not results:
         raise ValidationError(f"No podcasts found for: {show_name}")
+
+    return results
+
+
+@with_retries(retry_on=(requests.exceptions.RequestException, NetworkError))
+def find_feed_for_show(show_name: str) -> str:
+    """Find RSS feed URL for a podcast show using iTunes API."""
+    results = search_podcasts(show_name)
 
     feed_url = results[0].get("feedUrl")
     if not feed_url:
