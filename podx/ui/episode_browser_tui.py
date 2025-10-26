@@ -46,10 +46,24 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
         margin-bottom: 1;
     }
 
+    #podcast-table-container {
+        height: 60%;
+        border: solid $primary;
+        margin-bottom: 1;
+    }
+
+    #podcast-table-container.hidden {
+        display: none;
+    }
+
     #episode-table-container {
         height: 60%;
         border: solid $primary;
         margin-bottom: 1;
+    }
+
+    #episode-table-container.hidden {
+        display: none;
     }
 
     #fetch-detail-container {
@@ -90,6 +104,8 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
         self.rss_episodes: List[Dict[str, Any]] = []
         self.feed_url: Optional[str] = None
         self.show_name: Optional[str] = None
+        self.podcast_results: List[Dict[str, Any]] = []
+        self.viewing_mode: str = "search"  # "search", "podcasts", "episodes"
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
@@ -98,6 +114,10 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
                 yield Label("Search for a podcast show:", id="search-label")
                 yield Input(placeholder="Enter show name and press Enter...", id="search-input")
                 yield Static("", id="status-message")
+            # Podcast selection table (hidden initially)
+            with Vertical(id="podcast-table-container", classes="hidden"):
+                yield DataTable(id="fetch-podcast-table", cursor_type="row", zebra_stripes=True)
+            # Episode selection table
             with Vertical(id="episode-table-container"):
                 yield DataTable(id="fetch-episode-table", cursor_type="row", zebra_stripes=True)
             with Vertical(id="fetch-detail-container"):
@@ -112,11 +132,21 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
         # Focus the search input
         self.query_one("#search-input", Input).focus()
 
-        # Set up the table
+        # Set up the podcast table
+        podcast_table = self.query_one("#fetch-podcast-table", DataTable)
+        podcast_table.add_column("Podcast", key="podcast", width=50)
+        podcast_table.add_column("Author", key="author", width=30)
+        podcast_table.add_column("Episodes", key="episodes", width=10)
+
+        # Set up the episode table
         table = self.query_one("#fetch-episode-table", DataTable)
         table.add_column(Text("Date", style="bold green"), width=12)
         table.add_column(Text("Title", style="bold white"), width=60)
         table.add_column(Text("Duration", style="bold cyan"), width=10)
+
+        # If show_name was pre-set, trigger automatic search
+        if self.show_name:
+            self.search_and_load(self.show_name)
 
     @on(Input.Submitted, "#search-input")
     def on_search_submitted(self, event: Input.Submitted) -> None:
@@ -232,18 +262,31 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
             show_name: Name of the show to search for
         """
         try:
-            # Find RSS feed
-            from ..fetch import find_feed_for_show
+            # Search for podcasts
+            from ..fetch import search_podcasts
 
-            feed_url = find_feed_for_show(show_name)
-            if not feed_url:
-                self.app.call_from_thread(self._show_error, f"Could not find RSS feed for '{show_name}'")
+            podcasts = search_podcasts(show_name)
+            if not podcasts:
+                self.app.call_from_thread(self._show_error, f"No podcasts found for '{show_name}'")
                 return
 
-            self.feed_url = feed_url
+            # Store search results
+            self.podcast_results = podcasts
+            self.show_name = show_name
 
-            # Parse feed and load episodes
-            self._parse_feed_episodes(feed_url)
+            # If multiple podcasts, show selection screen
+            if len(podcasts) > 1:
+                self.app.call_from_thread(self._show_podcast_selection, podcasts)
+            else:
+                # Only one podcast, load it directly
+                feed_url = podcasts[0].get("feedUrl")
+                if not feed_url:
+                    self.app.call_from_thread(self._show_error, "Podcast has no feed URL")
+                    return
+
+                self.feed_url = feed_url
+                self.show_name = podcasts[0].get("collectionName", show_name)
+                self._parse_feed_episodes(feed_url)
 
         except Exception as e:
             self.app.call_from_thread(self._show_error, f"Error searching: {str(e)}")
@@ -257,8 +300,87 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
         status = self.query_one("#status-message", Static)
         status.update(f"❌ {message}")
 
+    def _show_podcast_selection(self, podcasts: List[Dict[str, Any]]) -> None:
+        """Show podcast selection table.
+
+        Args:
+            podcasts: List of podcast results from iTunes
+        """
+        from rich.text import Text
+
+        # Hide episode table, show podcast table
+        self.query_one("#episode-table-container").add_class("hidden")
+        self.query_one("#podcast-table-container").remove_class("hidden")
+        self.viewing_mode = "podcasts"
+
+        # Populate podcast table
+        podcast_table = self.query_one("#fetch-podcast-table", DataTable)
+        podcast_table.clear()
+
+        for podcast in podcasts:
+            name = self._truncate(podcast.get("collectionName", "Unknown"), 48)
+            author = self._truncate(podcast.get("artistName", "Unknown"), 28)
+            track_count = str(podcast.get("trackCount", "?"))
+
+            podcast_table.add_row(
+                Text(name, style="cyan"),
+                Text(author, style="white"),
+                Text(track_count, style="green"),
+            )
+
+        # Update status and label
+        status = self.query_one("#status-message", Static)
+        status.update(f"✅ Found {len(podcasts)} podcasts - Select one to see episodes")
+
+        label = self.query_one("#search-label", Label)
+        label.update(f"Select podcast for '{self.show_name}'")
+
+        # Update detail panel
+        detail = self.query_one("#fetch-detail-content", Static)
+        detail.update("Select a podcast from the list above to see its episodes")
+
+        # Focus the table
+        podcast_table.focus()
+
+        # Update detail for first podcast
+        if podcasts:
+            self._update_podcast_detail(0)
+
+    def _update_podcast_detail(self, row_idx: int) -> None:
+        """Update detail panel with podcast info.
+
+        Args:
+            row_idx: Index of podcast in results list
+        """
+        if row_idx >= len(self.podcast_results):
+            return
+
+        podcast = self.podcast_results[row_idx]
+        detail = self.query_one("#fetch-detail-content", Static)
+
+        # Build detail text
+        name = podcast.get("collectionName", "Unknown")
+        author = podcast.get("artistName", "Unknown")
+        genre = podcast.get("primaryGenreName", "Unknown")
+        track_count = podcast.get("trackCount", "?")
+        release_date = podcast.get("releaseDate", "Unknown")
+
+        detail_text = (
+            f"Podcast: {name}\n"
+            f"Author: {author}\n"
+            f"Genre: {genre}\n"
+            f"Episodes: {track_count}\n"
+            f"Latest: {release_date}"
+        )
+        detail.update(detail_text)
+
     def _populate_table(self) -> None:
         """Populate the episode table with RSS episodes."""
+        # Hide podcast table, show episode table
+        self.query_one("#podcast-table-container").add_class("hidden")
+        self.query_one("#episode-table-container").remove_class("hidden")
+        self.viewing_mode = "episodes"
+
         table = self.query_one("#fetch-episode-table", DataTable)
         table.clear()
 
@@ -304,9 +426,38 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
             return text
         return text[:max_len - 1] + "…"
 
+    @on(DataTable.RowHighlighted, "#fetch-podcast-table")
+    def on_podcast_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        """Update detail panel when cursor moves in podcast table."""
+        self._update_podcast_detail(event.cursor_row)
+
+    @on(DataTable.RowSelected, "#fetch-podcast-table")
+    def on_podcast_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Handle podcast selection - load episodes for selected podcast."""
+        if event.cursor_row >= len(self.podcast_results):
+            return
+
+        selected_podcast = self.podcast_results[event.cursor_row]
+        feed_url = selected_podcast.get("feedUrl")
+
+        if not feed_url:
+            self._show_error("Selected podcast has no feed URL")
+            return
+
+        # Store feed URL and show name
+        self.feed_url = feed_url
+        self.show_name = selected_podcast.get("collectionName", self.show_name)
+
+        # Update status
+        status = self.query_one("#status-message", Static)
+        status.update("⬇️  Loading episodes...")
+
+        # Load episodes in background worker
+        self.load_episodes_from_url(feed_url)
+
     @on(DataTable.RowHighlighted, "#fetch-episode-table")
-    def on_fetch_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
-        """Update detail panel when cursor moves in fetch table."""
+    def on_episode_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        """Update detail panel when cursor moves in episode table."""
         self._update_fetch_detail(event.cursor_row)
 
     @on(DataTable.RowSelected, "#fetch-episode-table")
@@ -511,8 +662,8 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
     """
 
     BINDINGS = [
-        Binding("f", "open_fetch", "Fetch Episode", show=True),
-        Binding("enter", "select", "Select & Continue", show=True),
+        Binding("f", "open_fetch", "Fetch Episode", show=False),  # Hidden by default, shows in context
+        Binding("enter", "select", "Continue", show=True),
         Binding("escape", "quit_app", "Cancel", show=True),
     ]
 
@@ -520,6 +671,7 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
         self,
         episodes: List[Dict[str, Any]],
         scan_dir: Path,
+        show_last_run: bool = False,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -528,10 +680,12 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
         Args:
             episodes: List of episode dictionaries
             scan_dir: Directory episodes were scanned from
+            show_last_run: Whether to show Last Run column (for podx run)
         """
         super().__init__(*args, **kwargs)
         self.episodes = episodes
         self.scan_dir = scan_dir
+        self.show_last_run = show_last_run
         self.selected_episode: Optional[Dict[str, Any]] = None
 
     def compose(self) -> ComposeResult:
@@ -548,53 +702,34 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
     def on_mount(self) -> None:
         """Set up the data table on mount."""
         from rich.text import Text
+        from ..utils import format_duration
 
         table = self.query_one("#episode-table", DataTable)
 
         # Add columns with colors
-        table.add_column(Text("Show", style="bold magenta"), width=18)
+        table.add_column(Text("Show", style="bold magenta"), width=20)
         table.add_column(Text("Date", style="bold green"), width=12)
-        table.add_column(Text("Title", style="bold white"), width=50)
-        table.add_column(Text("ASR", style="bold cyan"), width=4)
-        table.add_column(Text("Aln", style="bold yellow"), width=4)
-        table.add_column(Text("Diar", style="bold blue"), width=4)
-        table.add_column(Text("Deep", style="bold red"), width=4)
-        table.add_column(Text("Proc", style="bold bright_magenta"), width=5)
-        table.add_column(Text("Last Run", style="bold dim"), width=17)
+        table.add_column(Text("Title", style="bold white"))  # Expandable
+        table.add_column(Text("Duration", style="bold cyan"), width=10)
+        if self.show_last_run:
+            table.add_column(Text("Last Run", style="bold dim"), width=17)
 
         # Add rows
         for ep in self.episodes:
-            num_transcripts = len(ep.get("transcripts", []))
-            num_aligned = len(ep.get("aligned", []))
-            num_diarized = len(ep.get("diarized", []))
-            num_deepcasts = len(ep.get("deepcasts", []))
+            duration_str = format_duration(ep.get("duration"))
 
-            # Format counts (show number or dash)
-            asr_val = str(num_transcripts) if num_transcripts > 0 else "-"
-            aln_val = "✓" if num_aligned > 0 else "○"
-            diar_val = "✓" if num_diarized > 0 else "○"
-            deep_val = str(num_deepcasts) if num_deepcasts > 0 else "-"
-
-            proc_flags = ep.get("processing_flags", "")
-            last_run = ep.get("last_run", "")
-
-            # Only show last_run if there are actual processing files
-            has_processing = (
-                num_transcripts > 0 or num_aligned > 0 or num_diarized > 0 or num_deepcasts > 0
-            )
-            last_run_display = last_run if (has_processing and last_run) else "-"
-
-            table.add_row(
+            row_data = [
                 Text(ep.get("show", "Unknown"), style="magenta"),
                 Text(ep.get("date", "Unknown"), style="green"),
-                Text(self._truncate(ep.get("title", "Unknown"), 48), style="white"),
-                Text(asr_val, style="cyan"),
-                Text(aln_val, style="yellow"),
-                Text(diar_val, style="blue"),
-                Text(deep_val, style="red"),
-                Text(proc_flags or "-", style="bright_magenta"),
-                Text(last_run_display, style="white"),
-            )
+                Text(ep.get("title", "Unknown"), style="white"),
+                Text(duration_str, style="cyan"),
+            ]
+
+            if self.show_last_run:
+                last_run = ep.get("last_run", "")
+                row_data.append(Text(last_run or "-", style="white"))
+
+            table.add_row(*row_data)
 
         # Focus the table
         table.focus()
@@ -635,10 +770,17 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
         ep = self.episodes[row_index]
 
         # Build detail text
+        from ..utils import format_duration
         details = []
         details.append(f"[bold cyan]Show:[/bold cyan] {ep.get('show', 'Unknown')}")
         details.append(f"[bold cyan]Title:[/bold cyan] {ep.get('title', 'Unknown')}")
         details.append(f"[bold cyan]Date:[/bold cyan] {ep.get('date', 'Unknown')}")
+
+        # Duration
+        duration = ep.get("duration")
+        if duration:
+            duration_str = format_duration(duration)
+            details.append(f"[bold cyan]Duration:[/bold cyan] {duration_str}")
 
         # Get processing artifacts
         transcripts = ep.get("transcripts", [])
@@ -826,35 +968,44 @@ def select_episode_with_tui(
     Raises:
         SystemExit: If no episodes found
     """
+    from ..logging import suppress_logging, restore_logging
     from .episode_selector import scan_episode_status
 
-    # Scan episodes
-    episodes = scan_episode_status(scan_dir)
+    # Suppress logging to prevent messages from corrupting TUI display
+    suppress_logging()
 
-    # Optional filter by --show if provided
-    if show_filter:
-        s_l = show_filter.lower()
-        episodes = [e for e in episodes if s_l in (e.get("show", "").lower())]
+    try:
+        # Scan episodes
+        episodes = scan_episode_status(scan_dir)
 
-    if not episodes:
+        # Optional filter by --show if provided
         if show_filter:
-            print(f"❌ No episodes found for show '{show_filter}' in {scan_dir}")
-            print("Tip: run 'podx-fetch --interactive' to download episodes first.")
-        else:
-            print(f"❌ No episodes found in {scan_dir}")
-        raise SystemExit(1)
+            s_l = show_filter.lower()
+            episodes = [e for e in episodes if s_l in (e.get("show", "").lower())]
 
-    # Sort newest first
-    episodes_sorted = sorted(episodes, key=lambda x: (x["date"], x["show"]), reverse=True)
+        if not episodes:
+            if show_filter:
+                print(f"❌ No episodes found for show '{show_filter}' in {scan_dir}")
+                print("Tip: run 'podx-fetch --interactive' to download episodes first.")
+            else:
+                print(f"❌ No episodes found in {scan_dir}")
+            raise SystemExit(1)
 
-    # Run the TUI
-    app = EpisodeBrowserTUI(episodes_sorted, scan_dir)
-    result = app.run()
+        # Sort newest first
+        episodes_sorted = sorted(episodes, key=lambda x: (x["date"], x["show"]), reverse=True)
 
-    if result == (None, None):
-        raise SystemExit(0)
+        # Run the TUI (with Last Run column for podx run)
+        app = EpisodeBrowserTUI(episodes_sorted, scan_dir, show_last_run=True)
+        result = app.run()
 
-    return result
+        if result == (None, None):
+            print("❌ Episode selection cancelled")
+            raise SystemExit(0)
+
+        return result
+    finally:
+        # Always restore logging after TUI exits
+        restore_logging()
 
 
 class StandaloneFetchBrowser(App[Optional[Dict[str, Any]]]):
@@ -905,15 +1056,20 @@ class StandaloneFetchBrowser(App[Optional[Dict[str, Any]]]):
                 modal.rss_url = self.rss_url
             if self.show_name:
                 modal.show_name = self.show_name
-                # Automatically trigger search
-                modal.search_and_load(self.show_name)
+                # Note: search will be triggered automatically in modal's on_mount
 
             result = await self.push_screen_wait(modal)
             if result:
-                # Episode was fetched
-                _, meta = result
-                self.result = meta
-                self.exit(meta)
+                # Episode was fetched - result is (episode, meta)
+                episode, meta = result
+                # Reconstruct the expected result format for fetch.py main()
+                full_result = {
+                    "meta": meta,
+                    "meta_path": str(episode.get("meta_path", "")),
+                    "directory": str(episode.get("directory", "")),
+                    "date": episode.get("date", ""),
+                }
+                self.exit(full_result)
             else:
                 # User cancelled
                 self.exit(None)
@@ -951,6 +1107,11 @@ class ModelLevelProcessingBrowser(App):
         background: $background;
     }
 
+    #table-container {
+        height: 80%;
+        border: solid $primary;
+    }
+
     DataTable {
         height: 100%;
         background: $background;
@@ -974,13 +1135,15 @@ class ModelLevelProcessingBrowser(App):
     }
 
     #detail-panel {
-        height: 8;
+        width: 100%;
+        height: 20%;
         border-top: solid $primary;
         padding: 1 2;
         background: $panel;
     }
 
     #detail-content {
+        width: 100%;
         height: 100%;
     }
     """
@@ -1009,7 +1172,8 @@ class ModelLevelProcessingBrowser(App):
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False, icon="")
-        yield DataTable(id="item-table", cursor_type="row", zebra_stripes=True)
+        with Container(id="table-container"):
+            yield DataTable(id="item-table", cursor_type="row", zebra_stripes=True)
         yield Container(
             Static(id="detail-content"),
             id="detail-panel",
@@ -1024,6 +1188,7 @@ class ModelLevelProcessingBrowser(App):
             table.add_column("", key="check", width=2)
 
         table.add_column("ASR Model", key="model", width=16)
+        table.add_column("Stage", key="stage", width=13)
         table.add_column("Show", key="show", width=20)
         table.add_column("Date", key="date", width=10)
         table.add_column("Title", key="title")
@@ -1032,6 +1197,10 @@ class ModelLevelProcessingBrowser(App):
         for idx, item in enumerate(self.items):
             model_name = item.get(self.model_key, "unknown")
             is_complete = item.get(self.status_key, False)
+
+            # Extract processing stage
+            processing_stage = item.get("processing_stage", "base")
+            stage_display = processing_stage.capitalize()
 
             # Extract episode metadata
             episode_meta = item.get("episode_meta", {})
@@ -1059,6 +1228,7 @@ class ModelLevelProcessingBrowser(App):
                 table.add_row(
                     Text(check_mark, style="green"),
                     Text(model_name, style="magenta"),
+                    Text(stage_display, style="cyan"),
                     Text(show, style="green"),
                     Text(date, style="blue"),
                     Text(title, style="white"),
@@ -1067,6 +1237,7 @@ class ModelLevelProcessingBrowser(App):
             else:
                 table.add_row(
                     Text(model_name, style="magenta"),
+                    Text(stage_display, style="cyan"),
                     Text(show, style="green"),
                     Text(date, style="blue"),
                     Text(title, style="white"),
@@ -1341,93 +1512,101 @@ def select_episode_for_processing(
 
     from dateutil import parser as dtparse
 
+    from ..logging import suppress_logging, restore_logging
     from .episode_selector import scan_episode_status
 
-    # Use custom scanner if provided, otherwise use default
-    if episode_scanner:
-        episodes = episode_scanner(scan_dir)
-    else:
-        episodes = scan_episode_status(scan_dir)
+    # Suppress logging during TUI interaction
+    suppress_logging()
 
-    if not episodes:
-        print(f"❌ No episodes found in {scan_dir}")
-        raise SystemExit(1)
-
-    # Normalize episode structure - some scanners return different formats
-    normalized_episodes = []
-    for ep in episodes:
-        # If already has top-level show/date/title, use as-is
-        if "show" in ep and "date" in ep and "title" in ep:
-            normalized_episodes.append(ep)
+    try:
+        # Use custom scanner if provided, otherwise use default
+        if episode_scanner:
+            episodes = episode_scanner(scan_dir)
         else:
-            # Extract from episode-meta.json or meta_data
-            episode_dir = ep.get("directory")
-            if not episode_dir:
-                continue
+            episodes = scan_episode_status(scan_dir)
 
-            # Try to load episode-meta.json
-            episode_meta_path = episode_dir / "episode-meta.json"
-            if episode_meta_path.exists():
-                try:
-                    episode_meta = json.loads(
-                        episode_meta_path.read_text(encoding="utf-8")
-                    )
-                except Exception:
-                    episode_meta = {}
+        if not episodes:
+            print(f"❌ No episodes found in {scan_dir}")
+            raise SystemExit(1)
+
+        # Normalize episode structure - some scanners return different formats
+        normalized_episodes = []
+        for ep in episodes:
+            # If already has top-level show/date/title, use as-is
+            if "show" in ep and "date" in ep and "title" in ep:
+                normalized_episodes.append(ep)
             else:
-                episode_meta = ep.get("meta_data", {})
+                # Extract from episode-meta.json or meta_data
+                episode_dir = ep.get("directory")
+                if not episode_dir:
+                    continue
 
-            # Extract show, date, title
-            show_val = episode_meta.get("show", "Unknown")
-            date_val = episode_meta.get("episode_published", "")
+                # Try to load episode-meta.json
+                episode_meta_path = episode_dir / "episode-meta.json"
+                if episode_meta_path.exists():
+                    try:
+                        episode_meta = json.loads(
+                            episode_meta_path.read_text(encoding="utf-8")
+                        )
+                    except Exception:
+                        episode_meta = {}
+                else:
+                    episode_meta = ep.get("meta_data", {})
 
-            # Format date YYYY-MM-DD when possible
-            if date_val:
-                try:
-                    parsed = dtparse.parse(date_val)
-                    date_fmt = parsed.strftime("%Y-%m-%d")
-                except Exception:
-                    date_fmt = date_val[:10] if len(date_val) >= 10 else date_val
-            else:
-                date_fmt = episode_dir.name
+                # Extract show, date, title
+                show_val = episode_meta.get("show", "Unknown")
+                date_val = episode_meta.get("episode_published", "")
 
-            title_val = episode_meta.get("episode_title", "Unknown")
+                # Format date YYYY-MM-DD when possible
+                if date_val:
+                    try:
+                        parsed = dtparse.parse(date_val)
+                        date_fmt = parsed.strftime("%Y-%m-%d")
+                    except Exception:
+                        date_fmt = date_val[:10] if len(date_val) >= 10 else date_val
+                else:
+                    date_fmt = episode_dir.name
 
-            # Create normalized episode with top-level keys
-            normalized_ep = dict(ep)  # Copy original data
-            normalized_ep["show"] = show_val
-            normalized_ep["date"] = date_fmt
-            normalized_ep["title"] = title_val
-            normalized_episodes.append(normalized_ep)
+                title_val = episode_meta.get("episode_title", "Unknown")
 
-    if not normalized_episodes:
-        print(f"❌ No episodes found in {scan_dir}")
-        raise SystemExit(1)
+                # Create normalized episode with top-level keys
+                normalized_ep = dict(ep)  # Copy original data
+                normalized_ep["show"] = show_val
+                normalized_ep["date"] = date_fmt
+                normalized_ep["title"] = title_val
+                normalized_episodes.append(normalized_ep)
 
-    # Optional filter by --show if provided
-    if show_filter:
-        s_l = show_filter.lower()
-        normalized_episodes = [
-            e for e in normalized_episodes if s_l in (e.get("show", "").lower())
-        ]
+        if not normalized_episodes:
+            print(f"❌ No episodes found in {scan_dir}")
+            raise SystemExit(1)
 
-    if not normalized_episodes:
-        print(f"❌ No episodes found for show '{show_filter}' in {scan_dir}")
-        raise SystemExit(1)
+        # Optional filter by --show if provided
+        if show_filter:
+            s_l = show_filter.lower()
+            normalized_episodes = [
+                e for e in normalized_episodes if s_l in (e.get("show", "").lower())
+            ]
 
-    # Sort newest first
-    episodes_sorted = sorted(
-        normalized_episodes, key=lambda x: (x["date"], x["show"]), reverse=True
-    )
+        if not normalized_episodes:
+            print(f"❌ No episodes found for show '{show_filter}' in {scan_dir}")
+            raise SystemExit(1)
 
-    # Run the simplified TUI with custom title
-    class CustomProcessingBrowser(SimpleProcessingBrowser):
-        TITLE = title
+        # Sort newest first
+        episodes_sorted = sorted(
+            normalized_episodes, key=lambda x: (x["date"], x["show"]), reverse=True
+        )
 
-    app = CustomProcessingBrowser(episodes_sorted)
-    result = app.run()
+        # Run the simplified TUI with custom title
+        class CustomProcessingBrowser(SimpleProcessingBrowser):
+            TITLE = title
 
-    if result is None:
-        raise SystemExit(0)
+        app = CustomProcessingBrowser(episodes_sorted)
+        result = app.run()
 
-    return result
+        if result is None:
+            raise SystemExit(0)
+
+        return result
+    finally:
+        # Always restore logging after TUI exits
+        restore_logging()
