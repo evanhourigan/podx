@@ -1,26 +1,30 @@
 #!/usr/bin/env python3
-"""
-podx-deepcast: Reads a Transcript JSON (base/aligned/diarized) and produces a rich Markdown brief and optional structured JSON using the OpenAI API via a chunked map-reduce flow.
+"""CLI wrapper for deepcast command.
 
-Detects:
-- timestamps? (segments with start/end) -> include timecodes in output
-- speakers? (segments have 'speaker') -> include speaker labels when available
+Thin Click wrapper that uses core.deepcast.DeepcastEngine for map-reduce execution.
+Handles CLI arguments, prompt templates, podcast config, interactive mode, and I/O.
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
+import shutil
+import subprocess
 import sys
 import textwrap
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-import shutil
-import subprocess
 
 import click
+
+from .core.deepcast import (
+    DeepcastEngine,
+    DeepcastError,
+    segments_to_plain_text,
+    split_into_chunks,
+)
 
 try:
     from openai import OpenAI
@@ -125,52 +129,6 @@ def read_stdin_or_file(inp: Optional[Path]) -> Dict[str, Any]:
     return json.loads(raw)
 
 
-def hhmmss(sec: float) -> str:
-    """Convert seconds to HH:MM:SS format."""
-    h, remainder = divmod(sec, 3600)
-    m, s = divmod(remainder, 60)
-    return f"{int(h):02}:{int(m):02}:{int(s):02}"
-
-
-def segments_to_plain_text(
-    segs: List[Dict[str, Any]], with_time: bool, with_speaker: bool
-) -> str:
-    """Convert segments to plain text with optional timecodes and speaker labels."""
-    lines = []
-    for s in segs:
-        t = f"[{hhmmss(s['start'])}] " if with_time and "start" in s else ""
-        spk = f"{s.get('speaker', '')}: " if with_speaker and s.get("speaker") else ""
-        txt = s.get("text", "").strip()
-        if txt:
-            lines.append(f"{t}{spk}{txt}")
-    return "\n".join(lines)
-
-
-def split_into_chunks(text: str, approx_chars: int) -> List[str]:
-    """Split text into chunks, trying to keep paragraphs together."""
-    if len(text) <= approx_chars:
-        return [text]
-
-    paras = text.split("\n")
-    chunks = []
-    cur = []
-    cur_len = 0
-
-    for p in paras:
-        L = len(p) + 1  # +1 for newline
-        if cur_len + L > approx_chars and cur:
-            chunks.append("\n".join(cur))
-            cur = []
-            cur_len = 0
-        cur.append(p)
-        cur_len += L
-
-    if cur:
-        chunks.append("\n".join(cur))
-
-    return chunks
-
-
 # prompting
 SYSTEM_BASE = "You are a meticulous editorial assistant for podcast transcripts."
 
@@ -271,48 +229,6 @@ After the Markdown, also prepare a concise JSON object with this structure:
 Return the JSON after the Markdown, separated by a line containing: ---JSON---
 """
 ).strip()
-
-
-# llm client
-def get_client() -> OpenAI:
-    if OpenAI is None:
-        raise SystemExit("Install OpenAI: pip install openai")
-
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise SystemExit("Set OPENAI_API_KEY environment variable")
-
-    base_url = os.getenv("OPENAI_BASE_URL") or None
-    return OpenAI(api_key=api_key, base_url=base_url)
-
-
-def chat_once(
-    client: OpenAI, model: str, system: str, user: str, temperature: float = 0.2
-) -> str:
-    """Make a single chat completion call."""
-    resp = client.chat.completions.create(
-        model=model,
-        temperature=temperature,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-    )
-    return resp.choices[0].message.content or ""
-
-
-async def chat_once_async(
-    client: OpenAI, model: str, system: str, user: str, temperature: float = 0.2
-) -> str:
-    """Async wrapper for chat_once to enable concurrent API calls.
-
-    Runs the synchronous OpenAI API call in a thread pool executor
-    to enable parallel processing of multiple chunks.
-    """
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(
-        None, chat_once, client, model, system, user, temperature
-    )
 
 
 def select_deepcast_type(row: Dict[str, Any], console: Console) -> Optional[str]:
@@ -535,69 +451,34 @@ def deepcast(
         )
     )
 
-    # Map phase with enhanced instructions
-    chunks = split_into_chunks(text, max_chars_per_chunk)
-
     # If show_prompt_only, build and return prompts without calling API
     if show_prompt_only is not None:
+        chunks = split_into_chunks(text, max_chars_per_chunk)
         prompt_display = _build_prompt_display(
             system, template, chunks, want_json, show_prompt_only
         )
         return prompt_display, None
 
-    # Normal flow: call the API (parallel execution for speedup)
-    client = get_client()
+    # Use core deepcast engine (pure business logic)
+    try:
+        engine = DeepcastEngine(
+            model=model,
+            temperature=temperature,
+            max_chars_per_chunk=max_chars_per_chunk,
+        )
+        md, json_data = engine.deepcast(
+            transcript=transcript,
+            system_prompt=system,
+            map_instructions=template.map_instructions,
+            reduce_instructions=template.reduce_instructions,
+            want_json=want_json,
+            json_schema=ENHANCED_JSON_SCHEMA if want_json else None,
+        )
+    except DeepcastError as e:
+        raise SystemExit(str(e))
 
-    async def process_chunks_parallel():
-        """Process all chunks concurrently with rate limiting."""
-        semaphore = asyncio.Semaphore(3)  # Limit to 3 concurrent requests
-
-        async def process_chunk(i: int, chunk: str) -> str:
-            async with semaphore:
-                prompt = f"{template.map_instructions}\n\nChunk {i+1}/{len(chunks)}:\n\n{chunk}"
-                note = await chat_once_async(
-                    client, model=model, system=system, user=prompt, temperature=temperature
-                )
-                return note
-
-        tasks = [process_chunk(i, chunk) for i, chunk in enumerate(chunks)]
-        return await asyncio.gather(*tasks)
-
-    # Run parallel processing
-    map_notes = asyncio.run(process_chunks_parallel())
-
-    # Reduce phase with enhanced instructions
-    reduce_prompt = (
-        f"{template.reduce_instructions}\n\nChunk notes:\n\n"
-        + "\n\n---\n\n".join(map_notes)
-    )
-    if want_json:
-        reduce_prompt += f"\n\n{ENHANCED_JSON_SCHEMA}"
-
-    final = chat_once(
-        client, model=model, system=system, user=reduce_prompt, temperature=temperature
-    )
-
-    # Extract JSON if present
-    if want_json and "---JSON---" in final:
-        md, js = final.split("---JSON---", 1)
-        js = js.strip()
-        # Handle fenced code blocks
-        if js.startswith("```json"):
-            js = js[7:]
-        if js.startswith("```"):
-            js = js[3:]
-        if js.endswith("```"):
-            js = js[:-3]
-        js = js.strip()
-
-        try:
-            parsed = json.loads(js)
-            return build_episode_header(transcript) + md.strip(), parsed
-        except json.JSONDecodeError:
-            return build_episode_header(transcript) + md.strip(), None
-
-    return build_episode_header(transcript) + final.strip(), None
+    # Add episode header to markdown
+    return build_episode_header(transcript) + md, json_data
 
 
 @click.command()
