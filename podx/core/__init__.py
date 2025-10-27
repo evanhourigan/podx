@@ -18,4 +18,5 @@ __all__ = [
     "preprocess",
     "transcribe",
     "diarize",
+    "deepcast",
 ]
