@@ -15,4 +15,5 @@ Architecture principles:
 __all__ = [
     "transcode",
     "fetch",
+    "preprocess",
 ]
