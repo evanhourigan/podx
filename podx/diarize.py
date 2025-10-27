@@ -1,14 +1,19 @@
+"""CLI wrapper for diarize command.
+
+Thin Click wrapper that uses core.diarize.DiarizationEngine for actual logic.
+Handles CLI arguments, input/output, and interactive mode with progress display.
+"""
 import json
 import os
 import sys
 import threading
 import time
-from contextlib import redirect_stderr
 from pathlib import Path
 
 import click
 
 from .cli_shared import print_json, read_stdin_json
+from .core.diarize import DiarizationEngine, DiarizationError
 from .logging import get_logger
 from .ui.diarize_browser import DiarizeTwoPhase
 
@@ -161,78 +166,56 @@ def main(audio, input_file, output, interactive, scan_dir):
     if not interactive:
         audio = audio.resolve()
 
-    # Suppress WhisperX debug output that contaminates stdout
-    from contextlib import redirect_stdout
-
-    import whisperx
-    from whisperx.diarize import DiarizationPipeline, assign_word_speakers
-
-    # Suppress logging before TUI in interactive mode
+    # Suppress logging and WhisperX output before TUI in interactive mode
     if interactive:
         from .logging import suppress_logging
         suppress_logging()
 
-    # Save original stdout before redirecting, so timer can still display
+    # Set up progress callback and timer for interactive mode
     timer = None
-    original_stdout = sys.stdout
+    progress_callback = None
+    console = None
 
+    if interactive and RICH_AVAILABLE:
+        console = Console()
+        # Save original stdout before redirecting, so timer can still display
+        original_stdout = sys.stdout
+        timer = LiveTimer("Diarizing audio", output_stream=original_stdout)
+        timer.start()
+
+        def progress_callback(message: str):
+            # Could update console here if needed
+            pass
+
+    # Suppress WhisperX debug output that contaminates stdout
+    from contextlib import redirect_stderr, redirect_stdout
+
+    # Use core diarization engine (pure business logic)
     try:
-        # Step 1: Alignment - add word-level timing using WhisperX
-        if interactive and RICH_AVAILABLE:
-            console = Console()
-            timer = LiveTimer("Aligning transcript", output_stream=original_stdout)
-            timer.start()
-
         with redirect_stdout(open(os.devnull, "w")), redirect_stderr(open(os.devnull, "w")):
-            # Load alignment model
-            model_a, metadata = whisperx.load_align_model(
-                language_code=language, device="cpu"
-            )
-
-            # Load audio
-            audio_data = whisperx.load_audio(str(audio))
-
-            # Align segments
-            aligned_result = whisperx.align(
-                transcript["segments"],
-                model_a,
-                metadata,
-                audio_data,
+            engine = DiarizationEngine(
+                language=language,
                 device="cpu",
-                return_char_alignments=False,
+                hf_token=os.getenv("HUGGINGFACE_TOKEN"),
+                progress_callback=progress_callback,
             )
-            aligned = aligned_result  # Contains aligned segments with word-level timing
-
-        # Show alignment completion
-        if timer:
-            elapsed = timer.stop()
-            minutes = int(elapsed // 60)
-            seconds = int(elapsed % 60)
-            console.print(f"[green]✓ Alignment completed in {minutes}:{seconds:02d}[/green]")
-
-        # Step 2: Diarization - assign speakers to words
-        if interactive and RICH_AVAILABLE:
-            timer = LiveTimer("Diarizing (identifying speakers)", output_stream=original_stdout)
-            timer.start()
-
-        with redirect_stdout(open(os.devnull, "w")), redirect_stderr(open(os.devnull, "w")):
-            dia = DiarizationPipeline(
-                use_auth_token=os.getenv("HUGGINGFACE_TOKEN"), device="cpu"
-            )
-            diarized = dia(str(audio))
-            final = assign_word_speakers(diarized, aligned)
-
-        # Show diarization completion
-        if timer:
-            elapsed = timer.stop()
-            minutes = int(elapsed // 60)
-            seconds = int(elapsed % 60)
-            console.print(f"[green]✓ Diarization completed in {minutes}:{seconds:02d}[/green]")
-
-    except Exception as e:
+            final = engine.diarize(audio, transcript["segments"])
+    except (DiarizationError, FileNotFoundError) as e:
         if timer:
             timer.stop()
-        raise SystemExit(f"Alignment + diarization failed: {e}") from e
+        raise SystemExit(str(e))
+
+    # Stop timer and show completion in interactive mode
+    if timer:
+        elapsed = timer.stop()
+        minutes = int(elapsed // 60)
+        seconds = int(elapsed % 60)
+        console.print(f"[green]✓ Diarization completed in {minutes}:{seconds:02d}[/green]")
+
+    # Restore logging after diarization
+    if interactive:
+        from .logging import restore_logging
+        restore_logging()
 
     # Preserve metadata from input transcript (always use absolute path)
     final["audio_path"] = str(
@@ -244,10 +227,6 @@ def main(audio, input_file, output, interactive, scan_dir):
 
     # Handle output based on interactive mode
     if interactive:
-        # Restore logging
-        from .logging import restore_logging
-        restore_logging()
-
         # In interactive mode, save to file (new format: transcript-diarized-{model}.json)
         output.write_text(
             json.dumps(final, indent=2, ensure_ascii=False), encoding="utf-8"
