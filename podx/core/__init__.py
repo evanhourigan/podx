@@ -16,4 +16,5 @@ __all__ = [
     "transcode",
     "fetch",
     "preprocess",
+    "transcribe",
 ]
