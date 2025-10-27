@@ -1,12 +1,17 @@
+"""CLI wrapper for transcribe command.
+
+Thin Click wrapper that uses core.transcribe.TranscriptionEngine for actual logic.
+Handles CLI arguments, input/output, and interactive mode with progress display.
+"""
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
 
 import click
 
 from .cli_shared import print_json, read_stdin_json
 from .config import get_config
+from .core.transcribe import TranscriptionEngine, TranscriptionError
 from .errors import AudioError, ValidationError
 from .logging import get_logger
 from .schemas import AudioMeta, Transcript
@@ -45,77 +50,6 @@ except Exception:
     def select_episode_for_processing(*args, **kwargs):
         raise ImportError("UI module not available")
 
-# Model alias maps per provider. Keep minimal and conservative; expand over time.
-OPENAI_MODEL_ALIASES: Dict[str, str] = {
-    # Friendly -> API model id
-    "large-v3": "whisper-large-v3",
-    "large-v3-turbo": "whisper-large-v3-turbo",
-}
-
-HF_MODEL_ALIASES: Dict[str, str] = {
-    # Friendly -> HF repo id
-    "distil-large-v3": "distil-whisper/distil-large-v3",
-    # Allow mapping to official whisper repos as well
-    "large-v3": "openai/whisper-large-v3",
-}
-
-LOCAL_MODEL_ALIASES: Dict[str, str] = {
-    # Accept common variations and normalize to faster-whisper names
-    "small.en": "small.en",
-    "medium.en": "medium.en",
-    "large": "large",
-    "large-v2": "large-v2",
-    "large-v3": "large-v3",
-    "small": "small",
-    "base": "base",
-    "tiny": "tiny",
-    "medium": "medium",
-}
-
-
-def parse_model_and_provider(
-    model_arg: str,
-    provider_arg: Optional[str] = None,
-) -> Tuple[str, str]:
-    """
-    Parse model/provider from user input.
-
-    Returns (provider, normalized_model_id).
-
-    Rules:
-    - Explicit provider via provider_arg takes precedence.
-    - Prefix syntax "openai:large-v3-turbo" or "hf:distil-large-v3" selects provider.
-    - Otherwise default to local provider.
-    - Alias maps normalize to backend-specific ids.
-    """
-    if not model_arg:
-        return ("local", "small")
-
-    # Detect prefix in model string
-    detected_provider = None
-    if ":" in model_arg:
-        prefix, remainder = model_arg.split(":", 1)
-        if prefix in {"local", "openai", "hf"}:
-            detected_provider = prefix
-            model_key = remainder
-        else:
-            model_key = model_arg
-    else:
-        model_key = model_arg
-
-    provider = provider_arg or detected_provider or "local"
-
-    if provider == "openai":
-        normalized = OPENAI_MODEL_ALIASES.get(model_key, model_key)
-        return ("openai", normalized)
-    if provider == "hf":
-        normalized = HF_MODEL_ALIASES.get(model_key, model_key)
-        return ("hf", normalized)
-
-    # local
-    normalized = LOCAL_MODEL_ALIASES.get(model_key, model_key)
-    return ("local", normalized)
-
 
 def _truncate_text(text: str, max_length: int = 60) -> str:
     """Truncate text to max length with ellipsis."""
@@ -150,20 +84,21 @@ def _truncate_text(text: str, max_length: int = 60) -> str:
     help="Enable/disable VAD filtering (default: enabled)",
 )
 @click.option(
-    "--condition-on-previous-text/--no-condition-on-previous-text",
+    "--condition-on-previous-text/--no-condition",
+    "condition_on_previous_text",
     default=None,
-    help="Condition decoding on previous text (default: enabled; local only)",
+    help="Enable/disable conditioning on previous text (default: enabled)",
 )
 @click.option(
     "--decode-option",
     multiple=True,
-    help="Advanced k=v options to pass to decoder (local provider only)",
+    help="Expert decoder options (key=value format, e.g., beam_size=5)",
 )
 @click.option(
     "--compute",
+    type=click.Choice(["auto", "int8", "int8_float16", "int8_bfloat16", "float16"]),
     default=lambda: get_config().default_compute,
-    type=click.Choice(["int8", "int8_float16", "float16", "float32"]),
-    help="Compute type",
+    help="Compute type for faster-whisper (local provider only)",
 )
 @click.option(
     "--input",
@@ -180,7 +115,7 @@ def _truncate_text(text: str, max_length: int = 60) -> str:
 @click.option(
     "--interactive",
     is_flag=True,
-    help="Interactive browser to select episodes for transcription",
+    help="Interactive browser to select episodes and models for transcription",
 )
 @click.option(
     "--scan-dir",
@@ -191,16 +126,16 @@ def _truncate_text(text: str, max_length: int = 60) -> str:
 @validate_output(Transcript)
 def main(
     model,
-    compute,
-    input,
-    output,
-    interactive,
-    scan_dir,
     asr_provider,
     expert,
     vad_filter,
     condition_on_previous_text,
     decode_option,
+    compute,
+    input,
+    output,
+    interactive,
+    scan_dir,
 ):
     """
     Read AudioMeta JSON on stdin -> run faster-whisper -> print Transcript JSON to stdout.
@@ -215,7 +150,8 @@ def main(
             )
 
         # Suppress logging before TUI starts
-        from .logging import suppress_logging, restore_logging
+        from .logging import restore_logging, suppress_logging
+
         suppress_logging()
 
         try:
@@ -289,252 +225,105 @@ def main(
         except Exception as e:
             raise ValidationError(f"Invalid AudioMeta input: {e}") from e
 
-    # Determine provider and normalized model id
+    # Determine provider
     provider_choice = None if asr_provider == "auto" else asr_provider
-    provider, normalized_model = parse_model_and_provider(model, provider_choice)
 
-    logger.info("Selected ASR backend", provider=provider, model=normalized_model)
-
-    # Dispatch to provider-specific transcription path
-    segments = None
-    detected_language = "en"
-    full_text_lines: List[str] = []
-
-    if provider == "local":
-        try:
-            from faster_whisper import WhisperModel
-        except ImportError:
-            raise AudioError(
-                "faster-whisper not installed. Install with: pip install faster-whisper"
-            )
-
-        logger.info("Initializing local Whisper model", model=normalized_model, compute=compute)
-        try:
-            asr = WhisperModel(normalized_model, device="cpu", compute_type=compute)
-        except Exception as e:
-            raise AudioError(f"Failed to initialize Whisper model: {e}") from e
-
-        logger.info("Starting transcription", audio_file=str(audio))
-
-        # Suppress logging and show progress in interactive mode
-        if interactive:
-            from .logging import suppress_logging
-            suppress_logging()
-
-        # Start live timer in interactive mode
-        timer = None
-        if interactive and RICH_AVAILABLE:
-            console = Console()
-            timer = LiveTimer("Transcribing")
-            timer.start()
-
-        # Determine decode parameters (defaults to VAD=True, condition=True)
-        # Can be overridden by explicit --vad-filter and --condition-on-previous-text flags
-        use_vad = True if vad_filter is None else bool(vad_filter)
-        use_condition = True if condition_on_previous_text is None else bool(condition_on_previous_text)
-
-        # Parse additional decode options
-        extra_kwargs: Dict[str, Any] = {}
-        for opt in decode_option or ():
+    # Parse additional decode options for expert mode
+    extra_kwargs = {}
+    if expert and decode_option:
+        for opt in decode_option:
             if "=" in opt:
                 k, v = opt.split("=", 1)
                 extra_kwargs[k.strip()] = v.strip()
 
-        try:
-            transcribe_kwargs: Dict[str, Any] = {
-                "vad_filter": use_vad,
-                "vad_parameters": {"min_silence_duration_ms": 500},
-            }
-            if use_condition is not None:
-                transcribe_kwargs["condition_on_previous_text"] = use_condition
-            # Add expert options if provided
-            if expert and extra_kwargs:
-                transcribe_kwargs.update(extra_kwargs)
+    # Determine VAD and conditioning settings
+    use_vad = True if vad_filter is None else bool(vad_filter)
+    use_condition = True if condition_on_previous_text is None else bool(condition_on_previous_text)
 
-            seg_iter, info = asr.transcribe(str(audio), **transcribe_kwargs)
-        except Exception as e:
-            if timer:
-                timer.stop()
-            raise AudioError(f"Transcription failed: {e}") from e
+    # Set up progress callback for interactive mode
+    timer = None
+    progress_callback = None
 
-        segs = []
-        text_lines = []
-        for s in seg_iter:
-            segs.append({"start": s.start, "end": s.end, "text": s.text})
-            text_lines.append(s.text)
+    if interactive:
+        # Suppress logging and show progress
+        from .logging import suppress_logging
 
-        detected_language = getattr(info, "language", "en")
-        total_segments = len(segs)
+        suppress_logging()
 
-        # Stop timer and show completion message in interactive mode
-        if timer:
-            elapsed = timer.stop()
-            minutes = int(elapsed // 60)
-            seconds = int(elapsed % 60)
-            console.print(f"[green]✓ Transcribe completed in {minutes}:{seconds:02d}[/green]")
+        # Start live timer
+        if RICH_AVAILABLE:
+            console = Console()
+            timer = LiveTimer("Transcribing")
+            timer.start()
 
-        # Restore logging after transcription
-        if interactive:
-            from .logging import restore_logging
-            restore_logging()
+            def progress_callback(message: str):
+                # Could update console here if needed
+                pass
 
-        logger.info(
-            "Transcription completed",
-            segments_count=total_segments,
-            language=detected_language,
-            total_duration=segs[-1]["end"] if segs else 0,
+    # Use core transcription engine (pure business logic)
+    try:
+        engine = TranscriptionEngine(
+            model=model,
+            provider=provider_choice,
+            compute_type=compute,
+            vad_filter=use_vad,
+            condition_on_previous_text=use_condition,
+            extra_decode_options=extra_kwargs,
+            progress_callback=progress_callback,
         )
+        result = engine.transcribe(Path(audio))
+    except (TranscriptionError, AudioError) as e:
+        if timer:
+            timer.stop()
+        raise SystemExit(str(e))
 
-        segments = segs
-        full_text_lines = text_lines
+    # Stop timer and show completion in interactive mode
+    if timer:
+        elapsed = timer.stop()
+        minutes = int(elapsed // 60)
+        seconds = int(elapsed % 60)
+        console.print(f"[green]✓ Transcribe completed in {minutes}:{seconds:02d}[/green]")
 
-    elif provider == "openai":
-        # OpenAI Whisper via API
-        logger.info("Using OpenAI transcription API", model=normalized_model)
-        try:
-            # Prefer new SDK if available
-            try:
-                from openai import OpenAI  # type: ignore
-                client = OpenAI()
-                use_new_sdk = True
-            except Exception:
-                import openai  # type: ignore
-                use_new_sdk = False
+    # Restore logging after transcription
+    if interactive:
+        from .logging import restore_logging
 
-            audio_path = str(audio)
-            if use_new_sdk:
-                with open(audio_path, "rb") as f:
-                    # Attempt verbose JSON for segments
-                    resp = client.audio.transcriptions.create(
-                        model=normalized_model,
-                        file=f,
-                        response_format="verbose_json",
-                    )
-                # SDK returns pydantic-like objects; try to access fields
-                text = getattr(resp, "text", None) or (resp.get("text") if isinstance(resp, dict) else None)
-                segs_raw = getattr(resp, "segments", None) or (resp.get("segments") if isinstance(resp, dict) else None)
-            else:
-                # Legacy SDK
-                with open(audio_path, "rb") as f:
-                    resp = openai.Audio.transcriptions.create(
-                        model=normalized_model,
-                        file=f,
-                        response_format="verbose_json",
-                    )
-                text = resp.get("text")
-                segs_raw = resp.get("segments")
-
-            segs: List[Dict[str, Any]] = []
-            if segs_raw:
-                for s in segs_raw:
-                    start = s.get("start")
-                    end = s.get("end")
-                    txt = s.get("text", "")
-                    if start is None or end is None:
-                        # Some APIs use "timestamp" as [start, end]
-                        ts = s.get("timestamp")
-                        if isinstance(ts, (list, tuple)) and len(ts) == 2:
-                            start, end = ts[0], ts[1]
-                    if start is None:
-                        start = 0.0
-                    if end is None:
-                        end = 0.0
-                    segs.append({"start": float(start), "end": float(end), "text": txt})
-            else:
-                # Fallback: single segment with full text
-                txt = text or ""
-                segs = [{"start": 0.0, "end": 0.0, "text": txt}]
-
-            segments = segs
-            full_text_lines = [s["text"] for s in segs]
-            detected_language = "en"
-        except Exception as e:
-            raise AudioError(f"OpenAI transcription failed: {e}") from e
-
-    elif provider == "hf":
-        # Hugging Face transformers pipeline
-        logger.info("Using Hugging Face ASR pipeline", model=normalized_model)
-        try:
-            from transformers import pipeline  # type: ignore
-        except Exception as e:
-            raise AudioError(
-                "transformers not installed. Install with: pip install transformers torchaudio"
-            ) from e
-
-        try:
-            asr = pipeline(
-                "automatic-speech-recognition",
-                model=normalized_model,
-                return_timestamps="chunk",
-            )
-            result = asr(str(audio), chunk_length_s=30, stride_length_s=5)
-            segs: List[Dict[str, Any]] = []
-            chunks = result.get("chunks") if isinstance(result, dict) else None
-            if chunks:
-                for c in chunks:
-                    ts = c.get("timestamp") or c.get("timestamps")
-                    if isinstance(ts, (list, tuple)) and len(ts) == 2:
-                        start, end = ts
-                    else:
-                        start, end = 0.0, 0.0
-                    segs.append({"start": float(start), "end": float(end), "text": c.get("text", "")})
-                segments = segs
-                full_text_lines = [c.get("text", "") for c in chunks]
-            else:
-                # Fallback: one segment
-                text_val = result.get("text") if isinstance(result, dict) else ""
-                segments = [{"start": 0.0, "end": 0.0, "text": text_val}]
-                full_text_lines = [text_val]
-            detected_language = "en"
-        except Exception as e:
-            raise AudioError(f"Hugging Face transcription failed: {e}") from e
-    else:
-        raise AudioError(f"Unknown ASR provider: {provider}")
-
-    out = {
-        "audio_path": str(audio.resolve()),  # Always use absolute path
-        "language": detected_language,
-        "asr_model": model,
-        "asr_provider": provider,
-        "decoder_options": {"vad_filter": use_vad} if provider == "local" else None,
-        "segments": segments,
-        "text": "\n".join(full_text_lines).strip(),
-    }
+        restore_logging()
 
     # Handle output based on interactive mode
     if interactive:
-        # In interactive mode, save to file (already set to transcript-{model}.json)
+        # In interactive mode, save to file
         output.write_text(
-            json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8"
+            json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
         )
         # Show user-friendly completion message
         print("\n✅ Transcription complete")
-        print(f"   Model: {model} ({provider})")
-        print(f"   Segments: {len(segments)}")
-        print(f"   Language: {detected_language}")
+        print(f"   Model: {model} ({result['asr_provider']})")
+        print(f"   Segments: {len(result['segments'])}")
+        print(f"   Language: {result['language']}")
         print(f"   Output: {output}")
         logger.info(f"Transcript saved to: {output}")
     else:
         # Non-interactive mode: use model-specific filename if model specified and no explicit output
         if model and not output:
             # Try to determine episode directory from audio path
-            audio_dir = audio.parent
+            audio_dir = Path(audio).parent
             safe_model = sanitize_model_name(model)
             output = audio_dir / f"transcript-{safe_model}.json"
             output.write_text(
-                json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8"
+                json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
             )
             logger.debug("Transcript saved to file", file=str(output))
         elif output:
             # Explicit output file specified
-            output.write_text(json.dumps(out, indent=2))
+            output.write_text(json.dumps(result, indent=2))
             logger.debug("Transcript saved to file", file=str(output))
 
         # Always print to stdout in non-interactive mode
-        print_json(out)
+        print_json(result)
 
     # Return for validation decorator
-    return out
+    return result
 
 
 if __name__ == "__main__":
