@@ -75,3 +75,28 @@ def setup_logging() -> None:
 def get_logger(name: str = "podx") -> structlog.stdlib.BoundLogger:
     """Get a configured logger instance."""
     return structlog.get_logger(name)
+
+
+def suppress_logging() -> None:
+    """Suppress all logging output (for TUI mode).
+
+    Call this before entering TUI/interactive mode to prevent log messages
+    from corrupting the TUI display.
+    """
+    # Disable all stdlib logging handlers
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
+    root_logger.addHandler(logging.NullHandler())
+    root_logger.setLevel(logging.CRITICAL + 1)  # Above CRITICAL
+
+    # Disable structlog output
+    logging.disable(logging.CRITICAL)
+
+
+def restore_logging() -> None:
+    """Restore normal logging output after TUI mode exits."""
+    # Re-enable logging
+    logging.disable(logging.NOTSET)
+
+    # Re-run setup to restore handlers
+    setup_logging()

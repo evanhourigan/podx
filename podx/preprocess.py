@@ -148,12 +148,45 @@ def main(input_file: Optional[Path], output_file: Optional[Path], do_merge: bool
 
         if not selected:
             logger.info("User cancelled transcript selection")
+            print("❌ Transcript pre-processing cancelled")
             raise SystemExit(0)
 
-        raw = selected.get("transcript_data")
+        # Extract transcript and config from result
+        transcript_info = selected.get("transcript")
+        config = selected.get("config")
+
+        if not config:
+            logger.info("User cancelled preprocessing configuration")
+            print("❌ Transcript pre-processing cancelled")
+            raise SystemExit(0)
+
+        # Use config from modal
+        do_merge = config.get("merge", False)
+        do_normalize = config.get("normalize", False)
+        do_restore = config.get("restore", False)
+
+        # Show what will be done
+        steps_to_apply = []
+        if do_merge:
+            steps_to_apply.append("merge")
+        if do_normalize:
+            steps_to_apply.append("normalize")
+        if do_restore:
+            steps_to_apply.append("restore")
+
+        if not steps_to_apply:
+            print("❌ No preprocessing steps selected")
+            raise SystemExit(0)
+
+        print(f"\n⏳ Applying: {' + '.join(steps_to_apply)}")
+        if do_restore:
+            print("   (This may take a while due to LLM processing...)")
+        print()
+
+        raw = transcript_info.get("transcript_data")
         # Choose output next to transcript
-        outdir = selected.get("directory")
-        asr = selected.get("asr_model", "model")
+        outdir = transcript_info.get("directory")
+        asr = transcript_info.get("asr_model", "model")
         output_file = outdir / f"transcript-preprocessed-{asr}.json"
     else:
         raw = json.loads(input_file.read_text()) if input_file else read_stdin_json()
@@ -197,8 +230,23 @@ def main(input_file: Optional[Path], output_file: Optional[Path], do_merge: bool
 
     if output_file:
         output_file.write_text(json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8")
+        # In interactive mode, print completion message
+        if interactive:
+            steps_applied = []
+            if do_merge:
+                steps_applied.append("merge")
+            if do_normalize:
+                steps_applied.append("normalize")
+            if do_restore:
+                steps_applied.append("restore")
+            steps_str = " + ".join(steps_applied) if steps_applied else "none"
+            print("✅ Preprocessing complete")
+            print(f"   Steps: {steps_str}")
+            print(f"   Output: {output_file}")
 
-    print_json(out)
+    # Only print JSON in non-interactive mode (for piping/scripting)
+    if not interactive:
+        print_json(out)
     return out
 
 

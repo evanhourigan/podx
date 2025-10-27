@@ -56,7 +56,7 @@ def get_examples() -> Dict[str, List[str]]:
             "# Chain commands manually",
             "podx-fetch --show 'Radiolab' --date 2024-01-15 \\",
             "| podx-transcode --to wav16 \\",
-            "| podx-transcribe --preset balanced \\",
+            "| podx-transcribe \\",
             "| podx-export --formats txt,srt",
         ],
         "RSS Feeds": [
@@ -66,9 +66,9 @@ def get_examples() -> Dict[str, List[str]]:
             "# Private podcast with full pipeline",
             "podx run --rss-url 'https://private-feed.com/feed.xml' --date 2024-01-15 --deepcast",
         ],
-        "Providers & Presets": [
+        "Providers & Models": [
             "# Local provider (default)",
-            "podx-transcribe --model large-v3 --preset balanced < audio-meta.json",
+            "podx-transcribe --model large-v3 < audio-meta.json",
             "",
             "# OpenAI provider",
             "OPENAI_API_KEY=sk-... podx-transcribe --model openai:large-v3-turbo < audio-meta.json",
@@ -76,13 +76,10 @@ def get_examples() -> Dict[str, List[str]]:
             "# Hugging Face provider",
             "podx-transcribe --model hf:distil-large-v3 < audio-meta.json",
             "",
-            "# Recall preset (more coverage)",
-            "podx-transcribe --model large-v3 --preset recall < audio-meta.json",
-            "",
             "# Expert flags (local only)",
             "podx-transcribe --expert --vad-filter --condition-on-previous-text < audio-meta.json",
         ],
-        "Preprocess & Agreement": [
+        "Preprocess & Restore": [
             "# Preprocess transcript (merge + normalize)",
             "podx-preprocess --merge --normalize -i transcript.json -o transcript-preprocessed.json",
             "",

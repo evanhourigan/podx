@@ -662,7 +662,7 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
     """
 
     BINDINGS = [
-        Binding("f", "open_fetch", "Fetch Episode", show=False),  # Hidden by default, shows in context
+        Binding("f", "open_fetch", "Fetch Episode", show=True),
         Binding("enter", "select", "Continue", show=True),
         Binding("escape", "quit_app", "Cancel", show=True),
     ]
@@ -672,6 +672,8 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
         episodes: List[Dict[str, Any]],
         scan_dir: Path,
         show_last_run: bool = False,
+        show_config_on_select: bool = False,
+        initial_config: Optional[Dict[str, Any]] = None,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -681,12 +683,17 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
             episodes: List of episode dictionaries
             scan_dir: Directory episodes were scanned from
             show_last_run: Whether to show Last Run column (for podx run)
+            show_config_on_select: If True, show config modal before exiting
+            initial_config: Initial configuration for config modal
         """
         super().__init__(*args, **kwargs)
         self.episodes = episodes
         self.scan_dir = scan_dir
         self.show_last_run = show_last_run
+        self.show_config_on_select = show_config_on_select
+        self.initial_config = initial_config or {}
         self.selected_episode: Optional[Dict[str, Any]] = None
+        self.final_config: Optional[Dict[str, Any]] = None
 
     def compose(self) -> ComposeResult:
         """Compose the application layout."""
@@ -784,63 +791,88 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
 
         # Get processing artifacts
         transcripts = ep.get("transcripts", [])
-        aligned = ep.get("aligned", [])
         diarized = ep.get("diarized", [])
         deepcasts = ep.get("deepcasts", [])
         has_consensus = ep.get("has_consensus", False)
 
-        # Extract ASR models from transcript filenames
-        if transcripts:
-            models = set()
-            for t in transcripts:
-                # Extract model name from filename like "transcript-large-v3.json"
-                name = t.name
-                if name.startswith("transcript-") and name.endswith(".json"):
-                    model = name[11:-5]  # Remove "transcript-" and ".json"
-                    models.add(model)
-            if models:
-                models_str = ", ".join(sorted(models))
-                details.append(f"[bold cyan]ASR Models:[/bold cyan] {models_str} ({len(transcripts)} total)")
-            else:
-                details.append(f"[bold cyan]ASR Models:[/bold cyan] {len(transcripts)} transcript{'s' if len(transcripts) > 1 else ''}")
+        # Extract unique ASR models from all transcript files
+        all_models = set()
+        for t in transcripts:
+            # Extract model from filenames like "transcript-large-v3.json", "transcript-diarized-large-v3.json"
+            name = t.name
+            if name.startswith("transcript-") and name.endswith(".json"):
+                # Remove "transcript-" prefix and ".json" suffix
+                middle = name[11:-5]
+                # Remove stage prefixes (aligned-, diarized-, preprocessed-)
+                for prefix in ["aligned-", "diarized-", "preprocessed-"]:
+                    if middle.startswith(prefix):
+                        middle = middle[len(prefix):]
+                        break
+                if middle:
+                    all_models.add(middle)
 
-        # Aligned transcripts
-        if aligned:
-            details.append(f"[bold cyan]Aligned:[/bold cyan] Yes ({len(aligned)} file{'s' if len(aligned) > 1 else ''})")
+        if all_models:
+            models_str = ", ".join(sorted(all_models))
+            details.append(f"[bold cyan]ASR Models:[/bold cyan] {models_str}")
 
-        # Diarized transcripts
-        if diarized:
-            details.append(f"[bold cyan]Diarized:[/bold cyan] Yes ({len(diarized)} file{'s' if len(diarized) > 1 else ''})")
+        # Diarized transcripts - show models or (none)
+        diar_models = set()
+        for d in diarized:
+            name = d.name
+            if name.startswith("transcript-diarized-") and name.endswith(".json"):
+                model = name[20:-5]  # Remove "transcript-diarized-" and ".json"
+                if model:
+                    diar_models.add(model)
+        if diar_models:
+            diar_str = ", ".join(sorted(diar_models))
+            details.append(f"[bold cyan]Diarizations:[/bold cyan] {diar_str}")
+        else:
+            details.append("[bold cyan]Diarizations:[/bold cyan] [dim](none)[/dim]")
 
-        # Deepcast outputs
+        # Pre-processed transcripts - show models or (none)
+        prep_models = set()
+        for p in transcripts:
+            name = p.name
+            if "preprocessed" in name and name.startswith("transcript-") and name.endswith(".json"):
+                # Extract model from "transcript-preprocessed-large-v3.json"
+                middle = name[11:-5]  # Remove "transcript-" and ".json"
+                if middle.startswith("preprocessed-"):
+                    model = middle[13:]  # Remove "preprocessed-"
+                    if model:
+                        prep_models.add(model)
+        if prep_models:
+            prep_str = ", ".join(sorted(prep_models))
+            details.append(f"[bold cyan]Pre-Processed:[/bold cyan] {prep_str}")
+        else:
+            details.append("[bold cyan]Pre-Processed:[/bold cyan] [dim](none)[/dim]")
+
+        # Deepcast outputs - show (ASR model, AI model, type) or count
         if deepcasts:
-            details.append(f"[bold cyan]Deepcast:[/bold cyan] {len(deepcasts)} output{'s' if len(deepcasts) > 1 else ''}")
-
-        # Processing flags expanded
-        proc_flags = ep.get("processing_flags", "")
-        if proc_flags:
-            flag_names = []
-            if "P" in proc_flags:
-                flag_names.append("Preprocessed")
-            if "A" in proc_flags:
-                flag_names.append("Aligned")
-            if "D" in proc_flags:
-                flag_names.append("Diarized")
-            if "Q" in proc_flags:
-                flag_names.append("Agreement/QA")
-            if flag_names:
-                details.append(f"[bold cyan]Processing Flags:[/bold cyan] {', '.join(flag_names)}")
+            # Try to extract deepcast metadata
+            deepcast_info = []
+            for dc in deepcasts[:3]:  # Show first 3
+                # Try to parse deepcast filename for info
+                # Format: deepcast-{asr_model}-{ai_model}-{type}.{ext}
+                name = dc.stem
+                if name.startswith("deepcast-"):
+                    parts = name[9:].split("-", 2)
+                    if len(parts) >= 3:
+                        asr_m, ai_m, dc_type = parts[0], parts[1], parts[2]
+                        deepcast_info.append(f"({asr_m}, {ai_m}, {dc_type})")
+            if deepcast_info:
+                info_str = ", ".join(deepcast_info)
+                if len(deepcasts) > 3:
+                    info_str += f" ... (+{len(deepcasts)-3} more)"
+                details.append(f"[bold cyan]Deepcasts:[/bold cyan] {info_str}")
+            else:
+                # Fallback to just count
+                details.append(f"[bold cyan]Deepcasts:[/bold cyan] {len(deepcasts)} output{'s' if len(deepcasts) > 1 else ''}")
+        else:
+            details.append("[bold cyan]Deepcasts:[/bold cyan] [dim](none)[/dim]")
 
         # Consensus
         if has_consensus:
             details.append("[bold cyan]Consensus:[/bold cyan] Yes")
-
-        # Last run - only show if there are actual processing files
-        last_run = ep.get("last_run", "")
-        if transcripts or aligned or diarized or deepcasts:
-            details.append(f"[bold cyan]Last Run:[/bold cyan] {last_run or '[dim]Unknown[/dim]'}")
-        else:
-            details.append("[bold cyan]Last Run:[/bold cyan] [dim]Never processed[/dim]")
 
         # Directory info
         ep_dir = ep.get("directory", "")
@@ -861,18 +893,48 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
             return
 
         selected = self.episodes[row_index]
+        self.selected_episode = selected
 
-        # Load full metadata from file
-        meta_path = selected.get("meta_path")
-        if meta_path and meta_path.exists():
-            import json
-            try:
-                meta = json.loads(meta_path.read_text(encoding="utf-8"))
-                self.exit((selected, meta))
-            except Exception:
-                self.exit((selected, {}))
+        # If config modal should be shown, show it; otherwise exit immediately
+        if self.show_config_on_select:
+            self.show_config_modal()
         else:
-            self.exit((selected, {}))
+            # Load full metadata from file and exit
+            meta_path = selected.get("meta_path")
+            if meta_path and meta_path.exists():
+                import json
+                try:
+                    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                    self.exit((selected, meta))
+                except Exception:
+                    self.exit((selected, {}))
+            else:
+                self.exit((selected, {}))
+
+    def show_config_modal(self) -> None:
+        """Show configuration modal after episode selection."""
+        async def show() -> None:
+            from .config_panel import ConfigPanel
+
+            config = await self.push_screen_wait(ConfigPanel(self.initial_config))
+            if config is not None:
+                # User confirmed config - exit with episode and config
+                self.final_config = config
+
+                # Load metadata
+                meta_path = self.selected_episode.get("meta_path")
+                if meta_path and meta_path.exists():
+                    import json
+                    try:
+                        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                        self.exit((self.selected_episode, meta, config))
+                    except Exception:
+                        self.exit((self.selected_episode, {}, config))
+                else:
+                    self.exit((self.selected_episode, {}, config))
+            # If config is None, user pressed Esc - stay on episode browser (do nothing)
+
+        self.run_worker(show())
 
     def action_open_fetch(self) -> None:
         """Open the fetch modal to fetch a new episode."""
@@ -909,47 +971,110 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
     def _refresh_table(self) -> None:
         """Refresh the episode table with current episodes list."""
         from rich.text import Text
+        from ..utils import format_duration
 
         table = self.query_one("#episode-table", DataTable)
         table.clear()
 
-        # Re-add all rows
+        # Re-add all rows - must match the column structure from on_mount
         for ep in self.episodes:
-            num_transcripts = len(ep.get("transcripts", []))
-            num_aligned = len(ep.get("aligned", []))
-            num_diarized = len(ep.get("diarized", []))
-            num_deepcasts = len(ep.get("deepcasts", []))
+            duration_str = format_duration(ep.get("duration"))
 
-            # Format counts
-            asr_val = str(num_transcripts) if num_transcripts > 0 else "-"
-            aln_val = "✓" if num_aligned > 0 else "○"
-            diar_val = "✓" if num_diarized > 0 else "○"
-            deep_val = str(num_deepcasts) if num_deepcasts > 0 else "-"
-
-            proc_flags = ep.get("processing_flags", "")
-            last_run = ep.get("last_run", "")
-
-            # Only show last_run if there are actual processing files
-            has_processing = (
-                num_transcripts > 0 or num_aligned > 0 or num_diarized > 0 or num_deepcasts > 0
-            )
-            last_run_display = last_run if (has_processing and last_run) else "-"
-
-            table.add_row(
+            row_data = [
                 Text(ep.get("show", "Unknown"), style="magenta"),
                 Text(ep.get("date", "Unknown"), style="green"),
-                Text(self._truncate(ep.get("title", "Unknown"), 48), style="white"),
-                Text(asr_val, style="cyan"),
-                Text(aln_val, style="yellow"),
-                Text(diar_val, style="blue"),
-                Text(deep_val, style="red"),
-                Text(proc_flags or "-", style="bright_magenta"),
-                Text(last_run_display, style="white"),
-            )
+                Text(ep.get("title", "Unknown"), style="white"),
+                Text(duration_str, style="cyan"),
+            ]
+
+            if self.show_last_run:
+                last_run = ep.get("last_run", "")
+                row_data.append(Text(last_run or "-", style="white"))
+
+            table.add_row(*row_data)
 
     def action_quit_app(self) -> None:
         """Quit the application."""
         self.exit((None, None))
+
+
+def select_episode_with_config(
+    scan_dir: Path,
+    config: Dict[str, Any],
+    show_filter: Optional[str] = None,
+) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    """Select episode and configure pipeline using TUI with integrated config modal.
+
+    Args:
+        scan_dir: Directory to scan for episodes
+        config: Initial pipeline configuration
+        show_filter: Optional show name filter
+
+    Returns:
+        Tuple of (selected_episode, episode_metadata, updated_config) or (None, None, None) if cancelled
+
+    Raises:
+        SystemExit: If no episodes found
+    """
+    from ..logging import suppress_logging, restore_logging
+    from .episode_selector import scan_episode_status
+
+    # Suppress logging to prevent messages from corrupting TUI display
+    suppress_logging()
+
+    try:
+        # Scan episodes
+        episodes = scan_episode_status(scan_dir)
+
+        # Optional filter by --show if provided
+        if show_filter:
+            s_l = show_filter.lower()
+            episodes = [e for e in episodes if s_l in (e.get("show", "").lower())]
+
+        if not episodes:
+            restore_logging()
+            if show_filter:
+                print(f"❌ No episodes found for show '{show_filter}' in {scan_dir}")
+            else:
+                print(f"❌ No episodes found in {scan_dir}")
+            raise SystemExit(1)
+
+        # Sort newest first
+        episodes_sorted = sorted(
+            episodes,
+            key=lambda x: (x["date"], x["show"]),
+            reverse=True
+        )
+
+        # Run TUI with config modal enabled
+        app = EpisodeBrowserTUI(
+            episodes_sorted,
+            scan_dir,
+            show_last_run=True,
+            show_config_on_select=True,
+            initial_config=config,
+        )
+        result = app.run()
+
+        # Handle cancellation or None result
+        if result is None or result == (None, None):
+            restore_logging()
+            return (None, None, None)
+
+        # Unpack result - should be (episode, meta, config)
+        if isinstance(result, tuple) and len(result) == 3:
+            return result
+        elif isinstance(result, tuple) and len(result) == 2:
+            # Fallback for older code paths
+            restore_logging()
+            return (result[0], result[1], None)
+        else:
+            # Unexpected format
+            restore_logging()
+            return (None, None, None)
+
+    finally:
+        restore_logging()
 
 
 def select_episode_with_tui(
@@ -1108,7 +1233,7 @@ class ModelLevelProcessingBrowser(App):
     }
 
     #table-container {
-        height: 80%;
+        height: 1fr;
         border: solid $primary;
     }
 
@@ -1136,7 +1261,7 @@ class ModelLevelProcessingBrowser(App):
 
     #detail-panel {
         width: 100%;
-        height: 20%;
+        height: 8;
         border-top: solid $primary;
         padding: 1 2;
         background: $panel;
@@ -1330,6 +1455,11 @@ class SimpleProcessingBrowser(App):
         background: $background;
     }
 
+    #table-container {
+        height: 1fr;
+        border: solid $primary;
+    }
+
     DataTable {
         height: 100%;
         background: $background;
@@ -1369,14 +1499,17 @@ class SimpleProcessingBrowser(App):
         Binding("escape", "quit_app", "Cancel", show=True),
     ]
 
-    def __init__(self, episodes: List[Dict[str, Any]]):
+    def __init__(self, episodes: List[Dict[str, Any]], show_model_selection: bool = False):
         super().__init__()
         self.episodes = episodes
         self.selected_episode = None
+        self.show_model_selection = show_model_selection
+        self.selected_model: Optional[str] = None
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False, icon="")
-        yield DataTable(id="episode-table", cursor_type="row", zebra_stripes=True)
+        with Container(id="table-container"):
+            yield DataTable(id="episode-table", cursor_type="row", zebra_stripes=True)
         yield Container(
             Static(id="detail-content"),
             id="detail-panel",
@@ -1481,7 +1614,31 @@ class SimpleProcessingBrowser(App):
                 idx = int(row_key.value)
                 if 0 <= idx < len(self.episodes):
                     self.selected_episode = self.episodes[idx]
-                    self.exit(self.selected_episode)
+
+                    # If model selection should be shown, show it; otherwise exit immediately
+                    if self.show_model_selection:
+                        self.show_model_modal()
+                    else:
+                        self.exit(self.selected_episode)
+
+    def show_model_modal(self) -> None:
+        """Show ASR model selection modal after episode selection."""
+        async def show() -> None:
+            from .transcribe_tui import ASRModelModal
+
+            # Get transcribed models from selected episode
+            transcribed_models = list(self.selected_episode.get("transcripts", {}).keys())
+
+            modal = ASRModelModal(transcribed_models)
+            selected_model = await self.push_screen_wait(modal)
+
+            if selected_model is not None:
+                # User confirmed model selection - exit with (episode, model)
+                self.selected_model = selected_model
+                self.exit((self.selected_episode, selected_model))
+            # If selected_model is None, user pressed Esc - stay on episode browser (do nothing)
+
+        self.run_worker(show())
 
     def action_quit_app(self) -> None:
         """Quit without selection."""
@@ -1493,6 +1650,7 @@ def select_episode_for_processing(
     title: str = "Select Episode for Processing",
     show_filter: Optional[str] = None,
     episode_scanner: Optional[callable] = None,
+    show_model_selection: bool = False,
 ) -> Optional[Dict[str, Any]]:
     """Select an episode for processing using the Textual TUI.
 
@@ -1501,9 +1659,10 @@ def select_episode_for_processing(
         title: Window title for the browser
         show_filter: Optional show name filter
         episode_scanner: Optional custom scanner function (default: scan_episode_status)
+        show_model_selection: If True, show model selection modal and return (episode, model) tuple
 
     Returns:
-        Selected episode dictionary, or None if cancelled
+        Selected episode dictionary, or (episode, model) tuple if show_model_selection=True, or None if cancelled
 
     Raises:
         SystemExit: If no episodes found
@@ -1600,7 +1759,7 @@ def select_episode_for_processing(
         class CustomProcessingBrowser(SimpleProcessingBrowser):
             TITLE = title
 
-        app = CustomProcessingBrowser(episodes_sorted)
+        app = CustomProcessingBrowser(episodes_sorted, show_model_selection=show_model_selection)
         result = app.run()
 
         if result is None:

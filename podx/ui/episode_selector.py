@@ -85,6 +85,16 @@ def scan_episode_status(root: Path) -> List[Dict[str, Any]]:
         if diarized:
             proc_flags.append("D")
 
+        # Try to get duration from transcript files
+        duration = None
+        if transcripts:
+            try:
+                # Read first transcript to get duration
+                transcript_data = json.loads(transcripts[0].read_text(encoding="utf-8"))
+                duration = transcript_data.get("duration")
+            except Exception:
+                pass
+
         episodes.append(
             {
                 "meta_path": meta_path,
@@ -99,6 +109,7 @@ def scan_episode_status(root: Path) -> List[Dict[str, Any]]:
                 "notion": notion_out,
                 "last_run": last_run,
                 "processing_flags": "".join(proc_flags),
+                "duration": duration,
             }
         )
 
