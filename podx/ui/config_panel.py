@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, Optional
 
-from textual import on
+from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
@@ -114,8 +114,10 @@ class ModelInput(ModalScreen[Optional[str]]):
         self.dismiss(None)
 
 
-class ConfigPanel(App[Dict[str, Any]]):
-    """Interactive configuration panel for pipeline options."""
+class ConfigPanel(ModalScreen[Optional[Dict[str, Any]]]):
+    """Interactive configuration panel for pipeline options (as a modal)."""
+
+    ENABLE_COMMAND_PALETTE = False
 
     # Mapping of config keys to display info (keyboard key, display name, option type)
     OPTION_INFO = {
@@ -131,10 +133,18 @@ class ConfigPanel(App[Dict[str, Any]]):
     }
 
     CSS = """
-    #config-container {
-        width: 100%;
-        height: 100%;
-        padding: 1 2;
+    ConfigPanel {
+        align: center middle;
+        background: rgba(0, 0, 0, 0.5);
+    }
+
+    #config-modal-container {
+        width: 80;
+        height: auto;
+        max-height: 90%;
+        background: $surface;
+        border: thick $primary;
+        padding: 2 3;
     }
 
     #config-title {
@@ -218,7 +228,7 @@ class ConfigPanel(App[Dict[str, Any]]):
         Binding("x", "toggle_markdown", "Toggle Markdown", show=False),
         Binding("f", "toggle_pdf", "Toggle PDF", show=False),
         Binding("enter", "confirm", "Continue", show=True),
-        Binding("escape", "cancel", "Cancel", show=True),
+        Binding("escape", "go_back", "Cancel", show=True),
     ]
 
     def __init__(self, config: Dict[str, Any], *args: Any, **kwargs: Any) -> None:
@@ -231,10 +241,9 @@ class ConfigPanel(App[Dict[str, Any]]):
         self.config = config.copy()
 
     def compose(self) -> ComposeResult:
-        """Compose the application layout."""
-        yield Header()
-        with Vertical(id="config-container"):
-            yield Static("Pipeline Configuration", id="config-title")
+        """Compose the modal layout."""
+        with Vertical(id="config-modal-container"):
+            yield Static("Select the settings for the pipeline", id="config-title")
 
             yield self._make_option("D", "Diarize (speakers)", "diarize")
             yield self._make_option("P", "Preprocess (merge/norm)", "preprocess")
@@ -253,9 +262,8 @@ class ConfigPanel(App[Dict[str, Any]]):
             yield self._make_option("F", "Render PDF", "deepcast_pdf")
 
             yield Static(
-                "Press key to toggle • Enter to continue • Esc to cancel", id="instructions"
+                "Press key to toggle • Enter to continue • Esc to go back", id="instructions"
             )
-        yield Footer()
 
     def _make_option(self, key: str, name: str, config_key: str) -> Static:
         """Create a toggle option widget.
@@ -449,12 +457,61 @@ class ConfigPanel(App[Dict[str, Any]]):
         self.run_worker(select_type())
 
     def action_confirm(self) -> None:
-        """Confirm and exit with current config."""
-        self.exit(self.config)
+        """Confirm and return config."""
+        self.dismiss(self.config)
 
-    def action_cancel(self) -> None:
-        """Cancel and exit without changes."""
-        self.exit(None)
+    def action_go_back(self) -> None:
+        """Go back to episode selection without changes."""
+        self.dismiss(None)
+
+
+class ConfigPanelApp(App[Optional[Dict[str, Any]]]):
+    """Standalone app wrapper for ConfigPanel modal (for backwards compatibility)."""
+
+    TITLE = "Pipeline Settings"
+    ENABLE_COMMAND_PALETTE = False
+
+    CSS = """
+    Screen {
+        background: $surface;
+    }
+
+    #base-container {
+        width: 100%;
+        height: 100%;
+        align: center middle;
+    }
+    """
+
+    def __init__(self, config: Dict[str, Any], *args: Any, **kwargs: Any) -> None:
+        """Initialize wrapper app.
+
+        Args:
+            config: Pipeline configuration dictionary
+        """
+        super().__init__(*args, **kwargs)
+        self.config = config
+
+    def compose(self) -> ComposeResult:
+        """Compose a minimal base screen (modal will overlay)."""
+        from textual.widgets import Static
+        from textual.containers import Container
+
+        yield Header(show_clock=False, icon="")
+        with Container(id="base-container"):
+            yield Static("Loading configuration...", id="loading-message")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        """Show config panel modal on mount."""
+        # Run in a worker context for push_screen_wait
+        self.show_config_panel()
+
+    @work(exclusive=True)
+    async def show_config_panel(self) -> None:
+        """Show the config panel modal and exit with result."""
+        result = await self.push_screen_wait(ConfigPanel(self.config))
+        self.exit(result)
 
 
 def configure_pipeline_interactive(config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -466,5 +523,26 @@ def configure_pipeline_interactive(config: Dict[str, Any]) -> Optional[Dict[str,
     Returns:
         Updated configuration dictionary, or None if cancelled
     """
-    app = ConfigPanel(config)
-    return app.run()
+    from ..logging import suppress_logging, restore_logging
+    import time
+
+    # Brief pause to ensure terminal is ready after previous TUI
+    time.sleep(0.1)
+
+    # Suppress logging during TUI interaction
+    suppress_logging()
+
+    try:
+        app = ConfigPanelApp(config)
+        result = app.run()
+        return result
+    except Exception as e:
+        # If there's an error, restore logging and show it
+        restore_logging()
+        print(f"❌ Error launching configuration panel: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+    finally:
+        # Always restore logging after TUI exits
+        restore_logging()

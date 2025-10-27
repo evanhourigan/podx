@@ -53,7 +53,6 @@ podx-deepcast = "podx.deepcast:main"
 podx-notion = "podx.notion:main"
 podx-preprocess = "podx.preprocess:main"
 podx-models = "podx.models:main"
-podx-list = "podx.list:main"
 podx = "podx.orchestrate:main"
 
 [tool.setuptools.packages.find]

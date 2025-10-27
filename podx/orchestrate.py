@@ -1677,6 +1677,10 @@ def run(
             console = make_console()
             interactive_meta, interactive_wd = _handle_interactive_mode(config, scan_dir, console)
 
+            # Suppress logging during pipeline execution in interactive mode
+            from .logging import suppress_logging
+            suppress_logging()
+
         # 3. Fetch episode metadata and determine working directory
         meta, wd = _execute_fetch(
             config=config,

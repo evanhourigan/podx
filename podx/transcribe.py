@@ -36,11 +36,9 @@ try:
     from .ui import (
         LiveTimer,
         scan_transcribable_episodes,
-        select_asr_model,
         select_episode_for_processing,
     )
 except Exception:
-    from .ui.asr_selector import select_asr_model
     from .ui.live_timer import LiveTimer
     from .ui.transcribe_browser import scan_transcribable_episodes
 
@@ -216,25 +214,38 @@ def main(
                 "Interactive mode requires textual library. Install with: pip install textual"
             )
 
-        # Browse and select episode using Textual TUI
-        logger.info(f"Scanning for episodes in: {scan_dir}")
-        selected = select_episode_for_processing(
-            scan_dir=Path(scan_dir),
-            title="Select Episode for Transcription",
-            episode_scanner=scan_transcribable_episodes,
-        )
+        # Suppress logging before TUI starts
+        from .logging import suppress_logging, restore_logging
+        suppress_logging()
 
-        if not selected:
-            logger.info("User cancelled episode selection")
-            sys.exit(0)
+        try:
+            # Browse and select episode and ASR model using integrated TUI
+            logger.info(f"Scanning for episodes in: {scan_dir}")
+            result = select_episode_for_processing(
+                scan_dir=Path(scan_dir),
+                title="Select Episode for Transcription",
+                episode_scanner=scan_transcribable_episodes,
+                show_model_selection=True,
+            )
 
-        # Select ASR model
-        console = Console() if RICH_AVAILABLE else None
-        selected_model = select_asr_model(selected, console)
+            if not result:
+                restore_logging()
+                logger.info("User cancelled episode/model selection")
+                print("❌ Selection cancelled")
+                sys.exit(0)
 
-        if not selected_model:
-            logger.info("User cancelled model selection")
-            sys.exit(0)
+            # Unpack result - should be (episode, model) tuple
+            if isinstance(result, tuple) and len(result) == 2:
+                selected, selected_model = result
+            else:
+                restore_logging()
+                logger.error("Unexpected result format from episode browser")
+                print("❌ Internal error: unexpected result format")
+                sys.exit(1)
+
+        finally:
+            # Restore logging after TUI exits
+            restore_logging()
 
         # Override model parameter with user selection
         model = selected_model
@@ -305,6 +316,11 @@ def main(
 
         logger.info("Starting transcription", audio_file=str(audio))
 
+        # Suppress logging and show progress in interactive mode
+        if interactive:
+            from .logging import suppress_logging
+            suppress_logging()
+
         # Start live timer in interactive mode
         timer = None
         if interactive and RICH_AVAILABLE:
@@ -356,6 +372,11 @@ def main(
             minutes = int(elapsed // 60)
             seconds = int(elapsed % 60)
             console.print(f"[green]✓ Transcribe completed in {minutes}:{seconds:02d}[/green]")
+
+        # Restore logging after transcription
+        if interactive:
+            from .logging import restore_logging
+            restore_logging()
 
         logger.info(
             "Transcription completed",
@@ -486,6 +507,12 @@ def main(
         output.write_text(
             json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8"
         )
+        # Show user-friendly completion message
+        print("\n✅ Transcription complete")
+        print(f"   Model: {model} ({provider})")
+        print(f"   Segments: {len(segments)}")
+        print(f"   Language: {detected_language}")
+        print(f"   Output: {output}")
         logger.info(f"Transcript saved to: {output}")
     else:
         # Non-interactive mode: use model-specific filename if model specified and no explicit output

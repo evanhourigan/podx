@@ -25,15 +25,6 @@ except Exception:  # pragma: no cover
 from .cli_shared import read_stdin_json
 from .info import get_episode_workdir
 from .yaml_config import get_yaml_config_manager, NotionDatabase
-from .ui import (
-    make_console,
-    TABLE_BORDER_STYLE,
-    TABLE_HEADER_STYLE,
-    TABLE_NUM_STYLE,
-    TABLE_SHOW_STYLE,
-    TABLE_DATE_STYLE,
-    TABLE_TITLE_COL_STYLE,
-)
 
 try:
     from notion_client import Client
@@ -480,63 +471,52 @@ def _interactive_table_flow(
     dry_run: bool = False,
     cover_image: bool = False,
 ) -> Optional[Dict[str, Any]]:
-    console = make_console()
     rows = _scan_notion_rows(scan_dir)
     # Promote consensus rows to the top order within same episode (show+date+title)
     rows.sort(key=lambda r: (r["show"], r["date"], r["title"], 0 if r.get("type") == "consensus" else 1, r["path"].stat().st_mtime), reverse=True)
     if not rows:
-        console.print(f"[red]❌ No deepcast files found in {scan_dir}[/red]")
+        print(f"❌ No deepcast files found in {scan_dir}")
         return None
 
-    # Column widths with flexible Title
-    term_width = console.size.width
-    fixed = {"num": 4, "show": 20, "date": 12, "ai": 14, "asr": 14, "type": 18, "trk": 6, "rec": 4, "notion": 8}
-    borders = 20
-    title_w = max(30, term_width - sum(fixed.values()) - borders)
-
-    table = Table(
-        show_header=True,
-        header_style=TABLE_HEADER_STYLE,
-        title="🪄 Select an analysis to upload to Notion",
-        expand=False,
-        border_style=TABLE_BORDER_STYLE,
-    )
-    table.add_column("#", style=TABLE_NUM_STYLE, width=fixed["num"], justify="right", no_wrap=True)
-    table.add_column("Show", style=TABLE_SHOW_STYLE, width=fixed["show"], no_wrap=True, overflow="ellipsis")
-    table.add_column("Date", style=TABLE_DATE_STYLE, width=fixed["date"], no_wrap=True)
-    table.add_column("Title", style=TABLE_TITLE_COL_STYLE, width=title_w, no_wrap=True, overflow="ellipsis")
-    table.add_column("AI", style="green", width=fixed["ai"], no_wrap=True, overflow="ellipsis")
-    table.add_column("ASR", style="yellow", width=fixed["asr"], no_wrap=True, overflow="ellipsis")
-    table.add_column("Type", style="white", width=fixed["type"], no_wrap=True, overflow="ellipsis")
-    table.add_column("Trk", style="white", width=fixed["trk"], no_wrap=True)
-    table.add_column("Rec", style="white", width=fixed["rec"], no_wrap=True)
-    table.add_column("Notion", style="white", width=fixed["notion"], no_wrap=True)
+    # Display table of available analyses
+    print("\n🪄 Select an analysis to upload to Notion\n")
+    print(f"{'#':>3}  {'Show':<20}  {'Date':<12}  {'Title':<30}  {'AI':<14}  {'ASR':<14}  {'Type':<18}  {'Trk':<4}  {'Rec':<3}  {'Notion':<6}")
+    print("-" * 140)
 
     # Sort to prefer consensus at top for the same episode
     for idx, r in enumerate(rows, start=1):
-        table.add_row(
-            str(idx), r["show"], r["date"], r["title"], r["ai"], r["asr"], r.get("type", ""), r.get("track", ""), ("✓" if r.get("track") == "C" else "-"), "✓" if r["notion"] else "-",
-        )
-    console.print(table)
+        show_trunc = r["show"][:20]
+        title_trunc = r["title"][:30]
+        ai_trunc = r["ai"][:14]
+        asr_trunc = r["asr"][:14]
+        type_trunc = r.get("type", "")[:18]
+        track = r.get("track", "")
+        rec_mark = "✓" if track == "C" else "-"
+        notion_mark = "✓" if r["notion"] else "-"
+
+        print(f"{idx:>3}  {show_trunc:<20}  {r['date']:<12}  {title_trunc:<30}  {ai_trunc:<14}  {asr_trunc:<14}  {type_trunc:<18}  {track:<4}  {rec_mark:<3}  {notion_mark:<6}")
+
     # Prefer consensus row as default selection if available
     default_idx = None
     for i2, r in enumerate(rows, start=1):
         if r.get("track") == "C":
             default_idx = i2
             break
+
+    print("\nEnter selection number, or Q to cancel.")
     default_hint = f" (Enter={default_idx})" if default_idx else ""
-    console.print("\n[dim]Enter selection number, or Q to cancel.[/dim]")
     ans = input(f"👉 1-{len(rows)}{default_hint}: ").strip().upper()
     if not ans and default_idx:
         ans = str(default_idx)
     if ans in {"Q", "QUIT", "EXIT"}:
+        print("❌ Notion upload cancelled")
         return None
     try:
         i = int(ans)
         if not (1 <= i <= len(rows)):
             raise ValueError
     except Exception:
-        console.print("[red]❌ Invalid selection[/red]")
+        print("❌ Invalid selection")
         return None
 
     chosen = rows[i - 1]
@@ -554,11 +534,11 @@ def _interactive_table_flow(
         preset: Optional[NotionDatabase] = None
         if selected_db_name and selected_db_name in dbs:
             preset = dbs[selected_db_name]
-        console.print("\n[bold]Select Notion database:[/bold]")
+        print("\nSelect Notion database:")
         for i3, name in enumerate(names, start=1):
             mark = "*" if preset and selected_db_name == name else ""
-            console.print(f"  {i3}. {name} {mark}")
-        console.print(f"  0. Enter ID manually{' (default)' if default_db else ''}")
+            print(f"  {i3}. {name} {mark}")
+        print(f"  0. Enter ID manually{' (default)' if default_db else ''}")
         sel = input("Choice [0-{}]: ".format(len(names))).strip()
         if sel.isdigit() and int(sel) in range(1, len(names) + 1):
             selected_db_name = names[int(sel) - 1]
@@ -608,8 +588,8 @@ def _interactive_table_flow(
             if isinstance(date_val, str) and len(date_val) >= 10:
                 filt["and"].append({"property": "Date", "date": {"equals": date_val[:10]}})
             q = client.databases.query(database_id=db_val, filter=filt)
-            if q.get("results") and _HAS_RICH:
-                console.print("[yellow]Note: an existing Notion page with this title/date was found.[/yellow]")
+            if q.get("results"):
+                print("⚠️  Note: an existing Notion page with this title/date was found.")
     except Exception:
         pass
 
@@ -1543,11 +1523,8 @@ def main(
             "props_extra_keys": list(props_extra.keys()) if props_extra else [],
             "blocks_count": len(blocks),
         }
-        if _HAS_RICH:
-            console = Console()
-            console.print("[green]Dry run prepared. Payload summarized above.[/green]")
-        else:
-            print(json.dumps(payload, indent=2))
+        print(json.dumps(payload, indent=2))
+        print("\n✅ Dry run prepared. Payload summarized above.")
         return
 
     client = notion_client_from_env(selected_token)
@@ -1583,11 +1560,21 @@ def main(
     # Save to output file if requested
     if output:
         output.write_text(json.dumps(result, indent=2), encoding="utf-8")
+        if interactive:
+            print("\n✅ Notion upload complete")
+            print(f"   Episode: {episode_title}")
+            print(f"   Database: {config_db_name if config_db_name else db_id[:8] + '...'}")
+            print(f"   Page URL: {result['url']}")
+            if output:
+                print(f"   Summary saved: {output}")
 
-    # Print result (interactive: rich message, non-interactive: JSON)
-    if _HAS_RICH and interactive:
-        console = Console()
-        console.print(f"[green]✅ Notion page updated: {page_id}[/green]")
+    # Print result (interactive: detailed message, non-interactive: JSON)
+    if interactive:
+        if not output:
+            print("\n✅ Notion upload complete")
+            print(f"   Episode: {episode_title}")
+            print(f"   Database: {config_db_name if config_db_name else db_id[:8] + '...'}")
+            print(f"   Page URL: {result['url']}")
     else:
         print(json.dumps(result, indent=2))
 
