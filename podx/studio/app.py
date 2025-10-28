@@ -3,7 +3,7 @@
 
 from textual import on
 from textual.app import App, ComposeResult
-from textual.containers import Container, Horizontal, Vertical
+from textual.containers import Container, Horizontal, ScrollableContainer, Vertical
 from textual.reactive import reactive
 from textual.screen import Screen
 from textual.widgets import (
@@ -56,6 +56,11 @@ class WelcomeScreen(Screen):
     }
     """
 
+    BINDINGS = [
+        ("q", "quit_app", "Quit"),
+        ("escape", "quit_app", "Quit"),
+    ]
+
     def compose(self) -> ComposeResult:
         """Create child widgets."""
         yield Header()
@@ -72,6 +77,10 @@ class WelcomeScreen(Screen):
             yield Button("⚙️  Settings", id="settings", classes="action-button")
             yield Button("❌ Exit", id="exit", classes="action-button")
         yield Footer()
+
+    def action_quit_app(self) -> None:
+        """Quit the application."""
+        self.app.exit()
 
     @on(Button.Pressed, "#fetch")
     def action_fetch(self) -> None:
@@ -104,15 +113,15 @@ class FetchScreen(Screen):
 
     CSS = """
     FetchScreen {
-        align: center top;
+        layout: vertical;
     }
 
     #fetch-container {
-        width: 100;
+        width: 90;
         height: auto;
         border: solid $accent;
         padding: 2 4;
-        margin: 2 0;
+        margin: 2 auto;
     }
 
     .input-row {
@@ -132,49 +141,59 @@ class FetchScreen(Screen):
 
     #status {
         height: auto;
+        min-height: 3;
         border: solid $primary;
         padding: 1 2;
         margin: 2 0;
     }
+
+    .button-row {
+        margin-top: 1;
+    }
     """
+
+    BINDINGS = [
+        ("escape", "go_back", "Back"),
+    ]
 
     status_text: reactive[str] = reactive("")
 
     def compose(self) -> ComposeResult:
         """Create child widgets."""
         yield Header()
-        with Container(id="fetch-container"):
-            yield Static("Fetch Podcast Episode", classes="title")
+        with ScrollableContainer():
+            with Container(id="fetch-container"):
+                yield Static("Fetch Podcast Episode", classes="title")
 
-            with Horizontal(classes="input-row"):
-                yield Static("Show Name:", classes="input-label")
-                yield Input(
-                    placeholder="e.g., Lenny's Podcast",
-                    id="show-name",
-                    classes="input-field",
-                )
+                with Horizontal(classes="input-row"):
+                    yield Static("Show Name:", classes="input-label")
+                    yield Input(
+                        placeholder="e.g., Lenny's Podcast",
+                        id="show-name",
+                        classes="input-field",
+                    )
 
-            with Horizontal(classes="input-row"):
-                yield Static("Episode Date:", classes="input-label")
-                yield Input(
-                    placeholder="YYYY-MM-DD (optional)",
-                    id="episode-date",
-                    classes="input-field",
-                )
+                with Horizontal(classes="input-row"):
+                    yield Static("Episode Date:", classes="input-label")
+                    yield Input(
+                        placeholder="YYYY-MM-DD (optional)",
+                        id="episode-date",
+                        classes="input-field",
+                    )
 
-            with Horizontal(classes="input-row"):
-                yield Static("YouTube URL:", classes="input-label")
-                yield Input(
-                    placeholder="https://youtube.com/watch?v=...",
-                    id="youtube-url",
-                    classes="input-field",
-                )
+                with Horizontal(classes="input-row"):
+                    yield Static("YouTube URL:", classes="input-label")
+                    yield Input(
+                        placeholder="https://youtube.com/watch?v=...",
+                        id="youtube-url",
+                        classes="input-field",
+                    )
 
-            with Horizontal():
-                yield Button("🔍 Fetch", id="fetch-button", variant="primary")
-                yield Button("« Back", id="back-button")
+                with Horizontal(classes="button-row"):
+                    yield Button("🔍 Fetch", id="fetch-button", variant="primary")
+                    yield Button("« Back", id="back-button")
 
-            yield Static("", id="status")
+                yield Static("", id="status")
 
         yield Footer()
 
@@ -182,6 +201,10 @@ class FetchScreen(Screen):
         """Update status display."""
         status_widget = self.query_one("#status", Static)
         status_widget.update(new_status)
+
+    def action_go_back(self) -> None:
+        """Go back to welcome screen."""
+        self.app.pop_screen()
 
     @on(Button.Pressed, "#fetch-button")
     async def handle_fetch(self) -> None:
@@ -222,15 +245,15 @@ class ProcessScreen(Screen):
 
     CSS = """
     ProcessScreen {
-        align: center top;
+        layout: vertical;
     }
 
     #process-container {
-        width: 100;
+        width: 90;
         height: auto;
         border: solid $accent;
         padding: 2 4;
-        margin: 2 0;
+        margin: 2 auto;
     }
 
     .process-step {
@@ -241,30 +264,43 @@ class ProcessScreen(Screen):
         text-style: bold;
         color: $accent;
     }
+
+    .button-row {
+        margin-top: 2;
+    }
     """
+
+    BINDINGS = [
+        ("escape", "go_back", "Back"),
+    ]
 
     def compose(self) -> ComposeResult:
         """Create child widgets."""
         yield Header()
-        with Container(id="process-container"):
-            yield Static("Process Audio Pipeline", classes="title")
+        with ScrollableContainer():
+            with Container(id="process-container"):
+                yield Static("Process Audio Pipeline", classes="title")
 
-            yield Static("Select processing steps:", classes="step-label")
+                yield Static("Select processing steps:", classes="step-label")
 
-            yield Button("🎵 Transcode Audio", id="transcode", classes="process-step")
-            yield Button(
-                "🎤 Transcribe (Whisper)", id="transcribe", classes="process-step"
-            )
-            yield Button(
-                "👥 Diarize (Speaker IDs)", id="diarize", classes="process-step"
-            )
-            yield Button("🤖 AI Analysis (Deepcast)", id="deepcast", classes="process-step")
-            yield Button("📄 Export (TXT/SRT/VTT/MD)", id="export", classes="process-step")
+                yield Button("🎵 Transcode Audio", id="transcode", classes="process-step")
+                yield Button(
+                    "🎤 Transcribe (Whisper)", id="transcribe", classes="process-step"
+                )
+                yield Button(
+                    "👥 Diarize (Speaker IDs)", id="diarize", classes="process-step"
+                )
+                yield Button("🤖 AI Analysis (Deepcast)", id="deepcast", classes="process-step")
+                yield Button("📄 Export (TXT/SRT/VTT/MD)", id="export", classes="process-step")
 
-            with Horizontal():
-                yield Button("« Back", id="back-button")
+                with Horizontal(classes="button-row"):
+                    yield Button("« Back", id="back-button")
 
         yield Footer()
+
+    def action_go_back(self) -> None:
+        """Go back to welcome screen."""
+        self.app.pop_screen()
 
     @on(Button.Pressed, "#transcode")
     def action_transcode(self) -> None:
@@ -302,29 +338,42 @@ class BrowseScreen(Screen):
 
     CSS = """
     BrowseScreen {
-        align: center top;
+        layout: vertical;
     }
 
     #browse-container {
-        width: 100;
+        width: 90;
         height: auto;
         border: solid $accent;
         padding: 2 4;
-        margin: 2 0;
+        margin: 2 auto;
+    }
+
+    .button-row {
+        margin-top: 2;
     }
     """
+
+    BINDINGS = [
+        ("escape", "go_back", "Back"),
+    ]
 
     def compose(self) -> ComposeResult:
         """Create child widgets."""
         yield Header()
-        with Container(id="browse-container"):
-            yield Static("Browse Episodes", classes="title")
-            yield Static("No episodes found. Process some audio first!")
+        with ScrollableContainer():
+            with Container(id="browse-container"):
+                yield Static("Browse Episodes", classes="title")
+                yield Static("No episodes found. Process some audio first!")
 
-            with Horizontal():
-                yield Button("« Back", id="back-button")
+                with Horizontal(classes="button-row"):
+                    yield Button("« Back", id="back-button")
 
         yield Footer()
+
+    def action_go_back(self) -> None:
+        """Go back to welcome screen."""
+        self.app.pop_screen()
 
     @on(Button.Pressed, "#back-button")
     def action_back(self) -> None:
@@ -337,40 +386,53 @@ class SettingsScreen(Screen):
 
     CSS = """
     SettingsScreen {
-        align: center top;
+        layout: vertical;
     }
 
     #settings-container {
-        width: 80;
+        width: 90;
         height: auto;
         border: solid $accent;
         padding: 2 4;
-        margin: 2 0;
+        margin: 2 auto;
     }
 
     .setting-row {
         height: auto;
         margin: 1 0;
     }
+
+    .button-row {
+        margin-top: 2;
+    }
     """
+
+    BINDINGS = [
+        ("escape", "go_back", "Back"),
+    ]
 
     def compose(self) -> ComposeResult:
         """Create child widgets."""
         yield Header()
-        with Container(id="settings-container"):
-            yield Static("Settings", classes="title")
+        with ScrollableContainer():
+            with Container(id="settings-container"):
+                yield Static("Settings", classes="title")
 
-            with Vertical():
-                yield Static("ASR Model: base", classes="setting-row")
-                yield Static("AI Model: gpt-4.1", classes="setting-row")
-                yield Static("Output Directory: ./", classes="setting-row")
+                with Vertical():
+                    yield Static("ASR Model: base", classes="setting-row")
+                    yield Static("AI Model: gpt-4.1", classes="setting-row")
+                    yield Static("Output Directory: ./", classes="setting-row")
 
-            yield Static("\n💡 Use environment variables or config file to customize settings")
+                yield Static("\n💡 Use environment variables or config file to customize settings")
 
-            with Horizontal():
-                yield Button("« Back", id="back-button")
+                with Horizontal(classes="button-row"):
+                    yield Button("« Back", id="back-button")
 
         yield Footer()
+
+    def action_go_back(self) -> None:
+        """Go back to welcome screen."""
+        self.app.pop_screen()
 
     @on(Button.Pressed, "#back-button")
     def action_back(self) -> None:
@@ -395,23 +457,15 @@ class StudioApp(App):
     }
     """
 
-    BINDINGS = [
-        ("q", "quit", "Quit"),
-        ("escape", "back", "Back"),
-    ]
+    # Disable command palette
+    ENABLE_COMMAND_PALETTE = False
+
+    # No app-level bindings - let screens handle their own
+    BINDINGS = []
 
     def on_mount(self) -> None:
         """Initialize the app."""
         self.push_screen(WelcomeScreen())
-
-    def action_back(self) -> None:
-        """Go back one screen."""
-        if len(self.screen_stack) > 1:
-            self.pop_screen()
-
-    def action_quit(self) -> None:
-        """Quit the app."""
-        self.exit()
 
 
 def main() -> None:
