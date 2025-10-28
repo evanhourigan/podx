@@ -20,4 +20,5 @@ __all__ = [
     "diarize",
     "deepcast",
     "notion",
+    "export",
 ]
