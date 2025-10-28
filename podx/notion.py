@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import click
-import requests
 
 # Optional rich UI (similar feel to podx-browse)
 try:
@@ -23,6 +22,7 @@ except Exception:  # pragma: no cover
     _console = None  # type: ignore
 
 from .cli_shared import read_stdin_json
+from .core.notion import NotionEngine, md_to_blocks
 from .info import get_episode_workdir
 from .yaml_config import get_yaml_config_manager, NotionDatabase
 
@@ -46,105 +46,8 @@ def notion_client_from_env(token: Optional[str] = None) -> Client:
     return Client(auth=auth_token)
 
 
-def chunk_rich_text(s: str, chunk: int = 1800) -> List[Dict[str, Any]]:
-    # Notion has limits on rich_text length; be safe.
-    for i in range(0, len(s), chunk):
-        yield {"type": "text", "text": {"content": s[i : i + chunk]}}
-
-
 def rt(s: str) -> List[Dict[str, Any]]:
     return [{"type": "text", "text": {"content": s}}]
-
-
-def parse_inline_markdown(text: str) -> List[Dict[str, Any]]:
-    """Parse inline markdown formatting (bold, italic, code) into Notion rich text objects."""
-    if not text:
-        return [{"type": "text", "text": {"content": ""}}]
-
-    rich_text = []
-    i = 0
-
-    while i < len(text):
-        # Handle bold text: **text**
-        if text[i : i + 2] == "**" and i + 2 < len(text):
-            end_bold = text.find("**", i + 2)
-            if end_bold != -1:
-                rich_text.append(
-                    {
-                        "type": "text",
-                        "text": {"content": text[i + 2 : end_bold]},
-                        "annotations": {"bold": True},
-                    }
-                )
-                i = end_bold + 2
-                continue
-
-        # Handle italic text: *text* (but not **)
-        elif text[i] == "*" and i + 1 < len(text) and text[i : i + 2] != "**":
-            end_italic = text.find("*", i + 1)
-            # Make sure we don't match ** inside
-            while (
-                end_italic != -1
-                and end_italic + 1 < len(text)
-                and text[end_italic + 1] == "*"
-            ):
-                end_italic = text.find("*", end_italic + 2)
-            if end_italic != -1:
-                rich_text.append(
-                    {
-                        "type": "text",
-                        "text": {"content": text[i + 1 : end_italic]},
-                        "annotations": {"italic": True},
-                    }
-                )
-                i = end_italic + 1
-                continue
-
-        # Handle code: `text`
-        elif text[i] == "`" and i + 1 < len(text):
-            end_code = text.find("`", i + 1)
-            if end_code != -1:
-                rich_text.append(
-                    {
-                        "type": "text",
-                        "text": {"content": text[i + 1 : end_code]},
-                        "annotations": {"code": True},
-                    }
-                )
-                i = end_code + 1
-                continue
-
-        # Regular text - find next special character
-        else:
-            # Find the next special character
-            next_special = len(text)
-            for special in ["**", "*", "`"]:
-                pos = text.find(special, i)
-                if pos != -1 and pos < next_special:
-                    next_special = pos
-
-            if next_special == len(text):
-                # No more special characters, add remaining text
-                remaining_text = text[i:]
-                if remaining_text:
-                    rich_text.append(
-                        {"type": "text", "text": {"content": remaining_text}}
-                    )
-                break
-            else:
-                # Add text up to next special character
-                text_before_special = text[i:next_special]
-                if text_before_special:
-                    rich_text.append(
-                        {"type": "text", "text": {"content": text_before_special}}
-                    )
-                i = next_special
-
-    # If no rich text was created, return the original text
-    if not rich_text:
-        return [{"type": "text", "text": {"content": text}}]
-
-    return rich_text
 
 
 def _split_blocks_for_notion(
@@ -604,157 +507,6 @@ def _interactive_table_flow(
     }
 
 
-def md_to_blocks(md: str) -> List[Dict[str, Any]]:
-    """
-    Very small, block-level Markdown → Notion converter:
-    - # ## ### headings
-    - - * + bullets
-    - 1. numbered lists
-    - > quote
-    - ``` code fences
-    - --- divider
-    - paragraphs
-
-    Inline bold/italic are left as plain text (keeps this simple & robust).
-    """
-    lines = md.replace("\r\n", "\n").split("\n")
-    blocks: List[Dict[str, Any]] = []
-    in_code = False
-    code_buf: List[str] = []
-
-    def flush_code():
-        nonlocal code_buf
-        if code_buf:
-            code_text = "\n".join(code_buf)
-            blocks.append(
-                {
-                    "object": "block",
-                    "type": "code",
-                    "code": {
-                        "language": "plain text",
-                        "rich_text": list(chunk_rich_text(code_text)),
-                    },
-                }
-            )
-            code_buf = []
-
-    for raw in lines:
-        line = raw.rstrip()
-
-        # Code fence
-        if line.strip().startswith("```"):
-            if in_code:
-                in_code = False
-                flush_code()
-            else:
-                in_code = True
-                code_buf = []
-            continue
-
-        if in_code:
-            code_buf.append(line)
-            continue
-
-        # Divider
-        if re.match(r"^\s*[-*_]{3,}\s*$", line):
-            blocks.append({"object": "block", "type": "divider", "divider": {}})
-            continue
-
-        # Headings
-        m = re.match(r"^(\#{1,3})\s+(.+)$", line)
-        if m:
-            level = len(m.group(1))
-            text = m.group(2).strip()
-            if level == 1:
-                blocks.append(
-                    {
-                        "object": "block",
-                        "type": "heading_1",
-                        "heading_1": {"rich_text": parse_inline_markdown(text)},
-                    }
-                )
-            elif level == 2:
-                blocks.append(
-                    {
-                        "object": "block",
-                        "type": "heading_2",
-                        "heading_2": {"rich_text": parse_inline_markdown(text)},
-                    }
-                )
-            else:
-                blocks.append(
-                    {
-                        "object": "block",
-                        "type": "heading_3",
-                        "heading_3": {"rich_text": parse_inline_markdown(text)},
-                    }
-                )
-            continue
-
-        # Quote
-        qm = re.match(r"^\s*>\s*(.+)$", line)
-        if qm:
-            blocks.append(
-                {
-                    "object": "block",
-                    "type": "quote",
-                    "quote": {"rich_text": parse_inline_markdown(qm.group(1))},
-                }
-            )
-            continue
-
-        # Bulleted list
-        bm = re.match(r"^\s*[-*+]\s+(.+)$", line)
-        if bm:
-            blocks.append(
-                {
-                    "object": "block",
-                    "type": "bulleted_list_item",
-                    "bulleted_list_item": {
-                        "rich_text": parse_inline_markdown(bm.group(1))
-                    },
-                }
-            )
-            continue
-
-        # Numbered list
-        nm = re.match(r"^\s*(\d+)\.\s+(.+)$", line)
-        if nm:
-            blocks.append(
-                {
-                    "object": "block",
-                    "type": "numbered_list_item",
-                    "numbered_list_item": {
-                        "rich_text": parse_inline_markdown(nm.group(2))
-                    },
-                }
-            )
-            continue
-
-        # Paragraph / blank
-        if not line.strip():
-            blocks.append(
-                {"object": "block", "type": "paragraph", "paragraph": {"rich_text": []}}
-            )
-        else:
-            # Parse inline formatting and handle long text
-            rich_text = parse_inline_markdown(line)
-            # If text is very long, we might need to chunk it
-            # For now, just use the parsed rich text directly
-            blocks.append(
-                {
-                    "object": "block",
-                    "type": "paragraph",
-                    "paragraph": {"rich_text": rich_text},
-                }
-            )
-
-    if in_code:
-        flush_code()
-
-    return blocks
-
-
 def _list_children_all(client: Client, page_id: str) -> List[Dict[str, Any]]:
     """List all children of a page, handling pagination."""
     all_children = []
@@ -783,46 +535,6 @@ def _clear_children(client: Client, page_id: str) -> None:
         except Exception:
             # Continue on non-fatal errors
             pass
-
-
-def _download_cover_image(image_url: str, workdir: Path) -> Optional[str]:
-    """Download cover image and return the local file path."""
-    if not image_url:
-        return None
-
-    try:
-        response = requests.get(image_url, timeout=30)
-        response.raise_for_status()
-
-        # Determine file extension from content type or URL
-        content_type = response.headers.get("content-type", "")
-        if "jpeg" in content_type or "jpg" in content_type:
-            ext = ".jpg"
-        elif "png" in content_type:
-            ext = ".png"
-        elif "webp" in content_type:
-            ext = ".webp"
-        else:
-            # Fallback to URL extension
-            ext = Path(image_url).suffix or ".jpg"
-
-        cover_path = workdir / f"cover{ext}"
-        cover_path.write_bytes(response.content)
-        return str(cover_path)
-    except Exception:
-        # If download fails, continue without cover
-        return None
-
-
-def _set_page_cover(client: Client, page_id: str, cover_url: str) -> None:
-    """Set the cover image for a Notion page using external URL."""
-    try:
-        client.pages.update(
-            page_id=page_id, cover={"type": "external", "external": {"url": cover_url}}
-        )
-    except Exception:
-        # If cover setting fails, continue without cover
-        pass
 
 
 def upsert_page(
@@ -1548,7 +1260,8 @@ def main(
 
     # Set cover image if requested and available
     if cover_url:
-        _set_page_cover(client, page_id, cover_url)
+        engine = NotionEngine(api_token=selected_token)
+        engine.set_page_cover(page_id, cover_url)
 
     # Build result summary
     result = {
