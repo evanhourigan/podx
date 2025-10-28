@@ -1,4 +1,8 @@
-"""Convert transcript JSON to various text formats (txt, srt, vtt, md)."""
+"""CLI wrapper for export command.
+
+Thin Click wrapper that uses core.export.ExportEngine for actual logic.
+Handles CLI arguments, input/output, and result formatting.
+"""
 
 import json
 from pathlib import Path
@@ -7,25 +11,7 @@ from typing import Any, Dict, Optional
 import click
 
 from .cli_shared import read_stdin_json
-
-
-def ts(sec: float) -> str:
-    """Format seconds as SRT/VTT timestamp (HH:MM:SS,mmm or HH:MM:SS.mmm)."""
-    ms = int(round((sec - int(sec)) * 1000))
-    s = int(sec) % 60
-    m = (int(sec) // 60) % 60
-    h = int(sec) // 3600
-    return f"{h:02}:{m:02}:{s:02},{ms:03}"
-
-
-def write_if_changed(path: Path, content: str, replace: bool = False) -> None:
-    """Write content to file only if it has changed (when replace=True)."""
-    if replace and path.exists():
-        existing_content = path.read_text(encoding="utf-8")
-        if existing_content == content:
-            return  # Content unchanged, skip write
-
-    path.write_text(content, encoding="utf-8")
+from .core.export import ExportEngine, ExportError
 
 
 @click.command(help="Export transcript JSON to text formats (txt, srt, vtt, md)")
@@ -94,20 +80,8 @@ def main(
     if not data:
         raise SystemExit("Provide transcript JSON via --input or stdin")
 
-    # Validate input is a transcript (has segments)
-    if "segments" not in data:
-        raise SystemExit(
-            "Input JSON does not appear to be a transcript (missing 'segments' field)"
-        )
-
-    # Parse and validate formats
+    # Parse formats
     format_list = [f.strip().lower() for f in formats.split(",")]
-    valid_formats = {"txt", "srt", "vtt", "md"}
-    invalid_formats = set(format_list) - valid_formats
-    if invalid_formats:
-        raise SystemExit(
-            f"Invalid formats: {', '.join(invalid_formats)}. Valid: {', '.join(valid_formats)}"
-        )
 
     # Determine output directory
     if output_dir:
@@ -123,66 +97,18 @@ def main(
     else:
         base_name = "transcript"
 
-    segs = data.get("segments") or []
-    output_files = {}
-
-    # Generate files for each requested format
-    for fmt in format_list:
-        if fmt == "txt":
-            content = "\n".join(s["text"].strip() for s in segs) + "\n"
-            out_path = out_dir / f"{base_name}.txt"
-            write_if_changed(out_path, content, replace)
-            output_files["txt"] = str(out_path)
-
-        elif fmt == "srt":
-            lines = []
-            for i, s in enumerate(segs, 1):
-                speaker = s.get("speaker")
-                line = (
-                    s["text"].strip()
-                    if not speaker
-                    else f"[{speaker}] {s['text'].strip()}"
-                )
-                lines += [str(i), f"{ts(s['start'])} --> {ts(s['end'])}", line, ""]
-            content = "\n".join(lines)
-            out_path = out_dir / f"{base_name}.srt"
-            write_if_changed(out_path, content, replace)
-            output_files["srt"] = str(out_path)
-
-        elif fmt == "vtt":
-            lines = ["WEBVTT", ""]
-            for s in segs:
-                speaker = s.get("speaker")
-                line = (
-                    s["text"].strip()
-                    if not speaker
-                    else f"[{speaker}] {s['text'].strip()}"
-                )
-                lines += [
-                    f"{ts(s['start']).replace(',', '.')} --> {ts(s['end']).replace(',', '.')}",
-                    line,
-                    "",
-                ]
-            content = "\n".join(lines)
-            out_path = out_dir / f"{base_name}.vtt"
-            write_if_changed(out_path, content, replace)
-            output_files["vtt"] = str(out_path)
-
-        elif fmt == "md":
-            content = (
-                "# Transcript\n\n" + "\n\n".join(s["text"].strip() for s in segs) + "\n"
-            )
-            out_path = out_dir / f"{base_name}.md"
-            write_if_changed(out_path, content, replace)
-            output_files["md"] = str(out_path)
-
-    # Create output info
-    result: Dict[str, Any] = {
-        "formats": format_list,
-        "output_dir": str(out_dir),
-        "files": output_files,
-        "segments_count": len(segs),
-    }
+    # Use core export engine
+    try:
+        engine = ExportEngine()
+        result = engine.export(
+            transcript=data,
+            formats=format_list,
+            output_dir=out_dir,
+            base_name=base_name,
+            replace=replace,
+        )
+    except ExportError as e:
+        raise SystemExit(str(e))
 
     # Save output info if requested
     if output:
