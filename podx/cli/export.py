@@ -10,8 +10,8 @@ from typing import Any, Dict, Optional
 
 import click
 
-from .cli_shared import read_stdin_json
-from .core.export import ExportEngine, ExportError
+from podx.cli.cli_shared import read_stdin_json
+from podx.core.export import ExportEngine, ExportError
 
 
 @click.command(help="Export transcript JSON to text formats (txt, srt, vtt, md)")

@@ -32,7 +32,7 @@ except Exception:  # pragma: no cover
     BaseGroup = click.Group
 
 # Import individual command modules for CLI integration
-from . import (
+from podx.cli import (
     deepcast,
     diarize,
     export,
@@ -41,8 +41,8 @@ from . import (
     transcode,
     transcribe,
 )
-from .config import get_config
-from .constants import (
+from podx.config import get_config
+from podx.constants import (
     DEFAULT_ENCODING,
     JSON_INDENT,
     MIN_NOTION_DB_ID_LENGTH,
@@ -50,15 +50,15 @@ from .constants import (
     PREVIEW_MAX_LENGTH,
     TITLE_MAX_LENGTH,
 )
-from .errors import ValidationError
-from .help import help_cmd
-from .logging import get_logger, setup_logging
-from .plugins import PluginManager, PluginType, get_registry
-from .progress import (
+from podx.errors import ValidationError
+from podx.cli.help import help_cmd
+from podx.logging import get_logger, setup_logging
+from podx.plugins import PluginManager, PluginType, get_registry
+from podx.progress import (
     PodxProgress,
     print_podx_header,
 )
-from .yaml_config import get_yaml_config_manager
+from podx.yaml_config import get_yaml_config_manager
 
 # Initialize logging
 setup_logging()
@@ -356,7 +356,7 @@ def _execute_fetch(
         )
 
     # 4. Apply podcast-specific configuration from YAML/JSON
-    from .utils import apply_podcast_config
+    from podx.utils import apply_podcast_config
 
     show_name = meta.get("show") or meta.get("show_name", "")
 
@@ -392,7 +392,7 @@ def _execute_fetch(
     if config.get("workdir"):
         wd = config["workdir"]
     else:
-        from .utils import generate_workdir
+        from podx.utils import generate_workdir
 
         show = meta.get("show", "Unknown Show")
         episode_date = meta.get("episode_published") or config.get("date") or "unknown"
@@ -435,7 +435,7 @@ def _execute_transcribe(
     import json
     import time
 
-    from .utils import discover_transcripts, sanitize_model_name
+    from podx.utils import discover_transcripts, sanitize_model_name
 
     existing_transcripts = discover_transcripts(wd)
 
@@ -554,7 +554,7 @@ def _execute_enhancement(
     import json
     import time
 
-    from .utils import build_preprocess_command, sanitize_model_name
+    from podx.utils import build_preprocess_command, sanitize_model_name
 
     # 4) PREPROCESS (optional)
     if preprocess:
@@ -674,7 +674,7 @@ def _execute_deepcast(
     """
     import time
 
-    from .utils import build_deepcast_command
+    from podx.utils import build_deepcast_command
 
     if not deepcast:
         return
@@ -1170,7 +1170,7 @@ def _build_episode_metadata_display(
     Returns:
         Formatted metadata string
     """
-    from .utils.file_utils import format_duration
+    from podx.utils.file_utils import format_duration
 
     # Basic metadata
     show = selected.get("show", "Unknown")
@@ -1288,7 +1288,7 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
     Raises:
         SystemExit: If user cancels selection
     """
-    from .ui import select_episode_with_tui
+    from podx.ui import select_episode_with_tui
     from rich.panel import Panel
 
     # 1. Episode selection
@@ -1298,7 +1298,7 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
     )
 
     # 2. Interactive configuration panel
-    from .ui import configure_pipeline_interactive
+    from podx.ui import configure_pipeline_interactive
 
     updated_config = configure_pipeline_interactive(config)
     if updated_config is None:
@@ -1672,13 +1672,13 @@ def run(
         interactive_meta = None
         interactive_wd = None
         if interactive_select:
-            from .ui import make_console
+            from podx.ui import make_console
 
             console = make_console()
             interactive_meta, interactive_wd = _handle_interactive_mode(config, scan_dir, console)
 
             # Suppress logging during pipeline execution in interactive mode
-            from .logging import suppress_logging
+            from podx.logging import suppress_logging
             suppress_logging()
 
         # 3. Fetch episode metadata and determine working directory
@@ -2268,7 +2268,7 @@ def config_command(action):
         click.echo("\nOr create a .env file in your project directory.")
 
     elif action == "reset":
-        from .config import reset_config
+        from podx.config import reset_config
 
         reset_config()
         click.echo(

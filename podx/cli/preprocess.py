@@ -10,12 +10,12 @@ from typing import Any, Dict, List, Optional
 
 import click
 
-from .cli_shared import print_json, read_stdin_json
-from .core.preprocess import PreprocessError, TranscriptPreprocessor
-from .logging import get_logger
-from .schemas import Segment, Transcript
-from .ui.preprocess_browser import PreprocessTwoPhase
-from .validation import validate_output
+from podx.cli.cli_shared import print_json, read_stdin_json
+from podx.core.preprocess import PreprocessError, TranscriptPreprocessor
+from podx.logging import get_logger
+from podx.schemas import Segment, Transcript
+from podx.ui.preprocess_browser import PreprocessTwoPhase
+from podx.validation import validate_output
 
 try:
     RICH_AVAILABLE = True

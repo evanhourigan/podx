@@ -12,13 +12,13 @@ from typing import Any, Dict
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from .core.youtube import (
+from podx.core.youtube import (
     YouTubeEngine,
     YouTubeError,
     is_youtube_url,
 )
-from .errors import NetworkError, ValidationError
-from .logging import get_logger
+from podx.errors import NetworkError, ValidationError
+from podx.logging import get_logger
 
 logger = get_logger()
 console = Console()

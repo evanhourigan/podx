@@ -10,12 +10,12 @@ from pathlib import Path
 
 import click
 
-from .cli_shared import print_json
-from .core.fetch import FetchError, PodcastFetcher
-from .errors import NetworkError, ValidationError
-from .logging import get_logger
-from .schemas import EpisodeMeta
-from .validation import validate_output
+from podx.cli.cli_shared import print_json
+from podx.core.fetch import FetchError, PodcastFetcher
+from podx.errors import NetworkError, ValidationError
+from podx.logging import get_logger
+from podx.schemas import EpisodeMeta
+from podx.validation import validate_output
 
 logger = get_logger(__name__)
 
@@ -77,7 +77,7 @@ def main(show, rss_url, date, title_contains, outdir, output, interactive):
             )
 
         # Import the standalone fetch browser
-        from .ui.episode_browser_tui import run_fetch_browser_standalone
+        from podx.ui.episode_browser_tui import run_fetch_browser_standalone
 
         # Run the browser and get selected episode
         result = run_fetch_browser_standalone(

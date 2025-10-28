@@ -8,9 +8,9 @@ from pathlib import Path
 
 import click
 
-from .cli_shared import print_json, read_stdin_json
-from .core.transcode import TranscodeEngine, TranscodeError
-from .logging import get_logger
+from podx.cli.cli_shared import print_json, read_stdin_json
+from podx.core.transcode import TranscodeEngine, TranscodeError
+from podx.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -24,9 +24,9 @@ except ImportError:
 
 # Shared UI components
 try:
-    from .ui import scan_transcodable_episodes, select_episode_for_processing
+    from podx.ui import scan_transcodable_episodes, select_episode_for_processing
 except Exception:
-    from .ui.transcode_browser import scan_transcodable_episodes
+    from podx.ui.transcode_browser import scan_transcodable_episodes
 
     def select_episode_for_processing(*args, **kwargs):
         raise ImportError("UI module not available")
