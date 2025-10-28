@@ -9,14 +9,14 @@ from pathlib import Path
 
 import click
 
-from .cli_shared import print_json, read_stdin_json
-from .config import get_config
-from .core.transcribe import TranscriptionEngine, TranscriptionError
-from .errors import AudioError, ValidationError
-from .logging import get_logger
-from .schemas import AudioMeta, Transcript
-from .utils import sanitize_model_name
-from .validation import validate_output
+from podx.cli.cli_shared import print_json, read_stdin_json
+from podx.config import get_config
+from podx.core.transcribe import TranscriptionEngine, TranscriptionError
+from podx.errors import AudioError, ValidationError
+from podx.logging import get_logger
+from podx.schemas import AudioMeta, Transcript
+from podx.utils import sanitize_model_name
+from podx.validation import validate_output
 
 logger = get_logger(__name__)
 
@@ -38,14 +38,14 @@ except ImportError:
 
 # Shared UI components
 try:
-    from .ui import (
+    from podx.ui import (
         LiveTimer,
         scan_transcribable_episodes,
         select_episode_for_processing,
     )
 except Exception:
-    from .ui.live_timer import LiveTimer
-    from .ui.transcribe_browser import scan_transcribable_episodes
+    from podx.ui.live_timer import LiveTimer
+    from podx.ui.transcribe_browser import scan_transcribable_episodes
 
     def select_episode_for_processing(*args, **kwargs):
         raise ImportError("UI module not available")
@@ -150,7 +150,7 @@ def main(
             )
 
         # Suppress logging before TUI starts
-        from .logging import restore_logging, suppress_logging
+        from podx.logging import restore_logging, suppress_logging
 
         suppress_logging()
 
@@ -246,7 +246,7 @@ def main(
 
     if interactive:
         # Suppress logging and show progress
-        from .logging import suppress_logging
+        from podx.logging import suppress_logging
 
         suppress_logging()
 
@@ -286,7 +286,7 @@ def main(
 
     # Restore logging after transcription
     if interactive:
-        from .logging import restore_logging
+        from podx.logging import restore_logging
 
         restore_logging()
 

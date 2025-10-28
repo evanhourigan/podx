@@ -13,7 +13,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from .youtube import get_youtube_metadata, is_youtube_url
+from podx.core.youtube import get_youtube_metadata, is_youtube_url
 
 
 def get_episode_workdir(show: str, date: str) -> Path:

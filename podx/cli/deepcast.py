@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import click
 
-from .core.deepcast import (
+from podx.core.deepcast import (
     DeepcastEngine,
     DeepcastError,
     segments_to_plain_text,
@@ -41,7 +41,7 @@ except ImportError:
 
 # Import UI components
 try:
-    from .ui import (
+    from podx.ui import (
         DeepcastBrowser,
         LiveTimer,
         flatten_episodes_to_rows,
@@ -53,8 +53,8 @@ except ImportError:
     scan_deepcastable_episodes = None  # type: ignore
     LiveTimer = None  # type: ignore
 
-from .podcast_config import get_podcast_config
-from .prompt_templates import (
+from podx.podcast_config import get_podcast_config
+from podx.prompt_templates import (
     ENHANCED_JSON_SCHEMA,
     PodcastType,
     build_enhanced_variant,
@@ -62,8 +62,8 @@ from .prompt_templates import (
     get_template,
     map_to_canonical,
 )
-from .utils import sanitize_model_name
-from .yaml_config import get_podcast_yaml_config
+from podx.utils import sanitize_model_name
+from podx.yaml_config import get_podcast_yaml_config
 
 # Canonical deepcast types presented to users
 CANONICAL_TYPES: list[PodcastType] = [
@@ -573,7 +573,7 @@ def main(
     """
     # Handle interactive mode
     if interactive:
-        from .ui import select_episode_with_tui
+        from podx.ui import select_episode_with_tui
 
         # Step 1: Select episode using TUI
         try:

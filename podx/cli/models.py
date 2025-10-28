@@ -7,12 +7,12 @@ from typing import Optional, Dict, Any, List
 
 import click  # type: ignore
 
-from .pricing import load_model_catalog, estimate_deepcast_cost
+from podx.pricing import load_model_catalog, estimate_deepcast_cost
 
 try:  # pragma: no cover
     from rich.table import Table
     from rich.panel import Panel
-    from .ui import make_console, TABLE_BORDER_STYLE, TABLE_HEADER_STYLE
+    from podx.ui import make_console, TABLE_BORDER_STYLE, TABLE_HEADER_STYLE
     RICH_AVAILABLE = True
 except Exception:  # pragma: no cover
     RICH_AVAILABLE = False

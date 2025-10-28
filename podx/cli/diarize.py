@@ -12,10 +12,10 @@ from pathlib import Path
 
 import click
 
-from .cli_shared import print_json, read_stdin_json
-from .core.diarize import DiarizationEngine, DiarizationError
-from .logging import get_logger
-from .ui.diarize_browser import DiarizeTwoPhase
+from podx.cli.cli_shared import print_json, read_stdin_json
+from podx.core.diarize import DiarizationEngine, DiarizationError
+from podx.logging import get_logger
+from podx.ui.diarize_browser import DiarizeTwoPhase
 
 logger = get_logger(__name__)
 
@@ -168,7 +168,7 @@ def main(audio, input_file, output, interactive, scan_dir):
 
     # Suppress logging and WhisperX output before TUI in interactive mode
     if interactive:
-        from .logging import suppress_logging
+        from podx.logging import suppress_logging
         suppress_logging()
 
     # Set up progress callback and timer for interactive mode
@@ -214,7 +214,7 @@ def main(audio, input_file, output, interactive, scan_dir):
 
     # Restore logging after diarization
     if interactive:
-        from .logging import restore_logging
+        from podx.logging import restore_logging
         restore_logging()
 
     # Preserve metadata from input transcript (always use absolute path)

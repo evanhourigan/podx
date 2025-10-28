@@ -44,16 +44,16 @@ dev = [
 ]
 
 [project.scripts]
-podx-fetch = "podx.fetch:main"
-podx-transcode = "podx.transcode:main"
-podx-transcribe = "podx.transcribe:main"
-podx-diarize = "podx.diarize:main"
-podx-export = "podx.export:main"
-podx-deepcast = "podx.deepcast:main"
-podx-notion = "podx.notion:main"
-podx-preprocess = "podx.preprocess:main"
-podx-models = "podx.models:main"
-podx = "podx.orchestrate:main"
+podx-fetch = "podx.cli.fetch:main"
+podx-transcode = "podx.cli.transcode:main"
+podx-transcribe = "podx.cli.transcribe:main"
+podx-diarize = "podx.cli.diarize:main"
+podx-export = "podx.cli.export:main"
+podx-deepcast = "podx.cli.deepcast:main"
+podx-notion = "podx.cli.notion:main"
+podx-preprocess = "podx.cli.preprocess:main"
+podx-models = "podx.cli.models:main"
+podx = "podx.cli.orchestrate:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -27,7 +27,7 @@ from rich.markdown import Markdown
 from rich.table import Table
 from rich.text import Text
 
-from .ui import (
+from podx.ui import (
     make_console,
     format_example_line,
     EXAMPLE_HEADING_STYLE,
