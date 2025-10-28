@@ -1,6 +1,8 @@
 """PodX Studio - Main application."""
 
 
+from pathlib import Path
+
 from textual import on
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, ScrollableContainer, Vertical
@@ -11,6 +13,9 @@ from textual.widgets import (
     Footer,
     Header,
     Input,
+    Label,
+    ListItem,
+    ListView,
     Static,
 )
 
@@ -281,17 +286,17 @@ class ProcessScreen(Screen):
             with Container(id="process-container"):
                 yield Static("Process Audio Pipeline", classes="title")
 
-                yield Static("Select processing steps:", classes="step-label")
-
-                yield Button("🎵 Transcode Audio", id="transcode", classes="process-step")
-                yield Button(
-                    "🎤 Transcribe (Whisper)", id="transcribe", classes="process-step"
+                yield Static(
+                    "💡 Use CLI commands for full pipeline processing:",
+                    classes="step-label",
                 )
-                yield Button(
-                    "👥 Diarize (Speaker IDs)", id="diarize", classes="process-step"
-                )
-                yield Button("🤖 AI Analysis (Deepcast)", id="deepcast", classes="process-step")
-                yield Button("📄 Export (TXT/SRT/VTT/MD)", id="export", classes="process-step")
+                yield Static("")
+                yield Static("podx-transcribe - Transcribe audio with Whisper")
+                yield Static("podx-diarize - Add speaker identification")
+                yield Static("podx-deepcast - AI analysis and summarization")
+                yield Static("podx-export - Export to TXT/SRT/VTT/MD")
+                yield Static("")
+                yield Static("Or use: podx run --interactive")
 
                 with Horizontal(classes="button-row"):
                     yield Button("« Back", id="back-button")
@@ -301,31 +306,6 @@ class ProcessScreen(Screen):
     def action_go_back(self) -> None:
         """Go back to welcome screen."""
         self.app.pop_screen()
-
-    @on(Button.Pressed, "#transcode")
-    def action_transcode(self) -> None:
-        """Start transcode process."""
-        self.notify("Transcode feature coming soon!", severity="information")
-
-    @on(Button.Pressed, "#transcribe")
-    def action_transcribe(self) -> None:
-        """Start transcription process."""
-        self.notify("Transcription feature coming soon!", severity="information")
-
-    @on(Button.Pressed, "#diarize")
-    def action_diarize(self) -> None:
-        """Start diarization process."""
-        self.notify("Diarization feature coming soon!", severity="information")
-
-    @on(Button.Pressed, "#deepcast")
-    def action_deepcast(self) -> None:
-        """Start deepcast analysis."""
-        self.notify("Deepcast feature coming soon!", severity="information")
-
-    @on(Button.Pressed, "#export")
-    def action_export(self) -> None:
-        """Start export process."""
-        self.notify("Export feature coming soon!", severity="information")
 
     @on(Button.Pressed, "#back-button")
     def action_back(self) -> None:
@@ -343,37 +323,120 @@ class BrowseScreen(Screen):
 
     #browse-container {
         width: 90;
-        height: auto;
+        height: 100%;
         border: solid $accent;
         padding: 2 4;
         margin: 2 auto;
     }
 
+    #episode-list {
+        height: 1fr;
+        margin: 2 0;
+    }
+
     .button-row {
-        margin-top: 2;
+        margin-top: 1;
+    }
+
+    .episode-item {
+        padding: 1 2;
     }
     """
 
     BINDINGS = [
         ("escape", "go_back", "Back"),
+        ("r", "refresh", "Refresh"),
     ]
 
     def compose(self) -> ComposeResult:
         """Create child widgets."""
         yield Header()
-        with ScrollableContainer():
-            with Container(id="browse-container"):
-                yield Static("Browse Episodes", classes="title")
-                yield Static("No episodes found. Process some audio first!")
+        with Container(id="browse-container"):
+            yield Static("Browse Episodes", classes="title")
 
-                with Horizontal(classes="button-row"):
-                    yield Button("« Back", id="back-button")
+            yield ListView(id="episode-list")
+
+            with Horizontal(classes="button-row"):
+                yield Button("🔄 Refresh", id="refresh-button")
+                yield Button("« Back", id="back-button")
 
         yield Footer()
+
+    def on_mount(self) -> None:
+        """Load episodes when screen mounts."""
+        self.load_episodes()
+
+    def load_episodes(self) -> None:
+        """Scan current directory for processed episodes."""
+        list_view = self.query_one("#episode-list", ListView)
+        list_view.clear()
+
+        # Scan current directory for episode directories
+        cwd = Path.cwd()
+        episode_dirs = []
+
+        # Look for directories with transcript files
+        for show_dir in cwd.iterdir():
+            if not show_dir.is_dir() or show_dir.name.startswith("."):
+                continue
+
+            # Look for dated subdirectories (YYYY-MM-DD format)
+            for episode_dir in show_dir.iterdir():
+                if not episode_dir.is_dir():
+                    continue
+
+                # Check if it has a transcript
+                transcripts = list(episode_dir.glob("transcript*.json"))
+                if transcripts:
+                    episode_dirs.append(
+                        {
+                            "path": episode_dir,
+                            "show": show_dir.name,
+                            "date": episode_dir.name,
+                            "transcripts": len(transcripts),
+                        }
+                    )
+
+        # Also check root level for transcripts
+        root_transcripts = list(cwd.glob("transcript*.json"))
+        if root_transcripts:
+            episode_dirs.append(
+                {
+                    "path": cwd,
+                    "show": ".",
+                    "date": "current",
+                    "transcripts": len(root_transcripts),
+                }
+            )
+
+        # Sort by date (newest first)
+        episode_dirs.sort(key=lambda x: x["date"], reverse=True)
+
+        if episode_dirs:
+            for ep in episode_dirs:
+                item_text = f"📁 {ep['show']} / {ep['date']} ({ep['transcripts']} transcript(s))"
+                list_view.append(ListItem(Label(item_text)))
+
+            self.notify(f"Found {len(episode_dirs)} episode(s)", severity="information")
+        else:
+            list_view.append(
+                ListItem(
+                    Label("No episodes found. Process audio first with podx CLI commands.")
+                )
+            )
 
     def action_go_back(self) -> None:
         """Go back to welcome screen."""
         self.app.pop_screen()
+
+    def action_refresh(self) -> None:
+        """Refresh episode list."""
+        self.load_episodes()
+
+    @on(Button.Pressed, "#refresh-button")
+    def handle_refresh(self) -> None:
+        """Handle refresh button."""
+        self.load_episodes()
 
     @on(Button.Pressed, "#back-button")
     def action_back(self) -> None:
@@ -422,8 +485,10 @@ class SettingsScreen(Screen):
                     yield Static("ASR Model: base", classes="setting-row")
                     yield Static("AI Model: gpt-4.1", classes="setting-row")
                     yield Static("Output Directory: ./", classes="setting-row")
+                    yield Static(f"Working Directory: {Path.cwd()}", classes="setting-row")
 
                 yield Static("\n💡 Use environment variables or config file to customize settings")
+                yield Static("See docs/QUICK_START.md for configuration options")
 
                 with Horizontal(classes="button-row"):
                     yield Button("« Back", id="back-button")
