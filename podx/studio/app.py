@@ -21,6 +21,7 @@ from textual.widgets import (
 
 # Import PodX SDK
 from podx import (
+    ManifestManager,
     YouTubeEngine,
     __version__,
     find_feed_url,
@@ -81,7 +82,20 @@ class WelcomeScreen(Screen):
             yield Button("📊 View Episodes", id="browse", classes="action-button")
             yield Button("⚙️  Settings", id="settings", classes="action-button")
             yield Button("❌ Exit", id="exit", classes="action-button")
+            yield Static("", id="session-status")
         yield Footer()
+
+    def on_mount(self) -> None:
+        """Check for incomplete sessions on mount."""
+        manager = ManifestManager()
+        incomplete = manager.get_incomplete_sessions()
+
+        if incomplete:
+            status = self.query_one("#session-status", Static)
+            status.update(
+                f"\n💡 {len(incomplete)} incomplete pipeline session(s) found\n"
+                "Use 'podx run --resume' to continue processing"
+            )
 
     def action_quit_app(self) -> None:
         """Quit the application."""
@@ -367,57 +381,47 @@ class BrowseScreen(Screen):
         self.load_episodes()
 
     def load_episodes(self) -> None:
-        """Scan current directory for processed episodes."""
+        """Scan current directory for processed episodes using manifest."""
         list_view = self.query_one("#episode-list", ListView)
         list_view.clear()
 
-        # Scan current directory for episode directories
-        cwd = Path.cwd()
-        episode_dirs = []
+        # Use ManifestManager to scan and sync
+        manager = ManifestManager()
+        manifest = manager.scan_and_sync()
 
-        # Look for directories with transcript files
-        for show_dir in cwd.iterdir():
-            if not show_dir.is_dir() or show_dir.name.startswith("."):
-                continue
-
-            # Look for dated subdirectories (YYYY-MM-DD format)
-            for episode_dir in show_dir.iterdir():
-                if not episode_dir.is_dir():
-                    continue
-
-                # Check if it has a transcript
-                transcripts = list(episode_dir.glob("transcript*.json"))
-                if transcripts:
-                    episode_dirs.append(
-                        {
-                            "path": episode_dir,
-                            "show": show_dir.name,
-                            "date": episode_dir.name,
-                            "transcripts": len(transcripts),
-                        }
-                    )
-
-        # Also check root level for transcripts
-        root_transcripts = list(cwd.glob("transcript*.json"))
-        if root_transcripts:
-            episode_dirs.append(
-                {
-                    "path": cwd,
-                    "show": ".",
-                    "date": "current",
-                    "transcripts": len(root_transcripts),
-                }
+        if manifest.episodes:
+            # Sort by date (newest first)
+            episodes = sorted(
+                manifest.episodes,
+                key=lambda e: (e.show, e.date),
+                reverse=True,
             )
 
-        # Sort by date (newest first)
-        episode_dirs.sort(key=lambda x: x["date"], reverse=True)
+            for ep in episodes:
+                # Build stage badges
+                badges = []
+                stage_order = ["fetch", "transcribe", "diarize", "deepcast", "export", "notion"]
 
-        if episode_dirs:
-            for ep in episode_dirs:
-                item_text = f"📁 {ep['show']} / {ep['date']} ({ep['transcripts']} transcript(s))"
+                for stage in stage_order:
+                    if stage in ep.stages:
+                        stage_info = ep.stages[stage]
+                        if stage_info.completed:
+                            badges.append(f"✓{stage[:4]}")
+                        elif stage_info.progress > 0:
+                            pct = int(stage_info.progress * 100)
+                            badges.append(f"⏳{stage[:4]}({pct}%)")
+                        else:
+                            badges.append(f"○{stage[:4]}")
+
+                badge_str = " ".join(badges) if badges else "no stages"
+
+                # Build episode line with title if available
+                title_part = f" - {ep.title}" if ep.title else ""
+                item_text = f"📁 {ep.show} / {ep.date}{title_part}\n   {badge_str}"
+
                 list_view.append(ListItem(Label(item_text)))
 
-            self.notify(f"Found {len(episode_dirs)} episode(s)", severity="information")
+            self.notify(f"Found {len(episodes)} episode(s)", severity="information")
         else:
             list_view.append(
                 ListItem(

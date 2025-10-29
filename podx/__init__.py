@@ -76,6 +76,15 @@ from podx.errors import AIError, AudioError, NetworkError, PodxError, Validation
 # Configuration
 from podx.config import get_config
 
+# Manifest system for episode tracking
+from podx.manifest import (
+    EpisodeManifest,
+    Manifest,
+    ManifestManager,
+    PipelineSession,
+    StageInfo,
+)
+
 __all__ = [
     # Version
     "__version__",
@@ -126,4 +135,10 @@ __all__ = [
     "YouTubeError",
     # Config
     "get_config",
+    # Manifest
+    "EpisodeManifest",
+    "Manifest",
+    "ManifestManager",
+    "PipelineSession",
+    "StageInfo",
 ]
