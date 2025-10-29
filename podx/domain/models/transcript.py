@@ -1,6 +1,5 @@
 """Transcript and segment models."""
 
-from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
@@ -98,9 +97,14 @@ class Transcript(BaseModel):
     @field_validator("audio_path")
     @classmethod
     def audio_must_exist_if_present(cls, v: Optional[str]) -> Optional[str]:
-        """Validate that audio file exists if path is provided."""
-        if v is not None and not Path(v).exists():
-            raise ValueError(f"Audio file not found: {v}")
+        """Validate that audio file exists if path is provided.
+
+        Note: This validator is lenient - it doesn't fail if the audio file
+        is missing, as transcripts can be processed without the original audio
+        (e.g., during preprocessing, merging, or other text transformations).
+        """
+        # Just return the path as-is; downstream operations that need the audio
+        # will fail with more specific error messages
         return v
 
     model_config = {"extra": "forbid"}

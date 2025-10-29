@@ -9,7 +9,7 @@ Transform podcast audio into structured insights with AI-powered transcription, 
 [![Version 2.0.0](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/yourusername/podx/releases/tag/v2.0.0)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests 332/332](https://img.shields.io/badge/tests-332%2F332%20passing-success.svg)](tests/)
+[![Tests 285+](https://img.shields.io/badge/tests-285%2B%20passing-success.svg)](tests/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
@@ -41,17 +41,32 @@ podx run --show "Lenny's Podcast" --date 2024-10-15 \
 
 **Major simplification!** PodX v2.0 dramatically streamlines the user experience by removing complexity and making intelligent defaults:
 
+### User Experience Improvements
 - **🎯 Unified Alignment** - Word-level timing now integrated into `podx-diarize` (removed separate `podx-align` command)
 - **📊 Smart Defaults** - Diarization, preprocessing, deepcast, and markdown extraction enabled by default
 - **🔥 Removed Fidelity System** - No more confusing 1-5 fidelity levels; use explicit flags instead
 - **⚡ Removed Workflow Presets** - No more `--quick`/`--analyze`/`--publish`; clearer explicit options
 - **🧹 Simplified Export** - `podx-export` now focuses solely on transcript format conversion
-- **🎨 Two-Phase UI** - New interactive browsers for `podx-preprocess` and `podx-diarize` for better control
 - **📝 Cleaner CLI** - Removed redundant options, simplified flag structure
 
-**The result?** PodX v2.0 is simpler, more intuitive, and easier to use while maintaining all the power.
+### Architecture Revolution - Core/CLI Separation
+**NEW in v2.0:** Complete separation of business logic from UI concerns:
 
-**Upgrading from v1.x?** Most changes are backward compatible. Remove `--fidelity` flags and workflow presets from your scripts.
+- **🏗️ Core Modules** - 9 pure business logic engines in `podx.core.*` (3,014 lines)
+- **🎨 CLI Wrappers** - Thin UI layer around core engines
+- **✅ 97% Test Coverage** - 285+ tests with comprehensive mocking
+- **🔌 Reusable API** - Use core engines programmatically without CLI
+- **📚 Full Documentation** - Complete API reference and architecture guide
+
+**Benefits:**
+- Use PodX as a Python library (no CLI needed)
+- Build custom UIs (TUI, web, GUI) on core engines
+- Test business logic without UI mocking
+- Clear, maintainable codebase
+
+**The result?** PodX v2.0 is simpler, more intuitive, easier to use, AND easier to extend and integrate.
+
+**Upgrading from v1.x?** Most changes are backward compatible. Remove `--fidelity` flags and workflow presets from your scripts. See [Migration Guide](docs/MIGRATION_V2.md) for details.
 
 ---
 
@@ -72,7 +87,7 @@ podx run --show "Lenny's Podcast" --date 2024-10-15 \
 - **🔄 Resume & Recovery** - Automatic state management and crash recovery
 - **🎨 Rich Output Formats** - SRT, VTT, TXT, Markdown, JSON, Notion pages
 - **🌊 Unix Philosophy** - Composable CLI tools with JSON stdin/stdout
-- **📦 Comprehensive Testing** - 332 tests with 100% success rate (313 unit + 19 integration)
+- **📦 Comprehensive Testing** - 285+ tests with 97% coverage (183 core module tests + unit/integration)
 
 ### 🎓 Advanced Capabilities
 
@@ -220,13 +235,49 @@ podx run --show "Lenny's Podcast" --date 2024-10-15
 
 ---
 
+## 🐍 Using PodX as a Python Library
+
+**NEW in v2.0:** Use PodX's core engines programmatically without the CLI!
+
+```python
+from podx.core.transcribe import TranscribeEngine
+from podx.core.diarize import DiarizeEngine
+from podx.core.deepcast import DeepcastEngine
+
+# Transcribe audio
+transcribe = TranscribeEngine(model="large-v3-turbo")
+transcript = transcribe.transcribe("audio.wav")
+
+# Add speaker diarization
+diarize = DiarizeEngine()
+diarized = diarize.diarize("audio.wav", transcript["segments"])
+
+# Generate AI analysis
+deepcast = DeepcastEngine(model="gpt-4o", analysis_type="interview_guest_focused")
+markdown, insights = deepcast.deepcast({"segments": diarized}, metadata)
+
+print(f"Found {len(insights['key_points'])} key points")
+```
+
+**Perfect for:**
+- Building custom workflows and automation
+- Integrating into existing Python applications
+- Creating new UIs (TUI, web, desktop)
+- Batch processing scripts
+
+See [Core API Reference](docs/CORE_API.md) for complete documentation.
+
+---
+
 ## 📚 Documentation
 
 ### Core Guides
 
+- **[Core API Reference](docs/CORE_API.md)** ⭐ NEW - Complete API for all 9 core modules
+- **[Architecture Guide](docs/ARCHITECTURE_V2.md)** ⭐ NEW - Deep dive into core/CLI separation
+- **[Testing Guide](docs/TESTING.md)** ⭐ NEW - Testing patterns and best practices
 - **[Configuration Guide](docs/CONFIGURATION.md)** - YAML setup and podcast-specific settings
 - **[Plugin System](docs/PLUGINS.md)** - Creating and using plugins
-- **[Interactive Workflows](docs/INTERACTIVE_FETCH.md)** - Visual episode browsing
 
 ### Quick References
 

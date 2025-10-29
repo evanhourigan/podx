@@ -1,16 +1,21 @@
+"""CLI wrapper for diarize command.
+
+Thin Click wrapper that uses core.diarize.DiarizationEngine for actual logic.
+Handles CLI arguments, input/output, and interactive mode with progress display.
+"""
 import json
 import os
 import sys
 import threading
 import time
-from contextlib import redirect_stderr
 from pathlib import Path
 
 import click
 
-from .cli_shared import print_json, read_stdin_json
-from .logging import get_logger
-from .ui.diarize_browser import DiarizeTwoPhase
+from podx.cli.cli_shared import print_json, read_stdin_json
+from podx.core.diarize import DiarizationEngine, DiarizationError
+from podx.logging import get_logger
+from podx.ui.diarize_browser import DiarizeTwoPhase
 
 logger = get_logger(__name__)
 
@@ -122,18 +127,8 @@ def main(audio, input_file, output, interactive, scan_dir):
 
         if not selected:
             logger.info("User cancelled transcript selection")
+            print("❌ Transcript selection cancelled")
             sys.exit(0)
-
-        # Check if already diarized - confirm if so
-        if selected.get("is_diarized"):
-            console = Console()
-            console.print(
-                f"\n[yellow]⚠ This transcript is already diarized (model: {selected['asr_model']})[/yellow]"
-            )
-            confirm = input("Re-diarize anyway? (yes/no): ").strip().lower()
-            if confirm not in ["yes", "y"]:
-                console.print("[dim]Diarization cancelled.[/dim]")
-                sys.exit(0)
 
         # Use selected base transcript
         transcript = selected["transcript_data"]
@@ -171,60 +166,56 @@ def main(audio, input_file, output, interactive, scan_dir):
     if not interactive:
         audio = audio.resolve()
 
-    # Suppress WhisperX debug output that contaminates stdout
-    from contextlib import redirect_stdout
+    # Suppress logging and WhisperX output before TUI in interactive mode
+    if interactive:
+        from podx.logging import suppress_logging
+        suppress_logging()
 
-    import whisperx
-
-    # Start live timer in interactive mode (covers both align + diarize)
-    # Save original stdout before redirecting, so timer can still display
+    # Set up progress callback and timer for interactive mode
     timer = None
-    original_stdout = sys.stdout
+    progress_callback = None
+    console = None
+
     if interactive and RICH_AVAILABLE:
         console = Console()
-        timer = LiveTimer("Aligning + Diarizing", output_stream=original_stdout)
+        # Save original stdout before redirecting, so timer can still display
+        original_stdout = sys.stdout
+        timer = LiveTimer("Diarizing audio", output_stream=original_stdout)
         timer.start()
 
+        def progress_callback(message: str):
+            # Could update console here if needed
+            pass
+
+    # Suppress WhisperX debug output that contaminates stdout
+    from contextlib import redirect_stderr, redirect_stdout
+
+    # Use core diarization engine (pure business logic)
     try:
-        # Step 1: Alignment - add word-level timing using WhisperX
         with redirect_stdout(open(os.devnull, "w")), redirect_stderr(open(os.devnull, "w")):
-            # Load alignment model
-            model_a, metadata = whisperx.load_align_model(
-                language_code=language, device="cpu"
-            )
-
-            # Load audio
-            audio_data = whisperx.load_audio(str(audio))
-
-            # Align segments
-            aligned_result = whisperx.align(
-                transcript["segments"],
-                model_a,
-                metadata,
-                audio_data,
+            engine = DiarizationEngine(
+                language=language,
                 device="cpu",
-                return_char_alignments=False,
+                hf_token=os.getenv("HUGGINGFACE_TOKEN"),
+                progress_callback=progress_callback,
             )
-            aligned = aligned_result  # Contains aligned segments with word-level timing
-
-        # Step 2: Diarization - assign speakers to words
-        with redirect_stdout(open(os.devnull, "w")), redirect_stderr(open(os.devnull, "w")):
-            dia = whisperx.diarize.DiarizationPipeline(
-                use_auth_token=os.getenv("HUGGINGFACE_TOKEN"), device="cpu"
-            )
-            diarized = dia(str(audio))
-            final = whisperx.diarize.assign_word_speakers(diarized, aligned)
-    except Exception as e:
+            final = engine.diarize(audio, transcript["segments"])
+    except (DiarizationError, FileNotFoundError) as e:
         if timer:
             timer.stop()
-        raise SystemExit(f"Alignment + diarization failed: {e}") from e
+        raise SystemExit(str(e))
 
-    # Stop timer and show completion message in interactive mode
+    # Stop timer and show completion in interactive mode
     if timer:
         elapsed = timer.stop()
         minutes = int(elapsed // 60)
         seconds = int(elapsed % 60)
-        console.print(f"[green]✓ Alignment + diarization completed in {minutes}:{seconds:02d}[/green]")
+        console.print(f"[green]✓ Diarization completed in {minutes}:{seconds:02d}[/green]")
+
+    # Restore logging after diarization
+    if interactive:
+        from podx.logging import restore_logging
+        restore_logging()
 
     # Preserve metadata from input transcript (always use absolute path)
     final["audio_path"] = str(
@@ -241,6 +232,10 @@ def main(audio, input_file, output, interactive, scan_dir):
             json.dumps(final, indent=2, ensure_ascii=False), encoding="utf-8"
         )
         logger.info(f"Diarized transcript saved to: {output}")
+        # Print completion message
+        print("\n✅ Diarization complete")
+        print(f"   Model: {asr_model}")
+        print(f"   Output: {output}")
     else:
         # Non-interactive mode
         if asr_model and not output:

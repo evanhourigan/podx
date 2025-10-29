@@ -1,26 +1,30 @@
 #!/usr/bin/env python3
-"""
-podx-deepcast: Reads a Transcript JSON (base/aligned/diarized) and produces a rich Markdown brief and optional structured JSON using the OpenAI API via a chunked map-reduce flow.
+"""CLI wrapper for deepcast command.
 
-Detects:
-- timestamps? (segments with start/end) -> include timecodes in output
-- speakers? (segments have 'speaker') -> include speaker labels when available
+Thin Click wrapper that uses core.deepcast.DeepcastEngine for map-reduce execution.
+Handles CLI arguments, prompt templates, podcast config, interactive mode, and I/O.
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
+import shutil
+import subprocess
 import sys
 import textwrap
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-import shutil
-import subprocess
 
 import click
+
+from podx.core.deepcast import (
+    DeepcastEngine,
+    DeepcastError,
+    segments_to_plain_text,
+    split_into_chunks,
+)
 
 try:
     from openai import OpenAI
@@ -37,7 +41,7 @@ except ImportError:
 
 # Import UI components
 try:
-    from .ui import (
+    from podx.ui import (
         DeepcastBrowser,
         LiveTimer,
         flatten_episodes_to_rows,
@@ -49,8 +53,8 @@ except ImportError:
     scan_deepcastable_episodes = None  # type: ignore
     LiveTimer = None  # type: ignore
 
-from .podcast_config import get_podcast_config
-from .prompt_templates import (
+from podx.podcast_config import get_podcast_config
+from podx.prompt_templates import (
     ENHANCED_JSON_SCHEMA,
     PodcastType,
     build_enhanced_variant,
@@ -58,8 +62,8 @@ from .prompt_templates import (
     get_template,
     map_to_canonical,
 )
-from .utils import sanitize_model_name
-from .yaml_config import get_podcast_yaml_config
+from podx.utils import sanitize_model_name
+from podx.yaml_config import get_podcast_yaml_config
 
 # Canonical deepcast types presented to users
 CANONICAL_TYPES: list[PodcastType] = [
@@ -123,52 +127,6 @@ def read_stdin_or_file(inp: Optional[Path]) -> Dict[str, Any]:
         raise SystemExit("Provide transcript JSON via --in or stdin.")
 
     return json.loads(raw)
-
-
-def hhmmss(sec: float) -> str:
-    """Convert seconds to HH:MM:SS format."""
-    h, remainder = divmod(sec, 3600)
-    m, s = divmod(remainder, 60)
-    return f"{int(h):02}:{int(m):02}:{int(s):02}"
-
-
-def segments_to_plain_text(
-    segs: List[Dict[str, Any]], with_time: bool, with_speaker: bool
-) -> str:
-    """Convert segments to plain text with optional timecodes and speaker labels."""
-    lines = []
-    for s in segs:
-        t = f"[{hhmmss(s['start'])}] " if with_time and "start" in s else ""
-        spk = f"{s.get('speaker', '')}: " if with_speaker and s.get("speaker") else ""
-        txt = s.get("text", "").strip()
-        if txt:
-            lines.append(f"{t}{spk}{txt}")
-    return "\n".join(lines)
-
-
-def split_into_chunks(text: str, approx_chars: int) -> List[str]:
-    """Split text into chunks, trying to keep paragraphs together."""
-    if len(text) <= approx_chars:
-        return [text]
-
-    paras = text.split("\n")
-    chunks = []
-    cur = []
-    cur_len = 0
-
-    for p in paras:
-        L = len(p) + 1  # +1 for newline
-        if cur_len + L > approx_chars and cur:
-            chunks.append("\n".join(cur))
-            cur = []
-            cur_len = 0
-        cur.append(p)
-        cur_len += L
-
-    if cur:
-        chunks.append("\n".join(cur))
-
-    return chunks
 
 
 # prompting
@@ -271,48 +229,6 @@ After the Markdown, also prepare a concise JSON object with this structure:
 Return the JSON after the Markdown, separated by a line containing: ---JSON---
 """
 ).strip()
-
-
-# llm client
-def get_client() -> OpenAI:
-    if OpenAI is None:
-        raise SystemExit("Install OpenAI: pip install openai")
-
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise SystemExit("Set OPENAI_API_KEY environment variable")
-
-    base_url = os.getenv("OPENAI_BASE_URL") or None
-    return OpenAI(api_key=api_key, base_url=base_url)
-
-
-def chat_once(
-    client: OpenAI, model: str, system: str, user: str, temperature: float = 0.2
-) -> str:
-    """Make a single chat completion call."""
-    resp = client.chat.completions.create(
-        model=model,
-        temperature=temperature,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-    )
-    return resp.choices[0].message.content or ""
-
-
-async def chat_once_async(
-    client: OpenAI, model: str, system: str, user: str, temperature: float = 0.2
-) -> str:
-    """Async wrapper for chat_once to enable concurrent API calls.
-
-    Runs the synchronous OpenAI API call in a thread pool executor
-    to enable parallel processing of multiple chunks.
-    """
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(
-        None, chat_once, client, model, system, user, temperature
-    )
 
 
 def select_deepcast_type(row: Dict[str, Any], console: Console) -> Optional[str]:
@@ -535,69 +451,34 @@ def deepcast(
         )
     )
 
-    # Map phase with enhanced instructions
-    chunks = split_into_chunks(text, max_chars_per_chunk)
-
     # If show_prompt_only, build and return prompts without calling API
     if show_prompt_only is not None:
+        chunks = split_into_chunks(text, max_chars_per_chunk)
         prompt_display = _build_prompt_display(
             system, template, chunks, want_json, show_prompt_only
         )
         return prompt_display, None
 
-    # Normal flow: call the API (parallel execution for speedup)
-    client = get_client()
+    # Use core deepcast engine (pure business logic)
+    try:
+        engine = DeepcastEngine(
+            model=model,
+            temperature=temperature,
+            max_chars_per_chunk=max_chars_per_chunk,
+        )
+        md, json_data = engine.deepcast(
+            transcript=transcript,
+            system_prompt=system,
+            map_instructions=template.map_instructions,
+            reduce_instructions=template.reduce_instructions,
+            want_json=want_json,
+            json_schema=ENHANCED_JSON_SCHEMA if want_json else None,
+        )
+    except DeepcastError as e:
+        raise SystemExit(str(e))
 
-    async def process_chunks_parallel():
-        """Process all chunks concurrently with rate limiting."""
-        semaphore = asyncio.Semaphore(3)  # Limit to 3 concurrent requests
-
-        async def process_chunk(i: int, chunk: str) -> str:
-            async with semaphore:
-                prompt = f"{template.map_instructions}\n\nChunk {i+1}/{len(chunks)}:\n\n{chunk}"
-                note = await chat_once_async(
-                    client, model=model, system=system, user=prompt, temperature=temperature
-                )
-                return note
-
-        tasks = [process_chunk(i, chunk) for i, chunk in enumerate(chunks)]
-        return await asyncio.gather(*tasks)
-
-    # Run parallel processing
-    map_notes = asyncio.run(process_chunks_parallel())
-
-    # Reduce phase with enhanced instructions
-    reduce_prompt = (
-        f"{template.reduce_instructions}\n\nChunk notes:\n\n"
-        + "\n\n---\n\n".join(map_notes)
-    )
-    if want_json:
-        reduce_prompt += f"\n\n{ENHANCED_JSON_SCHEMA}"
-
-    final = chat_once(
-        client, model=model, system=system, user=reduce_prompt, temperature=temperature
-    )
-
-    # Extract JSON if present
-    if want_json and "---JSON---" in final:
-        md, js = final.split("---JSON---", 1)
-        js = js.strip()
-        # Handle fenced code blocks
-        if js.startswith("```json"):
-            js = js[7:]
-        if js.startswith("```"):
-            js = js[3:]
-        if js.endswith("```"):
-            js = js[:-3]
-        js = js.strip()
-
-        try:
-            parsed = json.loads(js)
-            return build_episode_header(transcript) + md.strip(), parsed
-        except json.JSONDecodeError:
-            return build_episode_header(transcript) + md.strip(), None
-
-    return build_episode_header(transcript) + final.strip(), None
+    # Add episode header to markdown
+    return build_episode_header(transcript) + md, json_data
 
 
 @click.command()
@@ -692,65 +573,130 @@ def main(
     """
     # Handle interactive mode
     if interactive:
-        if not RICH_AVAILABLE:
-            raise SystemExit(
-                "Interactive mode requires rich library. Install with: pip install rich"
+        from podx.ui import select_episode_with_tui
+
+        # Step 1: Select episode using TUI
+        try:
+            episode, episode_meta = select_episode_with_tui(
+                scan_dir=Path(scan_dir),
+                show_filter=None,
             )
-
-        console = Console()
-
-        # Scan for episodes
-        console.print(f"[dim]Scanning for episodes in: {scan_dir}[/dim]")
-        episodes = scan_deepcastable_episodes(Path(scan_dir))
-
-        if not episodes:
-            console.print(f"[red]No episodes found in {scan_dir}[/red]")
-            raise SystemExit("No episodes with transcripts found")
-
-        console.print(f"[dim]Found {len(episodes)} episodes[/dim]\n")
-
-        # Flatten to rows and browse
-        rows = flatten_episodes_to_rows(episodes)
-        browser = DeepcastBrowser(rows, items_per_page=10)
-        selected_row = browser.browse()
-
-        if not selected_row:
-            console.print("[dim]Cancelled[/dim]")
+        except SystemExit:
+            print("❌ Episode selection cancelled")
             sys.exit(0)
+
+        if not episode:
+            print("❌ Episode selection cancelled")
+            sys.exit(0)
+
+        # Find available transcripts for this episode
+        episode_dir = episode["directory"]
+        available_transcripts = []
+        transcript_patterns = [
+            "transcript-diarized-*.json",
+            "diarized-transcript-*.json",
+            "transcript-aligned-*.json",
+            "aligned-transcript-*.json",
+            "transcript-*.json"
+        ]
+
+        for pattern in transcript_patterns:
+            for transcript_file in episode_dir.glob(pattern):
+                filename = transcript_file.stem
+                # Skip non-transcript files
+                if any(keyword in filename for keyword in ["preprocessed"]):
+                    continue
+                available_transcripts.append(transcript_file)
+                break  # Take first match for this pattern
+
+        if not available_transcripts:
+            print(f"❌ No transcripts found for episode: {episode.get('title', 'Unknown')}")
+            sys.exit(1)
+
+        # Use the most processed transcript (diarized > aligned > base)
+        inp = available_transcripts[0]
+
+        # Extract ASR model from filename
+        filename = inp.stem
+        asr_model_raw = "unknown"
+        if filename.startswith("transcript-diarized-"):
+            asr_model_raw = filename[len("transcript-diarized-"):]
+        elif filename.startswith("diarized-transcript-"):
+            asr_model_raw = filename[len("diarized-transcript-"):]
+        elif filename.startswith("transcript-aligned-"):
+            asr_model_raw = filename[len("transcript-aligned-"):]
+        elif filename.startswith("aligned-transcript-"):
+            asr_model_raw = filename[len("aligned-transcript-"):]
+        elif filename.startswith("transcript-"):
+            asr_model_raw = filename[len("transcript-"):]
 
         # Step 2: Select deepcast type
-        deepcast_type = select_deepcast_type(selected_row, console)
-        if not deepcast_type:
-            console.print("[dim]Cancelled[/dim]")
+        print("\n📝 Select deepcast type:")
+        show_name = episode.get("show", "")
+        default_type = "general"
+
+        # Try to get default from podcast config
+        try:
+            config_obj = get_podcast_config(show_name)
+            if config_obj and hasattr(config_obj, 'default_type'):
+                default_type = config_obj.default_type
+        except Exception:
+            pass
+
+        all_types = [t.value for t in CANONICAL_TYPES] + list(ALIAS_TYPES.keys())
+        for idx, dtype in enumerate(all_types, start=1):
+            marker = " ← Default" if dtype == default_type else ""
+            print(f"  {idx:2}  {dtype}{marker}")
+
+        choice = input(f"\n👉 Select deepcast type (1-{len(all_types)}, Enter for default, Q to cancel): ").strip()
+
+        if choice.upper() in ["Q", "QUIT", "EXIT"]:
+            print("❌ Deepcast type selection cancelled")
             sys.exit(0)
 
+        if not choice:
+            deepcast_type = default_type
+        else:
+            try:
+                selection = int(choice)
+                if 1 <= selection <= len(all_types):
+                    deepcast_type = all_types[selection - 1]
+                else:
+                    print(f"⚠️  Invalid choice. Using default: {default_type}")
+                    deepcast_type = default_type
+            except ValueError:
+                print(f"⚠️  Invalid input. Using default: {default_type}")
+                deepcast_type = default_type
+
         # Step 3: Select AI model
-        ai_model = select_ai_model(console)
-        if not ai_model:
-            console.print("[dim]Cancelled[/dim]")
+        default_model = "gpt-4.1-mini"
+        choice = input(f"\n👉 Select AI model (e.g. gpt-4.1, gpt-4o, claude-4-sonnet; Enter for {default_model}, Q to cancel): ").strip()
+
+        if choice.upper() in ["Q", "QUIT", "EXIT"]:
+            print("❌ AI model selection cancelled")
             sys.exit(0)
+
+        ai_model = choice if choice else default_model
         model = ai_model  # Override the default model parameter
 
         # Step 4: Check if deepcast already exists and confirm overwrite
-        episode_dir = selected_row["episode"]["directory"]
-        asr_model_raw = selected_row.get("asr_model_raw", "unknown")
         output_filename = generate_deepcast_filename(asr_model_raw, ai_model, deepcast_type, "json", with_timestamp=True)
         output = episode_dir / output_filename
 
         if output.exists():
-            console.print(f"\n[yellow]⚠ Deepcast already exists: {output.name}[/yellow]")
+            print(f"\n⚠️  Deepcast already exists: {output.name}")
             confirm = input("Re-run deepcast anyway? (yes/no, Q to quit): ").strip().lower()
             if confirm in ["q", "quit", "exit"]:
-                console.print("[dim]Cancelled[/dim]")
+                print("❌ Deepcast cancelled")
                 sys.exit(0)
             if confirm not in ["yes", "y"]:
-                console.print("[dim]Deepcast cancelled.[/dim]")
+                print("❌ Deepcast cancelled")
                 sys.exit(0)
 
         # Step 5: Ask about markdown generation
         md_choice = input("\n👉 Generate markdown output file? y/N or Q to cancel: ").strip().lower()
         if md_choice in ["q", "quit", "exit"]:
-            console.print("[dim]Cancelled[/dim]")
+            print("❌ Deepcast cancelled")
             sys.exit(0)
         extract_markdown = md_choice in ["yes", "y"]
 
@@ -758,21 +704,17 @@ def main(
         if not export_pdf:
             pdf_choice = input("\n👉 Also generate a PDF (via pandoc)? y/N or Q to cancel: ").strip().lower()
             if pdf_choice in ["q", "quit", "exit"]:
-                console.print("[dim]Cancelled[/dim]")
+                print("❌ Deepcast cancelled")
                 sys.exit(0)
             export_pdf = pdf_choice in ["yes", "y"]
 
-        # Load the transcript file
-        transcript_file = selected_row["transcript_file"]
-        if not transcript_file or not transcript_file.exists():
-            console.print("[red]Transcript file not found[/red]")
+        # Load the transcript file (already found earlier)
+        if not inp or not inp.exists():
+            print("❌ Transcript file not found")
             sys.exit(1)
 
-        transcript = json.loads(transcript_file.read_text(encoding="utf-8"))
+        transcript = json.loads(inp.read_text(encoding="utf-8"))
         podcast_type_str = deepcast_type
-
-        # Set inp to None since we loaded the transcript directly
-        inp = None
     else:
         # Non-interactive mode: validate arguments
         if show_prompt is None and not output:
@@ -950,11 +892,7 @@ def main(
 
         pandoc_path = shutil.which("pandoc")
         if not pandoc_path:
-            if interactive and RICH_AVAILABLE:
-                console = Console()
-                console.print("[yellow]⚠ pandoc not found. Install with: brew install pandoc[/yellow]")
-            else:
-                print("pandoc not found. Install with: brew install pandoc", file=sys.stderr)
+            print("⚠️  pandoc not found. Install with: brew install pandoc", file=sys.stderr)
         else:
             try:
                 # Feed markdown via stdin to pandoc
@@ -964,26 +902,25 @@ def main(
                     text=True,
                     check=True,
                 )
-                if interactive and RICH_AVAILABLE:
-                    console = Console()
-                    console.print(f"[green]✅ PDF saved to: {pdf_file.name}[/green]")
+                # Success handled in final completion message below
+                pass
             except subprocess.CalledProcessError as e:
-                if interactive and RICH_AVAILABLE:
-                    console = Console()
-                    console.print(f"[red]❌ Failed to generate PDF with pandoc: {e}[/red]")
-                else:
-                    print(f"Failed to generate PDF with pandoc: {e}", file=sys.stderr)
+                print(f"❌ Failed to generate PDF with pandoc: {e}", file=sys.stderr)
 
     # Print to stdout (for pipelines) - but not in interactive mode
     if not interactive:
         print(json.dumps(unified, ensure_ascii=False))
     else:
-        # In interactive mode, just show a success message
-        if RICH_AVAILABLE:
-            console = Console()
-            console.print(f"\n[green]✅ Deepcast saved to: {json_output.name}[/green]")
-            if extract_markdown:
-                console.print(f"[green]✅ Markdown saved to: {markdown_file.name}[/green]")
+        # In interactive mode, show detailed completion message
+        print("\n✅ Deepcast complete")
+        print(f"   Type: {deepcast_type}")
+        print(f"   AI Model: {model}")
+        print("   Outputs:")
+        print(f"      🤖 JSON: {json_output}")
+        if extract_markdown:
+            print(f"      📄 Markdown: {markdown_file}")
+        if export_pdf and pdf_file.exists():
+            print(f"      📕 PDF: {pdf_file}")
 
 
 if __name__ == "__main__":

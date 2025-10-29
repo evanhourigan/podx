@@ -16,24 +16,6 @@ TITLE_MAX_LENGTH = 80  # Max characters for episode title display
 JSON_INDENT = 2  # Indentation level for JSON output
 
 # ============================================================================
-# Fidelity Levels
-# ============================================================================
-
-FIDELITY_LEVEL_DEEPCAST_ONLY = "1"  # Just deepcast, no enhancement
-FIDELITY_LEVEL_RECALL = "2"  # Recall + preprocess + restore + deepcast
-FIDELITY_LEVEL_PRECISION = "3"  # Precision + preprocess + restore + deepcast
-FIDELITY_LEVEL_BALANCED = "4"  # Balanced + preprocess + restore + deepcast
-FIDELITY_LEVEL_DUAL = "5"  # Dual (precision+recall) + preprocess + restore + deepcast
-
-FIDELITY_LEVELS = {
-    FIDELITY_LEVEL_DEEPCAST_ONLY,
-    FIDELITY_LEVEL_RECALL,
-    FIDELITY_LEVEL_PRECISION,
-    FIDELITY_LEVEL_BALANCED,
-    FIDELITY_LEVEL_DUAL,
-}
-
-# ============================================================================
 # Validation Constants
 # ============================================================================
 

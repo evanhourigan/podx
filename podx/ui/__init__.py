@@ -32,14 +32,20 @@ from .deepcast_browser import (
 )
 from .deepcast_selector import select_deepcast_type
 from .diarize_browser import DiarizeTwoPhase, scan_diarizable_transcripts
-from .episode_browser_tui import select_episode_for_processing, select_episode_with_tui
+from .episode_browser_tui import (
+    select_episode_for_processing,
+    select_episode_with_config,
+    select_episode_with_tui,
+)
 from .episode_selector import scan_episode_status, select_episode_interactive
+from .execution_tui import ExecutionTUI, TUIProgress
 from .fetch_browser import EpisodeBrowser
 from .formatters import clean_cell, sanitize_filename
 from .interactive_browser import InteractiveBrowser
 from .live_timer import LiveTimer
 from .transcode_browser import TranscodeBrowser, scan_transcodable_episodes
 from .transcribe_browser import TranscribeBrowser, scan_transcribable_episodes
+from .transcribe_tui import ASRModelModal, TranscriptionProgressApp, select_asr_model_tui
 
 # Backward compatibility alias
 DiarizeBrowser = DiarizeTwoPhase
@@ -65,14 +71,18 @@ __all__ = [
     "format_example_line",
     # From new ui/ package
     "ASR_MODELS",
+    "ASRModelModal",
     "Confirmation",
     "DeepcastBrowser",
     "DiarizeBrowser",
     "EpisodeBrowser",
+    "ExecutionTUI",
     "InteractiveBrowser",
     "LiveTimer",
+    "TUIProgress",
     "TranscodeBrowser",
     "TranscribeBrowser",
+    "TranscriptionProgressApp",
     "clean_cell",
     "configure_pipeline_interactive",
     "flatten_episodes_to_rows",
@@ -84,8 +94,10 @@ __all__ = [
     "scan_transcodable_episodes",
     "scan_transcribable_episodes",
     "select_asr_model",
+    "select_asr_model_tui",
     "select_deepcast_type",
     "select_episode_for_processing",
     "select_episode_interactive",
+    "select_episode_with_config",
     "select_episode_with_tui",
 ]

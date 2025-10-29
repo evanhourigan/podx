@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import click
-import requests
 
 # Optional rich UI (similar feel to podx-browse)
 try:
@@ -22,18 +21,10 @@ except Exception:  # pragma: no cover
     _HAS_RICH = False
     _console = None  # type: ignore
 
-from .cli_shared import read_stdin_json
-from .info import get_episode_workdir
-from .yaml_config import get_yaml_config_manager, NotionDatabase
-from .ui import (
-    make_console,
-    TABLE_BORDER_STYLE,
-    TABLE_HEADER_STYLE,
-    TABLE_NUM_STYLE,
-    TABLE_SHOW_STYLE,
-    TABLE_DATE_STYLE,
-    TABLE_TITLE_COL_STYLE,
-)
+from podx.cli.cli_shared import read_stdin_json
+from podx.core.notion import NotionEngine, md_to_blocks
+from podx.cli.info import get_episode_workdir
+from podx.yaml_config import get_yaml_config_manager, NotionDatabase
 
 try:
     from notion_client import Client
@@ -55,105 +46,8 @@ def notion_client_from_env(token: Optional[str] = None) -> Client:
     return Client(auth=auth_token)
 
 
-def chunk_rich_text(s: str, chunk: int = 1800) -> List[Dict[str, Any]]:
-    # Notion has limits on rich_text length; be safe.
-    for i in range(0, len(s), chunk):
-        yield {"type": "text", "text": {"content": s[i : i + chunk]}}
-
-
 def rt(s: str) -> List[Dict[str, Any]]:
     return [{"type": "text", "text": {"content": s}}]
-
-
-def parse_inline_markdown(text: str) -> List[Dict[str, Any]]:
-    """Parse inline markdown formatting (bold, italic, code) into Notion rich text objects."""
-    if not text:
-        return [{"type": "text", "text": {"content": ""}}]
-
-    rich_text = []
-    i = 0
-
-    while i < len(text):
-        # Handle bold text: **text**
-        if text[i : i + 2] == "**" and i + 2 < len(text):
-            end_bold = text.find("**", i + 2)
-            if end_bold != -1:
-                rich_text.append(
-                    {
-                        "type": "text",
-                        "text": {"content": text[i + 2 : end_bold]},
-                        "annotations": {"bold": True},
-                    }
-                )
-                i = end_bold + 2
-                continue
-
-        # Handle italic text: *text* (but not **)
-        elif text[i] == "*" and i + 1 < len(text) and text[i : i + 2] != "**":
-            end_italic = text.find("*", i + 1)
-            # Make sure we don't match ** inside
-            while (
-                end_italic != -1
-                and end_italic + 1 < len(text)
-                and text[end_italic + 1] == "*"
-            ):
-                end_italic = text.find("*", end_italic + 2)
-            if end_italic != -1:
-                rich_text.append(
-                    {
-                        "type": "text",
-                        "text": {"content": text[i + 1 : end_italic]},
-                        "annotations": {"italic": True},
-                    }
-                )
-                i = end_italic + 1
-                continue
-
-        # Handle code: `text`
-        elif text[i] == "`" and i + 1 < len(text):
-            end_code = text.find("`", i + 1)
-            if end_code != -1:
-                rich_text.append(
-                    {
-                        "type": "text",
-                        "text": {"content": text[i + 1 : end_code]},
-                        "annotations": {"code": True},
-                    }
-                )
-                i = end_code + 1
-                continue
-
-        # Regular text - find next special character
-        else:
-            # Find the next special character
-            next_special = len(text)
-            for special in ["**", "*", "`"]:
-                pos = text.find(special, i)
-                if pos != -1 and pos < next_special:
-                    next_special = pos
-
-            if next_special == len(text):
-                # No more special characters, add remaining text
-                remaining_text = text[i:]
-                if remaining_text:
-                    rich_text.append(
-                        {"type": "text", "text": {"content": remaining_text}}
-                    )
-                break
-            else:
-                # Add text up to next special character
-                text_before_special = text[i:next_special]
-                if text_before_special:
-                    rich_text.append(
-                        {"type": "text", "text": {"content": text_before_special}}
-                    )
-                i = next_special
-
-    # If no rich text was created, return the original text
-    if not rich_text:
-        return [{"type": "text", "text": {"content": text}}]
-
-    return rich_text
 
 
 def _split_blocks_for_notion(
@@ -480,63 +374,52 @@ def _interactive_table_flow(
     dry_run: bool = False,
     cover_image: bool = False,
 ) -> Optional[Dict[str, Any]]:
-    console = make_console()
     rows = _scan_notion_rows(scan_dir)
     # Promote consensus rows to the top order within same episode (show+date+title)
     rows.sort(key=lambda r: (r["show"], r["date"], r["title"], 0 if r.get("type") == "consensus" else 1, r["path"].stat().st_mtime), reverse=True)
     if not rows:
-        console.print(f"[red]❌ No deepcast files found in {scan_dir}[/red]")
+        print(f"❌ No deepcast files found in {scan_dir}")
         return None
 
-    # Column widths with flexible Title
-    term_width = console.size.width
-    fixed = {"num": 4, "show": 20, "date": 12, "ai": 14, "asr": 14, "type": 18, "trk": 6, "rec": 4, "notion": 8}
-    borders = 20
-    title_w = max(30, term_width - sum(fixed.values()) - borders)
-
-    table = Table(
-        show_header=True,
-        header_style=TABLE_HEADER_STYLE,
-        title="🪄 Select an analysis to upload to Notion",
-        expand=False,
-        border_style=TABLE_BORDER_STYLE,
-    )
-    table.add_column("#", style=TABLE_NUM_STYLE, width=fixed["num"], justify="right", no_wrap=True)
-    table.add_column("Show", style=TABLE_SHOW_STYLE, width=fixed["show"], no_wrap=True, overflow="ellipsis")
-    table.add_column("Date", style=TABLE_DATE_STYLE, width=fixed["date"], no_wrap=True)
-    table.add_column("Title", style=TABLE_TITLE_COL_STYLE, width=title_w, no_wrap=True, overflow="ellipsis")
-    table.add_column("AI", style="green", width=fixed["ai"], no_wrap=True, overflow="ellipsis")
-    table.add_column("ASR", style="yellow", width=fixed["asr"], no_wrap=True, overflow="ellipsis")
-    table.add_column("Type", style="white", width=fixed["type"], no_wrap=True, overflow="ellipsis")
-    table.add_column("Trk", style="white", width=fixed["trk"], no_wrap=True)
-    table.add_column("Rec", style="white", width=fixed["rec"], no_wrap=True)
-    table.add_column("Notion", style="white", width=fixed["notion"], no_wrap=True)
+    # Display table of available analyses
+    print("\n🪄 Select an analysis to upload to Notion\n")
+    print(f"{'#':>3}  {'Show':<20}  {'Date':<12}  {'Title':<30}  {'AI':<14}  {'ASR':<14}  {'Type':<18}  {'Trk':<4}  {'Rec':<3}  {'Notion':<6}")
+    print("-" * 140)
 
     # Sort to prefer consensus at top for the same episode
     for idx, r in enumerate(rows, start=1):
-        table.add_row(
-            str(idx), r["show"], r["date"], r["title"], r["ai"], r["asr"], r.get("type", ""), r.get("track", ""), ("✓" if r.get("track") == "C" else "-"), "✓" if r["notion"] else "-",
-        )
-    console.print(table)
+        show_trunc = r["show"][:20]
+        title_trunc = r["title"][:30]
+        ai_trunc = r["ai"][:14]
+        asr_trunc = r["asr"][:14]
+        type_trunc = r.get("type", "")[:18]
+        track = r.get("track", "")
+        rec_mark = "✓" if track == "C" else "-"
+        notion_mark = "✓" if r["notion"] else "-"
+
+        print(f"{idx:>3}  {show_trunc:<20}  {r['date']:<12}  {title_trunc:<30}  {ai_trunc:<14}  {asr_trunc:<14}  {type_trunc:<18}  {track:<4}  {rec_mark:<3}  {notion_mark:<6}")
+
     # Prefer consensus row as default selection if available
     default_idx = None
     for i2, r in enumerate(rows, start=1):
         if r.get("track") == "C":
             default_idx = i2
             break
+
+    print("\nEnter selection number, or Q to cancel.")
     default_hint = f" (Enter={default_idx})" if default_idx else ""
-    console.print("\n[dim]Enter selection number, or Q to cancel.[/dim]")
     ans = input(f"👉 1-{len(rows)}{default_hint}: ").strip().upper()
     if not ans and default_idx:
         ans = str(default_idx)
     if ans in {"Q", "QUIT", "EXIT"}:
+        print("❌ Notion upload cancelled")
         return None
     try:
         i = int(ans)
         if not (1 <= i <= len(rows)):
             raise ValueError
     except Exception:
-        console.print("[red]❌ Invalid selection[/red]")
+        print("❌ Invalid selection")
         return None
 
     chosen = rows[i - 1]
@@ -554,11 +437,11 @@ def _interactive_table_flow(
         preset: Optional[NotionDatabase] = None
         if selected_db_name and selected_db_name in dbs:
             preset = dbs[selected_db_name]
-        console.print("\n[bold]Select Notion database:[/bold]")
+        print("\nSelect Notion database:")
         for i3, name in enumerate(names, start=1):
             mark = "*" if preset and selected_db_name == name else ""
-            console.print(f"  {i3}. {name} {mark}")
-        console.print(f"  0. Enter ID manually{' (default)' if default_db else ''}")
+            print(f"  {i3}. {name} {mark}")
+        print(f"  0. Enter ID manually{' (default)' if default_db else ''}")
         sel = input("Choice [0-{}]: ".format(len(names))).strip()
         if sel.isdigit() and int(sel) in range(1, len(names) + 1):
             selected_db_name = names[int(sel) - 1]
@@ -608,8 +491,8 @@ def _interactive_table_flow(
             if isinstance(date_val, str) and len(date_val) >= 10:
                 filt["and"].append({"property": "Date", "date": {"equals": date_val[:10]}})
             q = client.databases.query(database_id=db_val, filter=filt)
-            if q.get("results") and _HAS_RICH:
-                console.print("[yellow]Note: an existing Notion page with this title/date was found.[/yellow]")
+            if q.get("results"):
+                print("⚠️  Note: an existing Notion page with this title/date was found.")
     except Exception:
         pass
 
@@ -622,157 +505,6 @@ def _interactive_table_flow(
         "dry_run": effective_dry_run,
         "cover": cover,
     }
-
-
-def md_to_blocks(md: str) -> List[Dict[str, Any]]:
-    """
-    Very small, block-level Markdown → Notion converter:
-    - # ## ### headings
-    - - * + bullets
-    - 1. numbered lists
-    - > quote
-    - ``` code fences
-    - --- divider
-    - paragraphs
-
-    Inline bold/italic are left as plain text (keeps this simple & robust).
-    """
-    lines = md.replace("\r\n", "\n").split("\n")
-    blocks: List[Dict[str, Any]] = []
-    in_code = False
-    code_buf: List[str] = []
-
-    def flush_code():
-        nonlocal code_buf
-        if code_buf:
-            code_text = "\n".join(code_buf)
-            blocks.append(
-                {
-                    "object": "block",
-                    "type": "code",
-                    "code": {
-                        "language": "plain text",
-                        "rich_text": list(chunk_rich_text(code_text)),
-                    },
-                }
-            )
-            code_buf = []
-
-    for raw in lines:
-        line = raw.rstrip()
-
-        # Code fence
-        if line.strip().startswith("```"):
-            if in_code:
-                in_code = False
-                flush_code()
-            else:
-                in_code = True
-                code_buf = []
-            continue
-
-        if in_code:
-            code_buf.append(line)
-            continue
-
-        # Divider
-        if re.match(r"^\s*[-*_]{3,}\s*$", line):
-            blocks.append({"object": "block", "type": "divider", "divider": {}})
-            continue
-
-        # Headings
-        m = re.match(r"^(\#{1,3})\s+(.+)$", line)
-        if m:
-            level = len(m.group(1))
-            text = m.group(2).strip()
-            if level == 1:
-                blocks.append(
-                    {
-                        "object": "block",
-                        "type": "heading_1",
-                        "heading_1": {"rich_text": parse_inline_markdown(text)},
-                    }
-                )
-            elif level == 2:
-                blocks.append(
-                    {
-                        "object": "block",
-                        "type": "heading_2",
-                        "heading_2": {"rich_text": parse_inline_markdown(text)},
-                    }
-                )
-            else:
-                blocks.append(
-                    {
-                        "object": "block",
-                        "type": "heading_3",
-                        "heading_3": {"rich_text": parse_inline_markdown(text)},
-                    }
-                )
-            continue
-
-        # Quote
-        qm = re.match(r"^\s*>\s*(.+)$", line)
-        if qm:
-            blocks.append(
-                {
-                    "object": "block",
-                    "type": "quote",
-                    "quote": {"rich_text": parse_inline_markdown(qm.group(1))},
-                }
-            )
-            continue
-
-        # Bulleted list
-        bm = re.match(r"^\s*[-*+]\s+(.+)$", line)
-        if bm:
-            blocks.append(
-                {
-                    "object": "block",
-                    "type": "bulleted_list_item",
-                    "bulleted_list_item": {
-                        "rich_text": parse_inline_markdown(bm.group(1))
-                    },
-                }
-            )
-            continue
-
-        # Numbered list
-        nm = re.match(r"^\s*(\d+)\.\s+(.+)$", line)
-        if nm:
-            blocks.append(
-                {
-                    "object": "block",
-                    "type": "numbered_list_item",
-                    "numbered_list_item": {
-                        "rich_text": parse_inline_markdown(nm.group(2))
-                    },
-                }
-            )
-            continue
-
-        # Paragraph / blank
-        if not line.strip():
-            blocks.append(
-                {"object": "block", "type": "paragraph", "paragraph": {"rich_text": []}}
-            )
-        else:
-            # Parse inline formatting and handle long text
-            rich_text = parse_inline_markdown(line)
-            # If text is very long, we might need to chunk it
-            # For now, just use the parsed rich text directly
-            blocks.append(
-                {
-                    "object": "block",
-                    "type": "paragraph",
-                    "paragraph": {"rich_text": rich_text},
-                }
-            )
-
-    if in_code:
-        flush_code()
-
-    return blocks
 
 
 def _list_children_all(client: Client, page_id: str) -> List[Dict[str, Any]]:
@@ -803,46 +535,6 @@ def _clear_children(client: Client, page_id: str) -> None:
         except Exception:
             # Continue on non-fatal errors
             pass
-
-
-def _download_cover_image(image_url: str, workdir: Path) -> Optional[str]:
-    """Download cover image and return the local file path."""
-    if not image_url:
-        return None
-
-    try:
-        response = requests.get(image_url, timeout=30)
-        response.raise_for_status()
-
-        # Determine file extension from content type or URL
-        content_type = response.headers.get("content-type", "")
-        if "jpeg" in content_type or "jpg" in content_type:
-            ext = ".jpg"
-        elif "png" in content_type:
-            ext = ".png"
-        elif "webp" in content_type:
-            ext = ".webp"
-        else:
-            # Fallback to URL extension
-            ext = Path(image_url).suffix or ".jpg"
-
-        cover_path = workdir / f"cover{ext}"
-        cover_path.write_bytes(response.content)
-        return str(cover_path)
-    except Exception:
-        # If download fails, continue without cover
-        return None
-
-
-def _set_page_cover(client: Client, page_id: str, cover_url: str) -> None:
-    """Set the cover image for a Notion page using external URL."""
-    try:
-        client.pages.update(
-            page_id=page_id, cover={"type": "external", "external": {"url": cover_url}}
-        )
-    except Exception:
-        # If cover setting fails, continue without cover
-        pass
 
 
 def upsert_page(
@@ -1543,11 +1235,8 @@ def main(
             "props_extra_keys": list(props_extra.keys()) if props_extra else [],
             "blocks_count": len(blocks),
         }
-        if _HAS_RICH:
-            console = Console()
-            console.print("[green]Dry run prepared. Payload summarized above.[/green]")
-        else:
-            print(json.dumps(payload, indent=2))
+        print(json.dumps(payload, indent=2))
+        print("\n✅ Dry run prepared. Payload summarized above.")
         return
 
     client = notion_client_from_env(selected_token)
@@ -1571,7 +1260,8 @@ def main(
 
     # Set cover image if requested and available
     if cover_url:
-        _set_page_cover(client, page_id, cover_url)
+        engine = NotionEngine(api_token=selected_token)
+        engine.set_page_cover(page_id, cover_url)
 
     # Build result summary
     result = {
@@ -1583,11 +1273,21 @@ def main(
     # Save to output file if requested
     if output:
         output.write_text(json.dumps(result, indent=2), encoding="utf-8")
+        if interactive:
+            print("\n✅ Notion upload complete")
+            print(f"   Episode: {episode_title}")
+            print(f"   Database: {config_db_name if config_db_name else db_id[:8] + '...'}")
+            print(f"   Page URL: {result['url']}")
+            if output:
+                print(f"   Summary saved: {output}")
 
-    # Print result (interactive: rich message, non-interactive: JSON)
-    if _HAS_RICH and interactive:
-        console = Console()
-        console.print(f"[green]✅ Notion page updated: {page_id}[/green]")
+    # Print result (interactive: detailed message, non-interactive: JSON)
+    if interactive:
+        if not output:
+            print("\n✅ Notion upload complete")
+            print(f"   Episode: {episode_title}")
+            print(f"   Database: {config_db_name if config_db_name else db_id[:8] + '...'}")
+            print(f"   Page URL: {result['url']}")
     else:
         print(json.dumps(result, indent=2))
 

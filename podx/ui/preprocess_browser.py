@@ -4,6 +4,12 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Vertical, Container
+from textual.screen import ModalScreen
+from textual.widgets import Footer, Header, Static
+
 try:
     from rich.panel import Panel
     from rich.table import Table
@@ -19,10 +25,181 @@ from ..ui_styles import (
     TABLE_NUM_STYLE,
     TABLE_TITLE_COL_STYLE,
 )
-from .episode_browser_tui import ModelLevelProcessingBrowser, select_episode_with_tui
+from .episode_browser_tui import ModelLevelProcessingBrowser
 from .two_phase_browser import TwoPhaseTranscriptBrowser
 
 logger = get_logger(__name__)
+
+
+class PreprocessConfigModal(ModalScreen[Optional[Dict[str, bool]]]):
+    """Modal for selecting preprocessing options."""
+
+    CSS = """
+    PreprocessConfigModal {
+        align: center middle;
+        background: rgba(0, 0, 0, 0.5);
+    }
+
+    #preprocess-modal-container {
+        width: 70;
+        height: auto;
+        background: $surface;
+        border: thick $primary;
+        padding: 2 3;
+    }
+
+    #preprocess-title {
+        text-align: center;
+        text-style: bold;
+        color: $accent;
+        margin-bottom: 1;
+    }
+
+    .option-line {
+        margin: 0 0 1 0;
+    }
+
+    .option-key {
+        color: $accent;
+        text-style: bold;
+    }
+
+    .option-status {
+        color: $success;
+    }
+
+    #instructions {
+        text-align: center;
+        margin-top: 1;
+        color: $text-muted;
+    }
+    """
+
+    BINDINGS = [
+        Binding("m", "toggle_merge", "Toggle Merge", show=False),
+        Binding("n", "toggle_normalize", "Toggle Normalize", show=False),
+        Binding("r", "toggle_restore", "Toggle Restore", show=False),
+        Binding("enter", "confirm", "Continue", show=True),
+        Binding("escape", "cancel", "Cancel", show=True),
+    ]
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Initialize preprocessing config modal."""
+        super().__init__(*args, **kwargs)
+        # All options enabled by default
+        self.config = {
+            "merge": True,
+            "normalize": True,
+            "restore": True,
+        }
+
+    def compose(self) -> ComposeResult:
+        """Compose the modal layout."""
+        with Vertical(id="preprocess-modal-container"):
+            yield Static("Select preprocessing options", id="preprocess-title")
+            yield self._make_option_widget("merge")
+            yield self._make_option_widget("normalize")
+            yield self._make_option_widget("restore")
+            yield Static(
+                "Press key to toggle • Enter to continue • Esc to cancel", id="instructions"
+            )
+
+    def _make_option_widget(self, option_key: str) -> Static:
+        """Create an option display widget."""
+        labels = {
+            "merge": ("M", "Merge - Combine adjacent short segments"),
+            "normalize": ("N", "Normalize - Clean whitespace and punctuation"),
+            "restore": ("R", "Restore - Use LLM to improve grammar (slow)"),
+        }
+        key, desc = labels[option_key]
+        enabled = self.config[option_key]
+        status = "✓ Enabled" if enabled else "○ Disabled"
+        text = f"[.option-key]{key}[/.option-key] {desc} [{'.option-status' if enabled else 'dim'}]{status}[/{'dim' if not enabled else '.option-status'}]"
+        return Static(text, classes="option-line", id=f"option-{option_key}")
+
+    def _refresh_option(self, option_key: str) -> None:
+        """Refresh an option display."""
+        widget = self.query_one(f"#option-{option_key}", Static)
+        labels = {
+            "merge": ("M", "Merge - Combine adjacent short segments"),
+            "normalize": ("N", "Normalize - Clean whitespace and punctuation"),
+            "restore": ("R", "Restore - Use LLM to improve grammar (slow)"),
+        }
+        key, desc = labels[option_key]
+        enabled = self.config[option_key]
+        status = "✓ Enabled" if enabled else "○ Disabled"
+        text = f"[.option-key]{key}[/.option-key] {desc} [{'.option-status' if enabled else 'dim'}]{status}[/{'dim' if not enabled else '.option-status'}]"
+        widget.update(text)
+
+    def action_toggle_merge(self) -> None:
+        """Toggle merge option."""
+        self.config["merge"] = not self.config["merge"]
+        self._refresh_option("merge")
+
+    def action_toggle_normalize(self) -> None:
+        """Toggle normalize option."""
+        self.config["normalize"] = not self.config["normalize"]
+        self._refresh_option("normalize")
+
+    def action_toggle_restore(self) -> None:
+        """Toggle restore option."""
+        self.config["restore"] = not self.config["restore"]
+        self._refresh_option("restore")
+
+    def action_confirm(self) -> None:
+        """Confirm and return config."""
+        # Check if at least one option is selected
+        if not any(self.config.values()):
+            return  # Don't dismiss if nothing selected
+        self.dismiss(self.config)
+
+    def action_cancel(self) -> None:
+        """Cancel and return None."""
+        self.dismiss(None)
+
+
+class PreprocessConfigApp(App[Optional[Dict[str, Any]]]):
+    """Wrapper app to show preprocessing config modal."""
+
+    TITLE = "Preprocessing Options"
+    ENABLE_COMMAND_PALETTE = False
+
+    def __init__(self, selected_transcript: Dict[str, Any], *args: Any, **kwargs: Any) -> None:
+        """Initialize config app.
+
+        Args:
+            selected_transcript: The transcript that was selected
+        """
+        super().__init__(*args, **kwargs)
+        self.selected_transcript = selected_transcript
+
+    def compose(self) -> ComposeResult:
+        """Compose minimal base screen (modal will overlay)."""
+        yield Header(show_clock=False, icon="")
+        with Container(id="base-container"):
+            yield Static("Loading configuration...", id="loading-message")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        """Show config modal immediately on mount."""
+        self.show_config_modal()
+
+    def show_config_modal(self) -> None:
+        """Show the config modal and exit with result."""
+        async def _show() -> None:
+            config = await self.push_screen_wait(PreprocessConfigModal())
+            if config:
+                # Return both transcript and config
+                result = {
+                    "transcript": self.selected_transcript,
+                    "config": config,
+                }
+                self.exit(result)
+            else:
+                # User cancelled
+                self.exit(None)
+
+        self.run_worker(_show())
 
 
 class PreprocessTwoPhase(TwoPhaseTranscriptBrowser):
@@ -201,13 +378,56 @@ class PreprocessTwoPhase(TwoPhaseTranscriptBrowser):
         Returns:
             Selected transcript dictionary, or None if cancelled
         """
+        from ..logging import suppress_logging, restore_logging
+        from .episode_selector import scan_episode_status
+
         # Phase 1: Select episode using Textual TUI
+        # First scan all episodes and filter to only those with transcripts
+        suppress_logging()
         try:
-            episode, episode_meta = select_episode_with_tui(
-                self.scan_dir, show_filter=self.show_filter
+            episodes = scan_episode_status(self.scan_dir)
+
+            # Apply show filter if provided
+            if self.show_filter:
+                s_l = self.show_filter.lower()
+                episodes = [e for e in episodes if s_l in (e.get("show", "").lower())]
+
+            # Filter to only episodes with transcripts
+            episodes_with_transcripts = []
+            for ep in episodes:
+                transcripts = self.scan_transcripts(ep["directory"])
+                if transcripts:
+                    episodes_with_transcripts.append(ep)
+
+            if not episodes_with_transcripts:
+                restore_logging()
+                if self.show_filter:
+                    print(f"❌ No episodes with transcripts found for show '{self.show_filter}' in {self.scan_dir}")
+                else:
+                    print(f"❌ No episodes with transcripts found in {self.scan_dir}")
+                raise SystemExit(1)
+
+            # Sort newest first
+            episodes_sorted = sorted(
+                episodes_with_transcripts,
+                key=lambda x: (x["date"], x["show"]),
+                reverse=True
             )
-        except SystemExit:
-            return None
+
+            # Run the TUI
+            from .episode_browser_tui import EpisodeBrowserTUI
+            app = EpisodeBrowserTUI(episodes_sorted, self.scan_dir)
+            result = app.run()
+
+            if result == (None, None):
+                restore_logging()
+                print("❌ Transcript pre-processing cancelled")
+                raise SystemExit(0)
+
+            episode, episode_meta = result
+
+        finally:
+            restore_logging()
 
         if not episode:
             return None
@@ -217,7 +437,7 @@ class PreprocessTwoPhase(TwoPhaseTranscriptBrowser):
 
         if not transcripts:
             print(f"❌ No transcripts found in episode: {episode.get('title', 'Unknown')}")
-            return None
+            raise SystemExit(0)
 
         # Use ModelLevelProcessingBrowser for transcript selection
         # For preprocess, we want to show processing_stage instead of completion status
@@ -229,4 +449,11 @@ class PreprocessTwoPhase(TwoPhaseTranscriptBrowser):
         app.TITLE = "Select Transcript to Preprocess"
         selected_transcript = app.run()
 
-        return selected_transcript
+        if not selected_transcript:
+            return None
+
+        # Show config modal
+        config_app = PreprocessConfigApp(selected_transcript)
+        result = config_app.run()
+
+        return result

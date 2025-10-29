@@ -2,7 +2,7 @@ import json
 import sys
 from typing import Any
 
-from .logging import get_logger, setup_logging
+from podx.logging import get_logger, setup_logging
 
 # Initialize logging when module is imported
 setup_logging()

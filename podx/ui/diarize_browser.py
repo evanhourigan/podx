@@ -19,7 +19,7 @@ from ..ui_styles import (
     TABLE_NUM_STYLE,
     TABLE_TITLE_COL_STYLE,
 )
-from .episode_browser_tui import ModelLevelProcessingBrowser, select_episode_with_tui
+from .episode_browser_tui import ModelLevelProcessingBrowser
 from .two_phase_browser import TwoPhaseTranscriptBrowser
 
 logger = get_logger(__name__)
@@ -285,13 +285,56 @@ class DiarizeTwoPhase(TwoPhaseTranscriptBrowser):
         Returns:
             Selected transcript dictionary, or None if cancelled
         """
+        from ..logging import suppress_logging, restore_logging
+        from .episode_selector import scan_episode_status
+
         # Phase 1: Select episode using Textual TUI
+        # First scan all episodes and filter to only those with base transcripts
+        suppress_logging()
         try:
-            episode, episode_meta = select_episode_with_tui(
-                self.scan_dir, show_filter=self.show_filter
+            episodes = scan_episode_status(self.scan_dir)
+
+            # Apply show filter if provided
+            if self.show_filter:
+                s_l = self.show_filter.lower()
+                episodes = [e for e in episodes if s_l in (e.get("show", "").lower())]
+
+            # Filter to only episodes with base transcripts
+            episodes_with_transcripts = []
+            for ep in episodes:
+                transcripts = self.scan_transcripts(ep["directory"])
+                if transcripts:
+                    episodes_with_transcripts.append(ep)
+
+            if not episodes_with_transcripts:
+                restore_logging()
+                if self.show_filter:
+                    print(f"❌ No episodes with base transcripts found for show '{self.show_filter}' in {self.scan_dir}")
+                else:
+                    print(f"❌ No episodes with base transcripts found in {self.scan_dir}")
+                raise SystemExit(1)
+
+            # Sort newest first
+            episodes_sorted = sorted(
+                episodes_with_transcripts,
+                key=lambda x: (x["date"], x["show"]),
+                reverse=True
             )
-        except SystemExit:
-            return None
+
+            # Run the TUI
+            from .episode_browser_tui import EpisodeBrowserTUI
+            app = EpisodeBrowserTUI(episodes_sorted, self.scan_dir)
+            result = app.run()
+
+            if result == (None, None):
+                restore_logging()
+                print("❌ Diarization cancelled")
+                raise SystemExit(0)
+
+            episode, episode_meta = result
+
+        finally:
+            restore_logging()
 
         if not episode:
             return None
@@ -301,7 +344,7 @@ class DiarizeTwoPhase(TwoPhaseTranscriptBrowser):
 
         if not transcripts:
             print(f"❌ No base transcripts found in episode: {episode.get('title', 'Unknown')}")
-            return None
+            raise SystemExit(0)
 
         # Use ModelLevelProcessingBrowser for transcript selection
         app = ModelLevelProcessingBrowser(
