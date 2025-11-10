@@ -6,8 +6,6 @@ Handles CLI arguments, input/output, and interactive mode with progress display.
 import json
 import os
 import sys
-import threading
-import time
 from pathlib import Path
 
 import click
@@ -16,6 +14,7 @@ from podx.cli.cli_shared import print_json, read_stdin_json
 from podx.core.diarize import DiarizationEngine, DiarizationError
 from podx.logging import get_logger
 from podx.ui.diarize_browser import DiarizeTwoPhase
+from podx.ui.live_timer import LiveTimer
 
 logger = get_logger(__name__)
 
@@ -28,51 +27,6 @@ except ImportError:
     RICH_AVAILABLE = False
 
 
-class LiveTimer:
-    """Display a live timer that updates every second in the console."""
-
-    def __init__(self, message: str = "Running", output_stream=None):
-        self.message = message
-        self.start_time = None
-        self.stop_flag = threading.Event()
-        self.thread = None
-        # Save reference to output stream (defaults to sys.stdout)
-        self.output_stream = output_stream or sys.stdout
-
-    def _format_time(self, seconds: int) -> str:
-        """Format seconds as M:SS."""
-        minutes = seconds // 60
-        secs = seconds % 60
-        return f"{minutes}:{secs:02d}"
-
-    def _run(self):
-        """Run the timer loop."""
-        while not self.stop_flag.is_set():
-            elapsed = int(time.time() - self.start_time)
-            # Use \r to overwrite the line - write directly to saved output stream
-            self.output_stream.write(f"\r{self.message} ({self._format_time(elapsed)})")
-            self.output_stream.flush()
-            time.sleep(1)
-
-    def start(self):
-        """Start the timer."""
-        self.start_time = time.time()
-        self.stop_flag.clear()
-        self.thread = threading.Thread(target=self._run, daemon=True)
-        self.thread.start()
-
-    def stop(self) -> float:
-        """Stop the timer and return elapsed time."""
-        elapsed = time.time() - self.start_time
-        self.stop_flag.set()
-        if self.thread:
-            self.thread.join(timeout=2)
-        # Clear the line
-        self.output_stream.write("\r" + " " * 80 + "\r")
-        self.output_stream.flush()
-        return elapsed
-
-
 @click.command()
 @click.option(
     "--audio",
@@ -83,7 +37,6 @@ class LiveTimer:
 @click.option(
     "--input",
     "-i",
-    "input_file",
     type=click.Path(exists=True, path_type=Path),
     help="Read Transcript JSON from file instead of stdin",
 )
@@ -104,7 +57,7 @@ class LiveTimer:
     default=".",
     help="Directory to scan for transcripts (default: current directory)",
 )
-def main(audio, input_file, output, interactive, scan_dir):
+def main(audio, input, output, interactive, scan_dir):
     """
     Read transcript JSON -> WhisperX align + diarize -> print diarized JSON to stdout.
 
@@ -138,8 +91,8 @@ def main(audio, input_file, output, interactive, scan_dir):
     else:
         # Non-interactive mode
         # Read input
-        if input_file:
-            transcript = json.loads(input_file.read_text())
+        if input:
+            transcript = json.loads(input.read_text())
         else:
             transcript = read_stdin_json()
 

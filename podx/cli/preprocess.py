@@ -29,14 +29,12 @@ logger = get_logger(__name__)
 @click.option(
     "--input",
     "-i",
-    "input_file",
     type=click.Path(exists=True, path_type=Path),
     help="Read Transcript JSON from file instead of stdin",
 )
 @click.option(
     "--output",
     "-o",
-    "output_file",
     type=click.Path(path_type=Path),
     help="Write processed Transcript JSON to file (also prints to stdout)",
 )
@@ -88,8 +86,8 @@ logger = get_logger(__name__)
 )
 @validate_output(Transcript)
 def main(
-    input_file: Optional[Path],
-    output_file: Optional[Path],
+    input: Optional[Path],
+    output: Optional[Path],
     do_merge: bool,
     do_normalize: bool,
     max_gap: float,
@@ -157,10 +155,10 @@ def main(
         # Choose output next to transcript
         outdir = transcript_info.get("directory")
         asr = transcript_info.get("asr_model", "model")
-        output_file = outdir / f"transcript-preprocessed-{asr}.json"
+        output = outdir / f"transcript-preprocessed-{asr}.json"
     else:
         raw = (
-            json.loads(input_file.read_text()) if input_file else read_stdin_json()
+            json.loads(input.read_text()) if input else read_stdin_json()
         )
 
     if not raw or "segments" not in raw:
@@ -193,8 +191,8 @@ def main(
     out["segments"] = validated_segments
 
     # Write output
-    if output_file:
-        output_file.write_text(
+    if output:
+        output.write_text(
             json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8"
         )
         # In interactive mode, print completion message
@@ -209,7 +207,7 @@ def main(
             steps_str = " + ".join(steps_applied) if steps_applied else "none"
             print("✅ Preprocessing complete")
             print(f"   Steps: {steps_str}")
-            print(f"   Output: {output_file}")
+            print(f"   Output: {output}")
 
     # Only print JSON in non-interactive mode (for piping/scripting)
     if not interactive:
