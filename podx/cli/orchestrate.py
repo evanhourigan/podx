@@ -32,15 +32,6 @@ except Exception:  # pragma: no cover
     BaseGroup = click.Group
 
 # Import individual command modules for CLI integration
-from podx.cli import (
-    deepcast,
-    diarize,
-    export,
-    fetch,
-    notion,
-    transcode,
-    transcribe,
-)
 from podx.config import get_config
 from podx.constants import (
     DEFAULT_ENCODING,
@@ -53,7 +44,6 @@ from podx.constants import (
 from podx.errors import ValidationError
 from podx.cli.help import help_cmd
 from podx.logging import get_logger, setup_logging
-from podx.plugins import PluginManager, PluginType, get_registry
 from podx.progress import (
     PodxProgress,
     print_podx_header,
@@ -1861,119 +1851,140 @@ def run(
 ## Deprecated: info command has been removed in favor of 'podx list'
 
 
-@main.command("fetch")
+@main.command(
+    "fetch",
+    help="Shim: run podx-fetch with the given arguments",
+    context_settings={
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+        "allow_interspersed_args": False,
+        "help_option_names": [],  # Disable Click's --help handling
+    },
+)
 @click.pass_context
 def fetch_cmd(ctx):
     """Find and download podcast episodes by show name or RSS URL."""
-    # Pass through to the original fetch.main() with sys.argv adjustments
-    import sys
-
-    # Remove 'podx fetch' from sys.argv and call fetch.main()
-    original_argv = sys.argv.copy()
-    sys.argv = ["podx-fetch"] + sys.argv[2:]  # Keep original args after 'fetch'
-    try:
-        fetch.main()
-    finally:
-        sys.argv = original_argv
+    code = _run_passthrough(["podx-fetch"] + ctx.args)
+    sys.exit(code)
 
 
-@main.command("transcode")
+@main.command(
+    "transcode",
+    help="Shim: run podx-transcode with the given arguments",
+    context_settings={
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+        "allow_interspersed_args": False,
+        "help_option_names": [],
+    },
+)
 @click.pass_context
 def transcode_cmd(ctx):
     """Convert audio files to different formats (wav16, mp3, aac)."""
-    import sys
-
-    original_argv = sys.argv.copy()
-    sys.argv = ["podx-transcode"] + sys.argv[2:]
-    try:
-        transcode.main()
-    finally:
-        sys.argv = original_argv
+    code = _run_passthrough(["podx-transcode"] + ctx.args)
+    sys.exit(code)
 
 
-@main.command("transcribe")
+@main.command(
+    "transcribe",
+    help="Shim: run podx-transcribe with the given arguments",
+    context_settings={
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+        "allow_interspersed_args": False,
+        "help_option_names": [],
+    },
+)
 @click.pass_context
 def transcribe_cmd(ctx):
     """Convert audio to text using Whisper ASR models."""
-    import sys
-
-    original_argv = sys.argv.copy()
-    sys.argv = ["podx-transcribe"] + sys.argv[2:]
-    try:
-        transcribe.main()
-    finally:
-        sys.argv = original_argv
+    code = _run_passthrough(["podx-transcribe"] + ctx.args)
+    sys.exit(code)
 
 
-@main.command("diarize")
+@main.command(
+    "diarize",
+    help="Shim: run podx-diarize with the given arguments",
+    context_settings={
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+        "allow_interspersed_args": False,
+        "help_option_names": [],
+    },
+)
 @click.pass_context
 def diarize_cmd(ctx):
     """Add speaker identification to transcripts using WhisperX."""
-    import sys
-
-    original_argv = sys.argv.copy()
-    sys.argv = ["podx-diarize"] + sys.argv[2:]
-    try:
-        diarize.main()
-    finally:
-        sys.argv = original_argv
+    code = _run_passthrough(["podx-diarize"] + ctx.args)
+    sys.exit(code)
 
 
-@main.command("export")
+@main.command(
+    "export",
+    help="Shim: run podx-export with the given arguments",
+    context_settings={
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+        "allow_interspersed_args": False,
+        "help_option_names": [],
+    },
+)
 @click.pass_context
 def export_cmd(ctx):
     """Export transcripts to various formats (TXT, SRT, VTT, MD)."""
-    import sys
-
-    original_argv = sys.argv.copy()
-    sys.argv = ["podx-export"] + sys.argv[2:]
-    try:
-        export.main()
-    finally:
-        sys.argv = original_argv
+    code = _run_passthrough(["podx-export"] + ctx.args)
+    sys.exit(code)
 
 
-@main.command("deepcast")
+@main.command(
+    "deepcast",
+    help="Shim: run podx-deepcast with the given arguments",
+    context_settings={
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+        "allow_interspersed_args": False,
+        "help_option_names": [],
+    },
+)
 @click.pass_context
 def deepcast_cmd(ctx):
     """AI-powered transcript analysis and summarization."""
-    import sys
-
-    original_argv = sys.argv.copy()
-    sys.argv = ["podx-deepcast"] + sys.argv[2:]
-    try:
-        deepcast.main()
-    finally:
-        sys.argv = original_argv
+    code = _run_passthrough(["podx-deepcast"] + ctx.args)
+    sys.exit(code)
 
 
-@main.command("models")
+@main.command(
+    "models",
+    help="Shim: run podx-models with the given arguments",
+    context_settings={
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+        "allow_interspersed_args": False,
+        "help_option_names": [],
+    },
+)
 @click.pass_context
 def models_cmd(ctx):
     """List AI models with pricing and estimate deepcast cost."""
-    import sys
-
-    original_argv = sys.argv.copy()
-    sys.argv = ["podx-models"] + sys.argv[2:]
-    try:
-        from . import models as models_cli
-        models_cli.main()
-    finally:
-        sys.argv = original_argv
+    code = _run_passthrough(["podx-models"] + ctx.args)
+    sys.exit(code)
 
 
-@main.command("notion")
+@main.command(
+    "notion",
+    help="Shim: run podx-notion with the given arguments",
+    context_settings={
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+        "allow_interspersed_args": False,
+        "help_option_names": [],
+    },
+)
 @click.pass_context
 def notion_cmd(ctx):
     """Upload processed content to Notion databases."""
-    import sys
-
-    original_argv = sys.argv.copy()
-    sys.argv = ["podx-notion"] + sys.argv[2:]
-    try:
-        notion.main()
-    finally:
-        sys.argv = original_argv
+    code = _run_passthrough(["podx-notion"] + ctx.args)
+    sys.exit(code)
 
 
 # Add convenience workflow commands
@@ -2266,12 +2277,6 @@ def config_command(action):
         )
 
 
-@main.group("plugin")
-def plugin_group():
-    """Plugin management commands."""
-    pass
-
-
 # Lightweight shims to expose individual tools under the unified `podx` namespace
 @main.command("preprocess", help="Shim: run podx-preprocess with the given arguments")
 @click.argument("args", nargs=-1)
@@ -2283,224 +2288,8 @@ def preprocess_shim(args: tuple[str, ...]):
 # Removed: podx agreement and podx consensus commands - these tools were removed from the codebase
 
 
-@plugin_group.command("list")
-@click.option(
-    "--type",
-    "plugin_type",
-    type=click.Choice([t.value for t in PluginType]),
-    help="Filter by plugin type",
-)
-def list_plugins(plugin_type):
-    """List available plugins."""
-    from rich.console import Console
-    from rich.table import Table
+# Removed: podx plugin command group - plugin system was unused and has been removed
 
-    console = Console()
-    manager = PluginManager()
-
-    # Auto-discover plugins
-    manager.discover_plugins()
-
-    # Filter by type if specified
-    filter_type = None
-    if plugin_type:
-        filter_type = PluginType(plugin_type)
-
-    plugins = manager.get_available_plugins(filter_type)
-
-    if not plugins:
-        console.print("No plugins found.")
-        return
-
-    table = Table(title="🔌 Available Plugins")
-    table.add_column("Name", style="cyan", no_wrap=True)
-    table.add_column("Type", style="magenta")
-    table.add_column("Version", style="green")
-    table.add_column("Description", style="white")
-    table.add_column("Status", style="yellow")
-
-    for name, metadata in plugins.items():
-        status = "✅ Enabled" if metadata.enabled else "❌ Disabled"
-        table.add_row(
-            name,
-            metadata.plugin_type.value,
-            metadata.version,
-            metadata.description,
-            status,
-        )
-
-    console.print(table)
-
-    # Show plugin type counts
-    type_counts = {}
-    for metadata in plugins.values():
-        type_name = metadata.plugin_type.value
-        type_counts[type_name] = type_counts.get(type_name, 0) + 1
-
-    console.print(f"\n📊 Found {len(plugins)} plugins across {len(type_counts)} types")
-    for plugin_type, count in sorted(type_counts.items()):
-        console.print(f"  {plugin_type}: {count}")
-
-
-@plugin_group.command("info")
-@click.argument("plugin_name")
-def plugin_info(plugin_name):
-    """Show detailed information about a plugin."""
-    from rich.console import Console
-    from rich.panel import Panel
-    from rich.table import Table
-
-    console = Console()
-    manager = PluginManager()
-    manager.discover_plugins()
-
-    registry = get_registry()
-    plugin = registry.get_plugin(plugin_name)
-
-    if not plugin:
-        console.print(f"❌ Plugin '{plugin_name}' not found")
-        return
-
-    metadata = plugin.metadata
-
-    # Create info panel
-    info_text = f"""**Name:** {metadata.name}
-**Version:** {metadata.version}
-**Author:** {metadata.author}
-**Type:** {metadata.plugin_type.value}
-**Status:** {"✅ Enabled" if metadata.enabled else "❌ Disabled"}
-
-**Description:**
-{metadata.description}"""
-
-    if metadata.dependencies:
-        info_text += f"\n\n**Dependencies:**\n{', '.join(metadata.dependencies)}"
-
-    console.print(Panel(info_text, title=f"🔌 Plugin: {plugin_name}"))
-
-    # Show configuration schema if available
-    if metadata.config_schema:
-        table = Table(title="⚙️ Configuration Schema")
-        table.add_column("Parameter", style="cyan")
-        table.add_column("Type", style="magenta")
-        table.add_column("Required", style="red")
-        table.add_column("Default", style="green")
-
-        for param, schema in metadata.config_schema.items():
-            param_type = schema.get("type", "string")
-            required = "Yes" if schema.get("required", False) else "No"
-            default = str(schema.get("default", "N/A"))
-
-            table.add_row(param, param_type, required, default)
-
-        console.print(table)
-
-
-@plugin_group.command("discover")
-@click.option(
-    "--dir",
-    "plugin_dirs",
-    multiple=True,
-    help="Additional directories to scan for plugins",
-)
-def discover_plugins(plugin_dirs):
-    """Discover and load plugins from directories."""
-    from rich.console import Console
-
-    console = Console()
-    manager = PluginManager()
-
-    # Convert string paths to Path objects
-    extra_dirs = [Path(d) for d in plugin_dirs] if plugin_dirs else []
-
-    console.print("🔍 Discovering plugins...")
-
-    # Discover plugins
-    if extra_dirs:
-        manager.discover_plugins(extra_dirs)
-    else:
-        manager.discover_plugins()
-
-    plugins = manager.get_available_plugins()
-
-    console.print(f"✅ Discovered {len(plugins)} plugins")
-
-    # Show summary by type
-    type_counts = {}
-    for metadata in plugins.values():
-        type_name = metadata.plugin_type.value
-        type_counts[type_name] = type_counts.get(type_name, 0) + 1
-
-    for plugin_type, count in sorted(type_counts.items()):
-        console.print(f"  {plugin_type}: {count} plugins")
-
-
-@plugin_group.command("create")
-@click.argument("plugin_name")
-@click.argument("plugin_type", type=click.Choice([t.value for t in PluginType]))
-@click.option(
-    "--output-dir",
-    "-o",
-    type=click.Path(path_type=Path),
-    default=Path.cwd() / "plugins",
-    help="Output directory for plugin template",
-)
-def create_plugin(plugin_name, plugin_type, output_dir):
-    """Create a new plugin template."""
-    from rich.console import Console
-
-    from .plugins import create_plugin_template
-
-    console = Console()
-
-    # Ensure output directory exists
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Create plugin template
-    plugin_type_enum = PluginType(plugin_type)
-    plugin_file = create_plugin_template(plugin_type_enum, plugin_name, output_dir)
-
-    console.print(f"✅ Plugin template created: {plugin_file}")
-    console.print(f"📝 Edit the file to implement your {plugin_type} plugin")
-    console.print(f"📚 See documentation for {plugin_type} plugin interface details")
-
-
-@plugin_group.command("test")
-@click.argument("plugin_name")
-def test_plugin(plugin_name):
-    """Test a plugin's basic functionality."""
-    from rich.console import Console
-
-    console = Console()
-    manager = PluginManager()
-    manager.discover_plugins()
-
-    registry = get_registry()
-    plugin = registry.get_plugin(plugin_name)
-
-    if not plugin:
-        console.print(f"❌ Plugin '{plugin_name}' not found")
-        return
-
-    console.print(f"🧪 Testing plugin: {plugin_name}")
-
-    # Test configuration validation
-    try:
-        config = {}  # Empty config for basic test
-        valid = plugin.validate_config(config)
-        status = "✅ Passed" if valid else "❌ Failed"
-        console.print(f"  Config validation: {status}")
-    except Exception as e:
-        console.print(f"  Config validation: ❌ Error - {e}")
-
-    # Test initialization (if config validation passed)
-    try:
-        plugin.initialize({})
-        console.print("  Initialization: ✅ Passed")
-    except Exception as e:
-        console.print(f"  Initialization: ❌ Error - {e}")
-
-    console.print(f"🏁 Plugin test completed for {plugin_name}")
 
 
 # Deprecated: 'podx podcast' removed in favor of YAML presets (podx config ...)
@@ -2662,249 +2451,22 @@ def config_databases():
     console.print(table)
 
 
+
 # ============================================================================
-# Plugin Management Commands
+# Removed: Plugin Management Commands (plugin system was unused and removed)
 # ============================================================================
 
 
-@main.group("plugin", help="Manage podx plugins")
-def plugin_group():
-    """Plugin management commands."""
-    pass
+# ============================================================================
+# Standalone Entry Points
+# ============================================================================
 
 
-@plugin_group.command("list")
-@click.option("--type", "-t", help="Filter by plugin type")
-@click.option("--verbose", "-v", is_flag=True, help="Show detailed information")
-def plugin_list(type, verbose):
-    """List all available plugins."""
-    from rich.console import Console
-    from rich.table import Table
-
-    from podx.plugins import PluginManager, PluginType
-
-    console = Console()
-    manager = PluginManager()
-
-    # Discover all plugins
-    manager.discover_plugins()
-
-    # Filter by type if specified
-    plugin_type_filter = None
-    if type:
-        try:
-            plugin_type_filter = PluginType[type.upper()]
-        except KeyError:
-            console.print(f"❌ Invalid plugin type: {type}", style="red")
-            console.print(f"Valid types: {', '.join([t.value for t in PluginType])}")
-            return
-
-    plugins = manager.get_available_plugins(plugin_type_filter)
-
-    if not plugins:
-        console.print("📭 No plugins found.")
-        return
-
-    # Create table
-    if verbose:
-        table = Table(title="🔌 Available Podx Plugins (Detailed)")
-        table.add_column("Name", style="cyan")
-        table.add_column("Type", style="green")
-        table.add_column("Version")
-        table.add_column("Author")
-        table.add_column("Description")
-        table.add_column("Dependencies")
-
-        for name, meta in sorted(plugins.items()):
-            table.add_row(
-                name,
-                meta.plugin_type.value,
-                meta.version,
-                meta.author,
-                meta.description,
-                ", ".join(meta.dependencies) if meta.dependencies else "None",
-            )
-    else:
-        table = Table(title="🔌 Available Podx Plugins")
-        table.add_column("Name", style="cyan")
-        table.add_column("Type", style="green")
-        table.add_column("Version")
-        table.add_column("Description")
-
-        for name, meta in sorted(plugins.items()):
-            table.add_row(
-                name,
-                meta.plugin_type.value,
-                meta.version,
-                meta.description,
-            )
-
-    console.print(table)
-    console.print(f"\n✨ Total: {len(plugins)} plugin(s)")
-
-
-@plugin_group.command("validate")
-@click.argument("plugin_name")
-@click.option("--config-file", "-c", help="Path to plugin configuration file (JSON)")
-def plugin_validate(plugin_name, config_file):
-    """Validate a plugin and its configuration."""
-    from rich.console import Console
-
-    from .plugins import PluginManager
-
-    console = Console()
-    manager = PluginManager()
-
-    # Discover plugins
-    manager.discover_plugins()
-
-    # Get the plugin
-    plugin = manager.registry.get_plugin(plugin_name)
-    if not plugin:
-        console.print(f"❌ Plugin '{plugin_name}' not found", style="red")
-        return
-
-    console.print(f"🔍 Validating plugin: [cyan]{plugin_name}[/cyan]")
-    console.print()
-
-    # Display metadata
-    meta = plugin.metadata
-    console.print(f"📦 Type: {meta.plugin_type.value}")
-    console.print(f"📌 Version: {meta.version}")
-    console.print(f"👤 Author: {meta.author}")
-    console.print(f"📝 Description: {meta.description}")
-    console.print()
-
-    # Check dependencies
-    if meta.dependencies:
-        console.print("📚 Checking dependencies...")
-        all_deps_ok = True
-        for dep in meta.dependencies:
-            try:
-                __import__(dep.replace("-", "_"))
-                console.print(f"  ✅ {dep}")
-            except ImportError:
-                console.print(f"  ❌ {dep} (not installed)", style="red")
-                all_deps_ok = False
-
-        if not all_deps_ok:
-            console.print("\n⚠️  Some dependencies are missing. Install them to use this plugin.", style="yellow")
-        console.print()
-
-    # Validate configuration
-    if config_file:
-        console.print(f"⚙️  Validating configuration from: {config_file}")
-        try:
-            with open(config_file) as f:
-                config = json.load(f)
-
-            if plugin.validate_config(config):
-                console.print("  ✅ Configuration is valid", style="green")
-
-                # Try to initialize
-                try:
-                    plugin.initialize(config)
-                    console.print("  ✅ Plugin initialized successfully", style="green")
-
-                    # Test credentials if applicable
-                    if hasattr(plugin, "validate_credentials"):
-                        console.print("  🔐 Testing credentials...")
-                        if plugin.validate_credentials():
-                            console.print("  ✅ Credentials validated", style="green")
-                        else:
-                            console.print("  ❌ Credential validation failed", style="red")
-
-                except Exception as e:
-                    console.print(f"  ❌ Initialization failed: {e}", style="red")
-            else:
-                console.print("  ❌ Configuration is invalid", style="red")
-
-        except FileNotFoundError:
-            console.print(f"  ❌ Config file not found: {config_file}", style="red")
-        except json.JSONDecodeError as e:
-            console.print(f"  ❌ Invalid JSON: {e}", style="red")
-        except Exception as e:
-            console.print(f"  ❌ Validation error: {e}", style="red")
-    else:
-        console.print("💡 Tip: Use --config-file to validate a configuration")
-
-    console.print()
-    console.print("✅ Validation complete")
-
-
-@plugin_group.command("create")
-@click.argument("plugin_name")
-@click.argument("plugin_type")
-@click.option("--output-dir", "-o", default=".", help="Output directory for plugin file")
-def plugin_create(plugin_name, plugin_type, output_dir):
-    """Create a new plugin from template."""
-    from rich.console import Console
-
-    from .plugins import PluginType, create_plugin_template
-
-    console = Console()
-
-    # Validate plugin type
-    try:
-        ptype = PluginType[plugin_type.upper()]
-    except KeyError:
-        console.print(f"❌ Invalid plugin type: {plugin_type}", style="red")
-        console.print(f"Valid types: {', '.join([t.value for t in PluginType])}")
-        return
-
-    # Create plugin template
-    output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    try:
-        plugin_file = create_plugin_template(ptype, plugin_name, output_path)
-        console.print(f"✅ Plugin template created: [cyan]{plugin_file}[/cyan]", style="green")
-        console.print()
-        console.print("📝 Next steps:")
-        console.print(f"  1. Edit the plugin file: {plugin_file}")
-        console.print(f"  2. Implement required methods for {ptype.value} plugin")
-        console.print(f"  3. Test your plugin with: podx plugin validate {plugin_name}")
-        console.print("  4. Install your plugin in ~/.podx/plugins/ or use it locally")
-
-    except Exception as e:
-        console.print(f"❌ Failed to create plugin: {e}", style="red")
-
-
-@plugin_group.command("types")
-def plugin_types():
-    """List all available plugin types."""
-    from rich.console import Console
-    from rich.table import Table
-
-    from .plugins import PluginType
-
-    console = Console()
-
-    table = Table(title="🔌 Podx Plugin Types")
-    table.add_column("Type", style="cyan")
-    table.add_column("Value", style="green")
-    table.add_column("Description")
-
-    descriptions = {
-        PluginType.SOURCE: "Alternative content sources (fetch podcasts from different platforms)",
-        PluginType.AUDIO: "Audio processing and transcoding",
-        PluginType.ASR: "Speech recognition / transcription",
-        PluginType.ALIGNMENT: "Timing alignment",
-        PluginType.DIARIZATION: "Speaker identification",
-        PluginType.EXPORT: "Export to different formats",
-        PluginType.ANALYSIS: "AI analysis and insights",
-        PluginType.PUBLISH: "Publishing to different platforms",
-        PluginType.PROCESSING: "Custom processing steps",
-    }
-
-    for ptype in PluginType:
-        table.add_row(
-            ptype.name,
-            ptype.value,
-            descriptions.get(ptype, ""),
-        )
-
-    console.print(table)
+def run_main():
+    """Entry point for podx-run standalone command."""
+    # Invoke the main CLI with 'run' subcommand and pass all args
+    sys.argv = ["podx", "run"] + sys.argv[1:]
+    main()
 
 
 if __name__ == "__main__":
