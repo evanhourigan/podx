@@ -5,6 +5,7 @@ No UI dependencies, no CLI concerns. Just audio transcription across multiple ba
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from ..device import detect_device_for_ctranslate2, get_optimal_compute_type, log_device_usage
 from ..logging import get_logger
 
 logger = get_logger(__name__)
@@ -99,7 +100,8 @@ class TranscriptionEngine:
         self,
         model: str = "small",
         provider: Optional[str] = None,
-        compute_type: str = "int8",
+        compute_type: Optional[str] = None,
+        device: Optional[str] = None,
         vad_filter: bool = True,
         condition_on_previous_text: bool = True,
         extra_decode_options: Optional[Dict[str, Any]] = None,
@@ -110,14 +112,24 @@ class TranscriptionEngine:
         Args:
             model: Model identifier (may include provider prefix like "openai:large-v3-turbo")
             provider: Explicit provider override (auto-detect if None)
-            compute_type: Compute type for local models (int8, float16, etc.)
+            compute_type: Compute type for local models (auto-detect if None)
+            device: Device to use (auto-detect if None: cuda/cpu)
             vad_filter: Enable voice activity detection filtering
             condition_on_previous_text: Enable conditioning on previous text
             extra_decode_options: Additional decoder options
             progress_callback: Optional callback for progress updates
         """
         self.provider, self.normalized_model = parse_model_and_provider(model, provider)
-        self.compute_type = compute_type
+
+        # Auto-detect device if not specified (CTranslate2 only supports CUDA/CPU)
+        self.device = device if device is not None else detect_device_for_ctranslate2()
+
+        # Auto-select optimal compute type for device if not specified
+        self.compute_type = (
+            compute_type if compute_type is not None
+            else get_optimal_compute_type(self.device)
+        )
+
         self.vad_filter = vad_filter
         self.condition_on_previous_text = condition_on_previous_text
         self.extra_decode_options = extra_decode_options or {}
@@ -172,9 +184,12 @@ class TranscriptionEngine:
 
         self._report_progress(f"Loading model: {self.normalized_model}")
 
+        # Log device usage for transparency
+        log_device_usage(self.device, self.compute_type, "transcription")
+
         try:
             asr = WhisperModel(
-                self.normalized_model, device="cpu", compute_type=self.compute_type
+                self.normalized_model, device=self.device, compute_type=self.compute_type
             )
         except Exception as e:
             raise TranscriptionError(f"Failed to initialize Whisper model: {e}") from e
@@ -357,7 +372,8 @@ def transcribe_audio(
     audio_path: Path,
     model: str = "small",
     provider: Optional[str] = None,
-    compute_type: str = "int8",
+    compute_type: Optional[str] = None,
+    device: Optional[str] = None,
     vad_filter: bool = True,
     progress_callback: Optional[Callable[[str], None]] = None,
 ) -> Dict[str, Any]:
@@ -367,7 +383,8 @@ def transcribe_audio(
         audio_path: Path to audio file
         model: Model identifier
         provider: Provider override
-        compute_type: Compute type for local models
+        compute_type: Compute type for local models (auto-detect if None)
+        device: Device to use (auto-detect if None)
         vad_filter: Enable VAD filtering
         progress_callback: Optional progress callback
 
@@ -378,6 +395,7 @@ def transcribe_audio(
         model=model,
         provider=provider,
         compute_type=compute_type,
+        device=device,
         vad_filter=vad_filter,
         progress_callback=progress_callback,
     )

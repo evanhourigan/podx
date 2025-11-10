@@ -98,7 +98,7 @@ def _truncate_text(text: str, max_length: int = 60) -> str:
     "--compute",
     type=click.Choice(["auto", "int8", "int8_float16", "int8_bfloat16", "float16"]),
     default=lambda: get_config().default_compute,
-    help="Compute type for faster-whisper (local provider only)",
+    help="Compute type for faster-whisper (auto=detect optimal for device, local provider only)",
 )
 @click.option(
     "--input",
@@ -262,10 +262,14 @@ def main(
 
     # Use core transcription engine (pure business logic)
     try:
+        # Pass None for compute_type if "auto" to enable auto-detection
+        compute_type_arg = None if compute == "auto" else compute
+
         engine = TranscriptionEngine(
             model=model,
             provider=provider_choice,
-            compute_type=compute,
+            compute_type=compute_type_arg,
+            device=None,  # Auto-detect best device (CUDA/CPU)
             vad_filter=use_vad,
             condition_on_previous_text=use_condition,
             extra_decode_options=extra_kwargs,

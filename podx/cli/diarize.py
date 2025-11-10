@@ -195,7 +195,7 @@ def main(audio, input_file, output, interactive, scan_dir):
         with redirect_stdout(open(os.devnull, "w")), redirect_stderr(open(os.devnull, "w")):
             engine = DiarizationEngine(
                 language=language,
-                device="cpu",
+                device=None,  # Auto-detect best device (MPS/CUDA/CPU)
                 hf_token=os.getenv("HUGGINGFACE_TOKEN"),
                 progress_callback=progress_callback,
             )

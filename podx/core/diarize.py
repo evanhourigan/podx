@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from ..device import detect_device_for_pytorch, log_device_usage
 from ..logging import get_logger
 
 logger = get_logger(__name__)
@@ -31,7 +32,7 @@ class DiarizationEngine:
     def __init__(
         self,
         language: str = "en",
-        device: str = "cpu",
+        device: Optional[str] = None,
         hf_token: Optional[str] = None,
         progress_callback: Optional[Callable[[str], None]] = None,
     ):
@@ -39,12 +40,13 @@ class DiarizationEngine:
 
         Args:
             language: Language code for alignment model (e.g., 'en', 'es')
-            device: Device to use ('cpu' or 'cuda')
+            device: Device to use (auto-detect if None: mps/cuda/cpu)
             hf_token: Hugging Face token for diarization pipeline (optional)
             progress_callback: Optional callback for progress updates
         """
         self.language = language
-        self.device = device
+        # Auto-detect device if not specified (PyTorch supports MPS/CUDA/CPU)
+        self.device = device if device is not None else detect_device_for_pytorch()
         self.hf_token = hf_token or os.getenv("HUGGINGFACE_TOKEN")
         self.progress_callback = progress_callback
 
@@ -80,6 +82,9 @@ class DiarizationEngine:
             language=self.language,
             segments_count=len(transcript_segments),
         )
+
+        # Log device usage for transparency
+        log_device_usage(self.device, "N/A", "diarization")
 
         try:
             import whisperx
@@ -156,7 +161,7 @@ def diarize_transcript(
     audio_path: Path,
     transcript_segments: List[Dict[str, Any]],
     language: str = "en",
-    device: str = "cpu",
+    device: Optional[str] = None,
     hf_token: Optional[str] = None,
     progress_callback: Optional[Callable[[str], None]] = None,
 ) -> Dict[str, Any]:
@@ -166,7 +171,7 @@ def diarize_transcript(
         audio_path: Path to audio file
         transcript_segments: List of transcript segments
         language: Language code for alignment
-        device: Device to use ('cpu' or 'cuda')
+        device: Device to use (auto-detect if None: mps/cuda/cpu)
         hf_token: Hugging Face token (optional)
         progress_callback: Optional progress callback
 

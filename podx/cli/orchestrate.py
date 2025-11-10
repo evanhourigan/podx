@@ -1400,7 +1400,7 @@ def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: An
 @click.option(
     "--compute",
     default=lambda: get_config().default_compute,
-    type=click.Choice(["int8", "int8_float16", "float16", "float32"]),
+    type=click.Choice(["auto", "int8", "int8_float16", "float16", "float32"]),
     help="Compute type",
 )
 @click.option(
@@ -1997,7 +1997,7 @@ def notion_cmd(ctx):
 @click.option(
     "--compute",
     default=lambda: get_config().default_compute,
-    type=click.Choice(["int8", "int8_float16", "float16", "float32"]),
+    type=click.Choice(["auto", "int8", "int8_float16", "float16", "float32"]),
     help="Compute type",
 )
 @click.option("-v", "--verbose", is_flag=True, help="Print interstitial outputs")
@@ -2049,7 +2049,7 @@ def quick(show, rss_url, youtube_url, date, title_contains, model, asr_provider,
 @click.option(
     "--compute",
     default=lambda: get_config().default_compute,
-    type=click.Choice(["int8", "int8_float16", "float16", "float32"]),
+    type=click.Choice(["auto", "int8", "int8_float16", "float16", "float32"]),
     help="Compute type",
 )
 @click.option(
