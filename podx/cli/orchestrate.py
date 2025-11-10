@@ -143,7 +143,7 @@ def main():
     Core idea: small tools that do one thing well and compose cleanly.
 
     Core commands (composable):
-      fetch, transcode, transcribe, preprocess, align, diarize, export, deepcast, agreement, consensus, notion
+      fetch, transcode, transcribe, preprocess, diarize, export, deepcast, notion
 
     Orchestrator:
       run  — drive the pipeline end‑to‑end with flags (or interactive mode)
@@ -2197,17 +2197,7 @@ def help_command(topic, examples, pipeline):
     ctx.invoke(help_cmd, examples=examples, pipeline=pipeline)
 
 
-@main.command("list", help="Shim: run podx-list with the given arguments")
-@click.argument("args", nargs=-1)
-def list_shim(args: tuple[str, ...]):
-    import sys
-    original_argv = sys.argv.copy()
-    sys.argv = ["podx-list", *sys.argv[2:]]
-    try:
-        from .list import main as list_main
-        list_main()
-    finally:
-        sys.argv = original_argv
+# Removed: podx list command - podx-list does not exist
 
 
 @main.command("config")
@@ -2290,18 +2280,7 @@ def preprocess_shim(args: tuple[str, ...]):
     sys.exit(code)
 
 
-@main.command("agreement", help="Shim: run podx-agreement with the given arguments")
-@click.argument("args", nargs=-1)
-def agreement_shim(args: tuple[str, ...]):
-    code = _run_passthrough(["podx-agreement", *args])
-    sys.exit(code)
-
-
-@main.command("consensus", help="Shim: run podx-consensus with the given arguments")
-@click.argument("args", nargs=-1)
-def consensus_shim(args: tuple[str, ...]):
-    code = _run_passthrough(["podx-consensus", *args])
-    sys.exit(code)
+# Removed: podx agreement and podx consensus commands - these tools were removed from the codebase
 
 
 @plugin_group.command("list")
@@ -2702,7 +2681,7 @@ def plugin_list(type, verbose):
     from rich.console import Console
     from rich.table import Table
 
-    from .plugins import PluginManager, PluginType
+    from podx.plugins import PluginManager, PluginType
 
     console = Console()
     manager = PluginManager()
