@@ -93,30 +93,28 @@ def build_enhanced_variant(
     # Adaptive content scaling based on episode length
     content_scaling = get_content_scaling(episode_duration_minutes)
 
-    # Get Q&A target for interview-focused templates
-    qa_target = get_qa_target(episode_duration_minutes)
-    quotes_target = get_quotes_target(episode_duration_minutes)
-
+    # Note: qa_target and quotes_target could be used for dynamic template generation
+    # but are currently not used in this template version
     return textwrap.dedent(
         f"""
     Create a comprehensive yet concise analysis of this podcast transcript.
-    
+
     Context handling:
     {time_instruction}
     {speaker_instruction}
-    
+
     Analysis focus:
     {type_focus}
-    
+
     Content scaling:
     {content_scaling}
-    
+
     Required structure (only include sections with substantial content):
-    
+
     ## 📋 Executive Summary
     Write 4-8 sentences capturing the episode's main value proposition. What would a busy executive need to know?
-    
-    ## 🎯 Key Insights  
+
+    ## 🎯 Key Insights
     {get_key_insights_target(episode_duration_minutes)} bullet points of substantive takeaways. Each bullet should be:
     - One clear insight or finding
     - 2-3 sentences with sufficient context
@@ -126,26 +124,26 @@ def build_enhanced_variant(
     - Why this insight is valuable or unexpected
     - Sufficient context for understanding
     - Connection to broader implications where relevant
-    
+
     ## 💬 Notable Quotes
     Select {get_quotes_target(episode_duration_minutes)} most impactful quotes that are:
     - Memorable, insightful, or quotable
     - Representative of key themes
     - Include speaker and timestamp when available
     - Prefer complete thoughts over fragments
-    
+
     ## ⚡ Action Items
     Concrete next steps, resources, or recommendations mentioned:
     - Tools, books, or resources specifically mentioned
     - Actionable advice or strategies
     - Follow-up suggestions
-    
+
     ## 🗂️ Timestamp Outline
     {get_outline_target(episode_duration_minutes)} major sections with timestamps:
     - Focus on topic transitions and key moments
     - Use descriptive labels that aid navigation
     - Balance granularity with usefulness
-    
+
     Quality standards:
     - Use specific, descriptive language
     - Maintain the speaker's voice and terminology
@@ -305,7 +303,7 @@ Analyze this transcript chunk and extract key information. Be precise and contex
 
 Extract:
 📋 **Core Points**: 3-6 substantial insights from this chunk
-💎 **Standout Ideas**: 2-4 surprising, novel, or particularly valuable concepts  
+💎 **Standout Ideas**: 2-4 surprising, novel, or particularly valuable concepts
 💬 **Best Quotes**: 1-3 most impactful quotes (with context about why they're notable)
 ⚡ **Actionables**: Any specific tools, resources, or next steps mentioned
 
@@ -439,7 +437,7 @@ Write 3-4 sentences capturing the main value, key themes, and why this interview
 
 ## Guest Profile
 - **Name**: [Guest name and title]
-- **Background**: [Company, role, relevant expertise]  
+- **Background**: [Company, role, relevant expertise]
 - **Why Listen**: [What makes this person's perspective valuable]
 
 ## Core Insights & Tactical Advice

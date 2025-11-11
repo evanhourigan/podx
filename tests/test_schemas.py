@@ -1,4 +1,4 @@
-from podx.schemas import Segment, Transcript
+from podx.schemas import Segment
 
 
 def test_segment_typing():
