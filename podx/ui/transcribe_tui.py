@@ -3,14 +3,13 @@
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Header, Static
-from rich.text import Text
-
 
 # Available ASR models in order of sophistication
 ASR_MODELS = ["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"]

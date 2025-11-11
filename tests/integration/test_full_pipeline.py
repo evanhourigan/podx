@@ -219,8 +219,8 @@ class TestPipelineResumeAndRecovery:
 
     def test_detect_multiple_pipeline_artifacts(self, tmp_path):
         """Test detection of multiple artifacts from different stages."""
-        from podx.state.artifact_detector import ArtifactDetector
         from podx.domain.enums import PipelineStep
+        from podx.state.artifact_detector import ArtifactDetector
 
         working_dir = tmp_path / "episode"
         working_dir.mkdir()
@@ -423,8 +423,9 @@ class TestErrorPropagation:
 
     def test_invalid_transcript_format(self):
         """Test error when transcript has invalid format."""
-        from podx.schemas import Transcript
         from pydantic import ValidationError
+
+        from podx.schemas import Transcript
 
         # Invalid: audio_path pointing to non-existent file
         invalid_data = {

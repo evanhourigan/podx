@@ -25,9 +25,9 @@ except Exception:  # pragma: no cover
     _console = None  # type: ignore
 
 from podx.cli.cli_shared import read_stdin_json
-from podx.core.notion import NotionEngine, md_to_blocks
 from podx.cli.info import get_episode_workdir
-from podx.yaml_config import get_yaml_config_manager, NotionDatabase
+from podx.core.notion import NotionEngine, md_to_blocks
+from podx.yaml_config import NotionDatabase, get_yaml_config_manager
 
 try:
     from notion_client import Client

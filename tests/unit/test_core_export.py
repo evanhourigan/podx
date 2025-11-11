@@ -6,13 +6,8 @@ No external dependencies to mock - pure text format conversion.
 
 import pytest
 
-from podx.core.export import (
-    ExportEngine,
-    ExportError,
-    export_transcript,
-    format_timestamp,
-    write_if_changed,
-)
+from podx.core.export import (ExportEngine, ExportError, export_transcript,
+                              format_timestamp, write_if_changed)
 
 
 class TestFormatTimestamp:

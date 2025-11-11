@@ -6,12 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from podx.api import (
-    ClientConfig,
-    DeepcastResponse,
-    PodxClient,
-    TranscribeResponse,
-)
+from podx.api import (ClientConfig, DeepcastResponse, PodxClient,
+                      TranscribeResponse)
 from podx.errors import AudioError, NetworkError, ValidationError
 
 

@@ -164,6 +164,7 @@ class TestPipelineResult:
     def test_to_dict(self):
         """Test PipelineResult.to_dict() conversion."""
         from pathlib import Path
+
         from podx.domain import PipelineResult
 
         result = PipelineResult(
@@ -185,6 +186,7 @@ class TestPipelineResult:
     def test_to_dict_with_errors(self):
         """Test PipelineResult.to_dict() with errors."""
         from pathlib import Path
+
         from podx.domain import PipelineResult
 
         result = PipelineResult(

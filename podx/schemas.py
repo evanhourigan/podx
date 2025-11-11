@@ -5,18 +5,10 @@ New code should import from podx.domain or podx.domain.models directly.
 """
 
 # Re-export all models from domain for backward compatibility
-from .domain.models import (  # noqa: F401
-    AlignedSegment,
-    AudioMeta,
-    DeepcastBrief,
-    DeepcastOutlineItem,
-    DeepcastQuote,
-    DiarizedSegment,
-    EpisodeMeta,
-    Segment,
-    Transcript,
-    Word,
-)
+from .domain.models import (AlignedSegment, AudioMeta,  # noqa: F401
+                            DeepcastBrief, DeepcastOutlineItem, DeepcastQuote,
+                            DiarizedSegment, EpisodeMeta, Segment, Transcript,
+                            Word)
 
 __all__ = [
     "EpisodeMeta",

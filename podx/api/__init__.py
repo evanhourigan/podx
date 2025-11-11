@@ -16,17 +16,9 @@ Advanced usage with configuration:
 """
 
 from .client import AsyncPodxClient, ClientConfig, PodxClient
-from .models import (
-    APIError,
-    DeepcastResponse,
-    DiarizeResponse,
-    ExistsCheckResponse,
-    ExportResponse,
-    FetchResponse,
-    NotionResponse,
-    TranscribeResponse,
-    ValidationResult,
-)
+from .models import (APIError, DeepcastResponse, DiarizeResponse,
+                     ExistsCheckResponse, ExportResponse, FetchResponse,
+                     NotionResponse, TranscribeResponse, ValidationResult)
 
 __all__ = [
     "PodxClient",

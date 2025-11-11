@@ -11,14 +11,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from podx.core.deepcast import (
-    DeepcastEngine,
-    DeepcastError,
-    deepcast_transcript,
-    hhmmss,
-    segments_to_plain_text,
-    split_into_chunks,
-)
+from podx.core.deepcast import (DeepcastEngine, DeepcastError,
+                                deepcast_transcript, hhmmss,
+                                segments_to_plain_text, split_into_chunks)
 
 
 class TestUtilityFunctions:

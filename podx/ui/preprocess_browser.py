@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical, Container
+from textual.containers import Container, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Footer, Header, Static
 
@@ -19,12 +19,8 @@ except ImportError:
     RICH_AVAILABLE = False
 
 from ..logging import get_logger
-from ..ui_styles import (
-    TABLE_BORDER_STYLE,
-    TABLE_HEADER_STYLE,
-    TABLE_NUM_STYLE,
-    TABLE_TITLE_COL_STYLE,
-)
+from ..ui_styles import (TABLE_BORDER_STYLE, TABLE_HEADER_STYLE,
+                         TABLE_NUM_STYLE, TABLE_TITLE_COL_STYLE)
 from .episode_browser_tui import ModelLevelProcessingBrowser
 from .two_phase_browser import TwoPhaseTranscriptBrowser
 
@@ -402,7 +398,7 @@ class PreprocessTwoPhase(TwoPhaseTranscriptBrowser):
         Returns:
             Selected transcript dictionary, or None if cancelled
         """
-        from ..logging import suppress_logging, restore_logging
+        from ..logging import restore_logging, suppress_logging
         from .episode_selector import scan_episode_status
 
         # Phase 1: Select episode using Textual TUI

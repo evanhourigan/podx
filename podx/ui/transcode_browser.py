@@ -13,14 +13,9 @@ except ImportError:
     RICH_AVAILABLE = False
 
 from ..logging import get_logger
-from ..ui_styles import (
-    TABLE_BORDER_STYLE,
-    TABLE_HEADER_STYLE,
-    TABLE_NUM_STYLE,
-    TABLE_SHOW_STYLE,
-    TABLE_DATE_STYLE,
-    TABLE_TITLE_COL_STYLE,
-)
+from ..ui_styles import (TABLE_BORDER_STYLE, TABLE_DATE_STYLE,
+                         TABLE_HEADER_STYLE, TABLE_NUM_STYLE, TABLE_SHOW_STYLE,
+                         TABLE_TITLE_COL_STYLE)
 from .interactive_browser import InteractiveBrowser
 
 logger = get_logger(__name__)

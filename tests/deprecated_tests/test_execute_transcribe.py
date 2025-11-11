@@ -3,7 +3,6 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-
 from podx.orchestrate import _execute_transcribe
 
 

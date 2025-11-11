@@ -7,7 +7,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from podx.services import AsyncPipelineService, AsyncStepExecutor, PipelineConfig
+from podx.services import (AsyncPipelineService, AsyncStepExecutor,
+                           PipelineConfig)
 
 
 @pytest.mark.asyncio

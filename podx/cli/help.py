@@ -23,17 +23,14 @@ try:  # pragma: no cover
     rc.MAX_WIDTH = 100
 except Exception:  # pragma: no cover
     import click
+
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.table import Table
 from rich.text import Text
 
-from podx.ui import (
-    make_console,
-    format_example_line,
-    EXAMPLE_HEADING_STYLE,
-    TABLE_HEADER_STYLE,
-)
+from podx.ui import (EXAMPLE_HEADING_STYLE, TABLE_HEADER_STYLE,
+                     format_example_line, make_console)
 
 
 def get_examples() -> Dict[str, List[str]]:

@@ -497,8 +497,8 @@ class ConfigPanelApp(App[Optional[Dict[str, Any]]]):
 
     def compose(self) -> ComposeResult:
         """Compose a minimal base screen (modal will overlay)."""
-        from textual.widgets import Static
         from textual.containers import Container
+        from textual.widgets import Static
 
         yield Header(show_clock=False, icon="")
         with Container(id="base-container"):
@@ -526,8 +526,9 @@ def configure_pipeline_interactive(config: Dict[str, Any]) -> Optional[Dict[str,
     Returns:
         Updated configuration dictionary, or None if cancelled
     """
-    from ..logging import suppress_logging, restore_logging
     import time
+
+    from ..logging import restore_logging, suppress_logging
 
     # Brief pause to ensure terminal is ready after previous TUI
     time.sleep(0.1)

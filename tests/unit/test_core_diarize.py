@@ -10,11 +10,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from podx.core.diarize import (
-    DiarizationEngine,
-    DiarizationError,
-    diarize_transcript,
-)
+from podx.core.diarize import (DiarizationEngine, DiarizationError,
+                               diarize_transcript)
 
 
 @pytest.fixture

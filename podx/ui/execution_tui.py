@@ -1,14 +1,14 @@
 """Execution TUI for displaying pipeline progress in real-time."""
 
-from typing import Any, Callable, Dict, List, Optional
 import time
+from typing import Any, Callable, Dict, List, Optional
 
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical, VerticalScroll
-from textual.widgets import Footer, Header, Label, ProgressBar, Static
 from textual.reactive import reactive
+from textual.widgets import Footer, Header, Label, ProgressBar, Static
 
 
 class ExecutionTUI(App[Optional[Dict[str, Any]]]):

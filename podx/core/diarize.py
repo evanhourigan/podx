@@ -89,7 +89,8 @@ class DiarizationEngine:
 
         try:
             import whisperx
-            from whisperx.diarize import DiarizationPipeline, assign_word_speakers
+            from whisperx.diarize import (DiarizationPipeline,
+                                          assign_word_speakers)
         except ImportError:
             raise DiarizationError(
                 "whisperx not installed. Install with: pip install whisperx"

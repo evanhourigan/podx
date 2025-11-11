@@ -12,7 +12,8 @@ execution and concurrent processing. Perfect for:
 
 import asyncio
 
-from podx.services import AsyncPipelineService, AsyncStepExecutor, PipelineConfig
+from podx.services import (AsyncPipelineService, AsyncStepExecutor,
+                           PipelineConfig)
 
 
 async def basic_async_example():

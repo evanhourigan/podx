@@ -3,16 +3,17 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
 
 import click  # type: ignore
 
-from podx.pricing import load_model_catalog, estimate_deepcast_cost
+from podx.pricing import estimate_deepcast_cost, load_model_catalog
 
 try:  # pragma: no cover
-    from rich.table import Table
     from rich.panel import Panel
-    from podx.ui import make_console, TABLE_BORDER_STYLE, TABLE_HEADER_STYLE
+    from rich.table import Table
+
+    from podx.ui import TABLE_BORDER_STYLE, TABLE_HEADER_STYLE, make_console
 
     RICH_AVAILABLE = True
 except Exception:  # pragma: no cover

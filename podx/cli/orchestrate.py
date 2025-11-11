@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 import time
 from pathlib import Path
-import sys
 from typing import Any, Dict, List, Optional
 
 # Use rich-click for colorized --help when available
@@ -32,23 +32,15 @@ except Exception:  # pragma: no cover
 
     BaseGroup = click.Group
 
+from podx.cli.help import help_cmd
 # Import individual command modules for CLI integration
 from podx.config import get_config
-from podx.constants import (
-    DEFAULT_ENCODING,
-    JSON_INDENT,
-    MIN_NOTION_DB_ID_LENGTH,
-    OPENAI_MODEL_PREFIX,
-    PREVIEW_MAX_LENGTH,
-    TITLE_MAX_LENGTH,
-)
+from podx.constants import (DEFAULT_ENCODING, JSON_INDENT,
+                            MIN_NOTION_DB_ID_LENGTH, OPENAI_MODEL_PREFIX,
+                            PREVIEW_MAX_LENGTH, TITLE_MAX_LENGTH)
 from podx.errors import ValidationError
-from podx.cli.help import help_cmd
 from podx.logging import get_logger, setup_logging
-from podx.progress import (
-    PodxProgress,
-    print_podx_header,
-)
+from podx.progress import PodxProgress, print_podx_header
 from podx.yaml_config import get_yaml_config_manager
 
 # Initialize logging
@@ -286,10 +278,7 @@ def _execute_fetch(
 
     # 2. YouTube URL mode
     if config.get("youtube_url"):
-        from .youtube import (
-            get_youtube_metadata,
-            is_youtube_url,
-        )
+        from .youtube import get_youtube_metadata, is_youtube_url
 
         youtube_url = config["youtube_url"]
         if not is_youtube_url(youtube_url):
@@ -1073,6 +1062,7 @@ def _execute_export_formats(
         Dictionary with paths to generated files (meta, audio, transcript, txt, srt)
     """
     import time
+
     from .services import CommandBuilder
 
     # Export to TXT/SRT formats
@@ -1316,8 +1306,9 @@ def _handle_interactive_mode(
     Raises:
         SystemExit: If user cancels selection
     """
-    from podx.ui import select_episode_with_tui
     from rich.panel import Panel
+
+    from podx.ui import select_episode_with_tui
 
     # 1. Episode selection
     selected, meta = select_episode_with_tui(

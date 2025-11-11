@@ -62,8 +62,9 @@ class TestParallelChunkProcessing:
     @patch("podx.deepcast.chat_once")
     async def test_parallel_processing_pattern(self, mock_chat_once):
         """Test the parallel processing pattern used in deepcast."""
-        from podx.deepcast import chat_once_async
         import asyncio
+
+        from podx.deepcast import chat_once_async
 
         # Mock responses for each chunk
         responses = ["Note 1", "Note 2", "Note 3", "Note 4"]
@@ -106,8 +107,9 @@ class TestParallelChunkProcessing:
     @patch("podx.deepcast.chat_once")
     async def test_result_ordering_preserved(self, mock_chat_once):
         """Test that parallel processing preserves chunk order."""
-        from podx.deepcast import chat_once_async
         import asyncio
+
+        from podx.deepcast import chat_once_async
 
         # Return different responses for each chunk
         responses = ["Note 1", "Note 2", "Note 3"]
@@ -137,8 +139,9 @@ class TestPerformanceCharacteristics:
     @patch("podx.deepcast.chat_once")
     async def test_parallel_execution_faster_than_sequential(self, mock_chat_once):
         """Test that parallel execution is faster than sequential."""
-        from podx.deepcast import chat_once_async
         import time
+
+        from podx.deepcast import chat_once_async
 
         # Mock with realistic delay
         def slow_response(*args, **kwargs):

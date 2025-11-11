@@ -6,11 +6,8 @@ No UI dependencies, no CLI concerns. Just audio transcription across multiple ba
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from ..device import (
-    detect_device_for_ctranslate2,
-    get_optimal_compute_type,
-    log_device_usage,
-)
+from ..device import (detect_device_for_ctranslate2, get_optimal_compute_type,
+                      log_device_usage)
 from ..logging import get_logger
 
 logger = get_logger(__name__)

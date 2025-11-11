@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from rich.text import Text
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -10,7 +11,6 @@ from textual.containers import Container, Vertical
 from textual.coordinate import Coordinate
 from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Header, Input, Label, Static
-from rich.text import Text
 
 
 class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
@@ -738,6 +738,7 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
     def on_mount(self) -> None:
         """Set up the data table on mount."""
         from rich.text import Text
+
         from ..utils import format_duration
 
         table = self.query_one("#episode-table", DataTable)
@@ -1010,6 +1011,7 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
     def _refresh_table(self) -> None:
         """Refresh the episode table with current episodes list."""
         from rich.text import Text
+
         from ..utils import format_duration
 
         table = self.query_one("#episode-table", DataTable)
@@ -1057,7 +1059,7 @@ def select_episode_with_config(
     Raises:
         SystemExit: If no episodes found
     """
-    from ..logging import suppress_logging, restore_logging
+    from ..logging import restore_logging, suppress_logging
     from .episode_selector import scan_episode_status
 
     # Suppress logging to prevent messages from corrupting TUI display
@@ -1132,7 +1134,7 @@ def select_episode_with_tui(
     Raises:
         SystemExit: If no episodes found
     """
-    from ..logging import suppress_logging, restore_logging
+    from ..logging import restore_logging, suppress_logging
     from .episode_selector import scan_episode_status
 
     # Suppress logging to prevent messages from corrupting TUI display
@@ -1724,7 +1726,7 @@ def select_episode_for_processing(
 
     from dateutil import parser as dtparse
 
-    from ..logging import suppress_logging, restore_logging
+    from ..logging import restore_logging, suppress_logging
     from .episode_selector import scan_episode_status
 
     # Suppress logging during TUI interaction

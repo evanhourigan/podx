@@ -7,13 +7,8 @@ Tests verify the 20x speedup from batching LLM API calls.
 
 from unittest.mock import Mock, patch
 
-
-from podx.preprocess import (
-    _semantic_restore_segments,
-    merge_segments,
-    normalize_segments,
-    normalize_text,
-)
+from podx.preprocess import (_semantic_restore_segments, merge_segments,
+                             normalize_segments, normalize_text)
 
 
 class TestMergeSegments:

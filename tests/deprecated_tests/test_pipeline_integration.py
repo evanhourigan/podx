@@ -239,8 +239,9 @@ class TestErrorHandling:
     @patch("time.sleep")  # Speed up tests by mocking sleep
     def test_retry_decorator_max_attempts(self, mock_sleep):
         """Test retry decorator reaching max attempts."""
-        from podx.errors import with_retries
         from tenacity import RetryError
+
+        from podx.errors import with_retries
 
         @with_retries(stop_after=2)
         def always_fails():

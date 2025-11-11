@@ -9,13 +9,9 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from podx.core.transcribe import (
-    LOCAL_MODEL_ALIASES,
-    TranscriptionEngine,
-    TranscriptionError,
-    parse_model_and_provider,
-    transcribe_audio,
-)
+from podx.core.transcribe import (LOCAL_MODEL_ALIASES, TranscriptionEngine,
+                                  TranscriptionError, parse_model_and_provider,
+                                  transcribe_audio)
 
 
 class TestParseModelAndProvider:

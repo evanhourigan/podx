@@ -5,7 +5,7 @@ This demonstrates the synchronous PodxClient for simple, straightforward operati
 
 from pathlib import Path
 
-from podx.api.client import PodxClient, ClientConfig
+from podx.api.client import ClientConfig, PodxClient
 
 
 def example_fetch_episode():

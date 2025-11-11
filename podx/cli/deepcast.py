@@ -19,12 +19,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import click
 
-from podx.core.deepcast import (
-    DeepcastEngine,
-    DeepcastError,
-    segments_to_plain_text,
-    split_into_chunks,
-)
+from podx.core.deepcast import (DeepcastEngine, DeepcastError,
+                                segments_to_plain_text, split_into_chunks)
 from podx.domain.exit_codes import ExitCode
 
 try:
@@ -42,12 +38,8 @@ except ImportError:
 
 # Import UI components
 try:
-    from podx.ui import (
-        DeepcastBrowser,
-        LiveTimer,
-        flatten_episodes_to_rows,
-        scan_deepcastable_episodes,
-    )
+    from podx.ui import (DeepcastBrowser, LiveTimer, flatten_episodes_to_rows,
+                         scan_deepcastable_episodes)
 except ImportError:
     DeepcastBrowser = None  # type: ignore
     flatten_episodes_to_rows = None  # type: ignore
@@ -55,14 +47,9 @@ except ImportError:
     LiveTimer = None  # type: ignore
 
 from podx.podcast_config import get_podcast_config
-from podx.prompt_templates import (
-    ENHANCED_JSON_SCHEMA,
-    PodcastType,
-    build_enhanced_variant,
-    detect_podcast_type,
-    get_template,
-    map_to_canonical,
-)
+from podx.prompt_templates import (ENHANCED_JSON_SCHEMA, PodcastType,
+                                   build_enhanced_variant, detect_podcast_type,
+                                   get_template, map_to_canonical)
 from podx.utils import sanitize_model_name
 from podx.yaml_config import get_podcast_yaml_config
 

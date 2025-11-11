@@ -10,7 +10,6 @@ from typing import Iterable
 from rich.console import Console
 from rich.text import Text
 
-
 # Standard color convention
 CMD_STYLE = "bold white"
 FLAG_STYLE = "bright_black"

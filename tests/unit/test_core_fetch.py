@@ -9,12 +9,8 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from podx.core.fetch import (
-    PodcastFetcher,
-    fetch_episode,
-    find_feed_url,
-    search_podcasts,
-)
+from podx.core.fetch import (PodcastFetcher, fetch_episode, find_feed_url,
+                             search_podcasts)
 from podx.errors import ValidationError
 
 

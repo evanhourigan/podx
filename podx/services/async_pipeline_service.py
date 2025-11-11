@@ -303,7 +303,7 @@ class AsyncPipelineService:
 
         # YouTube URL mode
         if self.config.youtube_url:
-            from ..youtube import is_youtube_url, get_youtube_metadata
+            from ..youtube import get_youtube_metadata, is_youtube_url
 
             if not is_youtube_url(self.config.youtube_url):
                 raise ValidationError(f"Invalid YouTube URL: {self.config.youtube_url}")

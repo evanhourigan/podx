@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
-from ..enums import ASRProvider, ASRPreset
+from ..enums import ASRPreset, ASRProvider
 
 
 class Word(BaseModel):

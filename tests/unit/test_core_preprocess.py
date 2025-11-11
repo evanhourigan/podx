@@ -6,13 +6,9 @@ Uses mocking to avoid actual LLM API calls.
 
 import pytest
 
-from podx.core.preprocess import (
-    TranscriptPreprocessor,
-    merge_segments,
-    normalize_segments,
-    normalize_text,
-    preprocess_transcript,
-)
+from podx.core.preprocess import (TranscriptPreprocessor, merge_segments,
+                                  normalize_segments, normalize_text,
+                                  preprocess_transcript)
 
 
 class TestTranscriptPreprocessor:

@@ -1,22 +1,10 @@
 """Domain models for podx."""
 
-from .episode import EpisodeMeta, AudioMeta
-from .transcript import (
-    Segment,
-    Word,
-    AlignedSegment,
-    DiarizedSegment,
-    Transcript,
-)
-from .analysis import (
-    DeepcastQuote,
-    DeepcastOutlineItem,
-    DeepcastBrief,
-)
-from .pipeline import (
-    PipelineConfig,
-    PipelineResult,
-)
+from .analysis import DeepcastBrief, DeepcastOutlineItem, DeepcastQuote
+from .episode import AudioMeta, EpisodeMeta
+from .pipeline import PipelineConfig, PipelineResult
+from .transcript import (AlignedSegment, DiarizedSegment, Segment, Transcript,
+                         Word)
 
 __all__ = [
     # Episode models
