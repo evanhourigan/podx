@@ -5,9 +5,9 @@ New code should import from podx.domain or podx.domain.models directly.
 """
 
 # Re-export all models from domain for backward compatibility
+from .domain.models import AudioMeta  # noqa: F401
 from .domain.models import (
     AlignedSegment,
-    AudioMeta,  # noqa: F401
     DeepcastBrief,
     DeepcastOutlineItem,
     DeepcastQuote,
