@@ -11,7 +11,6 @@ from unittest.mock import patch
 
 import pytest
 
-
 pytestmark = pytest.mark.skip(
     reason="Feature not implemented - see .ai-docs/unimplemented-features.md"
 )

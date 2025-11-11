@@ -1,8 +1,9 @@
 """Tests for state management (ArtifactDetector and RunState)."""
 
 import json
-import pytest
 from datetime import datetime
+
+import pytest
 
 from podx.domain import PipelineStep
 from podx.state.artifact_detector import ArtifactDetector, EpisodeArtifacts
