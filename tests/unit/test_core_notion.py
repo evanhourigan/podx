@@ -229,13 +229,15 @@ class TestMdToBlocks:
         """Test converting mixed markdown content."""
         md = "# Title\n\nParagraph text.\n\n- Bullet 1\n- Bullet 2\n\n> Quote"
         blocks = md_to_blocks(md)
-        assert len(blocks) == 6
+        assert len(blocks) == 8  # blank lines create empty paragraphs
         assert blocks[0]["type"] == "heading_1"
         assert blocks[1]["type"] == "paragraph"  # blank line
         assert blocks[2]["type"] == "paragraph"  # paragraph text
-        assert blocks[3]["type"] == "bulleted_list_item"
+        assert blocks[3]["type"] == "paragraph"  # blank line
         assert blocks[4]["type"] == "bulleted_list_item"
-        assert blocks[5]["type"] == "quote"
+        assert blocks[5]["type"] == "bulleted_list_item"
+        assert blocks[6]["type"] == "paragraph"  # blank line
+        assert blocks[7]["type"] == "quote"
 
     def test_md_preserves_inline_formatting(self):
         """Test that inline formatting is preserved in blocks."""
@@ -252,21 +254,21 @@ class TestNotionEngineInit:
 
     def test_init_with_token(self):
         """Test initialization with explicit token."""
-        engine = NotionEngine(token="test_token")
-        assert engine.token == "test_token"
+        engine = NotionEngine(api_token="test_token")
+        assert engine.api_token == "test_token"
         assert engine.progress_callback is None
 
     def test_init_token_from_env(self):
         """Test that token is loaded from environment."""
         with patch.dict(os.environ, {"NOTION_TOKEN": "env_token"}):
             engine = NotionEngine()
-            assert engine.token == "env_token"
+            assert engine.api_token == "env_token"
 
     def test_init_explicit_token_overrides_env(self):
         """Test that explicit token overrides environment."""
         with patch.dict(os.environ, {"NOTION_TOKEN": "env_token"}):
-            engine = NotionEngine(token="explicit_token")
-            assert engine.token == "explicit_token"
+            engine = NotionEngine(api_token="explicit_token")
+            assert engine.api_token == "explicit_token"
 
     def test_init_with_progress_callback(self):
         """Test initialization with progress callback."""
@@ -274,14 +276,14 @@ class TestNotionEngineInit:
         def callback(msg):
             return None
 
-        engine = NotionEngine(token="test", progress_callback=callback)
+        engine = NotionEngine(api_token="test", progress_callback=callback)
         assert engine.progress_callback is callback
 
     def test_init_missing_token_uses_none(self):
         """Test that missing token is allowed (will fail on API calls)."""
         with patch.dict(os.environ, {}, clear=True):
             engine = NotionEngine()
-            assert engine.token is None
+            assert engine.api_token is None
 
 
 class TestNotionEngineGetClient:
@@ -305,7 +307,7 @@ class TestNotionEngineGetClient:
 
     def test_get_client_missing_token(self):
         """Test that missing token raises error."""
-        engine = NotionEngine(token=None)
+        engine = NotionEngine(api_token=None)
         with pytest.raises(NotionError, match="Notion token not found"):
             engine._get_client()
 
@@ -327,7 +329,7 @@ class TestNotionEngineSetPageCover:
         mock_client = MagicMock()
         mock_notion_client.Client.return_value = mock_client
 
-        engine = NotionEngine(token="test_token")
+        engine = NotionEngine(api_token="test_token")
         engine.set_page_cover("page_123", "https://example.com/cover.jpg")
 
         # Verify API was called
@@ -344,7 +346,7 @@ class TestNotionEngineSetPageCover:
         mock_client.pages.update.side_effect = Exception("API error")
         mock_notion_client.Client.return_value = mock_client
 
-        engine = NotionEngine(token="test_token")
+        engine = NotionEngine(api_token="test_token")
 
         with pytest.raises(NotionError, match="Failed to set page cover"):
             engine.set_page_cover("page_123", "https://example.com/cover.jpg")

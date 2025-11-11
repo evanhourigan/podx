@@ -266,11 +266,6 @@ class NotionEngine:
         self.api_token = api_token or os.getenv("NOTION_TOKEN")
         self.progress_callback = progress_callback
 
-        if not self.api_token:
-            raise NotionError(
-                "Notion API token not found. Set NOTION_TOKEN environment variable."
-            )
-
     def _report_progress(self, message: str):
         """Report progress via callback if available."""
         if self.progress_callback:
@@ -278,6 +273,9 @@ class NotionEngine:
 
     def _get_client(self):
         """Get Notion client instance."""
+        if not self.api_token:
+            raise NotionError("Notion token not found. Set NOTION_TOKEN environment variable or provide api_token parameter.")
+
         try:
             from notion_client import Client
         except ImportError:
