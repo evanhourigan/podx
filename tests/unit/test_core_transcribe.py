@@ -540,9 +540,7 @@ class TestTranscriptionEngineProviderDispatch:
 class TestConvenienceFunctions:
     """Test convenience functions."""
 
-    @pytest.mark.skipif(
-        not HAS_FASTER_WHISPER, reason="faster-whisper not installed"
-    )
+    @pytest.mark.skipif(not HAS_FASTER_WHISPER, reason="faster-whisper not installed")
     @patch("faster_whisper.WhisperModel")
     def test_transcribe_audio_convenience(self, mock_whisper_model_class):
         """Test transcribe_audio convenience function."""
@@ -579,9 +577,7 @@ class TestConvenienceFunctions:
 class TestEdgeCases:
     """Test edge cases and corner scenarios."""
 
-    @pytest.mark.skipif(
-        not HAS_FASTER_WHISPER, reason="faster-whisper not installed"
-    )
+    @pytest.mark.skipif(not HAS_FASTER_WHISPER, reason="faster-whisper not installed")
     @patch("faster_whisper.WhisperModel")
     def test_empty_transcription_result(self, mock_whisper_model_class):
         """Test handling of empty transcription (no segments)."""
@@ -598,9 +594,7 @@ class TestEdgeCases:
         assert result["segments"] == []
         assert result["text"] == ""
 
-    @pytest.mark.skipif(
-        not HAS_FASTER_WHISPER, reason="faster-whisper not installed"
-    )
+    @pytest.mark.skipif(not HAS_FASTER_WHISPER, reason="faster-whisper not installed")
     @patch("faster_whisper.WhisperModel")
     def test_language_detection_fallback(self, mock_whisper_model_class):
         """Test language detection with fallback to 'en'."""
@@ -649,9 +643,7 @@ class TestEdgeCases:
         """Test handling of 'timestamps' field variation in HF (skipped)."""
         pass
 
-    @pytest.mark.skipif(
-        not HAS_FASTER_WHISPER, reason="faster-whisper not installed"
-    )
+    @pytest.mark.skipif(not HAS_FASTER_WHISPER, reason="faster-whisper not installed")
     @patch("faster_whisper.WhisperModel")
     def test_audio_path_resolution(self, mock_whisper_model_class):
         """Test that audio path is resolved to absolute path in result."""
