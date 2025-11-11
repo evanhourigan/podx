@@ -69,6 +69,150 @@ class PipelineConfig:
     clean: bool = False
     no_keep_audio: bool = False
 
+    @classmethod
+    def from_fidelity(cls, level: int, **kwargs: Any) -> "PipelineConfig":
+        """Create configuration from fidelity level (1-5).
+
+        Fidelity levels represent quality/speed tradeoffs:
+        - Level 1: Deepcast only (fastest, lowest quality)
+        - Level 2: Recall preset + enhancements
+        - Level 3: Precision preset + enhancements
+        - Level 4: Balanced preset + enhancements (recommended)
+        - Level 5: Dual QA mode (slowest, highest quality)
+
+        Fidelity-specific settings override kwargs presets.
+
+        Args:
+            level: Fidelity level 1-5
+            **kwargs: Additional configuration overrides
+
+        Returns:
+            PipelineConfig instance with fidelity settings applied
+        """
+        # Start with kwargs, then override with fidelity settings
+        config_dict = dict(kwargs)
+
+        if level == 1:
+            # Level 1: Deepcast only (fastest)
+            config_dict.update(
+                {
+                    "align": False,
+                    "diarize": False,
+                    "preprocess": False,
+                    "restore": False,
+                    "deepcast": True,
+                    "dual": False,
+                }
+            )
+        elif level == 2:
+            # Level 2: Recall preset + enhancements
+            config_dict.update(
+                {
+                    "preset": ASRPreset.RECALL,
+                    "preprocess": True,
+                    "restore": True,
+                    "deepcast": True,
+                    "dual": False,
+                }
+            )
+        elif level == 3:
+            # Level 3: Precision preset + enhancements
+            config_dict.update(
+                {
+                    "preset": ASRPreset.PRECISION,
+                    "preprocess": True,
+                    "restore": True,
+                    "deepcast": True,
+                    "dual": False,
+                }
+            )
+        elif level == 4:
+            # Level 4: Balanced preset + enhancements (recommended)
+            config_dict.update(
+                {
+                    "preset": ASRPreset.BALANCED,
+                    "preprocess": True,
+                    "restore": True,
+                    "deepcast": True,
+                    "dual": False,
+                }
+            )
+        elif level == 5:
+            # Level 5: Dual QA mode (best quality)
+            config_dict.update(
+                {
+                    "preset": ASRPreset.BALANCED,
+                    "dual": True,
+                    "preprocess": True,
+                    "restore": True,
+                    "deepcast": True,
+                }
+            )
+        else:
+            raise ValueError(f"Invalid fidelity level: {level}. Must be 1-5.")
+
+        return cls(**config_dict)
+
+    @classmethod
+    def from_workflow(cls, workflow: str, **kwargs: Any) -> "PipelineConfig":
+        """Create configuration from workflow preset.
+
+        Workflows represent common use cases:
+        - "quick": Minimal processing for quick review
+        - "analyze": Analysis with alignment for detailed review
+        - "publish": Full pipeline with Notion publishing
+
+        Workflow settings override kwargs flags.
+
+        Args:
+            workflow: Workflow name ("quick", "analyze", "publish")
+            **kwargs: Additional configuration overrides
+
+        Returns:
+            PipelineConfig instance with workflow settings applied
+        """
+        # Start with kwargs, then override with workflow settings
+        config_dict = dict(kwargs)
+
+        if workflow == "quick":
+            # Quick workflow: Minimal processing
+            config_dict.update(
+                {
+                    "align": False,
+                    "diarize": False,
+                    "deepcast": False,
+                    "extract_markdown": False,
+                    "notion": False,
+                }
+            )
+        elif workflow == "analyze":
+            # Analyze workflow: Analysis with alignment
+            config_dict.update(
+                {
+                    "align": True,
+                    "diarize": False,
+                    "deepcast": True,
+                    "extract_markdown": True,
+                }
+            )
+        elif workflow == "publish":
+            # Publish workflow: Full pipeline with Notion
+            config_dict.update(
+                {
+                    "align": True,
+                    "diarize": False,
+                    "deepcast": True,
+                    "extract_markdown": True,
+                    "notion": True,
+                }
+            )
+        else:
+            raise ValueError(
+                f"Invalid workflow: {workflow}. Must be 'quick', 'analyze', or 'publish'."
+            )
+
+        return cls(**config_dict)
+
 
 @dataclass
 class PipelineResult:
