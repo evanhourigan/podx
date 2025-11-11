@@ -178,3 +178,91 @@ class ValidationResult(BaseModel):
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         return self.model_dump()
+
+
+class FetchResponse(BaseModel):
+    """Response model for fetch_episode API.
+
+    Attributes:
+        episode_meta: Episode metadata (title, show, date, etc.)
+        audio_meta: Audio file metadata (path, format, duration)
+        audio_path: Path to the downloaded audio file
+        metadata_path: Path to the episode metadata JSON file
+        success: Whether the fetch was successful
+        error: Error message if fetch failed
+    """
+
+    episode_meta: Dict[str, Any] = Field(..., description="Episode metadata")
+    audio_meta: Optional[Dict[str, Any]] = Field(None, description="Audio file metadata")
+    audio_path: str = Field(..., description="Path to the downloaded audio file")
+    metadata_path: Optional[str] = Field(None, description="Path to metadata JSON")
+    success: bool = Field(True, description="Whether the fetch was successful")
+    error: Optional[str] = Field(None, description="Error message if failed")
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for backward compatibility."""
+        return self.model_dump(exclude_none=True)
+
+
+class DiarizeResponse(BaseModel):
+    """Response model for diarize API.
+
+    Attributes:
+        transcript_path: Path to the diarized transcript JSON file
+        speakers_found: Number of unique speakers identified
+        transcript: Full transcript data with speaker labels
+        success: Whether diarization was successful
+        error: Error message if diarization failed
+    """
+
+    transcript_path: str = Field(..., description="Path to diarized transcript JSON")
+    speakers_found: int = Field(ge=0, description="Number of unique speakers identified")
+    transcript: Optional[Dict[str, Any]] = Field(None, description="Full transcript data")
+    success: bool = Field(True, description="Whether diarization was successful")
+    error: Optional[str] = Field(None, description="Error message if failed")
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for backward compatibility."""
+        return self.model_dump(exclude_none=True)
+
+
+class ExportResponse(BaseModel):
+    """Response model for export API.
+
+    Attributes:
+        output_files: Dict mapping format to output file path
+        formats: List of formats that were exported
+        success: Whether the export was successful
+        error: Error message if export failed
+    """
+
+    output_files: Dict[str, str] = Field(..., description="Format to file path mapping")
+    formats: list[str] = Field(..., description="List of exported formats")
+    success: bool = Field(True, description="Whether export was successful")
+    error: Optional[str] = Field(None, description="Error message if failed")
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for backward compatibility."""
+        return self.model_dump(exclude_none=True)
+
+
+class NotionResponse(BaseModel):
+    """Response model for publish_to_notion API.
+
+    Attributes:
+        page_url: URL of the created/updated Notion page
+        page_id: Notion page ID
+        database_id: Notion database ID where page was created
+        success: Whether the publish was successful
+        error: Error message if publish failed
+    """
+
+    page_url: str = Field(..., description="URL of the Notion page")
+    page_id: str = Field(..., description="Notion page ID")
+    database_id: Optional[str] = Field(None, description="Notion database ID")
+    success: bool = Field(True, description="Whether publish was successful")
+    error: Optional[str] = Field(None, description="Error message if failed")
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for backward compatibility."""
+        return self.model_dump(exclude_none=True)

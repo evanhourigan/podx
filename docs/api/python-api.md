@@ -1,0 +1,737 @@
+# PodX Python API
+
+The PodX Python API provides a clean, type-safe interface for podcast processing operations. It's designed for developers building web applications, automation tools, or custom workflows.
+
+## Table of Contents
+
+1. [Installation](#installation)
+2. [Quick Start](#quick-start)
+3. [API Clients](#api-clients)
+4. [Methods Reference](#methods-reference)
+5. [Response Models](#response-models)
+6. [Error Handling](#error-handling)
+7. [Best Practices](#best-practices)
+
+## Installation
+
+```bash
+pip install podx
+```
+
+Or for development:
+
+```bash
+git clone https://github.com/evanhourigan/podx.git
+cd podx
+pip install -e .
+```
+
+## Quick Start
+
+### Synchronous API
+
+For simple scripts and batch processing:
+
+```python
+from podx.api.client import PodxClient
+
+# Create client
+client = PodxClient()
+
+# Transcribe audio
+result = client.transcribe(
+    audio_url="podcast.mp3",
+    asr_model="base",
+    out_dir="./output"
+)
+
+if result.success:
+    print(f"Transcript saved to: {result.transcript_path}")
+    print(f"Duration: {result.duration_seconds}s")
+    print(f"Segments: {result.segments_count}")
+else:
+    print(f"Error: {result.error}")
+```
+
+### Asynchronous API
+
+For web applications and real-time progress:
+
+```python
+import asyncio
+from podx.api.client import AsyncPodxClient
+
+async def main():
+    client = AsyncPodxClient()
+
+    # Progress callback
+    async def on_progress(update: dict):
+        print(f"[{update.get('percent', 0)}%] {update.get('message')}")
+
+    # Transcribe with progress
+    result = await client.transcribe(
+        audio_path="podcast.mp3",
+        model="base",
+        progress_callback=on_progress
+    )
+
+    print(f"Done: {result.transcript_path}")
+
+asyncio.run(main())
+```
+
+## API Clients
+
+### PodxClient
+
+Synchronous client for straightforward operations.
+
+```python
+from podx.api.client import PodxClient, ClientConfig
+
+# Create with custom config
+client = PodxClient(
+    config=ClientConfig(
+        default_model="base",           # Default ASR model
+        default_llm_model="gpt-4o",     # Default LLM model
+        output_dir=Path("./episodes"),  # Default output directory
+        cache_enabled=True,             # Enable result caching
+        validate_inputs=True,           # Validate before processing
+        verbose=False,                  # Enable verbose logging
+    )
+)
+```
+
+**Use when:**
+- Building simple scripts or CLI tools
+- Processing files in sequence
+- You don't need real-time progress updates
+
+### AsyncPodxClient
+
+Asynchronous client with progress callback support.
+
+```python
+from podx.api.client import AsyncPodxClient, ClientConfig
+
+# Create async client
+client = AsyncPodxClient(
+    config=ClientConfig(default_model="base")
+)
+```
+
+**Use when:**
+- Building web applications (FastAPI, Flask, etc.)
+- You need real-time progress updates
+- Processing multiple files in parallel
+- Streaming progress to WebSocket clients
+
+## Methods Reference
+
+### PodxClient Methods
+
+#### `fetch_episode()`
+
+Fetch a podcast episode by show name or RSS URL.
+
+```python
+result = client.fetch_episode(
+    show_name: Optional[str] = None,           # Show name to search
+    rss_url: Optional[str] = None,             # Or direct RSS URL
+    date: Optional[str] = None,                # Episode date (YYYY-MM-DD)
+    title_contains: Optional[str] = None,      # Filter by title
+    output_dir: Optional[Path] = None,         # Output directory
+) -> FetchResponse
+```
+
+**Returns:** `FetchResponse` with episode metadata and audio file path.
+
+**Example:**
+
+```python
+result = client.fetch_episode(
+    show_name="Lex Fridman Podcast",
+    date="2024-01-20",
+    output_dir=Path("./episodes")
+)
+
+if result.success:
+    print(f"Title: {result.episode_meta['title']}")
+    print(f"Audio: {result.audio_path}")
+```
+
+#### `transcribe()`
+
+Transcribe audio to text using ASR (Automatic Speech Recognition).
+
+```python
+result = client.transcribe(
+    audio_url: str,                           # Path or URL to audio
+    asr_model: Optional[str] = None,          # ASR model (tiny, base, small, medium, large)
+    out_dir: Optional[str] = None,            # Output directory
+    provider_keys: Optional[Dict] = None,     # API keys for providers
+) -> TranscribeResponse
+```
+
+**Returns:** `TranscribeResponse` with transcript path and metadata.
+
+**Example:**
+
+```python
+result = client.transcribe(
+    audio_url="episode.mp3",
+    asr_model="base",  # Options: tiny, base, small, medium, large, large-v2, large-v3
+    out_dir="./output"
+)
+
+if result.success:
+    print(f"Model: {result.model_used}")
+    print(f"Duration: {result.duration_seconds}s")
+    print(f"Segments: {result.segments_count}")
+    print(f"Transcript: {result.transcript_path}")
+```
+
+#### `diarize()`
+
+Add speaker identification to a transcript.
+
+```python
+result = client.diarize(
+    transcript_path: str | Path,              # Path to transcript JSON
+    audio_path: Optional[str | Path] = None,  # Audio path (auto-detected if None)
+    num_speakers: Optional[int] = None,       # Exact number of speakers (if known)
+    min_speakers: Optional[int] = None,       # Minimum speakers
+    max_speakers: Optional[int] = None,       # Maximum speakers
+    output_dir: Optional[Path] = None,        # Output directory
+) -> DiarizeResponse
+```
+
+**Returns:** `DiarizeResponse` with diarized transcript path and speaker count.
+
+**Example:**
+
+```python
+# If you know exact number of speakers
+result = client.diarize(
+    transcript_path="transcript-base.json",
+    num_speakers=2
+)
+
+# Or specify range
+result = client.diarize(
+    transcript_path="transcript-base.json",
+    min_speakers=2,
+    max_speakers=4
+)
+
+if result.success:
+    print(f"Speakers found: {result.speakers_found}")
+    print(f"Output: {result.transcript_path}")
+```
+
+#### `deepcast()`
+
+Analyze transcript with AI to generate insights, summaries, and structured content.
+
+```python
+result = client.deepcast(
+    transcript_path: str,                     # Path to transcript JSON
+    llm_model: Optional[str] = None,          # LLM model (gpt-4o, claude-3-opus, etc.)
+    analysis_type: str = "outline",           # Type: brief, quotes, outline, full
+    out_dir: Optional[str] = None,            # Output directory
+    provider_keys: Optional[Dict] = None,     # API keys
+) -> DeepcastResponse
+```
+
+**Returns:** `DeepcastResponse` with markdown analysis and usage stats.
+
+**Analysis Types:**
+- `brief` - Quick summary with key points
+- `quotes` - Extracted notable quotes
+- `outline` - Structured outline with topics and timestamps
+- `full` - Comprehensive analysis with all sections
+
+**Example:**
+
+```python
+result = client.deepcast(
+    transcript_path="transcript-diarized.json",
+    llm_model="gpt-4o",
+    analysis_type="outline"
+)
+
+if result.success:
+    print(f"Analysis: {result.markdown_path}")
+    print(f"Model: {result.model_used}")
+    if result.usage:
+        print(f"Tokens: {result.usage}")
+```
+
+#### `export()`
+
+Export transcript to different formats.
+
+```python
+result = client.export(
+    transcript_path: str | Path,              # Path to transcript JSON
+    formats: list[str],                       # List of formats: txt, srt, vtt, md
+    output_dir: Optional[Path] = None,        # Output directory
+) -> ExportResponse
+```
+
+**Returns:** `ExportResponse` with paths to exported files.
+
+**Supported Formats:**
+- `txt` - Plain text transcript
+- `srt` - SubRip subtitles (with timestamps)
+- `vtt` - WebVTT subtitles (for web video)
+- `md` - Markdown formatted transcript
+
+**Example:**
+
+```python
+result = client.export(
+    transcript_path="transcript-diarized.json",
+    formats=["txt", "srt", "vtt", "md"]
+)
+
+if result.success:
+    print(f"Exported to {len(result.formats)} formats:")
+    for fmt, path in result.output_files.items():
+        print(f"  {fmt.upper()}: {path}")
+```
+
+#### `publish_to_notion()`
+
+Publish deepcast analysis to a Notion database.
+
+```python
+result = client.publish_to_notion(
+    markdown_path: str | Path,                # Path to markdown file
+    notion_token: str,                        # Notion integration token
+    database_id: str,                         # Notion database ID
+    episode_meta: Optional[Dict] = None,      # Additional metadata
+) -> NotionResponse
+```
+
+**Returns:** `NotionResponse` with Notion page URL and ID.
+
+**Example:**
+
+```python
+result = client.publish_to_notion(
+    markdown_path="episode-outline.md",
+    notion_token="secret_xxx",  # Get from notion.so/my-integrations
+    database_id="abc123",       # Get from database URL
+    episode_meta={
+        "title": "Episode Title",
+        "date": "2024-01-20",
+        "show": "Podcast Name"
+    }
+)
+
+if result.success:
+    print(f"Published to: {result.page_url}")
+    print(f"Page ID: {result.page_id}")
+```
+
+### AsyncPodxClient Methods
+
+The async client provides async versions of long-running operations with progress support.
+
+#### `transcribe()` (Async)
+
+```python
+result = await client.transcribe(
+    audio_path: str | Path,
+    model: Optional[str] = None,
+    asr_provider: str = "auto",
+    compute: str = "auto",
+    output_dir: Optional[Path] = None,
+    progress_callback: Optional[AsyncProgressCallback] = None,
+) -> TranscribeResponse
+```
+
+**Progress callback receives:**
+```python
+{
+    "type": "progress",
+    "stage": "transcribing",
+    "message": "Processing audio...",
+    "percent": 45  # Optional progress percentage
+}
+```
+
+**Example:**
+
+```python
+async def on_progress(update: dict):
+    print(f"[{update.get('percent', 0)}%] {update.get('message')}")
+
+result = await client.transcribe(
+    audio_path="podcast.mp3",
+    model="base",
+    progress_callback=on_progress
+)
+```
+
+#### `transcribe_stream()` (Async Generator)
+
+Stream progress updates as an async generator.
+
+```python
+async for update in client.transcribe_stream(
+    audio_path: str | Path,
+    model: Optional[str] = None,
+    asr_provider: str = "auto",
+    compute: str = "auto",
+    output_dir: Optional[Path] = None,
+) -> AsyncIterator[Dict[str, Any] | TranscribeResponse]:
+    # Yields progress dicts, then final TranscribeResponse
+    pass
+```
+
+**Example:**
+
+```python
+async for update in client.transcribe_stream("podcast.mp3"):
+    if isinstance(update, dict):
+        # Progress update
+        print(f"Progress: {update['message']}")
+    else:
+        # Final TranscribeResponse
+        print(f"Complete: {update.transcript_path}")
+```
+
+#### `diarize()` (Async)
+
+```python
+result = await client.diarize(
+    transcript_path: str | Path,
+    audio_path: Optional[str | Path] = None,
+    num_speakers: Optional[int] = None,
+    min_speakers: Optional[int] = None,
+    max_speakers: Optional[int] = None,
+    output_dir: Optional[Path] = None,
+    progress_callback: Optional[AsyncProgressCallback] = None,
+) -> DiarizeResponse
+```
+
+#### `diarize_stream()` (Async Generator)
+
+Similar to `transcribe_stream()`, yields progress updates then final result.
+
+## Response Models
+
+All API methods return Pydantic models with type safety and validation.
+
+### FetchResponse
+
+```python
+class FetchResponse(BaseModel):
+    episode_meta: Dict[str, Any]          # Episode metadata (title, show, date, etc.)
+    audio_meta: Optional[Dict[str, Any]]  # Audio file metadata
+    audio_path: str                       # Path to downloaded audio
+    metadata_path: Optional[str]          # Path to metadata JSON
+    success: bool = True                  # Whether fetch succeeded
+    error: Optional[str] = None           # Error message if failed
+
+    def to_dict() -> Dict[str, Any]:
+        """Convert to dictionary."""
+```
+
+### TranscribeResponse
+
+```python
+class TranscribeResponse(BaseModel):
+    transcript_path: str                  # Path to transcript JSON
+    duration_seconds: int                 # Audio duration in seconds
+    model_used: Optional[str]             # ASR model used
+    segments_count: Optional[int]         # Number of transcript segments
+    audio_path: Optional[str]             # Path to audio file
+    success: bool = True                  # Whether transcription succeeded
+    error: Optional[str] = None           # Error message if failed
+
+    def to_dict() -> Dict[str, Any]:
+        """Convert to dictionary."""
+```
+
+### DiarizeResponse
+
+```python
+class DiarizeResponse(BaseModel):
+    transcript_path: str                  # Path to diarized transcript
+    speakers_found: int                   # Number of unique speakers
+    transcript: Optional[Dict[str, Any]]  # Full transcript data
+    success: bool = True                  # Whether diarization succeeded
+    error: Optional[str] = None           # Error message if failed
+
+    def to_dict() -> Dict[str, Any]:
+        """Convert to dictionary."""
+```
+
+### DeepcastResponse
+
+```python
+class DeepcastResponse(BaseModel):
+    markdown_path: str                    # Path to markdown file
+    json_path: Optional[str]              # Path to JSON output (if generated)
+    usage: Optional[Dict[str, int]]       # Token usage stats
+    prompt_used: Optional[str]            # Prompt used for analysis
+    model_used: Optional[str]             # LLM model used
+    analysis_type: Optional[str]          # Type of analysis
+    success: bool = True                  # Whether analysis succeeded
+    error: Optional[str] = None           # Error message if failed
+
+    def to_dict() -> Dict[str, Any]:
+        """Convert to dictionary."""
+```
+
+### ExportResponse
+
+```python
+class ExportResponse(BaseModel):
+    output_files: Dict[str, str]          # Format -> file path mapping
+    formats: list[str]                    # List of exported formats
+    success: bool = True                  # Whether export succeeded
+    error: Optional[str] = None           # Error message if failed
+
+    def to_dict() -> Dict[str, Any]:
+        """Convert to dictionary."""
+```
+
+### NotionResponse
+
+```python
+class NotionResponse(BaseModel):
+    page_url: str                         # URL of Notion page
+    page_id: str                          # Notion page ID
+    database_id: Optional[str]            # Database ID where page was created
+    success: bool = True                  # Whether publish succeeded
+    error: Optional[str] = None           # Error message if failed
+
+    def to_dict() -> Dict[str, Any]:
+        """Convert to dictionary."""
+```
+
+## Error Handling
+
+### Response-Based Error Handling
+
+All methods return response objects with `success` and `error` fields:
+
+```python
+result = client.transcribe("audio.mp3")
+
+if result.success:
+    # Handle success
+    process_transcript(result.transcript_path)
+else:
+    # Handle error
+    logger.error(f"Transcription failed: {result.error}")
+    notify_user(result.error)
+```
+
+### Exception Handling
+
+Validation errors are raised as exceptions:
+
+```python
+from podx.errors import ValidationError, AudioError
+
+try:
+    result = client.transcribe(
+        audio_url="",  # Invalid: empty path
+        asr_model="base"
+    )
+except ValidationError as e:
+    print(f"Invalid input: {e}")
+except AudioError as e:
+    print(f"Audio processing failed: {e}")
+```
+
+### Async Error Handling
+
+```python
+try:
+    result = await async_client.transcribe(
+        audio_path="nonexistent.mp3"
+    )
+
+    if not result.success:
+        # Operation failed but didn't raise exception
+        logger.error(f"Failed: {result.error}")
+
+except ValidationError as e:
+    # Input validation failed
+    print(f"Invalid input: {e}")
+except Exception as e:
+    # Unexpected error
+    logger.exception("Unexpected error", exc_info=e)
+```
+
+## Best Practices
+
+### 1. Use Configuration for Defaults
+
+```python
+from pathlib import Path
+from podx.api.client import PodxClient, ClientConfig
+
+# Configure once, use everywhere
+config = ClientConfig(
+    default_model="base",
+    default_llm_model="gpt-4o",
+    output_dir=Path("./episodes"),
+    cache_enabled=True,
+    validate_inputs=True,
+)
+
+client = PodxClient(config=config)
+
+# Now methods use configured defaults
+result = client.transcribe("audio.mp3")  # Uses config.default_model
+```
+
+### 2. Check Success Before Proceeding
+
+```python
+# Bad: Assuming success
+result = client.transcribe("audio.mp3")
+process_file(result.transcript_path)  # May fail if result.success is False!
+
+# Good: Check success
+result = client.transcribe("audio.mp3")
+if result.success:
+    process_file(result.transcript_path)
+else:
+    handle_error(result.error)
+```
+
+### 3. Use Async for Web Applications
+
+```python
+from fastapi import FastAPI, WebSocket
+from podx.api.client import AsyncPodxClient
+
+app = FastAPI()
+client = AsyncPodxClient()
+
+@app.websocket("/ws/transcribe")
+async def transcribe_websocket(websocket: WebSocket):
+    await websocket.accept()
+
+    # Stream progress via WebSocket
+    async def send_progress(update: dict):
+        await websocket.send_json({
+            "type": "progress",
+            "data": update
+        })
+
+    result = await client.transcribe(
+        audio_path="audio.mp3",
+        progress_callback=send_progress
+    )
+
+    await websocket.send_json({
+        "type": "complete",
+        "data": result.to_dict()
+    })
+```
+
+### 4. Process Multiple Files in Parallel
+
+```python
+import asyncio
+from podx.api.client import AsyncPodxClient
+
+async def process_batch(files: list[str]):
+    client = AsyncPodxClient()
+
+    # Create tasks for parallel processing
+    tasks = [
+        client.transcribe(audio_path=f, model="base")
+        for f in files
+    ]
+
+    # Wait for all to complete
+    results = await asyncio.gather(*tasks)
+
+    # Process results
+    for file, result in zip(files, results):
+        if result.success:
+            print(f"✓ {file}")
+        else:
+            print(f"✗ {file}: {result.error}")
+
+# Run batch
+asyncio.run(process_batch([
+    "episode1.mp3",
+    "episode2.mp3",
+    "episode3.mp3"
+]))
+```
+
+### 5. Use Type Hints
+
+```python
+from podx.api.client import PodxClient
+from podx.api.models import TranscribeResponse
+
+def process_podcast(audio_path: str, client: PodxClient) -> TranscribeResponse:
+    """Process podcast with type safety."""
+    result: TranscribeResponse = client.transcribe(
+        audio_url=audio_path,
+        asr_model="base"
+    )
+
+    return result
+```
+
+### 6. Log Errors Properly
+
+```python
+import logging
+from podx.api.client import PodxClient
+
+logger = logging.getLogger(__name__)
+
+def safe_transcribe(audio_path: str) -> bool:
+    """Transcribe with proper error logging."""
+    client = PodxClient()
+
+    try:
+        result = client.transcribe(audio_url=audio_path)
+
+        if result.success:
+            logger.info(f"Transcription complete: {result.transcript_path}")
+            return True
+        else:
+            logger.error(
+                f"Transcription failed",
+                extra={
+                    "audio_path": audio_path,
+                    "error": result.error
+                }
+            )
+            return False
+
+    except Exception as e:
+        logger.exception(
+            f"Unexpected error during transcription",
+            exc_info=e,
+            extra={"audio_path": audio_path}
+        )
+        return False
+```
+
+## See Also
+
+- [Examples](../../examples/api/README.md) - Complete working examples
+- [CLI Documentation](../cli/README.md) - Command-line interface
+- [Architecture](../ARCHITECTURE.md) - System design and patterns
+
+## Support
+
+- GitHub Issues: https://github.com/evanhourigan/podx/issues
+- Documentation: https://github.com/evanhourigan/podx/tree/main/docs
