@@ -3,6 +3,7 @@
 Thin Click wrapper that uses core.diarize.DiarizationEngine for actual logic.
 Handles CLI arguments, input/output, and interactive mode with progress display.
 """
+
 import json
 import os
 import sys
@@ -164,7 +165,14 @@ def main(audio, input, output, interactive, scan_dir, json_output, progress_json
         audio = Path(transcript["audio_path"])
         if not audio.exists():
             if json_output:
-                print(json.dumps({"error": f"Audio file not found: {audio}", "type": "file_not_found"}))
+                print(
+                    json.dumps(
+                        {
+                            "error": f"Audio file not found: {audio}",
+                            "type": "file_not_found",
+                        }
+                    )
+                )
             else:
                 console = Console()
                 console.print(f"[red]Error:[/red] Audio file not found: {audio}")
@@ -177,6 +185,7 @@ def main(audio, input, output, interactive, scan_dir, json_output, progress_json
     # Suppress logging and WhisperX output before TUI in interactive mode
     if interactive:
         from podx.logging import suppress_logging
+
         suppress_logging()
 
     # Set up progress callback and timer for interactive mode or JSON progress
@@ -194,6 +203,7 @@ def main(audio, input, output, interactive, scan_dir, json_output, progress_json
                 "message": message,
             }
             print(json.dumps(progress_data), flush=True)
+
     elif interactive and RICH_AVAILABLE:
         console = Console()
         # Save original stdout before redirecting, so timer can still display
@@ -210,7 +220,10 @@ def main(audio, input, output, interactive, scan_dir, json_output, progress_json
 
     # Use core diarization engine (pure business logic)
     try:
-        with redirect_stdout(open(os.devnull, "w")), redirect_stderr(open(os.devnull, "w")):
+        with (
+            redirect_stdout(open(os.devnull, "w")),
+            redirect_stderr(open(os.devnull, "w")),
+        ):
             engine = DiarizationEngine(
                 language=language,
                 device=None,  # Auto-detect best device (MPS/CUDA/CPU)
@@ -244,11 +257,14 @@ def main(audio, input, output, interactive, scan_dir, json_output, progress_json
         elapsed = timer.stop()
         minutes = int(elapsed // 60)
         seconds = int(elapsed % 60)
-        console.print(f"[green]✓ Diarization completed in {minutes}:{seconds:02d}[/green]")
+        console.print(
+            f"[green]✓ Diarization completed in {minutes}:{seconds:02d}[/green]"
+        )
 
     # Restore logging after diarization
     if interactive:
         from podx.logging import restore_logging
+
         restore_logging()
 
     # Preserve metadata from input transcript (always use absolute path)

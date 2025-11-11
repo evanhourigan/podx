@@ -137,9 +137,9 @@ class EpisodeBrowser(InteractiveBrowser):
                 self.items.append(episode)
 
             # Calculate pagination - update base class total_pages
-            self.total_pages = max(1, (
-                len(self.items) + self.items_per_page - 1
-            ) // self.items_per_page)
+            self.total_pages = max(
+                1, (len(self.items) + self.items_per_page - 1) // self.items_per_page
+            )
 
             if self.console:
                 self.console.print(
@@ -168,7 +168,9 @@ class EpisodeBrowser(InteractiveBrowser):
         term_width = self.console.size.width
         fixed_widths = {"num": 4, "date": 12, "dur": 8}
         borders_allowance = 16
-        title_width = max(30, term_width - sum(fixed_widths.values()) - borders_allowance)
+        title_width = max(
+            30, term_width - sum(fixed_widths.values()) - borders_allowance
+        )
 
         table = Table(
             show_header=True,
@@ -177,10 +179,30 @@ class EpisodeBrowser(InteractiveBrowser):
             title=title,
             expand=False,
         )
-        table.add_column("#", style=TABLE_NUM_STYLE, width=fixed_widths["num"], justify="right", no_wrap=True)
-        table.add_column("Date", style=TABLE_DATE_STYLE, width=fixed_widths["date"], no_wrap=True)
-        table.add_column("Duration", style="yellow", width=fixed_widths["dur"], justify="right", no_wrap=True)
-        table.add_column("Title", style=TABLE_TITLE_COL_STYLE, width=title_width, no_wrap=True, overflow="ellipsis")
+        table.add_column(
+            "#",
+            style=TABLE_NUM_STYLE,
+            width=fixed_widths["num"],
+            justify="right",
+            no_wrap=True,
+        )
+        table.add_column(
+            "Date", style=TABLE_DATE_STYLE, width=fixed_widths["date"], no_wrap=True
+        )
+        table.add_column(
+            "Duration",
+            style="yellow",
+            width=fixed_widths["dur"],
+            justify="right",
+            no_wrap=True,
+        )
+        table.add_column(
+            "Title",
+            style=TABLE_TITLE_COL_STYLE,
+            width=title_width,
+            no_wrap=True,
+            overflow="ellipsis",
+        )
 
         # Add episodes to table
         for i, episode in enumerate(page_episodes):
@@ -204,9 +226,7 @@ class EpisodeBrowser(InteractiveBrowser):
 
         # Show navigation options
         options = []
-        options.append(
-            f"[cyan]1-{len(self.items)}[/cyan]: Select episode to download"
-        )
+        options.append(f"[cyan]1-{len(self.items)}[/cyan]: Select episode to download")
 
         if self.current_page < self.total_pages - 1:
             options.append("[yellow]N[/yellow]: Next page")

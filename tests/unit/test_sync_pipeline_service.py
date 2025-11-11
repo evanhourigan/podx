@@ -260,7 +260,12 @@ class TestExecutePreprocess:
         latest = {"text": "Original transcript"}
 
         preprocessed = service._execute_preprocess(
-            tmp_path, latest, artifacts, result, skip_completed=True, progress_callback=None
+            tmp_path,
+            latest,
+            artifacts,
+            result,
+            skip_completed=True,
+            progress_callback=None,
         )
 
         # Should return original latest without calling executor
@@ -282,7 +287,12 @@ class TestExecutePreprocess:
         latest = {"text": "Original transcript", "asr_model": "base"}
 
         preprocessed = service._execute_preprocess(
-            tmp_path, latest, artifacts, result, skip_completed=True, progress_callback=None
+            tmp_path,
+            latest,
+            artifacts,
+            result,
+            skip_completed=True,
+            progress_callback=None,
         )
 
         # Verify executor.preprocess was called
@@ -311,7 +321,12 @@ class TestExecutePreprocess:
         callback = Mock()
 
         result_preprocessed = service._execute_preprocess(
-            tmp_path, latest, artifacts, result, skip_completed=True, progress_callback=callback
+            tmp_path,
+            latest,
+            artifacts,
+            result,
+            skip_completed=True,
+            progress_callback=callback,
         )
 
         # Should not call executor
@@ -337,7 +352,12 @@ class TestExecuteAlign:
         latest = {"text": "Original transcript"}
 
         aligned = service._execute_align(
-            tmp_path, latest, artifacts, result, skip_completed=True, progress_callback=None
+            tmp_path,
+            latest,
+            artifacts,
+            result,
+            skip_completed=True,
+            progress_callback=None,
         )
 
         # Should return original latest
@@ -359,7 +379,12 @@ class TestExecuteAlign:
         latest = {"text": "Original", "asr_model": "base"}
 
         aligned = service._execute_align(
-            tmp_path, latest, artifacts, result, skip_completed=True, progress_callback=None
+            tmp_path,
+            latest,
+            artifacts,
+            result,
+            skip_completed=True,
+            progress_callback=None,
         )
 
         # Verify executor.align was called
@@ -388,7 +413,12 @@ class TestExecuteAlign:
         callback = Mock()
 
         result_aligned = service._execute_align(
-            tmp_path, latest, artifacts, result, skip_completed=True, progress_callback=callback
+            tmp_path,
+            latest,
+            artifacts,
+            result,
+            skip_completed=True,
+            progress_callback=callback,
         )
 
         executor.align.assert_not_called()
@@ -413,7 +443,12 @@ class TestExecuteDiarize:
         latest = {"text": "Original transcript"}
 
         diarized = service._execute_diarize(
-            tmp_path, latest, artifacts, result, skip_completed=True, progress_callback=None
+            tmp_path,
+            latest,
+            artifacts,
+            result,
+            skip_completed=True,
+            progress_callback=None,
         )
 
         executor.diarize.assert_not_called()
@@ -434,7 +469,12 @@ class TestExecuteDiarize:
         latest = {"text": "Original", "asr_model": "base"}
 
         diarized = service._execute_diarize(
-            tmp_path, latest, artifacts, result, skip_completed=True, progress_callback=None
+            tmp_path,
+            latest,
+            artifacts,
+            result,
+            skip_completed=True,
+            progress_callback=None,
         )
 
         executor.diarize.assert_called_once()
@@ -462,7 +502,12 @@ class TestExecuteDiarize:
         callback = Mock()
 
         result_diarized = service._execute_diarize(
-            tmp_path, latest, artifacts, result, skip_completed=True, progress_callback=callback
+            tmp_path,
+            latest,
+            artifacts,
+            result,
+            skip_completed=True,
+            progress_callback=callback,
         )
 
         executor.diarize.assert_not_called()

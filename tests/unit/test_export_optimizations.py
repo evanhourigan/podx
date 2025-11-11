@@ -10,7 +10,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 
-
 class TestEpisodeMetadataCache:
     """Test episode metadata caching optimization."""
 
@@ -38,9 +37,7 @@ class TestEpisodeMetadataCache:
                     "deepcast_type": "brief",
                 }
             }
-            (episode_dir / f"deepcast-{i}.json").write_text(
-                json.dumps(deepcast_data)
-            )
+            (episode_dir / f"deepcast-{i}.json").write_text(json.dumps(deepcast_data))
 
         # Mock Path.read_text to count reads
         original_read_text = Path.read_text
@@ -158,9 +155,7 @@ class TestSinglePassScanning:
         episode_dir.mkdir()
 
         # Create deepcast files with different naming patterns
-        deepcast_data = {
-            "deepcast_metadata": {"model": "gpt-4.1", "asr_model": "base"}
-        }
+        deepcast_data = {"deepcast_metadata": {"model": "gpt-4.1", "asr_model": "base"}}
 
         (episode_dir / "deepcast.json").write_text(json.dumps(deepcast_data))
         (episode_dir / "deepcast-summary.json").write_text(json.dumps(deepcast_data))
@@ -183,14 +178,14 @@ class TestSinglePassScanning:
         episode_dir.mkdir()
 
         # Create various files - only some should match
-        deepcast_data = {
-            "deepcast_metadata": {"model": "gpt-4.1", "asr_model": "base"}
-        }
+        deepcast_data = {"deepcast_metadata": {"model": "gpt-4.1", "asr_model": "base"}}
 
         (episode_dir / "deepcast.json").write_text(json.dumps(deepcast_data))
         (episode_dir / "transcript.json").write_text("{}")  # Should be ignored
         (episode_dir / "episode-meta.json").write_text("{}")  # Should be ignored
-        (episode_dir / "forecast.json").write_text("{}")  # Should be ignored (not *cast-*)
+        (episode_dir / "forecast.json").write_text(
+            "{}"
+        )  # Should be ignored (not *cast-*)
         (episode_dir / "random-file.txt").write_text("text")  # Should be ignored
 
         rows = _scan_export_rows(tmp_path)
@@ -227,9 +222,7 @@ class TestPerformanceCharacteristics:
             }
         }
         for i in range(100):
-            (episode_dir / f"deepcast-{i}.json").write_text(
-                json.dumps(deepcast_data)
-            )
+            (episode_dir / f"deepcast-{i}.json").write_text(json.dumps(deepcast_data))
 
         # Track reads to episode-meta.json
         original_read_text = Path.read_text
@@ -266,9 +259,13 @@ class TestPerformanceCharacteristics:
             }
             (episode_dir / "episode-meta.json").write_text(json.dumps(episode_meta))
 
-            deepcast_data = {"deepcast_metadata": {"model": "gpt-4.1", "asr_model": "base"}}
+            deepcast_data = {
+                "deepcast_metadata": {"model": "gpt-4.1", "asr_model": "base"}
+            }
             for i in range(5):
-                (episode_dir / f"deepcast-{i}.json").write_text(json.dumps(deepcast_data))
+                (episode_dir / f"deepcast-{i}.json").write_text(
+                    json.dumps(deepcast_data)
+                )
 
         # Track reads
         original_read_text = Path.read_text
@@ -333,9 +330,7 @@ class TestDeepcastMetadataExtraction:
                 "deepcast_type": "brief",
             }
         }
-        (episode_dir / "deepcast-precision.json").write_text(
-            json.dumps(deepcast_data)
-        )
+        (episode_dir / "deepcast-precision.json").write_text(json.dumps(deepcast_data))
 
         rows = _scan_export_rows(tmp_path)
 

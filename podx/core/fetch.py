@@ -2,6 +2,7 @@
 
 No UI dependencies, no CLI concerns. Just podcast discovery and downloading.
 """
+
 import json
 import subprocess
 from pathlib import Path
@@ -201,9 +202,7 @@ class PodcastFetcher:
 
         return None
 
-    def download_audio(
-        self, entry: Dict[str, Any], output_dir: Path
-    ) -> Path:
+    def download_audio(self, entry: Dict[str, Any], output_dir: Path) -> Path:
         """Download audio file from episode entry.
 
         Args:

@@ -112,14 +112,20 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
         with Vertical(id="fetch-container"):
             with Vertical(id="search-container"):
                 yield Label("Search for a podcast show:", id="search-label")
-                yield Input(placeholder="Enter show name and press Enter...", id="search-input")
+                yield Input(
+                    placeholder="Enter show name and press Enter...", id="search-input"
+                )
                 yield Static("", id="status-message")
             # Podcast selection table (hidden initially)
             with Vertical(id="podcast-table-container", classes="hidden"):
-                yield DataTable(id="fetch-podcast-table", cursor_type="row", zebra_stripes=True)
+                yield DataTable(
+                    id="fetch-podcast-table", cursor_type="row", zebra_stripes=True
+                )
             # Episode selection table
             with Vertical(id="episode-table-container"):
-                yield DataTable(id="fetch-episode-table", cursor_type="row", zebra_stripes=True)
+                yield DataTable(
+                    id="fetch-episode-table", cursor_type="row", zebra_stripes=True
+                )
             with Vertical(id="fetch-detail-container"):
                 yield Static("Episode Details", id="fetch-detail-title")
                 yield Static("Select a show to see episodes", id="fetch-detail-content")
@@ -160,7 +166,11 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
         # Check if input is a URL (RSS or YouTube)
         if input_value.startswith(("http://", "https://", "www.")):
             # Direct URL provided
-            self.feed_url = input_value if input_value.startswith("http") else f"https://{input_value}"
+            self.feed_url = (
+                input_value
+                if input_value.startswith("http")
+                else f"https://{input_value}"
+            )
             self.show_name = "Podcast"  # Default name, will be extracted from feed
             status.update("📡 Loading episodes from URL...")
             self.load_episodes_from_url(self.feed_url)
@@ -210,7 +220,11 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
                     except ValueError:
                         parts = duration_str.split(":")
                         if len(parts) == 3:  # HH:MM:SS
-                            duration = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+                            duration = (
+                                int(parts[0]) * 3600
+                                + int(parts[1]) * 60
+                                + int(parts[2])
+                            )
                         elif len(parts) == 2:  # MM:SS
                             duration = int(parts[0]) * 60 + int(parts[1])
                 except (ValueError, AttributeError):
@@ -221,6 +235,7 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
             if hasattr(entry, "published"):
                 try:
                     from dateutil import parser as dtparse
+
                     parsed_date = dtparse.parse(entry.published)
                     published_str = parsed_date.strftime("%Y-%m-%d")
                 except Exception:
@@ -252,7 +267,9 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
         try:
             self._parse_feed_episodes(feed_url)
         except Exception as e:
-            self.app.call_from_thread(self._show_error, f"Error loading episodes: {str(e)}")
+            self.app.call_from_thread(
+                self._show_error, f"Error loading episodes: {str(e)}"
+            )
 
     @work(exclusive=True, thread=True)
     def search_and_load(self, show_name: str) -> None:
@@ -267,7 +284,9 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
 
             podcasts = search_podcasts(show_name)
             if not podcasts:
-                self.app.call_from_thread(self._show_error, f"No podcasts found for '{show_name}'")
+                self.app.call_from_thread(
+                    self._show_error, f"No podcasts found for '{show_name}'"
+                )
                 return
 
             # Store search results
@@ -281,7 +300,9 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
                 # Only one podcast, load it directly
                 feed_url = podcasts[0].get("feedUrl")
                 if not feed_url:
-                    self.app.call_from_thread(self._show_error, "Podcast has no feed URL")
+                    self.app.call_from_thread(
+                        self._show_error, "Podcast has no feed URL"
+                    )
                     return
 
                 self.feed_url = feed_url
@@ -424,7 +445,7 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
         """Truncate text to max length with ellipsis."""
         if len(text) <= max_len:
             return text
-        return text[:max_len - 1] + "…"
+        return text[: max_len - 1] + "…"
 
     @on(DataTable.RowHighlighted, "#fetch-podcast-table")
     def on_podcast_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
@@ -481,7 +502,9 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
         # Build detail text
         details = []
         details.append(f"[bold cyan]Title:[/bold cyan] {ep.get('title', 'Unknown')}")
-        details.append(f"[bold cyan]Published:[/bold cyan] {ep.get('published', 'Unknown')}")
+        details.append(
+            f"[bold cyan]Published:[/bold cyan] {ep.get('published', 'Unknown')}"
+        )
 
         duration = ep.get("duration")
         if duration:
@@ -492,7 +515,8 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
         if description:
             # Strip HTML tags
             import re
-            description = re.sub(r'<[^>]+>', '', description)
+
+            description = re.sub(r"<[^>]+>", "", description)
             # Truncate long descriptions
             if len(description) > 200:
                 description = description[:197] + "..."
@@ -551,7 +575,9 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
                 self.app.call_from_thread(self._show_error, "Failed to fetch episode")
 
         except Exception as e:
-            self.app.call_from_thread(self._show_error, f"Error fetching episode: {str(e)}")
+            self.app.call_from_thread(
+                self._show_error, f"Error fetching episode: {str(e)}"
+            )
 
     def _fetch_complete(self, result: Dict[str, Any]) -> None:
         """Handle fetch completion.
@@ -565,6 +591,7 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
 
         if meta_path.exists():
             import json
+
             try:
                 meta = json.loads(meta_path.read_text(encoding="utf-8"))
 
@@ -700,7 +727,9 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
         yield Header(show_clock=False, icon="")
         with Vertical(id="main-container"):
             with Vertical(id="table-container"):
-                yield DataTable(id="episode-table", cursor_type="row", zebra_stripes=True)
+                yield DataTable(
+                    id="episode-table", cursor_type="row", zebra_stripes=True
+                )
             with Vertical(id="detail-container"):
                 yield Static("Episode Details", id="detail-title")
                 yield Static("", id="detail-content")
@@ -749,7 +778,7 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
         """Truncate text to max length with ellipsis."""
         if len(text) <= max_len:
             return text
-        return text[:max_len - 1] + "…"
+        return text[: max_len - 1] + "…"
 
     @on(DataTable.RowHighlighted)
     def on_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
@@ -778,6 +807,7 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
 
         # Build detail text
         from ..utils import format_duration
+
         details = []
         details.append(f"[bold cyan]Show:[/bold cyan] {ep.get('show', 'Unknown')}")
         details.append(f"[bold cyan]Title:[/bold cyan] {ep.get('title', 'Unknown')}")
@@ -806,7 +836,7 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
                 # Remove stage prefixes (aligned-, diarized-, preprocessed-)
                 for prefix in ["aligned-", "diarized-", "preprocessed-"]:
                     if middle.startswith(prefix):
-                        middle = middle[len(prefix):]
+                        middle = middle[len(prefix) :]
                         break
                 if middle:
                     all_models.add(middle)
@@ -833,7 +863,11 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
         prep_models = set()
         for p in transcripts:
             name = p.name
-            if "preprocessed" in name and name.startswith("transcript-") and name.endswith(".json"):
+            if (
+                "preprocessed" in name
+                and name.startswith("transcript-")
+                and name.endswith(".json")
+            ):
                 # Extract model from "transcript-preprocessed-large-v3.json"
                 middle = name[11:-5]  # Remove "transcript-" and ".json"
                 if middle.startswith("preprocessed-"):
@@ -866,7 +900,9 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
                 details.append(f"[bold cyan]Deepcasts:[/bold cyan] {info_str}")
             else:
                 # Fallback to just count
-                details.append(f"[bold cyan]Deepcasts:[/bold cyan] {len(deepcasts)} output{'s' if len(deepcasts) > 1 else ''}")
+                details.append(
+                    f"[bold cyan]Deepcasts:[/bold cyan] {len(deepcasts)} output{'s' if len(deepcasts) > 1 else ''}"
+                )
         else:
             details.append("[bold cyan]Deepcasts:[/bold cyan] [dim](none)[/dim]")
 
@@ -903,6 +939,7 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
             meta_path = selected.get("meta_path")
             if meta_path and meta_path.exists():
                 import json
+
                 try:
                     meta = json.loads(meta_path.read_text(encoding="utf-8"))
                     self.exit((selected, meta))
@@ -913,6 +950,7 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
 
     def show_config_modal(self) -> None:
         """Show configuration modal after episode selection."""
+
         async def show() -> None:
             from .config_panel import ConfigPanel
 
@@ -925,6 +963,7 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
                 meta_path = self.selected_episode.get("meta_path")
                 if meta_path and meta_path.exists():
                     import json
+
                     try:
                         meta = json.loads(meta_path.read_text(encoding="utf-8"))
                         self.exit((self.selected_episode, meta, config))
@@ -1002,7 +1041,9 @@ def select_episode_with_config(
     scan_dir: Path,
     config: Dict[str, Any],
     show_filter: Optional[str] = None,
-) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+) -> Tuple[
+    Optional[Dict[str, Any]], Optional[Dict[str, Any]], Optional[Dict[str, Any]]
+]:
     """Select episode and configure pipeline using TUI with integrated config modal.
 
     Args:
@@ -1041,9 +1082,7 @@ def select_episode_with_config(
 
         # Sort newest first
         episodes_sorted = sorted(
-            episodes,
-            key=lambda x: (x["date"], x["show"]),
-            reverse=True
+            episodes, key=lambda x: (x["date"], x["show"]), reverse=True
         )
 
         # Run TUI with config modal enabled
@@ -1117,7 +1156,9 @@ def select_episode_with_tui(
             raise SystemExit(1)
 
         # Sort newest first
-        episodes_sorted = sorted(episodes, key=lambda x: (x["date"], x["show"]), reverse=True)
+        episodes_sorted = sorted(
+            episodes, key=lambda x: (x["date"], x["show"]), reverse=True
+        )
 
         # Run the TUI (with Last Run column for podx run)
         app = EpisodeBrowserTUI(episodes_sorted, scan_dir, show_last_run=True)
@@ -1278,7 +1319,12 @@ class ModelLevelProcessingBrowser(App):
         Binding("escape", "quit_app", "Cancel", show=True),
     ]
 
-    def __init__(self, items: List[Dict[str, Any]], model_key: str = "asr_model", status_key: str = "is_aligned"):
+    def __init__(
+        self,
+        items: List[Dict[str, Any]],
+        model_key: str = "asr_model",
+        status_key: str = "is_aligned",
+    ):
         """Initialize model-level browser.
 
         Args:
@@ -1336,6 +1382,7 @@ class ModelLevelProcessingBrowser(App):
             if date_str:
                 try:
                     from dateutil import parser as dtparse
+
                     parsed = dtparse.parse(date_str)
                     date = parsed.strftime("%Y-%m-%d")
                 except Exception:
@@ -1388,6 +1435,7 @@ class ModelLevelProcessingBrowser(App):
             if date_str:
                 try:
                     from dateutil import parser as dtparse
+
                     parsed = dtparse.parse(date_str)
                     date = parsed.strftime("%Y-%m-%d")
                 except Exception:
@@ -1499,7 +1547,9 @@ class SimpleProcessingBrowser(App):
         Binding("escape", "quit_app", "Cancel", show=True),
     ]
 
-    def __init__(self, episodes: List[Dict[str, Any]], show_model_selection: bool = False):
+    def __init__(
+        self, episodes: List[Dict[str, Any]], show_model_selection: bool = False
+    ):
         super().__init__()
         self.episodes = episodes
         self.selected_episode = None
@@ -1623,11 +1673,14 @@ class SimpleProcessingBrowser(App):
 
     def show_model_modal(self) -> None:
         """Show ASR model selection modal after episode selection."""
+
         async def show() -> None:
             from .transcribe_tui import ASRModelModal
 
             # Get transcribed models from selected episode
-            transcribed_models = list(self.selected_episode.get("transcripts", {}).keys())
+            transcribed_models = list(
+                self.selected_episode.get("transcripts", {}).keys()
+            )
 
             modal = ASRModelModal(transcribed_models)
             selected_model = await self.push_screen_wait(modal)
@@ -1759,7 +1812,9 @@ def select_episode_for_processing(
         class CustomProcessingBrowser(SimpleProcessingBrowser):
             TITLE = title
 
-        app = CustomProcessingBrowser(episodes_sorted, show_model_selection=show_model_selection)
+        app = CustomProcessingBrowser(
+            episodes_sorted, show_model_selection=show_model_selection
+        )
         result = app.run()
 
         if result is None:

@@ -594,9 +594,7 @@ def map_to_canonical(podcast_type: PodcastType) -> PodcastType:
     ):
         return PodcastType.INTERVIEW_GUEST_FOCUSED
 
-    if podcast_type in (
-        PodcastType.PANEL_DISCUSSION,
-    ):
+    if podcast_type in (PodcastType.PANEL_DISCUSSION,):
         return PodcastType.PANEL_DISCUSSION
 
     if podcast_type in (

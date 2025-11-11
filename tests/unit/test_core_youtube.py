@@ -3,6 +3,7 @@
 Tests pure business logic without UI dependencies.
 Uses mocking to avoid actual yt-dlp downloads.
 """
+
 import json
 import sys
 from unittest.mock import MagicMock, patch
@@ -254,7 +255,9 @@ class TestYouTubeEngineDownloadAudio:
         audio_file.write_text("fake audio content")
 
         engine = YouTubeEngine()
-        result = engine.download_audio("https://youtube.com/watch?v=dQw4w9WgXcQ", tmp_path)
+        result = engine.download_audio(
+            "https://youtube.com/watch?v=dQw4w9WgXcQ", tmp_path
+        )
 
         assert result["show"] == "Test Channel"
         assert result["episode_title"] == "Test Video"
@@ -285,7 +288,9 @@ class TestYouTubeEngineDownloadAudio:
 
         engine = YouTubeEngine()
         result = engine.download_audio(
-            "https://youtube.com/watch?v=abc123", tmp_path, filename="custom_name.%(ext)s"
+            "https://youtube.com/watch?v=abc123",
+            tmp_path,
+            filename="custom_name.%(ext)s",
         )
 
         assert "audio_path" in result
@@ -431,7 +436,9 @@ class TestYouTubeEngineFetchEpisode:
         audio_file.write_text("fake audio")
 
         engine = YouTubeEngine()
-        result = engine.fetch_episode("https://youtube.com/watch?v=dQw4w9WgXcQ", tmp_path)
+        result = engine.fetch_episode(
+            "https://youtube.com/watch?v=dQw4w9WgXcQ", tmp_path
+        )
 
         # Verify episode metadata
         assert result["show"] == "Test Channel"
@@ -541,7 +548,9 @@ class TestConvenienceFunctions:
             progress_messages.append(msg)
 
         download_youtube_audio(
-            "https://youtube.com/watch?v=abc123", tmp_path, progress_callback=progress_callback
+            "https://youtube.com/watch?v=abc123",
+            tmp_path,
+            progress_callback=progress_callback,
         )
 
         assert len(progress_messages) >= 2

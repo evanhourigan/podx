@@ -125,9 +125,7 @@ class PodxClient:
         if self.config.validate_inputs:
             validation = self._validate_transcribe_inputs(audio_url, model, out_dir)
             if not validation.valid:
-                raise ValidationError(
-                    f"Invalid inputs: {', '.join(validation.errors)}"
-                )
+                raise ValidationError(f"Invalid inputs: {', '.join(validation.errors)}")
 
         # Set defaults
         model = model or self.config.default_model
@@ -208,9 +206,7 @@ class PodxClient:
                 transcript_path, llm_model, out_dir
             )
             if not validation.valid:
-                raise ValidationError(
-                    f"Invalid inputs: {', '.join(validation.errors)}"
-                )
+                raise ValidationError(f"Invalid inputs: {', '.join(validation.errors)}")
 
         # Set defaults
         llm_model = llm_model or self.config.default_llm_model
@@ -349,7 +345,9 @@ class PodxClient:
             if not audio_path:
                 audio_path_str = transcript_data.get("audio_path")
                 if not audio_path_str:
-                    raise ValidationError("audio_path must be provided or exist in transcript JSON")
+                    raise ValidationError(
+                        "audio_path must be provided or exist in transcript JSON"
+                    )
                 audio_path = Path(audio_path_str)
 
             if not audio_path.exists():
@@ -477,7 +475,9 @@ class PodxClient:
         # Get Notion token
         token = notion_token or os.getenv("NOTION_TOKEN")
         if not token:
-            raise ValidationError("NOTION_TOKEN must be provided or set as environment variable")
+            raise ValidationError(
+                "NOTION_TOKEN must be provided or set as environment variable"
+            )
 
         try:
             # Load deepcast data
@@ -486,7 +486,11 @@ class PodxClient:
             metadata = deepcast_data.get("metadata", {})
 
             # Extract episode info
-            episode_title = metadata.get("episode_title") or metadata.get("title") or "Podcast Notes"
+            episode_title = (
+                metadata.get("episode_title")
+                or metadata.get("title")
+                or "Podcast Notes"
+            )
             podcast_name = metadata.get("show") or "Unknown Podcast"
             date_iso = metadata.get("episode_published") or metadata.get("date")
 
@@ -855,7 +859,9 @@ class AsyncPodxClient:
         # Run command with progress streaming
         try:
             result = await self._run_command_with_progress(
-                cmd, stdin_data=json.dumps(meta.model_dump()), progress_callback=progress_callback
+                cmd,
+                stdin_data=json.dumps(meta.model_dump()),
+                progress_callback=progress_callback,
             )
 
             # Parse result
@@ -984,7 +990,9 @@ class AsyncPodxClient:
 
         # Load transcript to get audio path if needed
         if audio_path is None:
-            transcript = Transcript.model_validate(json.loads(transcript_path.read_text()))
+            transcript = Transcript.model_validate(
+                json.loads(transcript_path.read_text())
+            )
             audio_path = Path(transcript.audio_path)
         else:
             audio_path = Path(audio_path)

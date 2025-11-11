@@ -41,12 +41,12 @@ def extract_episode_info(path: Path) -> Optional[tuple[str, str]]:
             part = parts[i]
 
             # Check if this looks like a date (YYYY-MM-DD or episode-YYYY-MM-DD)
-            if '-' in part:
-                potential_date = part.replace('episode-', '')
-                if len(potential_date) == 10 and potential_date.count('-') == 2:
+            if "-" in part:
+                potential_date = part.replace("episode-", "")
+                if len(potential_date) == 10 and potential_date.count("-") == 2:
                     try:
                         # Validate it's actually date-like
-                        year, month, day = potential_date.split('-')
+                        year, month, day = potential_date.split("-")
                         if len(year) == 4 and len(month) == 2 and len(day) == 2:
                             date = potential_date
                             # Show name is the parent directory
@@ -66,7 +66,9 @@ def extract_episode_info(path: Path) -> Optional[tuple[str, str]]:
         return None
 
     except Exception as e:
-        logger.debug("Could not extract episode info from path", path=str(path), error=str(e))
+        logger.debug(
+            "Could not extract episode info from path", path=str(path), error=str(e)
+        )
         return None
 
 
@@ -112,7 +114,9 @@ def start_stage(
             model=model,
             metadata=metadata or {},
         )
-        logger.debug("Manifest updated: stage started", show=show, date=date, stage=stage)
+        logger.debug(
+            "Manifest updated: stage started", show=show, date=date, stage=stage
+        )
 
     except Exception as e:
         logger.debug("Failed to update manifest (start)", error=str(e))
@@ -160,7 +164,9 @@ def complete_stage(
             files=[str(f) for f in (files or [])],
             metadata=metadata or {},
         )
-        logger.debug("Manifest updated: stage completed", show=show, date=date, stage=stage)
+        logger.debug(
+            "Manifest updated: stage completed", show=show, date=date, stage=stage
+        )
 
     except Exception as e:
         logger.debug("Failed to update manifest (complete)", error=str(e))
@@ -250,7 +256,9 @@ def fail_stage(
             stage=stage,
             error=error,
         )
-        logger.debug("Manifest updated: stage failed", show=show, date=date, stage=stage)
+        logger.debug(
+            "Manifest updated: stage failed", show=show, date=date, stage=stage
+        )
 
     except Exception as e:
         logger.debug("Failed to update manifest (fail)", error=str(e))

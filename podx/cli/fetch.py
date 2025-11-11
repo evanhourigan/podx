@@ -3,6 +3,7 @@
 Thin Click wrapper that uses core.fetch.PodcastFetcher for actual logic.
 Handles CLI arguments, input/output, and interactive mode.
 """
+
 import json
 import shutil
 import sys
@@ -129,13 +130,17 @@ def main(show, rss_url, date, title_contains, outdir, output, interactive, json_
         if json_output:
             print(json.dumps({"error": "Either --show or --rss-url must be provided"}))
         else:
-            console.print("[red]Error:[/red] Either --show or --rss-url must be provided.")
+            console.print(
+                "[red]Error:[/red] Either --show or --rss-url must be provided."
+            )
         sys.exit(ExitCode.USER_ERROR)
     if show and rss_url:
         if json_output:
             print(json.dumps({"error": "Provide either --show or --rss-url, not both"}))
         else:
-            console.print("[red]Error:[/red] Provide either --show or --rss-url, not both.")
+            console.print(
+                "[red]Error:[/red] Provide either --show or --rss-url, not both."
+            )
         sys.exit(ExitCode.USER_ERROR)
 
     # Use core podcast fetcher (pure business logic)

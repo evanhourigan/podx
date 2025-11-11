@@ -7,7 +7,6 @@ from typing import Any, Dict, Optional, Union
 from ..enums import AnalysisType, ASRPreset, ASRProvider, AudioFormat
 
 
-
 @dataclass
 class PipelineConfig:
     """Pipeline execution configuration.
@@ -32,8 +31,12 @@ class PipelineConfig:
     # Transcription configuration (match CLI names)
     model: str = "base"  # ASR model name
     compute: str = "int8"  # Compute type: int8, float16, float32
-    asr_provider: Union[str, ASRProvider, None] = None  # ASR provider: auto, local, openai, hf
-    preset: Union[str, ASRPreset, None] = None  # ASR preset: balanced, precision, recall
+    asr_provider: Union[str, ASRProvider, None] = (
+        None  # ASR provider: auto, local, openai, hf
+    )
+    preset: Union[str, ASRPreset, None] = (
+        None  # ASR preset: balanced, precision, recall
+    )
 
     # Pipeline flags
     align: bool = False
@@ -67,15 +70,15 @@ class PipelineConfig:
     no_keep_audio: bool = False
 
 
-
-
 @dataclass
 class PipelineResult:
     """Result of pipeline execution."""
 
     workdir: Path  # Match services API naming
     steps_completed: list[str] = field(default_factory=list)  # Match services API
-    artifacts: Dict[str, str] = field(default_factory=dict)  # Match services API (str paths)
+    artifacts: Dict[str, str] = field(
+        default_factory=dict
+    )  # Match services API (str paths)
     duration: float = 0.0
     errors: list[str] = field(default_factory=list)
 

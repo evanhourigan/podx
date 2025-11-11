@@ -95,7 +95,8 @@ async def fastapi_integration_example():
     print("=" * 60)
 
     # This demonstrates the pattern (not a runnable FastAPI server)
-    print("""
+    print(
+        """
     from fastapi import FastAPI, BackgroundTasks, WebSocket
     from podx.services import AsyncPipelineService, PipelineConfig
 
@@ -133,7 +134,8 @@ async def fastapi_integration_example():
             await websocket.send_json({"type": "error", "error": str(e)})
         finally:
             await websocket.close()
-    """)
+    """
+    )
 
     print("\nThis pattern enables:")
     print("  - Non-blocking API endpoints")

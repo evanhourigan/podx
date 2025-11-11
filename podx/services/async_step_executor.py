@@ -263,7 +263,9 @@ class AsyncStepExecutor:
         if restore:
             cmd.add_flag("--restore")
 
-        return await self._run(cmd.build(), stdin_payload=transcript, label="preprocess")
+        return await self._run(
+            cmd.build(), stdin_payload=transcript, label="preprocess"
+        )
 
     async def deepcast(
         self,
@@ -297,9 +299,7 @@ class AsyncStepExecutor:
 
         return await self._run(cmd.build(), stdin_payload=transcript, label="deepcast")
 
-    async def run_concurrent(
-        self, *coroutines
-    ) -> List[Any]:
+    async def run_concurrent(self, *coroutines) -> List[Any]:
         """Run multiple async operations concurrently.
 
         Args:

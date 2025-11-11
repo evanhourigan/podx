@@ -84,7 +84,14 @@ def main(
             data = json.loads(input.read_text(encoding="utf-8"))
         except Exception as e:
             if json_output:
-                print(json.dumps({"error": f"Failed to read input file: {e}", "type": "file_error"}))
+                print(
+                    json.dumps(
+                        {
+                            "error": f"Failed to read input file: {e}",
+                            "type": "file_error",
+                        }
+                    )
+                )
             else:
                 console.print(f"[red]Error:[/red] Failed to read input file: {e}")
             sys.exit(ExitCode.USER_ERROR)
@@ -95,9 +102,18 @@ def main(
 
     if not data:
         if json_output:
-            print(json.dumps({"error": "Provide transcript JSON via --input or stdin", "type": "validation_error"}))
+            print(
+                json.dumps(
+                    {
+                        "error": "Provide transcript JSON via --input or stdin",
+                        "type": "validation_error",
+                    }
+                )
+            )
         else:
-            console.print("[red]Error:[/red] Provide transcript JSON via --input or stdin")
+            console.print(
+                "[red]Error:[/red] Provide transcript JSON via --input or stdin"
+            )
         sys.exit(ExitCode.USER_ERROR)
 
     # Parse formats

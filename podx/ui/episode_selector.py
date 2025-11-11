@@ -73,7 +73,9 @@ def scan_episode_status(root: Path) -> List[Dict[str, Any]]:
         # Newest file time as last run
         try:
             all_files = transcripts + diarized + deepcasts
-            newest = max([p.stat().st_mtime for p in all_files] or [meta_path.stat().st_mtime])
+            newest = max(
+                [p.stat().st_mtime for p in all_files] or [meta_path.stat().st_mtime]
+            )
             last_run = time.strftime("%Y-%m-%d %H:%M", time.localtime(newest))
         except Exception:
             last_run = ""
@@ -137,7 +139,9 @@ def select_episode_interactive(
         SystemExit: If user cancels or no episodes found
     """
     if not RICH_AVAILABLE:
-        raise SystemExit("Interactive select requires rich. Install with: pip install rich")
+        raise SystemExit(
+            "Interactive select requires rich. Install with: pip install rich"
+        )
 
     from .formatters import clean_cell
 
@@ -225,7 +229,11 @@ def select_episode_interactive(
         )
         table.add_column("Show", style="green", width=COLUMN_WIDTH_SHOW, no_wrap=True)
         table.add_column(
-            "Date", style="blue", width=COLUMN_WIDTH_DATE, no_wrap=True, overflow="ellipsis"
+            "Date",
+            style="blue",
+            width=COLUMN_WIDTH_DATE,
+            no_wrap=True,
+            overflow="ellipsis",
         )
         table.add_column(
             "Title", style="white", width=title_width, no_wrap=True, overflow="ellipsis"
@@ -234,13 +242,23 @@ def select_episode_interactive(
             "ASR", style="yellow", width=COLUMN_WIDTH_ASR, no_wrap=True, justify="right"
         )
         table.add_column(
-            "Diar", style="yellow", width=COLUMN_WIDTH_DIAR, no_wrap=True, justify="center"
+            "Diar",
+            style="yellow",
+            width=COLUMN_WIDTH_DIAR,
+            no_wrap=True,
+            justify="center",
         )
         table.add_column(
-            "Deep", style="yellow", width=COLUMN_WIDTH_DEEP, no_wrap=True, justify="right"
+            "Deep",
+            style="yellow",
+            width=COLUMN_WIDTH_DEEP,
+            no_wrap=True,
+            justify="right",
         )
         table.add_column("Proc", style="yellow", width=COLUMN_WIDTH_PROC, no_wrap=True)
-        table.add_column("Last Run", style="white", width=COLUMN_WIDTH_LAST_RUN, no_wrap=True)
+        table.add_column(
+            "Last Run", style="white", width=COLUMN_WIDTH_LAST_RUN, no_wrap=True
+        )
 
         # Add rows
         for idx, e in enumerate(eps_sorted[start:end], start=start + 1):
@@ -281,9 +299,13 @@ def select_episode_interactive(
 
         if choice == "F" and show_filter and run_passthrough_fn:
             # Open fetch browser to add episodes, then re-scan
-            console.print(f"[dim]Opening fetch browser for show '{show_filter}'...[/dim]")
+            console.print(
+                f"[dim]Opening fetch browser for show '{show_filter}'...[/dim]"
+            )
             try:
-                rc = run_passthrough_fn(["podx-fetch", "--show", show_filter, "--interactive"])
+                rc = run_passthrough_fn(
+                    ["podx-fetch", "--show", show_filter, "--interactive"]
+                )
                 if rc != 0:
                     console.print("[red]❌ Fetch cancelled or failed[/red]")
             except Exception:

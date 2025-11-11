@@ -9,6 +9,7 @@ from typing import Dict, List
 try:  # pragma: no cover
     import click  # type: ignore
     import rich_click  # type: ignore
+
     rc = rich_click.rich_click
     rc.STYLE_HEADING = "bold bright_green"
     rc.STYLE_USAGE = "bold white"
@@ -127,7 +128,13 @@ def print_pipeline_flow():
         ("1. Fetch", "podx-fetch", "Show name/RSS URL", "EpisodeMeta JSON", "No"),
         ("2. Transcode", "podx-transcode", "EpisodeMeta JSON", "AudioMeta JSON", "No"),
         ("3. Transcribe", "podx-transcribe", "AudioMeta JSON", "Transcript JSON", "No"),
-        ("4. Preprocess", "podx-preprocess", "Any Transcript", "Preprocessed JSON", "Yes"),
+        (
+            "4. Preprocess",
+            "podx-preprocess",
+            "Any Transcript",
+            "Preprocessed JSON",
+            "Yes",
+        ),
         ("5. Diarize", "podx-diarize", "Transcript JSON", "Diarized JSON", "Yes"),
         ("6. Export", "podx-export", "Any Transcript", "TXT/SRT/VTT files", "No"),
         ("7. Deepcast", "podx-deepcast", "Any Transcript", "AI Analysis", "Yes"),
@@ -170,7 +177,10 @@ def print_pipeline_flow():
 
     # Compute per-column widths to align arrows
     def row_from(parts: list[str]) -> str:
-        widths = [max(len(cols_sources[i]), len(cols_tools[i]), len(cols_artifacts[i])) for i in range(len(cols_sources))]
+        widths = [
+            max(len(cols_sources[i]), len(cols_tools[i]), len(cols_artifacts[i]))
+            for i in range(len(cols_sources))
+        ]
         segments = [parts[i].ljust(widths[i]) for i in range(len(parts))]
         return "  →  ".join(segments)
 

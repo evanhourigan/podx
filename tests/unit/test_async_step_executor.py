@@ -343,9 +343,7 @@ async def test_run_with_stdin_payload():
     )
 
     with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-        result = await executor._run(
-            ["cat"], stdin_payload=stdin_payload, label="test"
-        )
+        result = await executor._run(["cat"], stdin_payload=stdin_payload, label="test")
 
         assert result == {"result": "processed"}
 

@@ -38,15 +38,43 @@ def _default_pricing_catalog() -> Dict[str, Any]:
     """
     return {
         "openai": {
-            "gpt-4.1": {"in": 5.00, "out": 15.00, "desc": "Flagship 4.1; strong general performance."},
-            "gpt-4.1-mini": {"in": 0.30, "out": 1.20, "desc": "Fast/cheap 4.1-mini; good for drafts."},
-            "gpt-4o": {"in": 2.50, "out": 10.00, "desc": "Multimodal 4o; balanced quality/speed."},
-            "gpt-4o-mini": {"in": 0.15, "out": 0.60, "desc": "Cheapest 4o-mini; utility tasks."},
+            "gpt-4.1": {
+                "in": 5.00,
+                "out": 15.00,
+                "desc": "Flagship 4.1; strong general performance.",
+            },
+            "gpt-4.1-mini": {
+                "in": 0.30,
+                "out": 1.20,
+                "desc": "Fast/cheap 4.1-mini; good for drafts.",
+            },
+            "gpt-4o": {
+                "in": 2.50,
+                "out": 10.00,
+                "desc": "Multimodal 4o; balanced quality/speed.",
+            },
+            "gpt-4o-mini": {
+                "in": 0.15,
+                "out": 0.60,
+                "desc": "Cheapest 4o-mini; utility tasks.",
+            },
         },
         "anthropic": {
-            "claude-3-5-sonnet": {"in": 3.00, "out": 15.00, "desc": "Great all-round; reasoning + safety."},
-            "claude-3-5-haiku": {"in": 1.00, "out": 5.00, "desc": "Fast/affordable; strong for daily use."},
-            "claude-3-opus": {"in": 15.00, "out": 75.00, "desc": "Premium quality; highest cost."},
+            "claude-3-5-sonnet": {
+                "in": 3.00,
+                "out": 15.00,
+                "desc": "Great all-round; reasoning + safety.",
+            },
+            "claude-3-5-haiku": {
+                "in": 1.00,
+                "out": 5.00,
+                "desc": "Fast/affordable; strong for daily use.",
+            },
+            "claude-3-opus": {
+                "in": 15.00,
+                "out": 75.00,
+                "desc": "Premium quality; highest cost.",
+            },
         },
     }
 
@@ -103,7 +131,9 @@ def fetch_provider_models(provider: str, api_key: Optional[str]) -> List[str]:
         return []
 
 
-def load_model_catalog(ttl_seconds: int = 7 * 24 * 3600, refresh: bool = False) -> Dict[str, Any]:
+def load_model_catalog(
+    ttl_seconds: int = 7 * 24 * 3600, refresh: bool = False
+) -> Dict[str, Any]:
     """Load cached catalog; optionally refresh from providers.
 
     Returns structure: {
@@ -125,7 +155,11 @@ def load_model_catalog(ttl_seconds: int = 7 * 24 * 3600, refresh: bool = False) 
         should_refresh = refresh or (_now() - fetched_at > ttl_seconds)
         models: List[str] = cached.get("models") or []
         if should_refresh:
-            api_key = os.getenv("OPENAI_API_KEY") if prov == "openai" else os.getenv("ANTHROPIC_API_KEY")
+            api_key = (
+                os.getenv("OPENAI_API_KEY")
+                if prov == "openai"
+                else os.getenv("ANTHROPIC_API_KEY")
+            )
             fresh = fetch_provider_models(prov, api_key)
             if fresh:
                 models = fresh
@@ -156,7 +190,9 @@ def _chars_to_tokens(chars: int, provider: str) -> int:
     return max(1, int(chars / ratio))
 
 
-def _estimate_tokens_for_transcript_text(text: str, chunk_chars: int) -> Tuple[int, int]:
+def _estimate_tokens_for_transcript_text(
+    text: str, chunk_chars: int
+) -> Tuple[int, int]:
     """Return (map_input_tokens, reduce_input_tokens) based on chunking."""
     if not text:
         return (0, 0)
@@ -215,5 +251,3 @@ def estimate_deepcast_cost(
         cost_output_usd=round(cost_out, 4),
         total_usd=round(total, 4),
     )
-
-

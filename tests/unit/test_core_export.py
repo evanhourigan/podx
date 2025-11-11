@@ -244,11 +244,7 @@ class TestExportEngineToSrt:
         engine = ExportEngine()
         result = engine.to_srt(segments)
 
-        expected = (
-            "1\n"
-            "00:00:00,000 --> 00:00:03,500\n"
-            "Only one line\n"
-        )
+        expected = "1\n" "00:00:00,000 --> 00:00:03,500\n" "Only one line\n"
         assert result == expected
 
 
@@ -423,7 +419,9 @@ class TestExportEngineExport:
         }
 
         engine = ExportEngine()
-        result = engine.export(transcript, ["txt", "srt", "vtt", "md"], tmp_path, "test")
+        result = engine.export(
+            transcript, ["txt", "srt", "vtt", "md"], tmp_path, "test"
+        )
 
         assert result["formats"] == ["txt", "srt", "vtt", "md"]
         assert result["files_written"] == 4
@@ -464,18 +462,16 @@ class TestExportEngineExport:
 
     def test_export_with_replace_false(self, tmp_path):
         """Test that export with replace=False always writes files."""
-        transcript = {
-            "segments": [
-                {"text": "Test", "start": 0.0, "end": 1.0}
-            ]
-        }
+        transcript = {"segments": [{"text": "Test", "start": 0.0, "end": 1.0}]}
 
         # Create existing files
         (tmp_path / "test.txt").write_text("Old content")
         (tmp_path / "test.srt").write_text("Old content")
 
         engine = ExportEngine()
-        result = engine.export(transcript, ["txt", "srt"], tmp_path, "test", replace=False)
+        result = engine.export(
+            transcript, ["txt", "srt"], tmp_path, "test", replace=False
+        )
 
         # Both files should be written (replace=False ignores existing)
         assert result["files_written"] == 2
@@ -528,11 +524,7 @@ class TestExportEngineExport:
 
     def test_export_calls_progress_callback(self, tmp_path):
         """Test that export calls progress callback for each format."""
-        transcript = {
-            "segments": [
-                {"text": "Test", "start": 0.0, "end": 1.0}
-            ]
-        }
+        transcript = {"segments": [{"text": "Test", "start": 0.0, "end": 1.0}]}
         progress_messages = []
 
         def progress_callback(msg):

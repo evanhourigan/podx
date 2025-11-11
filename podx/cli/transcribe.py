@@ -3,6 +3,7 @@
 Thin Click wrapper that uses core.transcribe.TranscriptionEngine for actual logic.
 Handles CLI arguments, input/output, and interactive mode with progress display.
 """
+
 import json
 import sys
 from pathlib import Path
@@ -170,6 +171,7 @@ def main(
                 )
             else:
                 from rich.console import Console
+
                 console = Console()
                 console.print(
                     "[red]Error:[/red] Interactive mode requires textual library. "
@@ -252,6 +254,7 @@ def main(
                 )
             else:
                 from rich.console import Console
+
                 console = Console()
                 console.print(
                     "[red]Validation Error:[/red] input must contain AudioMeta JSON with 'audio_path' field"
@@ -266,12 +269,20 @@ def main(
         except Exception as e:
             if json_output:
                 print(
-                    json.dumps({"error": f"Invalid AudioMeta input: {e}", "type": "validation_error"})
+                    json.dumps(
+                        {
+                            "error": f"Invalid AudioMeta input: {e}",
+                            "type": "validation_error",
+                        }
+                    )
                 )
             else:
                 from rich.console import Console
+
                 console = Console()
-                console.print(f"[red]Validation Error:[/red] Invalid AudioMeta input: {e}")
+                console.print(
+                    f"[red]Validation Error:[/red] Invalid AudioMeta input: {e}"
+                )
             sys.exit(ExitCode.USER_ERROR)
 
     # Determine provider
@@ -287,7 +298,9 @@ def main(
 
     # Determine VAD and conditioning settings
     use_vad = True if vad_filter is None else bool(vad_filter)
-    use_condition = True if condition_on_previous_text is None else bool(condition_on_previous_text)
+    use_condition = (
+        True if condition_on_previous_text is None else bool(condition_on_previous_text)
+    )
 
     # Set up progress callback for interactive mode or JSON progress
     timer = None
@@ -303,6 +316,7 @@ def main(
                 "message": message,
             }
             print(json.dumps(progress_data), flush=True)
+
     elif interactive:
         # Suppress logging and show progress
         from podx.logging import suppress_logging
@@ -342,6 +356,7 @@ def main(
             print(json.dumps({"error": str(e), "type": "transcription_error"}))
         else:
             from rich.console import Console
+
             console = Console()
             console.print(f"[red]Transcription Error:[/red] {e}")
         sys.exit(ExitCode.PROCESSING_ERROR)
@@ -352,6 +367,7 @@ def main(
             print(json.dumps({"error": str(e), "type": "audio_error"}))
         else:
             from rich.console import Console
+
             console = Console()
             console.print(f"[red]Audio Error:[/red] {e}")
         sys.exit(ExitCode.USER_ERROR)
@@ -361,7 +377,9 @@ def main(
         elapsed = timer.stop()
         minutes = int(elapsed // 60)
         seconds = int(elapsed % 60)
-        console.print(f"[green]✓ Transcribe completed in {minutes}:{seconds:02d}[/green]")
+        console.print(
+            f"[green]✓ Transcribe completed in {minutes}:{seconds:02d}[/green]"
+        )
 
     # Restore logging after transcription
     if interactive:

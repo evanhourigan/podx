@@ -38,7 +38,9 @@ from .interactive_browser import InteractiveBrowser
 class EpisodeBrowser(InteractiveBrowser):
     """Browser for selecting episodes from scanned directory."""
 
-    def __init__(self, episodes: List[Dict[str, Any]], items_per_page: int = EPISODES_PER_PAGE):
+    def __init__(
+        self, episodes: List[Dict[str, Any]], items_per_page: int = EPISODES_PER_PAGE
+    ):
         super().__init__(episodes, items_per_page, item_name="episode")
 
     def _get_item_title(self, item: Dict[str, Any]) -> str:
@@ -96,7 +98,11 @@ class EpisodeBrowser(InteractiveBrowser):
         )
         table.add_column("Show", style="green", width=COLUMN_WIDTH_SHOW, no_wrap=True)
         table.add_column(
-            "Date", style="blue", width=COLUMN_WIDTH_DATE, no_wrap=True, overflow="ellipsis"
+            "Date",
+            style="blue",
+            width=COLUMN_WIDTH_DATE,
+            no_wrap=True,
+            overflow="ellipsis",
         )
         table.add_column(
             "Title", style="white", width=title_width, no_wrap=True, overflow="ellipsis"
@@ -105,13 +111,23 @@ class EpisodeBrowser(InteractiveBrowser):
             "ASR", style="yellow", width=COLUMN_WIDTH_ASR, no_wrap=True, justify="right"
         )
         table.add_column(
-            "Diar", style="yellow", width=COLUMN_WIDTH_DIAR, no_wrap=True, justify="center"
+            "Diar",
+            style="yellow",
+            width=COLUMN_WIDTH_DIAR,
+            no_wrap=True,
+            justify="center",
         )
         table.add_column(
-            "Deep", style="yellow", width=COLUMN_WIDTH_DEEP, no_wrap=True, justify="right"
+            "Deep",
+            style="yellow",
+            width=COLUMN_WIDTH_DEEP,
+            no_wrap=True,
+            justify="right",
         )
         table.add_column("Proc", style="yellow", width=COLUMN_WIDTH_PROC, no_wrap=True)
-        table.add_column("Last Run", style="white", width=COLUMN_WIDTH_LAST_RUN, no_wrap=True)
+        table.add_column(
+            "Last Run", style="white", width=COLUMN_WIDTH_LAST_RUN, no_wrap=True
+        )
 
         # Add rows
         for idx, e in enumerate(page_items, start=start_idx + 1):
@@ -279,7 +295,9 @@ class TwoPhaseTranscriptBrowser(ABC):
                         f"[red]❌ No episodes found for show '{self.show_filter}' in {self.scan_dir}[/red]"
                     )
                 else:
-                    self.console.print(f"[red]❌ No episodes found in {self.scan_dir}[/red]")
+                    self.console.print(
+                        f"[red]❌ No episodes found in {self.scan_dir}[/red]"
+                    )
             return None
 
         # Sort newest first
@@ -291,7 +309,9 @@ class TwoPhaseTranscriptBrowser(ABC):
         browser = EpisodeBrowser(episodes_sorted)
         return browser.browse()
 
-    def _select_transcript(self, transcripts: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    def _select_transcript(
+        self, transcripts: List[Dict[str, Any]]
+    ) -> Optional[Dict[str, Any]]:
         """Phase 2: Select transcript using transcript browser.
 
         Args:

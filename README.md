@@ -5,7 +5,6 @@
 Transform podcast audio into structured insights with AI-powered transcription, speaker diarization, and intelligent analysis.
 
 [![CI](https://github.com/evanhourigan/podx/actions/workflows/ci.yml/badge.svg)](https://github.com/evanhourigan/podx/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/evanhourigan/podx/branch/main/graph/badge.svg)](https://codecov.io/gh/evanhourigan/podx)
 [![PyPI version](https://badge.fury.io/py/podx.svg)](https://badge.fury.io/py/podx)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)

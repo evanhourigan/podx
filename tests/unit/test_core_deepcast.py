@@ -3,6 +3,7 @@
 Tests pure business logic without UI dependencies.
 Uses mocking to avoid actual OpenAI API calls.
 """
+
 import json
 import os
 import sys
@@ -135,8 +136,10 @@ class TestDeepcastEngineInit:
 
     def test_init_custom_params(self):
         """Test initialization with custom parameters."""
+
         def callback(msg):
             return None
+
         engine = DeepcastEngine(
             model="gpt-4",
             temperature=0.5,
@@ -166,7 +169,9 @@ class TestDeepcastEngineInit:
 
     def test_init_base_url_from_env(self):
         """Test that base URL is loaded from environment."""
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "key", "OPENAI_BASE_URL": "https://env.api"}):
+        with patch.dict(
+            os.environ, {"OPENAI_API_KEY": "key", "OPENAI_BASE_URL": "https://env.api"}
+        ):
             engine = DeepcastEngine()
             assert engine.base_url == "https://env.api"
 
@@ -359,7 +364,9 @@ class TestDeepcastEngineDeepcast:
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Analysis\n\n---JSON---\n{invalid json}"
+        mock_response.choices[0].message.content = (
+            "Analysis\n\n---JSON---\n{invalid json}"
+        )
         mock_client.chat.completions.create.return_value = mock_response
         mock_openai.OpenAI.return_value = mock_client
 
@@ -482,9 +489,9 @@ class TestEdgeCases:
     def test_json_extraction_handles_code_fences(self, mock_openai):
         """Test that JSON extraction handles various code fence formats."""
         test_cases = [
-            "---JSON---\n```json\n{\"key\": \"value\"}\n```",
-            "---JSON---\n```\n{\"key\": \"value\"}\n```",
-            "---JSON---\n{\"key\": \"value\"}",
+            '---JSON---\n```json\n{"key": "value"}\n```',
+            '---JSON---\n```\n{"key": "value"}\n```',
+            '---JSON---\n{"key": "value"}',
         ]
 
         for content in test_cases:

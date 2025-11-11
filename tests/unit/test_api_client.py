@@ -94,7 +94,9 @@ class TestTranscribeAPI:
         # Disable cache to ensure mock is called
         config = ClientConfig(cache_enabled=False)
         client = PodxClient(config=config)
-        result = client.transcribe("test_audio.mp3", model="base", out_dir=str(tmp_path))
+        result = client.transcribe(
+            "test_audio.mp3", model="base", out_dir=str(tmp_path)
+        )
 
         assert result.success is True
         assert result.transcript_path == str(transcript_path)
@@ -429,7 +431,9 @@ class TestValidationHelpers:
         transcript_path.write_text("{}")
 
         client = PodxClient()
-        result = client._validate_deepcast_inputs(str(transcript_path), "gpt-4o", "/tmp")
+        result = client._validate_deepcast_inputs(
+            str(transcript_path), "gpt-4o", "/tmp"
+        )
 
         assert result.valid is True
         assert len(result.errors) == 0
@@ -561,7 +565,9 @@ class TestFetchEpisodeAPI:
         client = PodxClient()
 
         # Should raise validation error
-        with pytest.raises(ValidationError, match="Either show_name or rss_url must be provided"):
+        with pytest.raises(
+            ValidationError, match="Either show_name or rss_url must be provided"
+        ):
             client.fetch_episode()
 
     @patch("podx.core.fetch.PodcastFetcher")
@@ -600,7 +606,12 @@ class TestDiarizeAPI:
         diarized_path = tmp_path / "transcript-diarized.json"
         diarized_data = {
             "segments": [
-                {"text": "Hello world", "start": 0.0, "end": 2.0, "speaker": "SPEAKER_00"}
+                {
+                    "text": "Hello world",
+                    "start": 0.0,
+                    "end": 2.0,
+                    "speaker": "SPEAKER_00",
+                }
             ]
         }
         diarized_path.write_text(json.dumps(diarized_data))
@@ -656,7 +667,9 @@ class TestDiarizeAPI:
     def test_diarize_validation_error_missing_audio(self, tmp_path):
         """Test diarization handles missing audio file gracefully."""
         transcript_path = tmp_path / "transcript.json"
-        transcript_path.write_text('{"segments": [], "asr_model": "base", "audio_path": "/nonexistent/audio.mp3"}')
+        transcript_path.write_text(
+            '{"segments": [], "asr_model": "base", "audio_path": "/nonexistent/audio.mp3"}'
+        )
 
         client = PodxClient()
         result = client.diarize(transcript_path=transcript_path)
@@ -700,7 +713,9 @@ class TestDiarizeAPI:
         audio_path.write_text("fake audio")
 
         mock_engine = MagicMock()
-        mock_engine.diarize.return_value = [{"text": "Test", "start": 0.0, "end": 1.0, "speaker": "SPEAKER_00"}]
+        mock_engine.diarize.return_value = [
+            {"text": "Test", "start": 0.0, "end": 1.0, "speaker": "SPEAKER_00"}
+        ]
         mock_engine_class.return_value = mock_engine
 
         client = PodxClient()
@@ -734,7 +749,9 @@ class TestExportAPI:
 
         client = PodxClient()
         result = client.export(
-            transcript_path=transcript_path, formats=["txt", "srt", "vtt"], output_dir=tmp_path
+            transcript_path=transcript_path,
+            formats=["txt", "srt", "vtt"],
+            output_dir=tmp_path,
         )
 
         assert result.success is True
@@ -815,7 +832,9 @@ class TestPublishToNotionAPI:
         mock_engine_class.return_value = mock_engine
 
         client = PodxClient()
-        result = client.publish_to_notion(deepcast_path=deepcast_path, database_id="db123")
+        result = client.publish_to_notion(
+            deepcast_path=deepcast_path, database_id="db123"
+        )
 
         assert result.success is True
         # Verify engine was initialized with env token
@@ -833,7 +852,9 @@ class TestPublishToNotionAPI:
             )
 
     @patch("podx.core.notion.NotionEngine")
-    def test_publish_to_notion_handles_integration_error(self, mock_engine_class, tmp_path):
+    def test_publish_to_notion_handles_integration_error(
+        self, mock_engine_class, tmp_path
+    ):
         """Test Notion publish handles integration errors gracefully."""
         deepcast_path = tmp_path / "deepcast.json"
         deepcast_path.write_text('{"markdown": "test", "metadata": {}}')

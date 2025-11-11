@@ -43,7 +43,9 @@ def scan_diarizable_transcripts(scan_dir: Path) -> List[Dict[str, Any]]:
     for transcript_file in scan_dir.rglob("transcript-*.json"):
         # Skip non-base transcript files (diarized, preprocessed, aligned)
         filename = transcript_file.stem
-        if any(keyword in filename for keyword in ["diarized", "preprocessed", "aligned"]):
+        if any(
+            keyword in filename for keyword in ["diarized", "preprocessed", "aligned"]
+        ):
             continue
 
         try:
@@ -137,12 +139,17 @@ class DiarizeTwoPhase(TwoPhaseTranscriptBrowser):
         for transcript_file in episode_dir.glob("transcript-*.json"):
             # Skip non-base transcript files
             filename = transcript_file.stem
-            if any(keyword in filename for keyword in ["diarized", "preprocessed", "aligned"]):
+            if any(
+                keyword in filename
+                for keyword in ["diarized", "preprocessed", "aligned"]
+            ):
                 continue
 
             try:
                 # Load transcript data
-                transcript_data = json.loads(transcript_file.read_text(encoding="utf-8"))
+                transcript_data = json.loads(
+                    transcript_file.read_text(encoding="utf-8")
+                )
 
                 # Extract ASR model from filename
                 if filename.startswith("transcript-"):
@@ -160,9 +167,15 @@ class DiarizeTwoPhase(TwoPhaseTranscriptBrowser):
                     continue
 
                 # Check if diarized version exists
-                diarized_file_new = episode_dir / f"transcript-diarized-{asr_model}.json"
-                diarized_file_legacy = episode_dir / f"diarized-transcript-{asr_model}.json"
-                is_diarized = diarized_file_new.exists() or diarized_file_legacy.exists()
+                diarized_file_new = (
+                    episode_dir / f"transcript-diarized-{asr_model}.json"
+                )
+                diarized_file_legacy = (
+                    episode_dir / f"diarized-transcript-{asr_model}.json"
+                )
+                is_diarized = (
+                    diarized_file_new.exists() or diarized_file_legacy.exists()
+                )
                 diarized_file = diarized_file_new
 
                 # Load episode metadata
@@ -230,7 +243,9 @@ class DiarizeTwoPhase(TwoPhaseTranscriptBrowser):
         term_width = self.console.size.width
         fixed_widths = {"num": 4, "model": 30, "status": 20}
         borders_allowance = 16
-        title_width = max(30, term_width - sum(fixed_widths.values()) - borders_allowance)
+        title_width = max(
+            30, term_width - sum(fixed_widths.values()) - borders_allowance
+        )
 
         table = Table(
             show_header=True,
@@ -240,16 +255,28 @@ class DiarizeTwoPhase(TwoPhaseTranscriptBrowser):
             expand=False,
         )
         table.add_column(
-            "#", style=TABLE_NUM_STYLE, width=fixed_widths["num"], justify="right", no_wrap=True
+            "#",
+            style=TABLE_NUM_STYLE,
+            width=fixed_widths["num"],
+            justify="right",
+            no_wrap=True,
         )
         table.add_column(
-            "ASR Model", style="cyan", width=fixed_widths["model"], no_wrap=True, overflow="ellipsis"
+            "ASR Model",
+            style="cyan",
+            width=fixed_widths["model"],
+            no_wrap=True,
+            overflow="ellipsis",
         )
         table.add_column(
             "Status", style="magenta", width=fixed_widths["status"], no_wrap=True
         )
         table.add_column(
-            "Episode Title", style=TABLE_TITLE_COL_STYLE, width=title_width, no_wrap=True, overflow="ellipsis"
+            "Episode Title",
+            style=TABLE_TITLE_COL_STYLE,
+            width=title_width,
+            no_wrap=True,
+            overflow="ellipsis",
         )
 
         for idx, item in enumerate(page_items, start=start_idx + 1):
@@ -309,20 +336,25 @@ class DiarizeTwoPhase(TwoPhaseTranscriptBrowser):
             if not episodes_with_transcripts:
                 restore_logging()
                 if self.show_filter:
-                    print(f"❌ No episodes with base transcripts found for show '{self.show_filter}' in {self.scan_dir}")
+                    print(
+                        f"❌ No episodes with base transcripts found for show '{self.show_filter}' in {self.scan_dir}"
+                    )
                 else:
-                    print(f"❌ No episodes with base transcripts found in {self.scan_dir}")
+                    print(
+                        f"❌ No episodes with base transcripts found in {self.scan_dir}"
+                    )
                 raise SystemExit(1)
 
             # Sort newest first
             episodes_sorted = sorted(
                 episodes_with_transcripts,
                 key=lambda x: (x["date"], x["show"]),
-                reverse=True
+                reverse=True,
             )
 
             # Run the TUI
             from .episode_browser_tui import EpisodeBrowserTUI
+
             app = EpisodeBrowserTUI(episodes_sorted, self.scan_dir)
             result = app.run()
 
@@ -343,7 +375,9 @@ class DiarizeTwoPhase(TwoPhaseTranscriptBrowser):
         transcripts = self.scan_transcripts(episode["directory"])
 
         if not transcripts:
-            print(f"❌ No base transcripts found in episode: {episode.get('title', 'Unknown')}")
+            print(
+                f"❌ No base transcripts found in episode: {episode.get('title', 'Unknown')}"
+            )
             raise SystemExit(0)
 
         # Use ModelLevelProcessingBrowser for transcript selection

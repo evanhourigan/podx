@@ -29,6 +29,7 @@ try:  # pragma: no cover
     BaseGroup = rich_click.RichGroup
 except Exception:  # pragma: no cover
     import click  # type: ignore
+
     BaseGroup = click.Group
 
 # Import individual command modules for CLI integration
@@ -53,7 +54,6 @@ from podx.yaml_config import get_yaml_config_manager
 # Initialize logging
 setup_logging()
 logger = get_logger(__name__)
-
 
 
 def _run(
@@ -89,7 +89,9 @@ def _run(
 
     if verbose:
         # Show a compact preview of the JSON output
-        preview = out[:PREVIEW_MAX_LENGTH] + "..." if len(out) > PREVIEW_MAX_LENGTH else out
+        preview = (
+            out[:PREVIEW_MAX_LENGTH] + "..." if len(out) > PREVIEW_MAX_LENGTH else out
+        )
         click.secho(preview, fg="white")
 
     try:
@@ -482,7 +484,9 @@ def _execute_transcribe(
         )
         if asr_provider and asr_provider != "auto":
             # Convert asr_provider enum to string value if needed
-            asr_provider_value = asr_provider.value if hasattr(asr_provider, 'value') else asr_provider
+            asr_provider_value = (
+                asr_provider.value if hasattr(asr_provider, "value") else asr_provider
+            )
             transcribe_cmd.add_option("--asr-provider", asr_provider_value)
 
         base = _run(
@@ -552,8 +556,14 @@ def _execute_enhancement(
         step_start = time.time()
 
         # Preprocess the latest transcript
-        used_model = (latest or {}).get("asr_model", model) if isinstance(latest, dict) else model
-        pre_file = wd / f"transcript-preprocessed-{sanitize_model_name(used_model)}.json"
+        used_model = (
+            (latest or {}).get("asr_model", model)
+            if isinstance(latest, dict)
+            else model
+        )
+        pre_file = (
+            wd / f"transcript-preprocessed-{sanitize_model_name(used_model)}.json"
+        )
         latest = _run(
             build_preprocess_command(pre_file, restore),
             stdin_payload=latest,  # latest contains the base transcript JSON
@@ -570,7 +580,9 @@ def _execute_enhancement(
     if diarize:
         # Get model from latest transcript
         used_model = latest.get("asr_model", model)
-        diarized_file = wd / f"transcript-diarized-{sanitize_model_name(used_model)}.json"
+        diarized_file = (
+            wd / f"transcript-diarized-{sanitize_model_name(used_model)}.json"
+        )
 
         # Check if already exists (also check legacy filenames)
         legacy_diarized_new = wd / f"diarized-transcript-{used_model}.json"
@@ -586,7 +598,9 @@ def _execute_enhancement(
             latest = diar
             latest_name = f"transcript-diarized-{used_model}"
         elif legacy_diarized_new.exists():
-            logger.info(f"Found existing legacy diarized transcript ({used_model}), using it")
+            logger.info(
+                f"Found existing legacy diarized transcript ({used_model}), using it"
+            )
             diar = json.loads(legacy_diarized_new.read_text())
             progress.complete_step("Using existing diarized transcript", 0)
             latest = diar
@@ -603,13 +617,16 @@ def _execute_enhancement(
             # Debug: Check what we're passing to diarize
             if verbose:
                 import click
+
                 click.secho(
                     f"Debug: Passing {latest_name} JSON to diarize with {len(latest.get('segments', []))} segments",
                     fg="yellow",
                 )
             from .services import CommandBuilder
 
-            diarize_cmd = CommandBuilder("podx-diarize")  # Audio path comes from aligned transcript JSON
+            diarize_cmd = CommandBuilder(
+                "podx-diarize"
+            )  # Audio path comes from aligned transcript JSON
             diar = _run(
                 diarize_cmd.build(),
                 stdin_payload=latest,
@@ -755,7 +772,9 @@ def _execute_notion_upload(
 
     # Prefer exported.md if available, else model-specific deepcast outputs, fallback to latest.txt
     model_suffix = deepcast_model.replace(".", "_").replace("-", "_")
-    exported_md = Path(results.get("exported_md", "")) if results.get("exported_md") else None
+    exported_md = (
+        Path(results.get("exported_md", "")) if results.get("exported_md") else None
+    )
     model_specific_md = wd / f"deepcast-{model_suffix}.md"
     model_specific_json = wd / f"deepcast-{model_suffix}.json"
 
@@ -765,9 +784,7 @@ def _execute_notion_upload(
     # If exported exists, use it directly
     if exported_md and exported_md.exists():
         md_path = str(exported_md)
-        json_path = (
-            str(model_specific_json) if model_specific_json.exists() else None
-        )
+        json_path = str(model_specific_json) if model_specific_json.exists() else None
         cmd.add_option("--markdown", md_path)
         cmd.add_option("--meta", str(wd / "episode-meta.json"))
         if json_path:
@@ -898,9 +915,7 @@ def _execute_cleanup(
                     cleaned_files += 1
                     logger.debug("Cleaned intermediate file", file=str(p))
                 except Exception as e:
-                    logger.warning(
-                        "Failed to clean file", file=str(p), error=str(e)
-                    )
+                    logger.warning("Failed to clean file", file=str(p), error=str(e))
 
     # Remove audio files if not keeping them
     if no_keep_audio:
@@ -1137,7 +1152,9 @@ def _execute_export_final(
             data = json.loads(export_source_path.read_text(encoding=DEFAULT_ENCODING))
             # Use unified exporter (handles deepcast JSON, and PDF auto-install)
             try:
-                md_path, pdf_path = export_from_deepcast_json(data, wd, deepcast_pdf, track_hint=export_track)
+                md_path, pdf_path = export_from_deepcast_json(
+                    data, wd, deepcast_pdf, track_hint=export_track
+                )
                 results["exported_md"] = str(md_path)
                 if pdf_path is not None:
                     results["exported_pdf"] = str(pdf_path)
@@ -1176,7 +1193,10 @@ def _build_episode_metadata_display(
         if latest_path.exists():
             try:
                 import json
-                transcript_json = json.loads(latest_path.read_text(encoding=DEFAULT_ENCODING))
+
+                transcript_json = json.loads(
+                    latest_path.read_text(encoding=DEFAULT_ENCODING)
+                )
                 segments = transcript_json.get("segments", [])
                 if segments:
                     duration_seconds = int(max(s.get("end", 0) for s in segments))
@@ -1189,10 +1209,21 @@ def _build_episode_metadata_display(
         if audio_path and Path(audio_path).exists():
             try:
                 import subprocess
+
                 result = subprocess.run(
-                    ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-                     "-of", "default=noprint_wrappers=1:nokey=1", audio_path],
-                    capture_output=True, text=True, timeout=5
+                    [
+                        "ffprobe",
+                        "-v",
+                        "error",
+                        "-show_entries",
+                        "format=duration",
+                        "-of",
+                        "default=noprint_wrappers=1:nokey=1",
+                        audio_path,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
                 if result.returncode == 0:
                     duration_seconds = int(float(result.stdout.strip()))
@@ -1212,13 +1243,17 @@ def _build_episode_metadata_display(
     # Build processing summary
     processing_parts = []
     if num_transcripts > 0:
-        processing_parts.append(f"{num_transcripts} transcript{'s' if num_transcripts > 1 else ''}")
+        processing_parts.append(
+            f"{num_transcripts} transcript{'s' if num_transcripts > 1 else ''}"
+        )
     if num_aligned > 0:
         processing_parts.append(f"{num_aligned} aligned")
     if num_diarized > 0:
         processing_parts.append(f"{num_diarized} diarized")
     if num_deepcasts > 0:
-        processing_parts.append(f"{num_deepcasts} deepcast{'s' if num_deepcasts > 1 else ''}")
+        processing_parts.append(
+            f"{num_deepcasts} deepcast{'s' if num_deepcasts > 1 else ''}"
+        )
     if has_consensus:
         processing_parts.append("consensus")
 
@@ -1237,7 +1272,8 @@ def _build_episode_metadata_display(
 
             provider = (
                 "openai"
-                if config["deepcast_model"].startswith(OPENAI_MODEL_PREFIX) or "-" in config["deepcast_model"]
+                if config["deepcast_model"].startswith(OPENAI_MODEL_PREFIX)
+                or "-" in config["deepcast_model"]
                 else "anthropic"
             )
             catalog = load_model_catalog(refresh=False)
@@ -1261,7 +1297,9 @@ def _build_episode_metadata_display(
     return metadata
 
 
-def _handle_interactive_mode(config: Dict[str, Any], scan_dir: Path, console: Any) -> tuple[Dict[str, Any], Path]:
+def _handle_interactive_mode(
+    config: Dict[str, Any], scan_dir: Path, console: Any
+) -> tuple[Dict[str, Any], Path]:
     """Handle interactive episode selection and configuration.
 
     Displays rich table UI for episode selection and interactive
@@ -1665,10 +1703,13 @@ def run(
             from podx.ui import make_console
 
             console = make_console()
-            interactive_meta, interactive_wd = _handle_interactive_mode(config, scan_dir, console)
+            interactive_meta, interactive_wd = _handle_interactive_mode(
+                config, scan_dir, console
+            )
 
             # Suppress logging during pipeline execution in interactive mode
             from podx.logging import suppress_logging
+
             suppress_logging()
 
         # 3. Fetch episode metadata and determine working directory
@@ -1721,7 +1762,11 @@ def run(
             from .services import CommandBuilder
 
             # Convert fmt enum to string value if needed
-            fmt_value = config["fmt"].value if hasattr(config["fmt"], 'value') else config["fmt"]
+            fmt_value = (
+                config["fmt"].value
+                if hasattr(config["fmt"], "value")
+                else config["fmt"]
+            )
 
             transcode_cmd = (
                 CommandBuilder("podx-transcode")
@@ -1736,7 +1781,9 @@ def run(
                 label=None,  # Progress handles the display
             )
             step_duration = time.time() - step_start
-            progress.complete_step(f"Audio transcoded to {config['fmt']}", step_duration)
+            progress.complete_step(
+                f"Audio transcoded to {config['fmt']}", step_duration
+            )
 
         # Track transcoded audio path for cleanup
         transcoded_path = Path(audio["audio_path"])
@@ -1767,7 +1814,9 @@ def run(
         )
 
         # Always keep a pointer to the latest JSON/SRT/TXT for convenience
-        (wd / "latest.json").write_text(json.dumps(latest, indent=JSON_INDENT), encoding=DEFAULT_ENCODING)
+        (wd / "latest.json").write_text(
+            json.dumps(latest, indent=JSON_INDENT), encoding=DEFAULT_ENCODING
+        )
 
         # Export to TXT/SRT formats and build results dictionary
         results = _execute_export_formats(
@@ -2012,7 +2061,17 @@ def notion_cmd(ctx):
     help="Compute type",
 )
 @click.option("-v", "--verbose", is_flag=True, help="Print interstitial outputs")
-def quick(show, rss_url, youtube_url, date, title_contains, model, asr_provider, compute, verbose):
+def quick(
+    show,
+    rss_url,
+    youtube_url,
+    date,
+    title_contains,
+    model,
+    asr_provider,
+    compute,
+    verbose,
+):
     """Quick workflow: fetch + transcribe only (fastest option)."""
     click.secho("[deprecated] Use: podx run (with no extra flags)", fg="yellow")
     click.echo("🚀 Running quick transcription workflow...")
@@ -2100,7 +2159,10 @@ def analyze(
     verbose,
 ):
     """Analysis workflow: transcribe + AI analysis (recommended)."""
-    click.secho("[deprecated] Use: podx run (deepcast + markdown enabled by default in v2.0)", fg="yellow")
+    click.secho(
+        "[deprecated] Use: podx run (deepcast + markdown enabled by default in v2.0)",
+        fg="yellow",
+    )
     click.echo("🤖 Running analysis workflow...")
 
     ctx = click.get_current_context()
@@ -2173,7 +2235,10 @@ def publish(
     verbose,
 ):
     """Publishing workflow: full pipeline + Notion upload (complete)."""
-    click.secho("[deprecated] Use: podx run --notion (deepcast + markdown enabled by default in v2.0)", fg="yellow")
+    click.secho(
+        "[deprecated] Use: podx run --notion (deepcast + markdown enabled by default in v2.0)",
+        fg="yellow",
+    )
     click.echo("📝 Running publishing workflow...")
 
     ctx = click.get_current_context()
@@ -2289,7 +2354,6 @@ def preprocess_shim(args: tuple[str, ...]):
 
 
 # Removed: podx plugin command group - plugin system was unused and has been removed
-
 
 
 # Deprecated: 'podx podcast' removed in favor of YAML presets (podx config ...)
@@ -2449,7 +2513,6 @@ def config_databases():
         )
 
     console.print(table)
-
 
 
 # ============================================================================

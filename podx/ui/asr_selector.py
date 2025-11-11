@@ -62,7 +62,12 @@ def select_asr_model(
     # Display local models plus common variants and provider examples
     display_models: List[str] = []
     display_models.extend(ASR_MODELS)
-    for extra in ["small.en", "medium.en", "openai:large-v3-turbo", "hf:distil-large-v3"]:
+    for extra in [
+        "small.en",
+        "medium.en",
+        "openai:large-v3-turbo",
+        "hf:distil-large-v3",
+    ]:
         if extra not in display_models:
             display_models.append(extra)
 
@@ -85,7 +90,11 @@ def select_asr_model(
     # Get user selection
     while True:
         try:
-            choice = input(f"\n👉 Select model (1-{len(display_models)}) or Q to cancel: ").strip().upper()
+            choice = (
+                input(f"\n👉 Select model (1-{len(display_models)}) or Q to cancel: ")
+                .strip()
+                .upper()
+            )
 
             if choice in ["Q", "QUIT", "CANCEL"]:
                 return None
@@ -113,7 +122,7 @@ def select_asr_model(
                 return selected_model
             else:
                 console.print(
-                        f"[red]❌ Invalid choice. Please select 1-{len(display_models)}[/red]"
+                    f"[red]❌ Invalid choice. Please select 1-{len(display_models)}[/red]"
                 )
 
         except ValueError:

@@ -321,7 +321,9 @@ def test_missing_source_raises_error():
             verbose=False,
         )
 
-    assert "Either --show, --rss-url, or --youtube-url must be provided" in str(exc_info.value)
+    assert "Either --show, --rss-url, or --youtube-url must be provided" in str(
+        exc_info.value
+    )
 
 
 @patch("podx.youtube.is_youtube_url")

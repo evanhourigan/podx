@@ -1,6 +1,5 @@
 """Tests for PipelineConfig factory methods."""
 
-
 from podx.domain import PipelineConfig
 from podx.domain.enums import ASRPreset
 

@@ -13,6 +13,7 @@ try:  # pragma: no cover
     from rich.table import Table
     from rich.panel import Panel
     from podx.ui import make_console, TABLE_BORDER_STYLE, TABLE_HEADER_STYLE
+
     RICH_AVAILABLE = True
 except Exception:  # pragma: no cover
     RICH_AVAILABLE = False
@@ -57,7 +58,9 @@ def _auto_find_transcript() -> Optional[Dict[str, Any]]:
             return json.loads(latest.read_text())
         except Exception:
             pass
-    candidates: List[Path] = sorted(here.glob("transcript-*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    candidates: List[Path] = sorted(
+        here.glob("transcript-*.json"), key=lambda p: p.stat().st_mtime, reverse=True
+    )
     for p in candidates:
         try:
             return json.loads(p.read_text())
@@ -67,14 +70,40 @@ def _auto_find_transcript() -> Optional[Dict[str, Any]]:
 
 
 @click.command()
-@click.option("--refresh", is_flag=True, help="Refresh cached model lists from providers")
-@click.option("--provider", type=click.Choice(["all", "openai", "anthropic"]), default="all")
+@click.option(
+    "--refresh", is_flag=True, help="Refresh cached model lists from providers"
+)
+@click.option(
+    "--provider", type=click.Choice(["all", "openai", "anthropic"]), default="all"
+)
 @click.option("--json", "json_out", is_flag=True, help="Output JSON instead of a table")
 @click.option("--filter", "filter_str", help="Substring filter for model names")
-@click.option("--estimate", "estimate_input", type=click.Path(exists=True, path_type=Path), help="Estimate cost for a given transcript JSON")
-@click.option("--all", "show_all", is_flag=True, help="Show all provider models (not only curated)")
-@click.option("--variants", is_flag=True, help="Include dated/preview variants instead of family-only view")
-def main(refresh: bool, provider: str, json_out: bool, filter_str: Optional[str], estimate_input: Optional[Path], show_all: bool, variants: bool):
+@click.option(
+    "--estimate",
+    "estimate_input",
+    type=click.Path(exists=True, path_type=Path),
+    help="Estimate cost for a given transcript JSON",
+)
+@click.option(
+    "--all",
+    "show_all",
+    is_flag=True,
+    help="Show all provider models (not only curated)",
+)
+@click.option(
+    "--variants",
+    is_flag=True,
+    help="Include dated/preview variants instead of family-only view",
+)
+def main(
+    refresh: bool,
+    provider: str,
+    json_out: bool,
+    filter_str: Optional[str],
+    estimate_input: Optional[Path],
+    show_all: bool,
+    variants: bool,
+):
     """List available AI models with pricing, and optionally estimate deepcast cost for a transcript."""
     catalog = load_model_catalog(refresh=refresh)
     if estimate_input:
@@ -118,18 +147,24 @@ def main(refresh: bool, provider: str, json_out: bool, filter_str: Optional[str]
             desc = price.get("desc", "")
             row = {
                 "provider": prov,
-                "model": name if (show_all or variants) else (next((fam for fam in curated if name.startswith(fam)), name)),
+                "model": (
+                    name
+                    if (show_all or variants)
+                    else (next((fam for fam in curated if name.startswith(fam)), name))
+                ),
                 "price_in": price.get("in"),
                 "price_out": price.get("out"),
                 "desc": desc,
             }
             if transcript and price:
                 est = estimate_deepcast_cost(transcript, prov, name, catalog)
-                row.update({
-                    "est_usd": est.total_usd,
-                    "est_in_tokens": est.input_tokens,
-                    "est_out_tokens": est.output_tokens,
-                })
+                row.update(
+                    {
+                        "est_usd": est.total_usd,
+                        "est_in_tokens": est.input_tokens,
+                        "est_out_tokens": est.output_tokens,
+                    }
+                )
             rows.append(row)
 
     if json_out:
@@ -163,7 +198,12 @@ def main(refresh: bool, provider: str, json_out: bool, filter_str: Optional[str]
             )
         console.print(table)
         if not transcript:
-            console.print(Panel("Tip: run in an episode folder (with latest.json) or pass --estimate to see per-episode cost.", border_style=TABLE_BORDER_STYLE))
+            console.print(
+                Panel(
+                    "Tip: run in an episode folder (with latest.json) or pass --estimate to see per-episode cost.",
+                    border_style=TABLE_BORDER_STYLE,
+                )
+            )
     else:
         # Fallback plain output
         headers = ["Provider", "Model", "$In/M", "$Out/M", "Est USD", "Description"]

@@ -3,6 +3,7 @@
 Tests pure business logic without UI dependencies.
 Uses mocking to avoid actual network requests.
 """
+
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
@@ -300,9 +301,7 @@ class TestPodcastFetcher:
 
         fetcher = PodcastFetcher()
         # Provide explicit output_dir to avoid generate_workdir call
-        result = fetcher.fetch_episode(
-            show_name="Test Show", output_dir=tmp_path
-        )
+        result = fetcher.fetch_episode(show_name="Test Show", output_dir=tmp_path)
 
         # When searching by show_name, it uses the search term
         assert result["meta"]["show"] == "Test Show"
@@ -332,9 +331,7 @@ class TestPodcastFetcher:
         mock_download.return_value = audio_path
 
         fetcher = PodcastFetcher()
-        result = fetcher.fetch_episode(
-            rss_url="http://feed.url", output_dir=tmp_path
-        )
+        result = fetcher.fetch_episode(rss_url="http://feed.url", output_dir=tmp_path)
 
         assert result["meta"]["show"] == "Direct Feed Podcast"
         assert result["meta"]["feed"] == "http://feed.url"
@@ -343,7 +340,9 @@ class TestPodcastFetcher:
         """Test error when neither show nor RSS provided."""
         fetcher = PodcastFetcher()
 
-        with pytest.raises(ValidationError, match="show_name or rss_url must be provided"):
+        with pytest.raises(
+            ValidationError, match="show_name or rss_url must be provided"
+        ):
             fetcher.fetch_episode()
 
     def test_fetch_episode_both_show_and_rss(self):
@@ -358,7 +357,9 @@ class TestPodcastFetcher:
     @patch("podx.core.fetch.PodcastFetcher.download_audio")
     @patch("podx.core.fetch.PodcastFetcher.choose_episode")
     @patch("podx.core.fetch.PodcastFetcher.parse_feed")
-    def test_fetch_episode_no_matching_episode(self, mock_parse, mock_choose, mock_download):
+    def test_fetch_episode_no_matching_episode(
+        self, mock_parse, mock_choose, mock_download
+    ):
         """Test error when no episode matches criteria."""
         mock_feed = Mock()
         mock_feed.feed = {"title": "Test Podcast"}
@@ -380,7 +381,10 @@ class TestPodcastFetcher:
     ):
         """Test that episode metadata is saved to JSON file."""
         mock_feed = Mock()
-        mock_feed.feed = {"title": "Test Podcast", "image": {"href": "http://image.url"}}
+        mock_feed.feed = {
+            "title": "Test Podcast",
+            "image": {"href": "http://image.url"},
+        }
         mock_parse.return_value = mock_feed
 
         mock_choose.return_value = {"title": "Ep 1", "published": "2025-01-01"}
@@ -390,9 +394,7 @@ class TestPodcastFetcher:
         mock_download.return_value = audio_path
 
         fetcher = PodcastFetcher()
-        result = fetcher.fetch_episode(
-            rss_url="http://feed.url", output_dir=tmp_path
-        )
+        result = fetcher.fetch_episode(rss_url="http://feed.url", output_dir=tmp_path)
 
         # Verify metadata file was created
         meta_path = Path(result["meta_path"])
@@ -428,9 +430,7 @@ class TestConvenienceFunctions:
     @patch("podx.core.fetch.PodcastFetcher.fetch_episode")
     def test_fetch_episode_convenience(self, mock_method):
         """Test fetch_episode convenience function."""
-        mock_method.return_value = {
-            "meta": {"show": "Test", "episode_title": "Ep 1"}
-        }
+        mock_method.return_value = {"meta": {"show": "Test", "episode_title": "Ep 1"}}
 
         result = fetch_episode(show_name="Test Show")
 

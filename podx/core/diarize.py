@@ -3,6 +3,7 @@
 No UI dependencies, no CLI concerns. Just speaker diarization using WhisperX.
 Two-step process: alignment (word-level timing) + diarization (speaker identification).
 """
+
 import os
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -122,14 +123,15 @@ class DiarizationEngine:
         except Exception as e:
             raise DiarizationError(f"Alignment failed: {e}") from e
 
-        logger.info("Alignment completed", segments_count=len(aligned_result.get("segments", [])))
+        logger.info(
+            "Alignment completed",
+            segments_count=len(aligned_result.get("segments", [])),
+        )
 
         # Step 2: Diarization - assign speakers to words
         self._report_progress("Loading diarization model")
         try:
-            dia = DiarizationPipeline(
-                use_auth_token=self.hf_token, device=self.device
-            )
+            dia = DiarizationPipeline(use_auth_token=self.hf_token, device=self.device)
         except Exception as e:
             raise DiarizationError(f"Failed to load diarization model: {e}") from e
 

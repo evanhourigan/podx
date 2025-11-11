@@ -1,7 +1,5 @@
 """Unit tests for _build_pipeline_config() helper function."""
 
-
-
 from podx.orchestrate import _build_pipeline_config
 
 

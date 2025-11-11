@@ -101,7 +101,8 @@ class PreprocessConfigModal(ModalScreen[Optional[Dict[str, bool]]]):
             yield self._make_option_widget("normalize")
             yield self._make_option_widget("restore")
             yield Static(
-                "Press key to toggle • Enter to continue • Esc to cancel", id="instructions"
+                "Press key to toggle • Enter to continue • Esc to cancel",
+                id="instructions",
             )
 
     def _make_option_widget(self, option_key: str) -> Static:
@@ -164,7 +165,9 @@ class PreprocessConfigApp(App[Optional[Dict[str, Any]]]):
     TITLE = "Preprocessing Options"
     ENABLE_COMMAND_PALETTE = False
 
-    def __init__(self, selected_transcript: Dict[str, Any], *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self, selected_transcript: Dict[str, Any], *args: Any, **kwargs: Any
+    ) -> None:
         """Initialize config app.
 
         Args:
@@ -186,6 +189,7 @@ class PreprocessConfigApp(App[Optional[Dict[str, Any]]]):
 
     def show_config_modal(self) -> None:
         """Show the config modal and exit with result."""
+
         async def _show() -> None:
             config = await self.push_screen_wait(PreprocessConfigModal())
             if config:
@@ -228,7 +232,9 @@ class PreprocessTwoPhase(TwoPhaseTranscriptBrowser):
 
             try:
                 # Load transcript data
-                transcript_data = json.loads(transcript_file.read_text(encoding="utf-8"))
+                transcript_data = json.loads(
+                    transcript_file.read_text(encoding="utf-8")
+                )
 
                 # Determine ASR model and processing level
                 asr_model = None
@@ -255,7 +261,11 @@ class PreprocessTwoPhase(TwoPhaseTranscriptBrowser):
                     continue
 
                 # Update best transcript for this model if this is more processed
-                if asr_model not in best_transcripts or processing_level > best_transcripts[asr_model]["processing_level"]:
+                if (
+                    asr_model not in best_transcripts
+                    or processing_level
+                    > best_transcripts[asr_model]["processing_level"]
+                ):
                     # Load episode metadata
                     episode_meta_file = episode_dir / "episode-meta.json"
                     episode_meta = {}
@@ -321,7 +331,9 @@ class PreprocessTwoPhase(TwoPhaseTranscriptBrowser):
         term_width = self.console.size.width
         fixed_widths = {"num": 4, "model": 30, "stage": 20}
         borders_allowance = 16
-        title_width = max(30, term_width - sum(fixed_widths.values()) - borders_allowance)
+        title_width = max(
+            30, term_width - sum(fixed_widths.values()) - borders_allowance
+        )
 
         table = Table(
             show_header=True,
@@ -331,16 +343,28 @@ class PreprocessTwoPhase(TwoPhaseTranscriptBrowser):
             expand=False,
         )
         table.add_column(
-            "#", style=TABLE_NUM_STYLE, width=fixed_widths["num"], justify="right", no_wrap=True
+            "#",
+            style=TABLE_NUM_STYLE,
+            width=fixed_widths["num"],
+            justify="right",
+            no_wrap=True,
         )
         table.add_column(
-            "ASR Model", style="cyan", width=fixed_widths["model"], no_wrap=True, overflow="ellipsis"
+            "ASR Model",
+            style="cyan",
+            width=fixed_widths["model"],
+            no_wrap=True,
+            overflow="ellipsis",
         )
         table.add_column(
             "Current Stage", style="magenta", width=fixed_widths["stage"], no_wrap=True
         )
         table.add_column(
-            "Episode Title", style=TABLE_TITLE_COL_STYLE, width=title_width, no_wrap=True, overflow="ellipsis"
+            "Episode Title",
+            style=TABLE_TITLE_COL_STYLE,
+            width=title_width,
+            no_wrap=True,
+            overflow="ellipsis",
         )
 
         for idx, item in enumerate(page_items, start=start_idx + 1):
@@ -402,7 +426,9 @@ class PreprocessTwoPhase(TwoPhaseTranscriptBrowser):
             if not episodes_with_transcripts:
                 restore_logging()
                 if self.show_filter:
-                    print(f"❌ No episodes with transcripts found for show '{self.show_filter}' in {self.scan_dir}")
+                    print(
+                        f"❌ No episodes with transcripts found for show '{self.show_filter}' in {self.scan_dir}"
+                    )
                 else:
                     print(f"❌ No episodes with transcripts found in {self.scan_dir}")
                 raise SystemExit(1)
@@ -411,11 +437,12 @@ class PreprocessTwoPhase(TwoPhaseTranscriptBrowser):
             episodes_sorted = sorted(
                 episodes_with_transcripts,
                 key=lambda x: (x["date"], x["show"]),
-                reverse=True
+                reverse=True,
             )
 
             # Run the TUI
             from .episode_browser_tui import EpisodeBrowserTUI
+
             app = EpisodeBrowserTUI(episodes_sorted, self.scan_dir)
             result = app.run()
 
@@ -436,7 +463,9 @@ class PreprocessTwoPhase(TwoPhaseTranscriptBrowser):
         transcripts = self.scan_transcripts(episode["directory"])
 
         if not transcripts:
-            print(f"❌ No transcripts found in episode: {episode.get('title', 'Unknown')}")
+            print(
+                f"❌ No transcripts found in episode: {episode.get('title', 'Unknown')}"
+            )
             raise SystemExit(0)
 
         # Use ModelLevelProcessingBrowser for transcript selection

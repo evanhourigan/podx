@@ -2,10 +2,15 @@
 
 No UI dependencies, no CLI concerns. Just audio transcription across multiple backends.
 """
+
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from ..device import detect_device_for_ctranslate2, get_optimal_compute_type, log_device_usage
+from ..device import (
+    detect_device_for_ctranslate2,
+    get_optimal_compute_type,
+    log_device_usage,
+)
 from ..logging import get_logger
 
 logger = get_logger(__name__)
@@ -126,7 +131,8 @@ class TranscriptionEngine:
 
         # Auto-select optimal compute type for device if not specified
         self.compute_type = (
-            compute_type if compute_type is not None
+            compute_type
+            if compute_type is not None
             else get_optimal_compute_type(self.device)
         )
 
@@ -189,7 +195,9 @@ class TranscriptionEngine:
 
         try:
             asr = WhisperModel(
-                self.normalized_model, device=self.device, compute_type=self.compute_type
+                self.normalized_model,
+                device=self.device,
+                compute_type=self.compute_type,
             )
         except Exception as e:
             raise TranscriptionError(f"Failed to initialize Whisper model: {e}") from e
@@ -257,13 +265,11 @@ class TranscriptionEngine:
                         file=f,
                         response_format="verbose_json",
                     )
-                    text = (
-                        getattr(resp, "text", None)
-                        or (resp.get("text") if isinstance(resp, dict) else None)
+                    text = getattr(resp, "text", None) or (
+                        resp.get("text") if isinstance(resp, dict) else None
                     )
-                    segs_raw = (
-                        getattr(resp, "segments", None)
-                        or (resp.get("segments") if isinstance(resp, dict) else None)
+                    segs_raw = getattr(resp, "segments", None) or (
+                        resp.get("segments") if isinstance(resp, dict) else None
                     )
                 else:
                     resp = openai.Audio.transcriptions.create(
@@ -344,14 +350,20 @@ class TranscriptionEngine:
                     else:
                         start, end = 0.0, 0.0
                     segments.append(
-                        {"start": float(start), "end": float(end), "text": c.get("text", "")}
+                        {
+                            "start": float(start),
+                            "end": float(end),
+                            "text": c.get("text", ""),
+                        }
                     )
             else:
                 # Fallback: one segment
                 text_val = result.get("text") if isinstance(result, dict) else ""
                 segments = [{"start": 0.0, "end": 0.0, "text": text_val}]
 
-            logger.info("Hugging Face transcription completed", segments_count=len(segments))
+            logger.info(
+                "Hugging Face transcription completed", segments_count=len(segments)
+            )
 
             return {
                 "audio_path": str(audio_path.resolve()),

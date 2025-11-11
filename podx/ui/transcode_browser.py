@@ -99,7 +99,9 @@ class TranscodeBrowser(InteractiveBrowser):
         term_width = self.console.size.width
         fixed_widths = {"num": 4, "status": 24, "show": 20, "date": 12}
         borders_allowance = 16
-        title_width = max(30, term_width - sum(fixed_widths.values()) - borders_allowance)
+        title_width = max(
+            30, term_width - sum(fixed_widths.values()) - borders_allowance
+        )
 
         table = Table(
             show_header=True,
@@ -108,11 +110,37 @@ class TranscodeBrowser(InteractiveBrowser):
             title=title,
             expand=False,
         )
-        table.add_column("#", style=TABLE_NUM_STYLE, width=fixed_widths["num"], justify="right", no_wrap=True)
-        table.add_column("Status", style="magenta", width=fixed_widths["status"], no_wrap=True, overflow="ellipsis")
-        table.add_column("Show", style=TABLE_SHOW_STYLE, width=fixed_widths["show"], no_wrap=True, overflow="ellipsis")
-        table.add_column("Date", style=TABLE_DATE_STYLE, width=fixed_widths["date"], no_wrap=True)
-        table.add_column("Title", style=TABLE_TITLE_COL_STYLE, width=title_width, no_wrap=True, overflow="ellipsis")
+        table.add_column(
+            "#",
+            style=TABLE_NUM_STYLE,
+            width=fixed_widths["num"],
+            justify="right",
+            no_wrap=True,
+        )
+        table.add_column(
+            "Status",
+            style="magenta",
+            width=fixed_widths["status"],
+            no_wrap=True,
+            overflow="ellipsis",
+        )
+        table.add_column(
+            "Show",
+            style=TABLE_SHOW_STYLE,
+            width=fixed_widths["show"],
+            no_wrap=True,
+            overflow="ellipsis",
+        )
+        table.add_column(
+            "Date", style=TABLE_DATE_STYLE, width=fixed_widths["date"], no_wrap=True
+        )
+        table.add_column(
+            "Title",
+            style=TABLE_TITLE_COL_STYLE,
+            width=title_width,
+            no_wrap=True,
+            overflow="ellipsis",
+        )
 
         # Add episodes to table
         for i, episode in enumerate(page_episodes):
@@ -149,9 +177,7 @@ class TranscodeBrowser(InteractiveBrowser):
 
         # Show navigation options
         options = []
-        options.append(
-            f"[cyan]1-{len(self.items)}[/cyan]: Select episode to transcode"
-        )
+        options.append(f"[cyan]1-{len(self.items)}[/cyan]: Select episode to transcode")
 
         if self.current_page < self.total_pages - 1:
             options.append("[yellow]N[/yellow]: Next page")

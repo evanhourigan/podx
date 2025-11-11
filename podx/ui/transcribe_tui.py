@@ -101,7 +101,12 @@ class ASRModelModal(ModalScreen[Optional[str]]):
         self.display_models = []
         self.display_models.extend(ASR_MODELS)
         # Add common variants and provider examples
-        for extra in ["small.en", "medium.en", "openai:large-v3-turbo", "hf:distil-large-v3"]:
+        for extra in [
+            "small.en",
+            "medium.en",
+            "openai:large-v3-turbo",
+            "hf:distil-large-v3",
+        ]:
             if extra not in self.display_models:
                 self.display_models.append(extra)
 

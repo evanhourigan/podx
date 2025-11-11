@@ -69,9 +69,9 @@ from podx.yaml_config import get_podcast_yaml_config
 # Canonical deepcast types presented to users
 CANONICAL_TYPES: list[PodcastType] = [
     PodcastType.INTERVIEW_GUEST_FOCUSED,  # interview_guest_focused
-    PodcastType.PANEL_DISCUSSION,         # multi_guest_panel
-    PodcastType.SOLO_COMMENTARY,          # host_analysis_mode
-    PodcastType.GENERAL,                  # general
+    PodcastType.PANEL_DISCUSSION,  # multi_guest_panel
+    PodcastType.SOLO_COMMENTARY,  # host_analysis_mode
+    PodcastType.GENERAL,  # general
 ]
 
 
@@ -242,8 +242,9 @@ def select_deepcast_type(row: Dict[str, Any], console: Console) -> Optional[str]
     # Try to get default from podcast config
     try:
         from .podcast_config import get_podcast_config
+
         config = get_podcast_config(show_name)
-        if config and hasattr(config, 'default_type'):
+        if config and hasattr(config, "default_type"):
             default_type = config.default_type
     except Exception:
         pass
@@ -260,7 +261,9 @@ def select_deepcast_type(row: Dict[str, Any], console: Console) -> Optional[str]
         marker = " ← Default" if dtype == default_type else ""
         console.print(f"  {idx:2}  {dtype}{marker}")
 
-    choice = input(f"\n👉 Select deepcast type (1-{len(all_types)}) or Q to cancel: ").strip()
+    choice = input(
+        f"\n👉 Select deepcast type (1-{len(all_types)}) or Q to cancel: "
+    ).strip()
 
     if choice.upper() in ["Q", "QUIT", "EXIT"]:
         return None
@@ -284,7 +287,9 @@ def select_ai_model(console: Console) -> Optional[str]:
     """Prompt user to select AI model."""
     default_model = "gpt-4.1-mini"
 
-    choice = input(f"\n👉 Select AI model (e.g. gpt-4.1, gpt-4o, claude-4-sonnet; default: {default_model}) or Q to cancel: ").strip()
+    choice = input(
+        f"\n👉 Select AI model (e.g. gpt-4.1, gpt-4o, claude-4-sonnet; default: {default_model}) or Q to cancel: "
+    ).strip()
 
     if choice.upper() in ["Q", "QUIT", "EXIT"]:
         return None
@@ -611,7 +616,7 @@ def main(
             "diarized-transcript-*.json",
             "transcript-aligned-*.json",
             "aligned-transcript-*.json",
-            "transcript-*.json"
+            "transcript-*.json",
         ]
 
         for pattern in transcript_patterns:
@@ -624,7 +629,9 @@ def main(
                 break  # Take first match for this pattern
 
         if not available_transcripts:
-            print(f"❌ No transcripts found for episode: {episode.get('title', 'Unknown')}")
+            print(
+                f"❌ No transcripts found for episode: {episode.get('title', 'Unknown')}"
+            )
             sys.exit(1)
 
         # Use the most processed transcript (diarized > aligned > base)
@@ -634,15 +641,15 @@ def main(
         filename = inp.stem
         asr_model_raw = "unknown"
         if filename.startswith("transcript-diarized-"):
-            asr_model_raw = filename[len("transcript-diarized-"):]
+            asr_model_raw = filename[len("transcript-diarized-") :]
         elif filename.startswith("diarized-transcript-"):
-            asr_model_raw = filename[len("diarized-transcript-"):]
+            asr_model_raw = filename[len("diarized-transcript-") :]
         elif filename.startswith("transcript-aligned-"):
-            asr_model_raw = filename[len("transcript-aligned-"):]
+            asr_model_raw = filename[len("transcript-aligned-") :]
         elif filename.startswith("aligned-transcript-"):
-            asr_model_raw = filename[len("aligned-transcript-"):]
+            asr_model_raw = filename[len("aligned-transcript-") :]
         elif filename.startswith("transcript-"):
-            asr_model_raw = filename[len("transcript-"):]
+            asr_model_raw = filename[len("transcript-") :]
 
         # Step 2: Select deepcast type
         print("\n📝 Select deepcast type:")
@@ -652,7 +659,7 @@ def main(
         # Try to get default from podcast config
         try:
             config_obj = get_podcast_config(show_name)
-            if config_obj and hasattr(config_obj, 'default_type'):
+            if config_obj and hasattr(config_obj, "default_type"):
                 default_type = config_obj.default_type
         except Exception:
             pass
@@ -662,7 +669,9 @@ def main(
             marker = " ← Default" if dtype == default_type else ""
             print(f"  {idx:2}  {dtype}{marker}")
 
-        choice = input(f"\n👉 Select deepcast type (1-{len(all_types)}, Enter for default, Q to cancel): ").strip()
+        choice = input(
+            f"\n👉 Select deepcast type (1-{len(all_types)}, Enter for default, Q to cancel): "
+        ).strip()
 
         if choice.upper() in ["Q", "QUIT", "EXIT"]:
             print("❌ Deepcast type selection cancelled")
@@ -684,7 +693,9 @@ def main(
 
         # Step 3: Select AI model
         default_model = "gpt-4.1-mini"
-        choice = input(f"\n👉 Select AI model (e.g. gpt-4.1, gpt-4o, claude-4-sonnet; Enter for {default_model}, Q to cancel): ").strip()
+        choice = input(
+            f"\n👉 Select AI model (e.g. gpt-4.1, gpt-4o, claude-4-sonnet; Enter for {default_model}, Q to cancel): "
+        ).strip()
 
         if choice.upper() in ["Q", "QUIT", "EXIT"]:
             print("❌ AI model selection cancelled")
@@ -694,12 +705,16 @@ def main(
         model = ai_model  # Override the default model parameter
 
         # Step 4: Check if deepcast already exists and confirm overwrite
-        output_filename = generate_deepcast_filename(asr_model_raw, ai_model, deepcast_type, "json", with_timestamp=True)
+        output_filename = generate_deepcast_filename(
+            asr_model_raw, ai_model, deepcast_type, "json", with_timestamp=True
+        )
         output = episode_dir / output_filename
 
         if output.exists():
             print(f"\n⚠️  Deepcast already exists: {output.name}")
-            confirm = input("Re-run deepcast anyway? (yes/no, Q to quit): ").strip().lower()
+            confirm = (
+                input("Re-run deepcast anyway? (yes/no, Q to quit): ").strip().lower()
+            )
             if confirm in ["q", "quit", "exit"]:
                 print("❌ Deepcast cancelled")
                 sys.exit(0)
@@ -708,7 +723,11 @@ def main(
                 sys.exit(0)
 
         # Step 5: Ask about markdown generation
-        md_choice = input("\n👉 Generate markdown output file? y/N or Q to cancel: ").strip().lower()
+        md_choice = (
+            input("\n👉 Generate markdown output file? y/N or Q to cancel: ")
+            .strip()
+            .lower()
+        )
         if md_choice in ["q", "quit", "exit"]:
             print("❌ Deepcast cancelled")
             sys.exit(0)
@@ -716,7 +735,11 @@ def main(
 
         # Step 5b: Ask about PDF generation unless already requested via --pdf
         if not export_pdf:
-            pdf_choice = input("\n👉 Also generate a PDF (via pandoc)? y/N or Q to cancel: ").strip().lower()
+            pdf_choice = (
+                input("\n👉 Also generate a PDF (via pandoc)? y/N or Q to cancel: ")
+                .strip()
+                .lower()
+            )
             if pdf_choice in ["q", "quit", "exit"]:
                 print("❌ Deepcast cancelled")
                 sys.exit(0)
@@ -732,7 +755,9 @@ def main(
     else:
         # Non-interactive mode: validate arguments
         if show_prompt is None and not output:
-            raise SystemExit("--output must be provided (unless using --show-prompt or --interactive)")
+            raise SystemExit(
+                "--output must be provided (unless using --show-prompt or --interactive)"
+            )
 
         transcript = read_stdin_or_file(inp)
     want_json = True  # Always generate JSON for unified output
@@ -862,7 +887,9 @@ def main(
             "processed_at": datetime.now(timezone.utc).isoformat(),
             "asr_model": transcript.get("asr_model"),  # Store ASR model from transcript
             "transcript_variant": transcript_variant,  # Store transcript type
-            "deepcast_type": podcast_type.value if podcast_type else "general",  # Explicit type field
+            "deepcast_type": (
+                podcast_type.value if podcast_type else "general"
+            ),  # Explicit type field
             "deepcast_alias": alias_used or None,
         },
     }
@@ -878,7 +905,9 @@ def main(
         # This shouldn't happen in current CLI (output is required), but prepare for interactive
         asr_model_str = transcript.get("asr_model", "unknown")
         deepcast_type_str = podcast_type.value if podcast_type else "general"
-        json_filename = generate_deepcast_filename(asr_model_str, model, deepcast_type_str, "json")
+        json_filename = generate_deepcast_filename(
+            asr_model_str, model, deepcast_type_str, "json"
+        )
         json_output = Path(json_filename)
 
     # Save to file
@@ -890,8 +919,14 @@ def main(
     if extract_markdown:
         asr_model_str = transcript.get("asr_model", "unknown")
         deepcast_type_str = podcast_type.value if podcast_type else "general"
-        md_filename = generate_deepcast_filename(asr_model_str, model, deepcast_type_str, "md", with_timestamp=True)
-        markdown_file = json_output.parent / md_filename if json_output.parent.name else Path(md_filename)
+        md_filename = generate_deepcast_filename(
+            asr_model_str, model, deepcast_type_str, "md", with_timestamp=True
+        )
+        markdown_file = (
+            json_output.parent / md_filename
+            if json_output.parent.name
+            else Path(md_filename)
+        )
         # Add metadata as HTML comment at the top
         metadata_comment = f"<!-- Metadata: ASR={asr_model_str}, AI={model}, Type={deepcast_type_str}, Transcript={transcript_variant} -->\n\n"
         markdown_with_metadata = metadata_comment + md
@@ -901,12 +936,21 @@ def main(
     if export_pdf:
         asr_model_str = transcript.get("asr_model", "unknown")
         deepcast_type_str = podcast_type.value if podcast_type else "general"
-        pdf_filename = generate_deepcast_filename(asr_model_str, model, deepcast_type_str, "pdf", with_timestamp=True)
-        pdf_file = json_output.parent / pdf_filename if json_output.parent.name else Path(pdf_filename)
+        pdf_filename = generate_deepcast_filename(
+            asr_model_str, model, deepcast_type_str, "pdf", with_timestamp=True
+        )
+        pdf_file = (
+            json_output.parent / pdf_filename
+            if json_output.parent.name
+            else Path(pdf_filename)
+        )
 
         pandoc_path = shutil.which("pandoc")
         if not pandoc_path:
-            print("⚠️  pandoc not found. Install with: brew install pandoc", file=sys.stderr)
+            print(
+                "⚠️  pandoc not found. Install with: brew install pandoc",
+                file=sys.stderr,
+            )
         else:
             try:
                 # Feed markdown via stdin to pandoc

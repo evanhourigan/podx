@@ -3,6 +3,7 @@
 No UI dependencies, no CLI concerns. Just podcast transcript analysis using LLM map-reduce.
 Handles chunking, parallel API calls, and structured output generation.
 """
+
 import asyncio
 import json
 import os
@@ -104,7 +105,9 @@ class DeepcastEngine:
         self.progress_callback = progress_callback
 
         if not self.api_key:
-            raise DeepcastError("OpenAI API key not found. Set OPENAI_API_KEY environment variable.")
+            raise DeepcastError(
+                "OpenAI API key not found. Set OPENAI_API_KEY environment variable."
+            )
 
     def _report_progress(self, message: str):
         """Report progress via callback if available."""
@@ -137,9 +140,7 @@ class DeepcastEngine:
     async def _chat_once_async(self, client, system: str, user: str) -> str:
         """Async wrapper for chat_once to enable concurrent API calls."""
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None, self._chat_once, client, system, user
-        )
+        return await loop.run_in_executor(None, self._chat_once, client, system, user)
 
     def deepcast(
         self,
@@ -204,7 +205,9 @@ class DeepcastEngine:
 
             async def process_chunk(i: int, chunk: str) -> str:
                 async with semaphore:
-                    prompt = f"{map_instructions}\n\nChunk {i+1}/{len(chunks)}:\n\n{chunk}"
+                    prompt = (
+                        f"{map_instructions}\n\nChunk {i+1}/{len(chunks)}:\n\n{chunk}"
+                    )
                     self._report_progress(f"Processing chunk {i+1}/{len(chunks)}")
                     note = await self._chat_once_async(client, system_prompt, prompt)
                     return note
@@ -224,8 +227,7 @@ class DeepcastEngine:
         self._report_progress("Synthesizing results")
 
         reduce_prompt = (
-            f"{reduce_instructions}\n\nChunk notes:\n\n"
-            + "\n\n---\n\n".join(map_notes)
+            f"{reduce_instructions}\n\nChunk notes:\n\n" + "\n\n---\n\n".join(map_notes)
         )
         if want_json and json_schema:
             reduce_prompt += f"\n\n{json_schema}"

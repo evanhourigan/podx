@@ -191,7 +191,13 @@ class TestBatchLLMRestore:
 
         # Mock responses
         responses = [
-            Mock(choices=[Mock(message=Mock(content="C1\n---SEGMENT---\nC2\n---SEGMENT---\nC3"))]),
+            Mock(
+                choices=[
+                    Mock(
+                        message=Mock(content="C1\n---SEGMENT---\nC2\n---SEGMENT---\nC3")
+                    )
+                ]
+            ),
             Mock(choices=[Mock(message=Mock(content="C4\n---SEGMENT---\nC5"))]),
         ]
         mock_client.chat.completions.create.side_effect = responses

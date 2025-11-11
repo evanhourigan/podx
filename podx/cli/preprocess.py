@@ -53,9 +53,7 @@ logger = get_logger(__name__)
 @click.option(
     "--max-gap", type=float, default=1.0, help="Max gap (sec) to merge segments"
 )
-@click.option(
-    "--max-len", type=int, default=800, help="Max merged text length (chars)"
-)
+@click.option("--max-len", type=int, default=800, help="Max merged text length (chars)")
 @click.option(
     "--restore",
     "do_restore",
@@ -157,9 +155,7 @@ def main(
         asr = transcript_info.get("asr_model", "model")
         output = outdir / f"transcript-preprocessed-{asr}.json"
     else:
-        raw = (
-            json.loads(input.read_text()) if input else read_stdin_json()
-        )
+        raw = json.loads(input.read_text()) if input else read_stdin_json()
 
     if not raw or "segments" not in raw:
         raise SystemExit("input must contain Transcript JSON with 'segments' field")

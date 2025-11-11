@@ -3,6 +3,7 @@
 Thin Click wrapper that uses core.transcode.TranscodeEngine for actual logic.
 Handles CLI arguments, input/output, and interactive mode.
 """
+
 import json
 from pathlib import Path
 

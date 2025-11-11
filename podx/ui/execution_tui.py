@@ -111,7 +111,7 @@ class ExecutionTUI(App[Optional[Dict[str, Any]]]):
         pipeline_executor: Optional[Callable[[Any], Dict[str, Any]]] = None,
         executor_args: Optional[Any] = None,
         *args: Any,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         """Initialize execution TUI.
 
@@ -145,11 +145,11 @@ class ExecutionTUI(App[Optional[Dict[str, Any]]]):
                     yield ProgressBar(
                         total=max(self.total_steps, 1),
                         show_eta=False,
-                        id="progress-bar"
+                        id="progress-bar",
                     )
                 yield Label(
                     f"Step {self.completed_steps}/{self.total_steps} • Elapsed: {self.elapsed_time}",
-                    id="progress-stats"
+                    id="progress-stats",
                 )
 
             # Log section (bottom)
@@ -200,11 +200,7 @@ class ExecutionTUI(App[Optional[Dict[str, Any]]]):
         # Add to log
         self.add_log_entry(f"→ {description}", "log-starting")
 
-    def complete_step(
-        self,
-        message: str,
-        duration: Optional[float] = None
-    ) -> None:
+    def complete_step(self, message: str, duration: Optional[float] = None) -> None:
         """Complete the current step.
 
         Args:
@@ -220,6 +216,7 @@ class ExecutionTUI(App[Optional[Dict[str, Any]]]):
         # Format completion message
         if duration is not None:
             from ..progress import format_duration
+
             duration_str = format_duration(duration)
             log_message = f"✅ {message} ({duration_str})"
         else:
@@ -333,7 +330,9 @@ class TUIProgress:
     Thread-safe for use in background workers.
     """
 
-    def __init__(self, execution_tui: Optional[ExecutionTUI] = None, app: Optional[App] = None):
+    def __init__(
+        self, execution_tui: Optional[ExecutionTUI] = None, app: Optional[App] = None
+    ):
         """Initialize TUI progress tracker.
 
         Args:
@@ -365,9 +364,7 @@ class TUIProgress:
             self.app.call_from_thread(self.execution_tui.start_step, description)
 
     def complete_step(
-        self,
-        final_message: Optional[str] = None,
-        step_duration: Optional[float] = None
+        self, final_message: Optional[str] = None, step_duration: Optional[float] = None
     ) -> None:
         """Complete the current step (thread-safe).
 
@@ -376,7 +373,9 @@ class TUIProgress:
             step_duration: Optional step duration
         """
         if self.execution_tui and self.app and final_message:
-            self.app.call_from_thread(self.execution_tui.complete_step, final_message, step_duration)
+            self.app.call_from_thread(
+                self.execution_tui.complete_step, final_message, step_duration
+            )
 
     def log_info(self, message: str) -> None:
         """Log an info message (thread-safe).

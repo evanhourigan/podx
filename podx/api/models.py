@@ -31,9 +31,7 @@ class TranscribeResponse(BaseModel):
     transcript_path: str = Field(
         ..., description="Path to the generated transcript JSON file"
     )
-    duration_seconds: int = Field(
-        ge=0, description="Duration of the audio in seconds"
-    )
+    duration_seconds: int = Field(ge=0, description="Duration of the audio in seconds")
     model_used: Optional[str] = Field(
         None, description="ASR model used for transcription"
     )
@@ -69,19 +67,15 @@ class DeepcastResponse(BaseModel):
     """
 
     markdown_path: str = Field(..., description="Path to the generated markdown file")
-    json_path: Optional[str] = Field(None, description="Path to the generated JSON file")
-    usage: Optional[Dict[str, int]] = Field(
-        None, description="Token usage statistics"
+    json_path: Optional[str] = Field(
+        None, description="Path to the generated JSON file"
     )
+    usage: Optional[Dict[str, int]] = Field(None, description="Token usage statistics")
     prompt_used: Optional[str] = Field(
         None, description="The prompt that was used for analysis"
     )
-    model_used: Optional[str] = Field(
-        None, description="LLM model used for analysis"
-    )
-    analysis_type: Optional[str] = Field(
-        None, description="Type of analysis performed"
-    )
+    model_used: Optional[str] = Field(None, description="LLM model used for analysis")
+    analysis_type: Optional[str] = Field(None, description="Type of analysis performed")
     success: bool = Field(True, description="Whether the analysis was successful")
     error: Optional[str] = Field(None, description="Error message if failed")
 
@@ -106,9 +100,7 @@ class ExistsCheckResponse(BaseModel):
     exists: bool = Field(..., description="Whether the resource exists")
     path: Optional[str] = Field(None, description="Path to the resource")
     resource_type: str = Field(..., description="Type of resource")
-    metadata: Optional[Dict[str, Any]] = Field(
-        None, description="Additional metadata"
-    )
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility."""
@@ -193,7 +185,9 @@ class FetchResponse(BaseModel):
     """
 
     episode_meta: Dict[str, Any] = Field(..., description="Episode metadata")
-    audio_meta: Optional[Dict[str, Any]] = Field(None, description="Audio file metadata")
+    audio_meta: Optional[Dict[str, Any]] = Field(
+        None, description="Audio file metadata"
+    )
     audio_path: str = Field(..., description="Path to the downloaded audio file")
     metadata_path: Optional[str] = Field(None, description="Path to metadata JSON")
     success: bool = Field(True, description="Whether the fetch was successful")
@@ -216,8 +210,12 @@ class DiarizeResponse(BaseModel):
     """
 
     transcript_path: str = Field(..., description="Path to diarized transcript JSON")
-    speakers_found: int = Field(ge=0, description="Number of unique speakers identified")
-    transcript: Optional[Dict[str, Any]] = Field(None, description="Full transcript data")
+    speakers_found: int = Field(
+        ge=0, description="Number of unique speakers identified"
+    )
+    transcript: Optional[Dict[str, Any]] = Field(
+        None, description="Full transcript data"
+    )
     success: bool = Field(True, description="Whether diarization was successful")
     error: Optional[str] = Field(None, description="Error message if failed")
 

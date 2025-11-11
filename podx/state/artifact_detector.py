@@ -113,29 +113,37 @@ class ArtifactDetector:
             artifacts.audio_meta = audio_meta
 
         # Detect transcripts (all patterns)
-        artifacts.transcripts = self._find_files([
-            "transcript-*.json",
-            "transcript.json",
-        ])
+        artifacts.transcripts = self._find_files(
+            [
+                "transcript-*.json",
+                "transcript.json",
+            ]
+        )
 
         # Detect aligned transcripts (all patterns)
-        artifacts.aligned_transcripts = self._find_files([
-            "transcript-aligned-*.json",
-            "aligned-transcript-*.json",
-            "aligned-transcript.json",
-        ])
+        artifacts.aligned_transcripts = self._find_files(
+            [
+                "transcript-aligned-*.json",
+                "aligned-transcript-*.json",
+                "aligned-transcript.json",
+            ]
+        )
 
         # Detect diarized transcripts (all patterns)
-        artifacts.diarized_transcripts = self._find_files([
-            "transcript-diarized-*.json",
-            "diarized-transcript-*.json",
-            "diarized-transcript.json",
-        ])
+        artifacts.diarized_transcripts = self._find_files(
+            [
+                "transcript-diarized-*.json",
+                "diarized-transcript-*.json",
+                "diarized-transcript.json",
+            ]
+        )
 
         # Detect preprocessed transcripts
-        artifacts.preprocessed_transcripts = self._find_files([
-            "transcript-preprocessed-*.json",
-        ])
+        artifacts.preprocessed_transcripts = self._find_files(
+            [
+                "transcript-preprocessed-*.json",
+            ]
+        )
 
         # Detect deepcast analyses
         artifacts.deepcasts = self._find_files(["deepcast-*.json"])
@@ -207,11 +215,23 @@ class ArtifactDetector:
         elif step == PipelineStep.TRANSCRIBE:
             return artifacts.transcripts[0] if artifacts.transcripts else None
         elif step == PipelineStep.ALIGN:
-            return artifacts.aligned_transcripts[0] if artifacts.aligned_transcripts else None
+            return (
+                artifacts.aligned_transcripts[0]
+                if artifacts.aligned_transcripts
+                else None
+            )
         elif step == PipelineStep.DIARIZE:
-            return artifacts.diarized_transcripts[0] if artifacts.diarized_transcripts else None
+            return (
+                artifacts.diarized_transcripts[0]
+                if artifacts.diarized_transcripts
+                else None
+            )
         elif step == PipelineStep.PREPROCESS:
-            return artifacts.preprocessed_transcripts[0] if artifacts.preprocessed_transcripts else None
+            return (
+                artifacts.preprocessed_transcripts[0]
+                if artifacts.preprocessed_transcripts
+                else None
+            )
         elif step == PipelineStep.DEEPCAST:
             return artifacts.deepcasts[0] if artifacts.deepcasts else None
         elif step == PipelineStep.NOTION:

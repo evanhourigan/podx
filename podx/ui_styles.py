@@ -65,7 +65,7 @@ def format_example_line(line: str) -> Text:
             continue
         if tok.startswith("#"):
             # Rest of line as comment
-            text.append(line[line.index(tok):], style=COMMENT_STYLE)
+            text.append(line[line.index(tok) :], style=COMMENT_STYLE)
             break
         if tok in {"|", ">", "<", "→", "•"}:
             text.append(tok, style=SYMBOL_STYLE)

@@ -104,9 +104,7 @@ def scan_episode_files(workdir: Path) -> Dict[str, any]:
                         "size": file_path.stat().st_size,
                         "modified": file_path.stat().st_mtime,
                         "metadata": metadata,
-                        "has_markdown": (
-                            workdir / f"{file_path.stem}.md"
-                        ).exists(),
+                        "has_markdown": (workdir / f"{file_path.stem}.md").exists(),
                     }
                 )
         except (json.JSONDecodeError, FileNotFoundError):

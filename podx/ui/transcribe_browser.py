@@ -122,6 +122,7 @@ class TranscribeBrowser(InteractiveBrowser):
         if episode_meta_file.exists():
             try:
                 import json
+
                 episode_meta = json.loads(episode_meta_file.read_text(encoding="utf-8"))
                 return episode_meta.get("episode_title", "Unknown")
             except Exception:
@@ -144,7 +145,9 @@ class TranscribeBrowser(InteractiveBrowser):
         term_width = self.console.size.width
         fixed_widths = {"num": 4, "status": 24, "show": 20, "date": 12}
         borders_allowance = 16
-        title_width = max(30, term_width - sum(fixed_widths.values()) - borders_allowance)
+        title_width = max(
+            30, term_width - sum(fixed_widths.values()) - borders_allowance
+        )
 
         # Create table with shared styling
         table = Table(
@@ -154,11 +157,37 @@ class TranscribeBrowser(InteractiveBrowser):
             title=title,
             expand=False,
         )
-        table.add_column("#", style=TABLE_NUM_STYLE, width=fixed_widths["num"], justify="right", no_wrap=True)
-        table.add_column("Status", style="magenta", width=fixed_widths["status"], no_wrap=True, overflow="ellipsis")
-        table.add_column("Show", style=TABLE_SHOW_STYLE, width=fixed_widths["show"], no_wrap=True, overflow="ellipsis")
-        table.add_column("Date", style=TABLE_DATE_STYLE, width=fixed_widths["date"], no_wrap=True)
-        table.add_column("Title", style=TABLE_TITLE_COL_STYLE, width=title_width, no_wrap=True, overflow="ellipsis")
+        table.add_column(
+            "#",
+            style=TABLE_NUM_STYLE,
+            width=fixed_widths["num"],
+            justify="right",
+            no_wrap=True,
+        )
+        table.add_column(
+            "Status",
+            style="magenta",
+            width=fixed_widths["status"],
+            no_wrap=True,
+            overflow="ellipsis",
+        )
+        table.add_column(
+            "Show",
+            style=TABLE_SHOW_STYLE,
+            width=fixed_widths["show"],
+            no_wrap=True,
+            overflow="ellipsis",
+        )
+        table.add_column(
+            "Date", style=TABLE_DATE_STYLE, width=fixed_widths["date"], no_wrap=True
+        )
+        table.add_column(
+            "Title",
+            style=TABLE_TITLE_COL_STYLE,
+            width=title_width,
+            no_wrap=True,
+            overflow="ellipsis",
+        )
 
         # Add episodes to table
         for i, episode in enumerate(page_episodes):

@@ -2,6 +2,7 @@
 
 No UI dependencies, no CLI concerns. Just transcript text processing.
 """
+
 import re
 from typing import Any, Dict, List
 
@@ -51,9 +52,7 @@ class TranscriptPreprocessor:
         self.restore_model = restore_model
         self.restore_batch_size = restore_batch_size
 
-    def merge_segments(
-        self, segments: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def merge_segments(self, segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Merge adjacent segments based on timing gaps and length.
 
         Args:
@@ -74,12 +73,19 @@ class TranscriptPreprocessor:
 
         for seg in segments[1:]:
             gap = float(seg["start"]) - float(current["end"])
-            if gap < self.max_gap and len(current["text"]) + len(seg["text"]) < self.max_len:
+            if (
+                gap < self.max_gap
+                and len(current["text"]) + len(seg["text"]) < self.max_len
+            ):
                 current["text"] += " " + seg["text"]
                 current["end"] = seg["end"]
             else:
                 merged.append(current)
-                current = {"text": seg["text"], "start": seg["start"], "end": seg["end"]}
+                current = {
+                    "text": seg["text"],
+                    "start": seg["start"],
+                    "end": seg["end"],
+                }
 
         merged.append(current)
         return merged
@@ -184,7 +190,9 @@ class TranscriptPreprocessor:
                     )
                     batch_result = resp.choices[0].message.get("content") or ""
             except Exception as e:
-                logger.error(f"OpenAI API request failed for batch {i//self.restore_batch_size + 1}: {e}")
+                logger.error(
+                    f"OpenAI API request failed for batch {i//self.restore_batch_size + 1}: {e}"
+                )
                 raise PreprocessError(f"Semantic restore failed: {e}") from e
 
             # Split response back into individual segments
@@ -203,9 +211,7 @@ class TranscriptPreprocessor:
 
         return out
 
-    def preprocess(
-        self, transcript: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def preprocess(self, transcript: Dict[str, Any]) -> Dict[str, Any]:
         """Preprocess transcript with configured options.
 
         Args:
@@ -234,7 +240,9 @@ class TranscriptPreprocessor:
         segs = transcript.get("segments", [])
 
         if self.merge:
-            logger.debug(f"Merging segments (max_gap={self.max_gap}s, max_len={self.max_len})")
+            logger.debug(
+                f"Merging segments (max_gap={self.max_gap}s, max_len={self.max_len})"
+            )
             segs = self.merge_segments(segs)
 
         if self.normalize:
@@ -244,7 +252,9 @@ class TranscriptPreprocessor:
         if self.restore and segs:
             logger.debug(f"Semantic restore with {self.restore_model}")
             try:
-                restored_texts = self.semantic_restore([s.get("text", "") for s in segs])
+                restored_texts = self.semantic_restore(
+                    [s.get("text", "") for s in segs]
+                )
                 for i, txt in enumerate(restored_texts):
                     segs[i]["text"] = txt
             except PreprocessError as e:

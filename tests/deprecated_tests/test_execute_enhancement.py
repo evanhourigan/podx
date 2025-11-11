@@ -88,8 +88,16 @@ def test_preprocess_dual_mode(mock_run, mock_sanitize, mock_build_cmd):
     mock_sanitize.return_value = "large_v3"
     mock_build_cmd.return_value = ["podx-preprocess", "--output", "file.json"]
 
-    prec_preprocessed = {"asr_model": "large-v3", "preset": "precision", "preprocessed": True}
-    rec_preprocessed = {"asr_model": "large-v3", "preset": "recall", "preprocessed": True}
+    prec_preprocessed = {
+        "asr_model": "large-v3",
+        "preset": "precision",
+        "preprocessed": True,
+    }
+    rec_preprocessed = {
+        "asr_model": "large-v3",
+        "preset": "recall",
+        "preprocessed": True,
+    }
     mock_run.side_effect = [prec_preprocessed, rec_preprocessed]
 
     progress = MagicMock()
@@ -123,7 +131,12 @@ def test_preprocess_with_restore(mock_run, mock_sanitize, mock_build_cmd):
     wd = Path("/tmp/test")
     input_transcript = {"asr_model": "base", "segments": []}
     mock_sanitize.return_value = "base"
-    mock_build_cmd.return_value = ["podx-preprocess", "--restore", "--output", "file.json"]
+    mock_build_cmd.return_value = [
+        "podx-preprocess",
+        "--restore",
+        "--output",
+        "file.json",
+    ]
 
     preprocessed = {"asr_model": "base", "restored": True}
     mock_run.return_value = preprocessed
@@ -145,7 +158,9 @@ def test_preprocess_with_restore(mock_run, mock_sanitize, mock_build_cmd):
     )
 
     # Verify restore flag was passed
-    mock_build_cmd.assert_called_with(Path("/tmp/test/transcript-preprocessed-base.json"), True)
+    mock_build_cmd.assert_called_with(
+        Path("/tmp/test/transcript-preprocessed-base.json"), True
+    )
     assert latest == preprocessed
 
 
@@ -193,7 +208,10 @@ def test_align_resume_existing_file(mock_logger):
     input_transcript = {"asr_model": "base", "segments": []}
 
     with patch("pathlib.Path.exists", return_value=True):
-        with patch("pathlib.Path.read_text", return_value='{"asr_model": "base", "segments": [], "words": []}'):
+        with patch(
+            "pathlib.Path.read_text",
+            return_value='{"asr_model": "base", "segments": [], "words": []}',
+        ):
             progress = MagicMock()
 
             latest, latest_name = _execute_enhancement(
@@ -231,7 +249,9 @@ def test_align_resume_legacy_file(mock_logger):
         return False
 
     with patch("pathlib.Path.exists", new=exists_side_effect):
-        with patch("pathlib.Path.read_text", return_value='{"asr_model": "base", "words": []}'):
+        with patch(
+            "pathlib.Path.read_text", return_value='{"asr_model": "base", "words": []}'
+        ):
             progress = MagicMock()
 
             latest, latest_name = _execute_enhancement(
@@ -297,7 +317,10 @@ def test_diarize_resume_existing_file(mock_logger):
     input_transcript = {"asr_model": "base", "segments": []}
 
     with patch("pathlib.Path.exists", return_value=True):
-        with patch("pathlib.Path.read_text", return_value='{"asr_model": "base", "segments": [{"speaker": "SPEAKER_00"}]}'):
+        with patch(
+            "pathlib.Path.read_text",
+            return_value='{"asr_model": "base", "segments": [{"speaker": "SPEAKER_00"}]}',
+        ):
             progress = MagicMock()
 
             latest, latest_name = _execute_enhancement(
@@ -323,7 +346,9 @@ def test_diarize_resume_existing_file(mock_logger):
 @patch("podx.utils.sanitize_model_name")
 @patch("podx.orchestrate.logger")
 @patch("podx.orchestrate._run")
-def test_full_pipeline_preprocess_align_diarize(mock_run, mock_logger, mock_sanitize, mock_build_cmd):
+def test_full_pipeline_preprocess_align_diarize(
+    mock_run, mock_logger, mock_sanitize, mock_build_cmd
+):
     """Test full enhancement pipeline with all steps."""
     # Setup
     wd = Path("/tmp/test")
@@ -333,7 +358,12 @@ def test_full_pipeline_preprocess_align_diarize(mock_run, mock_logger, mock_sani
 
     preprocessed = {"asr_model": "base", "preprocessed": True}
     aligned = {"asr_model": "base", "preprocessed": True, "words": []}
-    diarized = {"asr_model": "base", "preprocessed": True, "words": [], "speaker": "SPEAKER_00"}
+    diarized = {
+        "asr_model": "base",
+        "preprocessed": True,
+        "words": [],
+        "speaker": "SPEAKER_00",
+    }
 
     mock_run.side_effect = [preprocessed, aligned, diarized]
 

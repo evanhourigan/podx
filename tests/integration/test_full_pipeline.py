@@ -214,6 +214,7 @@ class TestPipelineResumeAndRecovery:
 
         # Verify detection - check that TRANSCRIBE step is detected
         from podx.domain.enums import PipelineStep
+
         assert PipelineStep.TRANSCRIBE in completed_steps
 
     def test_detect_multiple_pipeline_artifacts(self, tmp_path):
@@ -549,7 +550,10 @@ class TestPerformanceCharacteristics:
 
         # Create large JSON file (simulating transcript)
         large_data = {
-            "segments": [{"start": float(i), "end": float(i + 1), "text": f"Text {i}"} for i in range(10000)]
+            "segments": [
+                {"start": float(i), "end": float(i + 1), "text": f"Text {i}"}
+                for i in range(10000)
+            ]
         }
         large_file = tmp_path / "large_transcript.json"
 

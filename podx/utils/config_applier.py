@@ -126,9 +126,7 @@ def apply_podcast_config(
 
         # Handle Notion database selection
         if yaml_config.notion_database and notion:
-            notion_db_config = get_notion_database_config(
-                yaml_config.notion_database
-            )
+            notion_db_config = get_notion_database_config(yaml_config.notion_database)
             if notion_db_config:
                 notion_db = notion_db_config.database_id
                 logger.info(
@@ -137,13 +135,9 @@ def apply_podcast_config(
                 )
                 # Set environment variables for the token
                 os.environ["NOTION_TOKEN"] = notion_db_config.token
-                os.environ["NOTION_PODCAST_PROP"] = (
-                    notion_db_config.podcast_property
-                )
+                os.environ["NOTION_PODCAST_PROP"] = notion_db_config.podcast_property
                 os.environ["NOTION_DATE_PROP"] = notion_db_config.date_property
-                os.environ["NOTION_EPISODE_PROP"] = (
-                    notion_db_config.episode_property
-                )
+                os.environ["NOTION_EPISODE_PROP"] = notion_db_config.episode_property
 
     # Apply JSON configuration
     elif json_config:
@@ -166,8 +160,7 @@ def apply_podcast_config(
             updated_flags["deepcast"] = True
             logger.info("Applied JSON config: deepcast = True")
         if not updated_flags.get("extract_markdown") and (
-            config_flags.get("extract_markdown", False)
-            or json_config.extract_markdown
+            config_flags.get("extract_markdown", False) or json_config.extract_markdown
         ):
             updated_flags["extract_markdown"] = True
             logger.info("Applied JSON config: extract_markdown = True")
@@ -179,10 +172,7 @@ def apply_podcast_config(
 
         # Apply model preferences
         base_config = get_config()
-        if (
-            deepcast_model == base_config.openai_model
-            and json_config.deepcast_model
-        ):
+        if deepcast_model == base_config.openai_model and json_config.deepcast_model:
             deepcast_model = json_config.deepcast_model
             logger.info("Applied JSON config model", model=deepcast_model)
         if (
@@ -190,9 +180,7 @@ def apply_podcast_config(
             and json_config.temperature
         ):
             deepcast_temp = json_config.temperature
-            logger.info(
-                "Applied JSON config temperature", temperature=deepcast_temp
-            )
+            logger.info("Applied JSON config temperature", temperature=deepcast_temp)
 
     return ConfigResult(
         flags=updated_flags,

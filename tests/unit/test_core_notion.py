@@ -3,6 +3,7 @@
 Tests pure business logic without UI dependencies.
 Focuses on markdown parsing and conversion functions.
 """
+
 import os
 import sys
 from unittest.mock import MagicMock, patch
@@ -81,7 +82,9 @@ class TestParseInlineMarkdown:
     def test_parse_mixed_formatting(self):
         """Test parsing text with multiple formatting types."""
         result = parse_inline_markdown("Normal **bold** and *italic* and `code`")
-        assert len(result) >= 5  # At least: Normal, bold, italic, code, and connecting text
+        assert (
+            len(result) >= 5
+        )  # At least: Normal, bold, italic, code, and connecting text
         # Check that bold is present
         bold_items = [r for r in result if r.get("annotations", {}).get("bold")]
         assert len(bold_items) == 1
@@ -105,7 +108,11 @@ class TestParseInlineMarkdown:
         """Test handling of unclosed bold markers."""
         result = parse_inline_markdown("**unclosed bold")
         # Should treat as plain text if not closed
-        assert any("unclosed bold" in r["text"]["content"] or "**unclosed bold" in r["text"]["content"] for r in result)
+        assert any(
+            "unclosed bold" in r["text"]["content"]
+            or "**unclosed bold" in r["text"]["content"]
+            for r in result
+        )
 
     def test_parse_multiple_bold(self):
         """Test parsing multiple bold sections."""
@@ -125,7 +132,10 @@ class TestMdToBlocks:
         blocks = md_to_blocks(md)
         assert len(blocks) == 1
         assert blocks[0]["type"] == "paragraph"
-        assert blocks[0]["paragraph"]["rich_text"][0]["text"]["content"] == "This is a paragraph."
+        assert (
+            blocks[0]["paragraph"]["rich_text"][0]["text"]["content"]
+            == "This is a paragraph."
+        )
 
     def test_md_heading_1(self):
         """Test converting H1 heading."""
@@ -133,7 +143,9 @@ class TestMdToBlocks:
         blocks = md_to_blocks(md)
         assert len(blocks) == 1
         assert blocks[0]["type"] == "heading_1"
-        assert blocks[0]["heading_1"]["rich_text"][0]["text"]["content"] == "Main Heading"
+        assert (
+            blocks[0]["heading_1"]["rich_text"][0]["text"]["content"] == "Main Heading"
+        )
 
     def test_md_heading_2(self):
         """Test converting H2 heading."""
@@ -155,8 +167,14 @@ class TestMdToBlocks:
         blocks = md_to_blocks(md)
         assert len(blocks) == 3
         assert all(b["type"] == "bulleted_list_item" for b in blocks)
-        assert blocks[0]["bulleted_list_item"]["rich_text"][0]["text"]["content"] == "Item 1"
-        assert blocks[1]["bulleted_list_item"]["rich_text"][0]["text"]["content"] == "Item 2"
+        assert (
+            blocks[0]["bulleted_list_item"]["rich_text"][0]["text"]["content"]
+            == "Item 1"
+        )
+        assert (
+            blocks[1]["bulleted_list_item"]["rich_text"][0]["text"]["content"]
+            == "Item 2"
+        )
 
     def test_md_numbered_list(self):
         """Test converting numbered list."""
@@ -164,7 +182,10 @@ class TestMdToBlocks:
         blocks = md_to_blocks(md)
         assert len(blocks) == 3
         assert all(b["type"] == "numbered_list_item" for b in blocks)
-        assert blocks[0]["numbered_list_item"]["rich_text"][0]["text"]["content"] == "First"
+        assert (
+            blocks[0]["numbered_list_item"]["rich_text"][0]["text"]["content"]
+            == "First"
+        )
 
     def test_md_quote(self):
         """Test converting quote."""
@@ -172,7 +193,9 @@ class TestMdToBlocks:
         blocks = md_to_blocks(md)
         assert len(blocks) == 1
         assert blocks[0]["type"] == "quote"
-        assert blocks[0]["quote"]["rich_text"][0]["text"]["content"] == "This is a quote"
+        assert (
+            blocks[0]["quote"]["rich_text"][0]["text"]["content"] == "This is a quote"
+        )
 
     def test_md_code_fence(self):
         """Test converting code fence."""
@@ -247,8 +270,10 @@ class TestNotionEngineInit:
 
     def test_init_with_progress_callback(self):
         """Test initialization with progress callback."""
+
         def callback(msg):
             return None
+
         engine = NotionEngine(token="test", progress_callback=callback)
         assert engine.progress_callback is callback
 
@@ -273,7 +298,9 @@ class TestNotionEngineGetClient:
 
         with patch("builtins.__import__", side_effect=mock_import):
             engine = NotionEngine(token="test")
-            with pytest.raises(NotionError, match="notion-client library not installed"):
+            with pytest.raises(
+                NotionError, match="notion-client library not installed"
+            ):
                 engine._get_client()
 
     def test_get_client_missing_token(self):
@@ -307,7 +334,9 @@ class TestNotionEngineSetPageCover:
         mock_client.pages.update.assert_called_once()
         call_kwargs = mock_client.pages.update.call_args[1]
         assert call_kwargs["page_id"] == "page_123"
-        assert call_kwargs["cover"]["external"]["url"] == "https://example.com/cover.jpg"
+        assert (
+            call_kwargs["cover"]["external"]["url"] == "https://example.com/cover.jpg"
+        )
 
     def test_set_page_cover_api_failure(self, mock_notion_client):
         """Test handling of API failure."""

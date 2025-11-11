@@ -3,6 +3,7 @@
 No UI dependencies, no CLI concerns. Just transcript format conversion.
 Handles conversion to TXT, SRT, VTT, and Markdown formats.
 """
+
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -96,7 +97,9 @@ class ExportEngine:
                 text = f"[{speaker}] {text}"
 
             lines.append(str(i))
-            lines.append(f"{format_timestamp(s['start'])} --> {format_timestamp(s['end'])}")
+            lines.append(
+                f"{format_timestamp(s['start'])} --> {format_timestamp(s['end'])}"
+            )
             lines.append(text)
             lines.append("")
 

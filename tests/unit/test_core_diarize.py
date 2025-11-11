@@ -3,6 +3,7 @@
 Tests pure business logic without UI dependencies.
 Uses mocking to avoid actual WhisperX model loading.
 """
+
 import os
 import sys
 from unittest.mock import MagicMock, patch
@@ -83,8 +84,18 @@ def sample_diarized_result():
                 "start": 0.0,
                 "end": 2.0,
                 "words": [
-                    {"word": "Hello", "start": 0.0, "end": 0.5, "speaker": "SPEAKER_00"},
-                    {"word": "world", "start": 0.6, "end": 1.0, "speaker": "SPEAKER_00"},
+                    {
+                        "word": "Hello",
+                        "start": 0.0,
+                        "end": 0.5,
+                        "speaker": "SPEAKER_00",
+                    },
+                    {
+                        "word": "world",
+                        "start": 0.6,
+                        "end": 1.0,
+                        "speaker": "SPEAKER_00",
+                    },
                 ],
             },
             {
@@ -113,10 +124,15 @@ class TestDiarizationEngineInit:
 
     def test_init_custom_params(self):
         """Test initialization with custom parameters."""
+
         def callback(msg):
             return None
+
         engine = DiarizationEngine(
-            language="es", device="cuda", hf_token="test_token", progress_callback=callback
+            language="es",
+            device="cuda",
+            hf_token="test_token",
+            progress_callback=callback,
         )
         assert engine.language == "es"
         assert engine.device == "cuda"
@@ -179,7 +195,9 @@ class TestDiarizationEngineDiarize:
         mock_whisperx.diarize.DiarizationPipeline.assert_called_once()
         mock_whisperx.diarize.assign_word_speakers.assert_called_once()
 
-    def test_diarize_missing_audio_file(self, mock_whisperx, sample_transcript_segments, tmp_path):
+    def test_diarize_missing_audio_file(
+        self, mock_whisperx, sample_transcript_segments, tmp_path
+    ):
         """Test that missing audio file raises error."""
         audio_file = tmp_path / "nonexistent.wav"
 
@@ -266,7 +284,9 @@ class TestDiarizationEngineDiarize:
         mock_whisperx.load_align_model.return_value = (MagicMock(), MagicMock())
         mock_whisperx.load_audio.return_value = MagicMock()
         mock_whisperx.align.return_value = sample_aligned_result
-        mock_whisperx.diarize.DiarizationPipeline.side_effect = Exception("Pipeline load failed")
+        mock_whisperx.diarize.DiarizationPipeline.side_effect = Exception(
+            "Pipeline load failed"
+        )
 
         engine = DiarizationEngine()
 
@@ -329,7 +349,10 @@ class TestDiarizationEngineDiarize:
         assert any("alignment model" in msg.lower() for msg in progress_messages)
         assert any("audio" in msg.lower() for msg in progress_messages)
         assert any("align" in msg.lower() for msg in progress_messages)
-        assert any("diarization model" in msg.lower() or "speakers" in msg.lower() for msg in progress_messages)
+        assert any(
+            "diarization model" in msg.lower() or "speakers" in msg.lower()
+            for msg in progress_messages
+        )
 
     def test_diarize_with_cuda_device(
         self,

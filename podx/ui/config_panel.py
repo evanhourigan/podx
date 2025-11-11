@@ -78,7 +78,9 @@ class ModelInput(ModalScreen[Optional[str]]):
         Binding("escape", "dismiss_cancel", "Cancel", show=False),
     ]
 
-    def __init__(self, field_name: str, current_value: str, *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self, field_name: str, current_value: str, *args: Any, **kwargs: Any
+    ) -> None:
         """Initialize model input screen.
 
         Args:
@@ -262,7 +264,8 @@ class ConfigPanel(ModalScreen[Optional[Dict[str, Any]]]):
             yield self._make_option("F", "Render PDF", "deepcast_pdf")
 
             yield Static(
-                "Press key to toggle • Enter to continue • Esc to go back", id="instructions"
+                "Press key to toggle • Enter to continue • Esc to go back",
+                id="instructions",
             )
 
     def _make_option(self, key: str, name: str, config_key: str) -> Static:
@@ -541,6 +544,7 @@ def configure_pipeline_interactive(config: Dict[str, Any]) -> Optional[Dict[str,
         restore_logging()
         print(f"❌ Error launching configuration panel: {e}")
         import traceback
+
         traceback.print_exc()
         raise
     finally:

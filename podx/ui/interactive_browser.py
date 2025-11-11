@@ -37,7 +37,7 @@ class InteractiveBrowser(ABC):
         self,
         items: List[Dict[str, Any]],
         items_per_page: int = 10,
-        item_name: str = "item"
+        item_name: str = "item",
     ):
         """Initialize browser with items and pagination settings.
 
@@ -131,7 +131,9 @@ class InteractiveBrowser(ABC):
 
                 # Invalid input
                 if self.console:
-                    self.console.print("[red]❌ Invalid input. Please enter a number.[/red]")
+                    self.console.print(
+                        "[red]❌ Invalid input. Please enter a number.[/red]"
+                    )
 
             except (KeyboardInterrupt, EOFError):
                 if self.console:

@@ -2,6 +2,7 @@
 
 No UI dependencies, no CLI concerns. Just Notion API operations for publishing content.
 """
+
 import os
 import re
 from typing import Any, Callable, Dict, List, Optional
@@ -405,9 +406,7 @@ class NotionEngine:
         else:
             client.blocks.children.append(block_id=page_id, children=blocks)
 
-    def _split_blocks(
-        self, blocks: List[Dict[str, Any]]
-    ) -> List[List[Dict[str, Any]]]:
+    def _split_blocks(self, blocks: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
         """Split blocks into chunks that respect Notion's 100-block limit."""
         if len(blocks) <= 100:
             return [blocks]

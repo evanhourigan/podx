@@ -22,7 +22,10 @@ def test_single_mode_existing_transcript(
 
     # Mock transcript file exists
     with patch("pathlib.Path.exists", return_value=True):
-        with patch("pathlib.Path.read_text", return_value='{"asr_model": "large-v3", "segments": [{"text": "hello"}]}'):
+        with patch(
+            "pathlib.Path.read_text",
+            return_value='{"asr_model": "large-v3", "segments": [{"text": "hello"}]}',
+        ):
             progress = MagicMock()
 
             latest, latest_name = _execute_transcribe(
@@ -116,7 +119,7 @@ def test_single_mode_with_asr_provider(
             model=model,
             compute="int8",
             asr_provider="openai",  # Specific provider
-            preset="precision",      # Specific preset
+            preset="precision",  # Specific preset
             dual=False,
             audio={"audio_path": "/tmp/audio.wav"},
             wd=wd,
@@ -154,8 +157,13 @@ def test_single_mode_model_fallback(
     }
 
     # Mock reading the best available (large-v2)
-    with patch("pathlib.Path.exists", return_value=False):  # Requested model doesn't exist
-        with patch("pathlib.Path.read_text", return_value='{"asr_model": "large-v2", "segments": [{"text": "fallback"}]}'):
+    with patch(
+        "pathlib.Path.exists", return_value=False
+    ):  # Requested model doesn't exist
+        with patch(
+            "pathlib.Path.read_text",
+            return_value='{"asr_model": "large-v2", "segments": [{"text": "fallback"}]}',
+        ):
             progress = MagicMock()
 
             latest, latest_name = _execute_transcribe(
@@ -247,7 +255,10 @@ def test_dual_mode_resume_precision_only(
 
     # Mock precision exists, recall doesn't
     with patch("pathlib.Path.exists", new=lambda self: "precision" in str(self)):
-        with patch("pathlib.Path.read_text", return_value='{"asr_model": "large-v3", "preset": "precision", "segments": []}'):
+        with patch(
+            "pathlib.Path.read_text",
+            return_value='{"asr_model": "large-v3", "preset": "precision", "segments": []}',
+        ):
             progress = MagicMock()
 
             latest, latest_name = _execute_transcribe(
@@ -270,9 +281,7 @@ def test_dual_mode_resume_precision_only(
 @patch("podx.orchestrate._run")
 @patch("podx.utils.sanitize_model_name")
 @patch("podx.utils.discover_transcripts")
-def test_dual_mode_full_resume(
-    mock_discover, mock_sanitize, mock_run, mock_logger
-):
+def test_dual_mode_full_resume(mock_discover, mock_sanitize, mock_run, mock_logger):
     """Test dual mode resumes when both precision and recall exist."""
     # Setup
     wd = Path("/tmp/test")
@@ -283,7 +292,7 @@ def test_dual_mode_full_resume(
     # Mock both precision and recall exist (but not legacy transcript.json)
     read_data = [
         '{"asr_model": "large-v3", "preset": "precision", "segments": []}',
-        '{"asr_model": "large-v3", "preset": "recall", "segments": []}'
+        '{"asr_model": "large-v3", "preset": "recall", "segments": []}',
     ]
 
     with patch("pathlib.Path.exists", new=lambda self: "transcript.json" != self.name):
@@ -323,7 +332,10 @@ def test_legacy_transcript_json_handling(
 
     # Mock legacy transcript.json exists
     with patch("pathlib.Path.exists", new=lambda self: "transcript.json" == self.name):
-        with patch("pathlib.Path.read_text", return_value='{"asr_model": "base", "segments": [{"text": "legacy"}]}'):
+        with patch(
+            "pathlib.Path.read_text",
+            return_value='{"asr_model": "base", "segments": [{"text": "legacy"}]}',
+        ):
             progress = MagicMock()
 
             latest, latest_name = _execute_transcribe(
@@ -390,9 +402,7 @@ def test_dual_mode_with_asr_provider(
 @patch("podx.orchestrate._run")
 @patch("podx.utils.sanitize_model_name")
 @patch("podx.utils.discover_transcripts")
-def test_progress_tracking(
-    mock_discover, mock_sanitize, mock_run, mock_logger
-):
+def test_progress_tracking(mock_discover, mock_sanitize, mock_run, mock_logger):
     """Test that progress callbacks are called correctly."""
     # Setup
     wd = Path("/tmp/test")

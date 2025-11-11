@@ -45,7 +45,11 @@ from .interactive_browser import InteractiveBrowser
 from .live_timer import LiveTimer
 from .transcode_browser import TranscodeBrowser, scan_transcodable_episodes
 from .transcribe_browser import TranscribeBrowser, scan_transcribable_episodes
-from .transcribe_tui import ASRModelModal, TranscriptionProgressApp, select_asr_model_tui
+from .transcribe_tui import (
+    ASRModelModal,
+    TranscriptionProgressApp,
+    select_asr_model_tui,
+)
 
 # Backward compatibility alias
 DiarizeBrowser = DiarizeTwoPhase

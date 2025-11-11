@@ -228,7 +228,9 @@ class TestTranscriptionEngineLocal:
         mock_whisper_model_class.return_value = mock_model
         mock_model.transcribe.return_value = ([], MagicMock(language="en"))
 
-        engine = TranscriptionEngine(extra_decode_options={"beam_size": 5, "best_of": 3})
+        engine = TranscriptionEngine(
+            extra_decode_options={"beam_size": 5, "best_of": 3}
+        )
         audio_path = Path("/fake/audio.wav")
 
         with patch.object(Path, "exists", return_value=True):
@@ -255,7 +257,9 @@ class TestTranscriptionEngineLocal:
         audio_path = Path("/fake/audio.wav")
 
         with patch.object(Path, "exists", return_value=True):
-            with pytest.raises(TranscriptionError, match="Failed to initialize Whisper model"):
+            with pytest.raises(
+                TranscriptionError, match="Failed to initialize Whisper model"
+            ):
                 engine.transcribe(audio_path)
 
     @patch("faster_whisper.WhisperModel")
@@ -305,9 +309,7 @@ class TestTranscriptionEngineOpenAI:
         # Mock response
         mock_response = MagicMock()
         mock_response.text = "Hello world"
-        mock_response.segments = [
-            {"start": 0.0, "end": 5.0, "text": "Hello world"}
-        ]
+        mock_response.segments = [{"start": 0.0, "end": 5.0, "text": "Hello world"}]
         mock_client.audio.transcriptions.create.return_value = mock_response
 
         engine = TranscriptionEngine(model="openai:large-v3-turbo")
@@ -333,7 +335,7 @@ class TestTranscriptionEngineOpenAI:
         # Mock dict-style response
         mock_response = {
             "text": "Test audio",
-            "segments": [{"start": 0.0, "end": 3.0, "text": "Test audio"}]
+            "segments": [{"start": 0.0, "end": 3.0, "text": "Test audio"}],
         }
         mock_client.audio.transcriptions.create.return_value = mock_response
 
@@ -389,7 +391,9 @@ class TestTranscriptionEngineOpenAI:
 
         with patch.object(Path, "exists", return_value=True):
             with patch("builtins.open", MagicMock()):
-                with pytest.raises(TranscriptionError, match="OpenAI transcription failed"):
+                with pytest.raises(
+                    TranscriptionError, match="OpenAI transcription failed"
+                ):
                     engine.transcribe(audio_path)
 
 
@@ -407,9 +411,7 @@ class TestTranscriptionEngineHuggingFace:
         # Mock result with chunks
         mock_result = {
             "text": "Hello world",
-            "chunks": [
-                {"timestamp": [0.0, 5.0], "text": "Hello world"}
-            ]
+            "chunks": [{"timestamp": [0.0, 5.0], "text": "Hello world"}],
         }
         mock_asr.return_value = mock_result
 
@@ -417,7 +419,9 @@ class TestTranscriptionEngineHuggingFace:
         audio_path = Path("/fake/audio.wav")
 
         # Patch both the import and the function
-        with patch.dict("sys.modules", {"transformers": MagicMock(pipeline=mock_pipeline_func)}):
+        with patch.dict(
+            "sys.modules", {"transformers": MagicMock(pipeline=mock_pipeline_func)}
+        ):
             with patch.object(Path, "exists", return_value=True):
                 result = engine.transcribe(audio_path)
 
@@ -491,7 +495,9 @@ class TestTranscriptionEngineHuggingFace:
         audio_path = Path("/fake/audio.wav")
 
         with patch.object(Path, "exists", return_value=True):
-            with pytest.raises(TranscriptionError, match="Hugging Face transcription failed"):
+            with pytest.raises(
+                TranscriptionError, match="Hugging Face transcription failed"
+            ):
                 engine.transcribe(audio_path)
 
     @pytest.mark.skip("Complex import mocking - integration test instead")
@@ -597,9 +603,7 @@ class TestEdgeCases:
         # Segment with timestamp as tuple instead of start/end
         mock_response = MagicMock()
         mock_response.text = "Test"
-        mock_response.segments = [
-            {"timestamp": [1.5, 3.5], "text": "Test"}
-        ]
+        mock_response.segments = [{"timestamp": [1.5, 3.5], "text": "Test"}]
         mock_client.audio.transcriptions.create.return_value = mock_response
 
         engine = TranscriptionEngine(model="openai:large-v3")
@@ -629,7 +633,9 @@ class TestEdgeCases:
         audio_path = Path("relative/path/audio.wav")
 
         with patch.object(Path, "exists", return_value=True):
-            with patch.object(Path, "resolve", return_value=Path("/absolute/path/audio.wav")):
+            with patch.object(
+                Path, "resolve", return_value=Path("/absolute/path/audio.wav")
+            ):
                 result = engine.transcribe(audio_path)
 
         assert result["audio_path"] == "/absolute/path/audio.wav"

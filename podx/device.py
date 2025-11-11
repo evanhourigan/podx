@@ -31,6 +31,7 @@ def detect_device_for_ctranslate2() -> Literal["cuda", "cpu"]:
     # Check for NVIDIA CUDA
     try:
         import torch
+
         if torch.cuda.is_available():
             device_name = torch.cuda.get_device_name(0)
             logger.info(
@@ -64,6 +65,7 @@ def detect_device_for_pytorch() -> DeviceType:
     if platform.system() == "Darwin" and platform.machine() == "arm64":
         try:
             import torch
+
             if torch.backends.mps.is_available():
                 logger.info(
                     "Detected Apple Silicon with MPS support for diarization",
@@ -79,6 +81,7 @@ def detect_device_for_pytorch() -> DeviceType:
     # Check for NVIDIA CUDA
     try:
         import torch
+
         if torch.cuda.is_available():
             device_name = torch.cuda.get_device_name(0)
             logger.info(
@@ -153,7 +156,9 @@ def get_device_info() -> Tuple[DeviceType, str]:
     return device, compute_type
 
 
-def log_device_usage(device: DeviceType, compute_type: str, operation: str = "processing"):
+def log_device_usage(
+    device: DeviceType, compute_type: str, operation: str = "processing"
+):
     """Log device usage information for transparency.
 
     Args:

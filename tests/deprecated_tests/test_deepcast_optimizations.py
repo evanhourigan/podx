@@ -79,9 +79,15 @@ class TestParallelChunkProcessing:
 
             async def process_chunk(i: int, chunk: str) -> str:
                 async with semaphore:
-                    prompt = f"Map instructions\n\nChunk {i+1}/{len(chunks)}:\n\n{chunk}"
+                    prompt = (
+                        f"Map instructions\n\nChunk {i+1}/{len(chunks)}:\n\n{chunk}"
+                    )
                     note = await chat_once_async(
-                        mock_client, model="gpt-4.1", system="system", user=prompt, temperature=0.2
+                        mock_client,
+                        model="gpt-4.1",
+                        system="system",
+                        user=prompt,
+                        temperature=0.2,
                     )
                     return note
 

@@ -24,7 +24,9 @@ class LiveTimer:
         while not self.stop_flag.is_set():
             elapsed = int(time.time() - self.start_time)
             # Use \r to overwrite the line
-            print(f"\r{self.message} ({self._format_time(elapsed)})", end="", flush=True)
+            print(
+                f"\r{self.message} ({self._format_time(elapsed)})", end="", flush=True
+            )
             time.sleep(1)
 
     def start(self):

@@ -3,6 +3,7 @@
 Tests pure business logic without UI dependencies.
 Uses mocking to avoid actual ffmpeg/ffprobe execution.
 """
+
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -327,9 +328,10 @@ class TestEdgeCases:
         result = engine.transcode(source)
 
         assert "audio_path" in result
-        assert Path(result["audio_path"]).exists() or not Path(
-            result["audio_path"]
-        ).exists()  # May or may not exist since mocked
+        assert (
+            Path(result["audio_path"]).exists()
+            or not Path(result["audio_path"]).exists()
+        )  # May or may not exist since mocked
 
     @patch("podx.core.transcode.subprocess.run")
     def test_output_overwrites_existing(self, mock_run, tmp_path):

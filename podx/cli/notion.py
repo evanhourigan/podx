@@ -200,12 +200,12 @@ def _list_deepcast_models(workdir: Path) -> List[str]:
         stem = f.stem
         if stem.startswith("deepcast-brief-"):
             # Legacy: deepcast-brief-{ai} (backward compatibility)
-            suffix = stem[len("deepcast-brief-"):].replace("_", ".")
+            suffix = stem[len("deepcast-brief-") :].replace("_", ".")
             models.append(suffix)
         elif stem.startswith("deepcast-"):
             if stem.count("-") == 1:
                 # Simple format: deepcast-{ai}
-                suffix = stem[len("deepcast-"):].replace("_", ".")
+                suffix = stem[len("deepcast-") :].replace("_", ".")
                 models.append(suffix)
             elif stem.count("-") >= 3:
                 # Complex format: deepcast-{asr}-{ai}-{type}
@@ -238,7 +238,9 @@ def _prompt_numbered_choice(title: str, items: List[str]) -> Optional[str]:
         if _HAS_RICH and _console is not None:
             tbl = Table(show_header=True, header_style="bold cyan", box=None)
             tbl.add_column("#", style="cyan dim", width=4)
-            tbl.add_column(title + (f" {filter_note}" if filter_note else ""), style="white")
+            tbl.add_column(
+                title + (f" {filter_note}" if filter_note else ""), style="white"
+            )
             for idx, item in enumerate(current, start=1):
                 tbl.add_row(str(idx), item)
             _console.print(tbl)
@@ -285,6 +287,7 @@ def _scan_notion_rows(scan_dir: Path) -> List[Dict[str, Any]]:
 
     Adds a 'type' field indicating consensus, precision, recall, or deepcast type.
     """
+
     def _format_date_ymd(s: Optional[str]) -> str:
         if not isinstance(s, str) or not s.strip():
             return "Unknown"
@@ -302,9 +305,13 @@ def _scan_notion_rows(scan_dir: Path) -> List[Dict[str, Any]]:
         # Last resort: take last 10 chars if they look like a date-ish token
         t = s.strip()
         return t[-10:] if len(t) >= 10 else t
+
     rows: List[Dict[str, Any]] = []
+
     # Helper to push a row from paths and metadata
-    def add_row(episode_dir: Path, analysis_path: Path, ai: str, asr: str, kind: str, track: str):
+    def add_row(
+        episode_dir: Path, analysis_path: Path, ai: str, asr: str, kind: str, track: str
+    ):
         show = "Unknown"
         title = "Unknown"
         date = "Unknown"
@@ -319,18 +326,20 @@ def _scan_notion_rows(scan_dir: Path) -> List[Dict[str, Any]]:
             except Exception:
                 pass
         notion_done = (episode_dir / "notion.out.json").exists()
-        rows.append({
-            "path": analysis_path,
-            "dir": episode_dir,
-            "show": show,
-            "date": date,
-            "title": title,
-            "ai": ai,
-            "asr": asr,
-            "type": kind,
-            "track": track,
-            "notion": notion_done,
-        })
+        rows.append(
+            {
+                "path": analysis_path,
+                "dir": episode_dir,
+                "show": show,
+                "date": date,
+                "title": title,
+                "ai": ai,
+                "asr": asr,
+                "type": kind,
+                "track": track,
+                "notion": notion_done,
+            }
+        )
 
     # Deepcast analyses
     for analysis_file in scan_dir.rglob("deepcast-*.json"):
@@ -379,14 +388,25 @@ def _interactive_table_flow(
 ) -> Optional[Dict[str, Any]]:
     rows = _scan_notion_rows(scan_dir)
     # Promote consensus rows to the top order within same episode (show+date+title)
-    rows.sort(key=lambda r: (r["show"], r["date"], r["title"], 0 if r.get("type") == "consensus" else 1, r["path"].stat().st_mtime), reverse=True)
+    rows.sort(
+        key=lambda r: (
+            r["show"],
+            r["date"],
+            r["title"],
+            0 if r.get("type") == "consensus" else 1,
+            r["path"].stat().st_mtime,
+        ),
+        reverse=True,
+    )
     if not rows:
         print(f"❌ No deepcast files found in {scan_dir}")
         return None
 
     # Display table of available analyses
     print("\n🪄 Select an analysis to upload to Notion\n")
-    print(f"{'#':>3}  {'Show':<20}  {'Date':<12}  {'Title':<30}  {'AI':<14}  {'ASR':<14}  {'Type':<18}  {'Trk':<4}  {'Rec':<3}  {'Notion':<6}")
+    print(
+        f"{'#':>3}  {'Show':<20}  {'Date':<12}  {'Title':<30}  {'AI':<14}  {'ASR':<14}  {'Type':<18}  {'Trk':<4}  {'Rec':<3}  {'Notion':<6}"
+    )
     print("-" * 140)
 
     # Sort to prefer consensus at top for the same episode
@@ -400,7 +420,9 @@ def _interactive_table_flow(
         rec_mark = "✓" if track == "C" else "-"
         notion_mark = "✓" if r["notion"] else "-"
 
-        print(f"{idx:>3}  {show_trunc:<20}  {r['date']:<12}  {title_trunc:<30}  {ai_trunc:<14}  {asr_trunc:<14}  {type_trunc:<18}  {track:<4}  {rec_mark:<3}  {notion_mark:<6}")
+        print(
+            f"{idx:>3}  {show_trunc:<20}  {r['date']:<12}  {title_trunc:<30}  {ai_trunc:<14}  {asr_trunc:<14}  {type_trunc:<18}  {track:<4}  {rec_mark:<3}  {notion_mark:<6}"
+        )
 
     # Prefer consensus row as default selection if available
     default_idx = None
@@ -461,7 +483,13 @@ def _interactive_table_flow(
             db_val = manual or default_db
             preset_token = None
     else:
-        db_val = input(f"Notion DB ID [{default_db}]: ").strip() if _HAS_RICH else click.prompt("Notion DB ID", default=default_db, show_default=bool(default_db))
+        db_val = (
+            input(f"Notion DB ID [{default_db}]: ").strip()
+            if _HAS_RICH
+            else click.prompt(
+                "Notion DB ID", default=default_db, show_default=bool(default_db)
+            )
+        )
         if not db_val:
             db_val = default_db
         preset_token = None
@@ -485,17 +513,29 @@ def _interactive_table_flow(
 
     # Quick hint if a page already exists (best-effort)
     try:
-        meta_for_hint = json.loads((chosen["dir"] / "episode-meta.json").read_text(encoding="utf-8"))
-        episode_title = meta_for_hint.get("episode_title") or meta_for_hint.get("title") or ""
-        date_val = meta_for_hint.get("episode_published") or meta_for_hint.get("date") or ""
+        meta_for_hint = json.loads(
+            (chosen["dir"] / "episode-meta.json").read_text(encoding="utf-8")
+        )
+        episode_title = (
+            meta_for_hint.get("episode_title") or meta_for_hint.get("title") or ""
+        )
+        date_val = (
+            meta_for_hint.get("episode_published") or meta_for_hint.get("date") or ""
+        )
         if episode_title and db_val and not effective_dry_run and Client is not None:
             client = notion_client_from_env()
-            filt = {"and": [{"property": "Episode", "rich_text": {"equals": episode_title}}]}
+            filt = {
+                "and": [{"property": "Episode", "rich_text": {"equals": episode_title}}]
+            }
             if isinstance(date_val, str) and len(date_val) >= 10:
-                filt["and"].append({"property": "Date", "date": {"equals": date_val[:10]}})
+                filt["and"].append(
+                    {"property": "Date", "date": {"equals": date_val[:10]}}
+                )
             q = client.databases.query(database_id=db_val, filter=filt)
             if q.get("results"):
-                print("⚠️  Note: an existing Notion page with this title/date was found.")
+                print(
+                    "⚠️  Note: an existing Notion page with this title/date was found."
+                )
     except Exception:
         pass
 
@@ -588,7 +628,9 @@ def upsert_page(
 
     # Episode property fallback (rich_text/title/select/multi_select)
     if not _prop_exists(episode_prop):
-        fallback_episode = _first_property_of_type(["rich_text", "title", "select", "multi_select"])
+        fallback_episode = _first_property_of_type(
+            ["rich_text", "title", "select", "multi_select"]
+        )
         if fallback_episode and fallback_episode != podcast_prop:
             click.echo(
                 f"[yellow]Episode property '{episode_prop}' not found; using '{fallback_episode}'.[/yellow]",
@@ -681,13 +723,21 @@ def upsert_page(
     if episode_prop:
         episode_type = db_props.get(episode_prop, {}).get("type")
         if episode_type == "title":
-            filters.append({"property": episode_prop, "title": {"equals": episode_title}})
+            filters.append(
+                {"property": episode_prop, "title": {"equals": episode_title}}
+            )
         elif episode_type == "rich_text":
-            filters.append({"property": episode_prop, "rich_text": {"equals": episode_title}})
+            filters.append(
+                {"property": episode_prop, "rich_text": {"equals": episode_title}}
+            )
         elif episode_type == "select":
-            filters.append({"property": episode_prop, "select": {"equals": episode_title}})
+            filters.append(
+                {"property": episode_prop, "select": {"equals": episode_title}}
+            )
         elif episode_type == "multi_select":
-            filters.append({"property": episode_prop, "multi_select": {"contains": episode_title}})
+            filters.append(
+                {"property": episode_prop, "multi_select": {"contains": episode_title}}
+            )
 
     if date_iso and date_prop:
         filters.append({"property": date_prop, "date": {"equals": date_iso}})
@@ -695,13 +745,21 @@ def upsert_page(
     if deepcast_model and model_prop:
         model_type = db_props.get(model_prop, {}).get("type")
         if model_type == "title":
-            filters.append({"property": model_prop, "title": {"equals": deepcast_model}})
+            filters.append(
+                {"property": model_prop, "title": {"equals": deepcast_model}}
+            )
         elif model_type == "rich_text":
-            filters.append({"property": model_prop, "rich_text": {"equals": deepcast_model}})
+            filters.append(
+                {"property": model_prop, "rich_text": {"equals": deepcast_model}}
+            )
         elif model_type == "select":
-            filters.append({"property": model_prop, "select": {"equals": deepcast_model}})
+            filters.append(
+                {"property": model_prop, "select": {"equals": deepcast_model}}
+            )
         elif model_type == "multi_select":
-            filters.append({"property": model_prop, "multi_select": {"contains": deepcast_model}})
+            filters.append(
+                {"property": model_prop, "multi_select": {"contains": deepcast_model}}
+            )
 
     if filters:
         q = client.databases.query(database_id=db_id, filter={"and": filters})
@@ -1286,7 +1344,9 @@ def main(
         if interactive:
             print("\n✅ Notion upload complete")
             print(f"   Episode: {episode_title}")
-            print(f"   Database: {config_db_name if config_db_name else db_id[:8] + '...'}")
+            print(
+                f"   Database: {config_db_name if config_db_name else db_id[:8] + '...'}"
+            )
             print(f"   Page URL: {result['url']}")
             if output:
                 print(f"   Summary saved: {output}")
@@ -1296,7 +1356,9 @@ def main(
         if not output:
             print("\n✅ Notion upload complete")
             print(f"   Episode: {episode_title}")
-            print(f"   Database: {config_db_name if config_db_name else db_id[:8] + '...'}")
+            print(
+                f"   Database: {config_db_name if config_db_name else db_id[:8] + '...'}"
+            )
             print(f"   Page URL: {result['url']}")
     else:
         if json_output:

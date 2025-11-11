@@ -17,6 +17,7 @@ AudioFormat = Literal["wav16", "mp3", "aac"]
 
 class TranscodeError(Exception):
     """Raised when transcoding fails."""
+
     pass
 
 
@@ -79,14 +80,19 @@ class TranscodeEngine:
         output = (output_dir / source.stem).with_suffix(".wav")
 
         try:
-            self._run_ffmpeg([
-                "-y",
-                "-i", str(source),
-                "-ac", "1",  # Mono
-                "-ar", "16000",  # 16kHz
-                "-vn",  # No video
-                str(output)
-            ])
+            self._run_ffmpeg(
+                [
+                    "-y",
+                    "-i",
+                    str(source),
+                    "-ac",
+                    "1",  # Mono
+                    "-ar",
+                    "16000",  # 16kHz
+                    "-vn",  # No video
+                    str(output),
+                ]
+            )
         except subprocess.CalledProcessError as e:
             raise TranscodeError(f"WAV16 transcoding failed: {e.stderr}")
 
@@ -102,13 +108,18 @@ class TranscodeEngine:
         output = (output_dir / source.stem).with_suffix(".mp3")
 
         try:
-            self._run_ffmpeg([
-                "-y",
-                "-i", str(source),
-                "-codec:a", "libmp3lame",
-                "-b:a", self.bitrate,
-                str(output)
-            ])
+            self._run_ffmpeg(
+                [
+                    "-y",
+                    "-i",
+                    str(source),
+                    "-codec:a",
+                    "libmp3lame",
+                    "-b:a",
+                    self.bitrate,
+                    str(output),
+                ]
+            )
         except subprocess.CalledProcessError as e:
             raise TranscodeError(f"MP3 transcoding failed: {e.stderr}")
 
@@ -126,13 +137,18 @@ class TranscodeEngine:
         output = (output_dir / source.stem).with_suffix(".m4a")
 
         try:
-            self._run_ffmpeg([
-                "-y",
-                "-i", str(source),
-                "-c:a", "aac",
-                "-b:a", self.bitrate,
-                str(output)
-            ])
+            self._run_ffmpeg(
+                [
+                    "-y",
+                    "-i",
+                    str(source),
+                    "-c:a",
+                    "aac",
+                    "-b:a",
+                    self.bitrate,
+                    str(output),
+                ]
+            )
         except subprocess.CalledProcessError as e:
             raise TranscodeError(f"AAC transcoding failed: {e.stderr}")
 
@@ -174,10 +190,14 @@ class TranscodeEngine:
             result = subprocess.run(
                 [
                     "ffprobe",
-                    "-v", "error",
-                    "-select_streams", "a:0",
-                    "-show_entries", "stream=sample_rate,channels",
-                    "-of", "default=nw=1:nk=1",
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "a:0",
+                    "-show_entries",
+                    "stream=sample_rate,channels",
+                    "-of",
+                    "default=nw=1:nk=1",
                     str(path),
                 ],
                 capture_output=True,
@@ -198,7 +218,9 @@ class TranscodeEngine:
 
 
 # Convenience functions for direct use
-def transcode_to_wav16(source: Path, output_dir: Optional[Path] = None) -> Dict[str, Any]:
+def transcode_to_wav16(
+    source: Path, output_dir: Optional[Path] = None
+) -> Dict[str, Any]:
     """Transcode audio to 16kHz mono WAV.
 
     Args:
@@ -213,9 +235,7 @@ def transcode_to_wav16(source: Path, output_dir: Optional[Path] = None) -> Dict[
 
 
 def transcode_to_mp3(
-    source: Path,
-    output_dir: Optional[Path] = None,
-    bitrate: str = "128k"
+    source: Path, output_dir: Optional[Path] = None, bitrate: str = "128k"
 ) -> Dict[str, Any]:
     """Transcode audio to MP3.
 
@@ -232,9 +252,7 @@ def transcode_to_mp3(
 
 
 def transcode_to_aac(
-    source: Path,
-    output_dir: Optional[Path] = None,
-    bitrate: str = "128k"
+    source: Path, output_dir: Optional[Path] = None, bitrate: str = "128k"
 ) -> Dict[str, Any]:
     """Transcode audio to AAC.
 

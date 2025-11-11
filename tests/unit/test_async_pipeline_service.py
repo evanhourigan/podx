@@ -31,8 +31,12 @@ async def test_basic_pipeline_execution():
     mock_transcript = {"text": "Hello world", "segments": []}
 
     with patch.object(service.executor, "fetch", new_callable=AsyncMock) as mock_fetch:
-        with patch.object(service.executor, "transcode", new_callable=AsyncMock) as mock_transcode:
-            with patch.object(service.executor, "transcribe", new_callable=AsyncMock) as mock_transcribe:
+        with patch.object(
+            service.executor, "transcode", new_callable=AsyncMock
+        ) as mock_transcode:
+            with patch.object(
+                service.executor, "transcribe", new_callable=AsyncMock
+            ) as mock_transcribe:
                 with patch("podx.services.async_pipeline_service.Path.mkdir"):
                     with patch("podx.services.async_pipeline_service.Path.write_text"):
                         mock_fetch.return_value = mock_meta
@@ -74,13 +78,26 @@ async def test_concurrent_align_and_diarize():
     mock_diarized = {"text": "Hello", "segments": [], "speakers": ["SPEAKER_00"]}
 
     with patch.object(service.executor, "fetch", new_callable=AsyncMock) as mock_fetch:
-        with patch.object(service.executor, "transcode", new_callable=AsyncMock) as mock_transcode:
-            with patch.object(service.executor, "transcribe", new_callable=AsyncMock) as mock_transcribe:
-                with patch.object(service.executor, "align", new_callable=AsyncMock) as mock_align:
-                    with patch.object(service.executor, "diarize", new_callable=AsyncMock) as mock_diarize:
+        with patch.object(
+            service.executor, "transcode", new_callable=AsyncMock
+        ) as mock_transcode:
+            with patch.object(
+                service.executor, "transcribe", new_callable=AsyncMock
+            ) as mock_transcribe:
+                with patch.object(
+                    service.executor, "align", new_callable=AsyncMock
+                ) as mock_align:
+                    with patch.object(
+                        service.executor, "diarize", new_callable=AsyncMock
+                    ) as mock_diarize:
                         with patch("podx.services.async_pipeline_service.Path.mkdir"):
-                            with patch("podx.services.async_pipeline_service.Path.write_text"):
-                                with patch("podx.services.async_pipeline_service.Path.exists", return_value=False):
+                            with patch(
+                                "podx.services.async_pipeline_service.Path.write_text"
+                            ):
+                                with patch(
+                                    "podx.services.async_pipeline_service.Path.exists",
+                                    return_value=False,
+                                ):
                                     mock_fetch.return_value = mock_meta
                                     mock_transcode.return_value = mock_audio
                                     mock_transcribe.return_value = mock_transcript
@@ -88,7 +105,9 @@ async def test_concurrent_align_and_diarize():
                                     mock_diarize.return_value = mock_diarized
 
                                     # Use asyncio.gather to verify concurrent execution
-                                    with patch("asyncio.gather", wraps=asyncio.gather) as mock_gather:
+                                    with patch(
+                                        "asyncio.gather", wraps=asyncio.gather
+                                    ) as mock_gather:
                                         result = await service.execute()
 
                                         # Verify both align and diarize completed
@@ -119,12 +138,23 @@ async def test_pipeline_with_deepcast():
     mock_deepcast = {"brief": "Test brief", "quotes": []}
 
     with patch.object(service.executor, "fetch", new_callable=AsyncMock) as mock_fetch:
-        with patch.object(service.executor, "transcode", new_callable=AsyncMock) as mock_transcode:
-            with patch.object(service.executor, "transcribe", new_callable=AsyncMock) as mock_transcribe:
-                with patch.object(service.executor, "deepcast", new_callable=AsyncMock) as mock_deepcast_call:
+        with patch.object(
+            service.executor, "transcode", new_callable=AsyncMock
+        ) as mock_transcode:
+            with patch.object(
+                service.executor, "transcribe", new_callable=AsyncMock
+            ) as mock_transcribe:
+                with patch.object(
+                    service.executor, "deepcast", new_callable=AsyncMock
+                ) as mock_deepcast_call:
                     with patch("podx.services.async_pipeline_service.Path.mkdir"):
-                        with patch("podx.services.async_pipeline_service.Path.write_text"):
-                            with patch("podx.services.async_pipeline_service.Path.exists", return_value=False):
+                        with patch(
+                            "podx.services.async_pipeline_service.Path.write_text"
+                        ):
+                            with patch(
+                                "podx.services.async_pipeline_service.Path.exists",
+                                return_value=False,
+                            ):
                                 mock_fetch.return_value = mock_meta
                                 mock_transcode.return_value = mock_audio
                                 mock_transcribe.return_value = mock_transcript
@@ -164,11 +194,18 @@ async def test_progress_callback():
         progress_updates.append((step, status))
 
     with patch.object(service.executor, "fetch", new_callable=AsyncMock) as mock_fetch:
-        with patch.object(service.executor, "transcode", new_callable=AsyncMock) as mock_transcode:
-            with patch.object(service.executor, "transcribe", new_callable=AsyncMock) as mock_transcribe:
+        with patch.object(
+            service.executor, "transcode", new_callable=AsyncMock
+        ) as mock_transcode:
+            with patch.object(
+                service.executor, "transcribe", new_callable=AsyncMock
+            ) as mock_transcribe:
                 with patch("podx.services.async_pipeline_service.Path.mkdir"):
                     with patch("podx.services.async_pipeline_service.Path.write_text"):
-                        with patch("podx.services.async_pipeline_service.Path.exists", return_value=False):
+                        with patch(
+                            "podx.services.async_pipeline_service.Path.exists",
+                            return_value=False,
+                        ):
                             mock_fetch.return_value = mock_meta
                             mock_transcode.return_value = mock_audio
                             mock_transcribe.return_value = mock_transcript
@@ -199,11 +236,18 @@ async def test_batch_processing():
     mock_transcript = {"text": "Hello", "segments": []}
 
     with patch.object(AsyncStepExecutor, "fetch", new_callable=AsyncMock) as mock_fetch:
-        with patch.object(AsyncStepExecutor, "transcode", new_callable=AsyncMock) as mock_transcode:
-            with patch.object(AsyncStepExecutor, "transcribe", new_callable=AsyncMock) as mock_transcribe:
+        with patch.object(
+            AsyncStepExecutor, "transcode", new_callable=AsyncMock
+        ) as mock_transcode:
+            with patch.object(
+                AsyncStepExecutor, "transcribe", new_callable=AsyncMock
+            ) as mock_transcribe:
                 with patch("podx.services.async_pipeline_service.Path.mkdir"):
                     with patch("podx.services.async_pipeline_service.Path.write_text"):
-                        with patch("podx.services.async_pipeline_service.Path.exists", return_value=False):
+                        with patch(
+                            "podx.services.async_pipeline_service.Path.exists",
+                            return_value=False,
+                        ):
                             mock_fetch.return_value = mock_meta
                             mock_transcode.return_value = mock_audio
                             mock_transcribe.return_value = mock_transcript
@@ -240,17 +284,26 @@ async def test_batch_processing_with_progress():
         progress_updates.append((idx, step, status))
 
     with patch.object(AsyncStepExecutor, "fetch", new_callable=AsyncMock) as mock_fetch:
-        with patch.object(AsyncStepExecutor, "transcode", new_callable=AsyncMock) as mock_transcode:
-            with patch.object(AsyncStepExecutor, "transcribe", new_callable=AsyncMock) as mock_transcribe:
+        with patch.object(
+            AsyncStepExecutor, "transcode", new_callable=AsyncMock
+        ) as mock_transcode:
+            with patch.object(
+                AsyncStepExecutor, "transcribe", new_callable=AsyncMock
+            ) as mock_transcribe:
                 with patch("podx.services.async_pipeline_service.Path.mkdir"):
                     with patch("podx.services.async_pipeline_service.Path.write_text"):
-                        with patch("podx.services.async_pipeline_service.Path.exists", return_value=False):
+                        with patch(
+                            "podx.services.async_pipeline_service.Path.exists",
+                            return_value=False,
+                        ):
                             mock_fetch.return_value = mock_meta
                             mock_transcode.return_value = mock_audio
                             mock_transcribe.return_value = mock_transcript
 
                             await AsyncPipelineService.process_batch(
-                                configs, max_concurrent=2, progress_callback=batch_progress
+                                configs,
+                                max_concurrent=2,
+                                progress_callback=batch_progress,
                             )
 
                             # Verify progress updates for both episodes
@@ -310,11 +363,20 @@ async def test_youtube_url_mode():
 
     with patch("podx.youtube.is_youtube_url", return_value=True):
         with patch("podx.youtube.get_youtube_metadata") as mock_get_yt:
-            with patch.object(service.executor, "transcode", new_callable=AsyncMock) as mock_transcode:
-                with patch.object(service.executor, "transcribe", new_callable=AsyncMock) as mock_transcribe:
+            with patch.object(
+                service.executor, "transcode", new_callable=AsyncMock
+            ) as mock_transcode:
+                with patch.object(
+                    service.executor, "transcribe", new_callable=AsyncMock
+                ) as mock_transcribe:
                     with patch("podx.services.async_pipeline_service.Path.mkdir"):
-                        with patch("podx.services.async_pipeline_service.Path.write_text"):
-                            with patch("podx.services.async_pipeline_service.Path.exists", return_value=False):
+                        with patch(
+                            "podx.services.async_pipeline_service.Path.write_text"
+                        ):
+                            with patch(
+                                "podx.services.async_pipeline_service.Path.exists",
+                                return_value=False,
+                            ):
                                 mock_get_yt.return_value = {
                                     "channel": "Test Channel",
                                     "title": "Test Video",
@@ -372,12 +434,23 @@ async def test_preprocess_step():
     mock_preprocessed = {"text": "Hello!", "segments": [], "preprocessed": True}
 
     with patch.object(service.executor, "fetch", new_callable=AsyncMock) as mock_fetch:
-        with patch.object(service.executor, "transcode", new_callable=AsyncMock) as mock_transcode:
-            with patch.object(service.executor, "transcribe", new_callable=AsyncMock) as mock_transcribe:
-                with patch.object(service.executor, "preprocess", new_callable=AsyncMock) as mock_preprocess:
+        with patch.object(
+            service.executor, "transcode", new_callable=AsyncMock
+        ) as mock_transcode:
+            with patch.object(
+                service.executor, "transcribe", new_callable=AsyncMock
+            ) as mock_transcribe:
+                with patch.object(
+                    service.executor, "preprocess", new_callable=AsyncMock
+                ) as mock_preprocess:
                     with patch("podx.services.async_pipeline_service.Path.mkdir"):
-                        with patch("podx.services.async_pipeline_service.Path.write_text"):
-                            with patch("podx.services.async_pipeline_service.Path.exists", return_value=False):
+                        with patch(
+                            "podx.services.async_pipeline_service.Path.write_text"
+                        ):
+                            with patch(
+                                "podx.services.async_pipeline_service.Path.exists",
+                                return_value=False,
+                            ):
                                 mock_fetch.return_value = mock_meta
                                 mock_transcode.return_value = mock_audio
                                 mock_transcribe.return_value = mock_transcript
@@ -411,13 +484,22 @@ async def test_reuse_existing_transcript():
     mock_transcript = {"text": "Hello", "segments": []}
 
     with patch.object(service.executor, "fetch", new_callable=AsyncMock) as mock_fetch:
-        with patch.object(service.executor, "transcode", new_callable=AsyncMock) as mock_transcode:
-            with patch.object(service.executor, "transcribe", new_callable=AsyncMock) as mock_transcribe:
+        with patch.object(
+            service.executor, "transcode", new_callable=AsyncMock
+        ) as mock_transcode:
+            with patch.object(
+                service.executor, "transcribe", new_callable=AsyncMock
+            ) as mock_transcribe:
                 with patch("podx.services.async_pipeline_service.Path.mkdir"):
                     with patch("podx.services.async_pipeline_service.Path.write_text"):
                         # Mock existing audio file
-                        with patch("podx.services.async_pipeline_service.Path.exists", return_value=True):
-                            with patch("podx.services.async_pipeline_service.Path.read_text") as mock_read:
+                        with patch(
+                            "podx.services.async_pipeline_service.Path.exists",
+                            return_value=True,
+                        ):
+                            with patch(
+                                "podx.services.async_pipeline_service.Path.read_text"
+                            ) as mock_read:
                                 mock_fetch.return_value = mock_meta
                                 mock_read.return_value = json.dumps(mock_audio)
                                 mock_transcribe.return_value = mock_transcript
@@ -451,11 +533,18 @@ async def test_custom_workdir():
     mock_transcript = {"text": "Hello", "segments": []}
 
     with patch.object(service.executor, "fetch", new_callable=AsyncMock) as mock_fetch:
-        with patch.object(service.executor, "transcode", new_callable=AsyncMock) as mock_transcode:
-            with patch.object(service.executor, "transcribe", new_callable=AsyncMock) as mock_transcribe:
+        with patch.object(
+            service.executor, "transcode", new_callable=AsyncMock
+        ) as mock_transcode:
+            with patch.object(
+                service.executor, "transcribe", new_callable=AsyncMock
+            ) as mock_transcribe:
                 with patch("podx.services.async_pipeline_service.Path.mkdir"):
                     with patch("podx.services.async_pipeline_service.Path.write_text"):
-                        with patch("podx.services.async_pipeline_service.Path.exists", return_value=False):
+                        with patch(
+                            "podx.services.async_pipeline_service.Path.exists",
+                            return_value=False,
+                        ):
                             mock_fetch.return_value = mock_meta
                             mock_transcode.return_value = mock_audio
                             mock_transcribe.return_value = mock_transcript
