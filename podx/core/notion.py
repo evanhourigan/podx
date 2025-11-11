@@ -98,9 +98,7 @@ def parse_inline_markdown(text: str) -> List[Dict[str, Any]]:
         if next_special == len(text):
             remaining_text = text[i:]
             if remaining_text:
-                rich_text.append(
-                    {"type": "text", "text": {"content": remaining_text}}
-                )
+                rich_text.append({"type": "text", "text": {"content": remaining_text}})
             break
         else:
             text_before_special = text[i:next_special]
