@@ -15,20 +15,29 @@ Advanced usage with configuration:
     >>> result = client.transcribe_and_analyze("audio.mp3")
 """
 
-from .client import ClientConfig, PodxClient
+from .client import AsyncPodxClient, ClientConfig, PodxClient
 from .models import (
     APIError,
     DeepcastResponse,
+    DiarizeResponse,
     ExistsCheckResponse,
+    ExportResponse,
+    FetchResponse,
+    NotionResponse,
     TranscribeResponse,
     ValidationResult,
 )
 
 __all__ = [
     "PodxClient",
+    "AsyncPodxClient",
     "ClientConfig",
     "TranscribeResponse",
     "DeepcastResponse",
+    "DiarizeResponse",
+    "ExportResponse",
+    "FetchResponse",
+    "NotionResponse",
     "ExistsCheckResponse",
     "APIError",
     "ValidationResult",
