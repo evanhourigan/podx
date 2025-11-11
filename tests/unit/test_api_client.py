@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -504,3 +504,345 @@ class TestErrorHandling:
         assert api_error.code == "UNKNOWN_ERROR"
         assert "Unknown error" in api_error.message
         assert api_error.details["operation"] == "transcribe"
+
+
+class TestFetchEpisodeAPI:
+    """Test fetch_episode API method."""
+
+    @patch("podx.core.fetch.PodcastFetcher")
+    def test_fetch_episode_by_show_name(self, mock_fetcher_class, tmp_path):
+        """Test fetching episode by show name."""
+        # Setup mock
+        audio_path = tmp_path / "episode.mp3"
+        audio_path.write_text("fake audio")
+        meta_path = tmp_path / "episode.json"
+        meta_path.write_text('{"title": "Test Episode"}')
+
+        mock_fetcher = MagicMock()
+        mock_fetcher.fetch_episode.return_value = {
+            "audio_path": str(audio_path),
+            "meta_path": str(meta_path),
+            "meta": {"title": "Test Episode"},
+        }
+        mock_fetcher_class.return_value = mock_fetcher
+
+        client = PodxClient()
+        result = client.fetch_episode(
+            show_name="Test Show", date="latest", output_dir=tmp_path
+        )
+
+        assert result.success is True
+        assert result.audio_path == str(audio_path)
+        assert result.episode_meta["title"] == "Test Episode"
+
+    @patch("podx.core.fetch.PodcastFetcher")
+    def test_fetch_episode_by_rss_url(self, mock_fetcher_class, tmp_path):
+        """Test fetching episode by RSS URL."""
+        audio_path = tmp_path / "episode.mp3"
+        audio_path.write_text("fake audio")
+
+        mock_fetcher = MagicMock()
+        mock_fetcher.fetch_episode.return_value = {
+            "audio_path": str(audio_path),
+            "meta": {"title": "RSS Episode"},
+        }
+        mock_fetcher_class.return_value = mock_fetcher
+
+        client = PodxClient()
+        result = client.fetch_episode(
+            rss_url="https://example.com/feed.rss", output_dir=tmp_path
+        )
+
+        assert result.success is True
+        assert result.audio_path == str(audio_path)
+
+    def test_fetch_episode_validation_error(self):
+        """Test fetch_episode raises ValidationError with no show_name or rss_url."""
+        client = PodxClient()
+
+        # Should raise validation error
+        with pytest.raises(ValidationError, match="Either show_name or rss_url must be provided"):
+            client.fetch_episode()
+
+    @patch("podx.core.fetch.PodcastFetcher")
+    def test_fetch_episode_handles_network_error(self, mock_fetcher_class):
+        """Test fetch_episode handles network errors gracefully."""
+        mock_fetcher = MagicMock()
+        mock_fetcher.fetch_episode.side_effect = NetworkError("Failed to download")
+        mock_fetcher_class.return_value = mock_fetcher
+
+        client = PodxClient()
+        result = client.fetch_episode(show_name="Test Show")
+
+        assert result.success is False
+        assert result.error is not None
+
+
+class TestDiarizeAPI:
+    """Test diarize API method."""
+
+    @patch("podx.core.diarize.DiarizationEngine")
+    def test_diarize_success(self, mock_engine_class, tmp_path):
+        """Test successful diarization."""
+        # Create input transcript
+        transcript_path = tmp_path / "transcript.json"
+        transcript_data = {
+            "segments": [{"text": "Hello world", "start": 0.0, "end": 2.0}],
+            "asr_model": "base",
+        }
+        transcript_path.write_text(json.dumps(transcript_data))
+
+        # Create audio file
+        audio_path = tmp_path / "audio.mp3"
+        audio_path.write_text("fake audio")
+
+        # Create diarized output
+        diarized_path = tmp_path / "transcript-diarized.json"
+        diarized_data = {
+            "segments": [
+                {"text": "Hello world", "start": 0.0, "end": 2.0, "speaker": "SPEAKER_00"}
+            ]
+        }
+        diarized_path.write_text(json.dumps(diarized_data))
+
+        # Mock engine
+        mock_engine = MagicMock()
+        mock_engine.diarize.return_value = diarized_data["segments"]
+        mock_engine_class.return_value = mock_engine
+
+        client = PodxClient()
+        result = client.diarize(
+            transcript_path=transcript_path, audio_path=audio_path, output_dir=tmp_path
+        )
+
+        assert result.success is True
+        assert result.speakers_found == 1
+        assert "_diarized" in result.transcript_path
+
+    @patch("podx.core.diarize.DiarizationEngine")
+    def test_diarize_with_language(self, mock_engine_class, tmp_path):
+        """Test diarization with language specified."""
+        transcript_path = tmp_path / "transcript.json"
+        transcript_path.write_text('{"segments": [], "asr_model": "base"}')
+        audio_path = tmp_path / "audio.mp3"
+        audio_path.write_text("fake audio")
+
+        mock_engine = MagicMock()
+        mock_engine.diarize.return_value = []
+        mock_engine_class.return_value = mock_engine
+
+        client = PodxClient()
+        result = client.diarize(
+            transcript_path=transcript_path,
+            audio_path=audio_path,
+            language="es",
+            output_dir=tmp_path,
+        )
+
+        assert result.success is True
+        # Verify language was passed to engine constructor
+        assert mock_engine_class.call_args.kwargs["language"] == "es"
+
+    def test_diarize_validation_error_missing_transcript(self):
+        """Test diarization raises ValidationError when transcript doesn't exist."""
+        client = PodxClient()
+
+        with pytest.raises(ValidationError, match="Transcript file not found"):
+            client.diarize(
+                transcript_path=Path("/nonexistent/transcript.json"),
+                audio_path=Path("/tmp/audio.mp3"),
+            )
+
+    def test_diarize_validation_error_missing_audio(self, tmp_path):
+        """Test diarization raises ValidationError when audio doesn't exist."""
+        transcript_path = tmp_path / "transcript.json"
+        transcript_path.write_text('{"segments": [], "asr_model": "base", "audio_path": "/nonexistent/audio.mp3"}')
+
+        client = PodxClient()
+        with pytest.raises(ValidationError, match="Audio file not found"):
+            client.diarize(transcript_path=transcript_path)
+
+    @patch("podx.core.diarize.DiarizationEngine")
+    def test_diarize_handles_audio_error(self, mock_engine_class, tmp_path):
+        """Test diarization handles audio errors gracefully."""
+        transcript_path = tmp_path / "transcript.json"
+        transcript_path.write_text('{"segments": [], "asr_model": "base"}')
+        audio_path = tmp_path / "audio.mp3"
+        audio_path.write_text("fake audio")
+
+        mock_engine = MagicMock()
+        mock_engine.diarize.side_effect = AudioError("Invalid audio format")
+        mock_engine_class.return_value = mock_engine
+
+        client = PodxClient()
+        result = client.diarize(
+            transcript_path=transcript_path, audio_path=audio_path, output_dir=tmp_path
+        )
+
+        assert result.success is False
+        assert result.error is not None
+
+    @patch("podx.core.diarize.DiarizationEngine")
+    def test_diarize_loads_transcript_metadata(self, mock_engine_class, tmp_path):
+        """Test that diarize loads transcript metadata into response."""
+        transcript_path = tmp_path / "transcript.json"
+        transcript_data = {
+            "segments": [{"text": "Test", "start": 0.0, "end": 1.0}],
+            "asr_model": "base",
+            "language": "en",
+        }
+        transcript_path.write_text(json.dumps(transcript_data))
+
+        audio_path = tmp_path / "audio.mp3"
+        audio_path.write_text("fake audio")
+
+        mock_engine = MagicMock()
+        mock_engine.diarize.return_value = [{"text": "Test", "start": 0.0, "end": 1.0, "speaker": "SPEAKER_00"}]
+        mock_engine_class.return_value = mock_engine
+
+        client = PodxClient()
+        result = client.diarize(
+            transcript_path=transcript_path, audio_path=audio_path, output_dir=tmp_path
+        )
+
+        assert result.success is True
+        assert result.transcript is not None
+        assert len(result.transcript["segments"]) == 1
+
+
+class TestExportAPI:
+    """Test export API method."""
+
+    @patch("podx.core.export.ExportEngine")
+    def test_export_success_multiple_formats(self, mock_engine_class, tmp_path):
+        """Test successful export to multiple formats."""
+        transcript_path = tmp_path / "transcript.json"
+        transcript_data = {"segments": [{"text": "Test", "start": 0.0, "end": 1.0}]}
+        transcript_path.write_text(json.dumps(transcript_data))
+
+        # Mock export engine
+        mock_engine = MagicMock()
+        mock_engine.export.return_value = {
+            "txt": str(tmp_path / "transcript.txt"),
+            "srt": str(tmp_path / "transcript.srt"),
+            "vtt": str(tmp_path / "transcript.vtt"),
+        }
+        mock_engine_class.return_value = mock_engine
+
+        client = PodxClient()
+        result = client.export(
+            transcript_path=transcript_path, formats=["txt", "srt", "vtt"], output_dir=tmp_path
+        )
+
+        assert result.success is True
+        assert len(result.output_files) == 3
+        assert "txt" in result.output_files
+        assert "srt" in result.output_files
+        assert "vtt" in result.output_files
+
+    @patch("podx.core.export.ExportEngine")
+    def test_export_single_format(self, mock_engine_class, tmp_path):
+        """Test export to single format."""
+        transcript_path = tmp_path / "transcript.json"
+        transcript_path.write_text('{"segments": []}')
+
+        mock_engine = MagicMock()
+        mock_engine.export.return_value = {"md": str(tmp_path / "transcript.md")}
+        mock_engine_class.return_value = mock_engine
+
+        client = PodxClient()
+        result = client.export(
+            transcript_path=transcript_path, formats=["md"], output_dir=tmp_path
+        )
+
+        assert result.success is True
+        assert len(result.output_files) == 1
+        assert "md" in result.formats
+
+    def test_export_validation_error_missing_file(self):
+        """Test export raises ValidationError when transcript doesn't exist."""
+        client = PodxClient()
+
+        with pytest.raises(ValidationError, match="Transcript file not found"):
+            client.export(
+                transcript_path=Path("/nonexistent/transcript.json"), formats=["txt"]
+            )
+
+
+class TestPublishToNotionAPI:
+    """Test publish_to_notion API method."""
+
+    @patch("podx.core.notion.NotionEngine")
+    def test_publish_to_notion_success(self, mock_engine_class, tmp_path):
+        """Test successful Notion publishing."""
+        deepcast_path = tmp_path / "deepcast.json"
+        deepcast_data = {
+            "markdown": "# Test Episode",
+            "metadata": {
+                "episode_title": "Test Episode",
+                "show": "Test Show",
+            },
+        }
+        deepcast_path.write_text(json.dumps(deepcast_data))
+
+        mock_engine = MagicMock()
+        mock_engine.create_page.return_value = "page-123-id"
+        mock_engine_class.return_value = mock_engine
+
+        client = PodxClient()
+        result = client.publish_to_notion(
+            deepcast_path=deepcast_path,
+            database_id="db123",
+            notion_token="secret_token",
+        )
+
+        assert result.success is True
+        assert "notion.so" in result.page_url
+        assert result.page_id == "page-123-id"
+
+    @patch("podx.core.notion.NotionEngine")
+    @patch.dict("os.environ", {"NOTION_TOKEN": "env_token"})
+    def test_publish_to_notion_uses_env_token(self, mock_engine_class, tmp_path):
+        """Test Notion publishing uses environment token if not provided."""
+        deepcast_path = tmp_path / "deepcast.json"
+        deepcast_path.write_text('{"markdown": "test", "metadata": {}}')
+
+        mock_engine = MagicMock()
+        mock_engine.create_page.return_value = "page-123-id"
+        mock_engine_class.return_value = mock_engine
+
+        client = PodxClient()
+        result = client.publish_to_notion(deepcast_path=deepcast_path, database_id="db123")
+
+        assert result.success is True
+        # Verify engine was initialized with env token
+        mock_engine_class.assert_called_once_with(api_token="env_token")
+
+    def test_publish_to_notion_validation_error_missing_file(self):
+        """Test Notion publish raises ValidationError when deepcast file doesn't exist."""
+        client = PodxClient()
+
+        with pytest.raises(ValidationError, match="Deepcast file not found"):
+            client.publish_to_notion(
+                deepcast_path=Path("/nonexistent/deepcast.json"),
+                database_id="db123",
+                notion_token="token",
+            )
+
+    @patch("podx.core.notion.NotionEngine")
+    def test_publish_to_notion_handles_integration_error(self, mock_engine_class, tmp_path):
+        """Test Notion publish handles integration errors gracefully."""
+        deepcast_path = tmp_path / "deepcast.json"
+        deepcast_path.write_text('{"markdown": "test", "metadata": {}}')
+
+        mock_engine = MagicMock()
+        mock_engine.create_page.side_effect = Exception("Notion API error")
+        mock_engine_class.return_value = mock_engine
+
+        client = PodxClient()
+        result = client.publish_to_notion(
+            deepcast_path=deepcast_path, database_id="db123", notion_token="token"
+        )
+
+        assert result.success is False
+        assert result.error is not None
