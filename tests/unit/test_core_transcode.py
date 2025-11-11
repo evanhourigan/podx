@@ -10,9 +10,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from podx.core.transcode import (TranscodeEngine, TranscodeError,
-                                 transcode_to_aac, transcode_to_mp3,
-                                 transcode_to_wav16)
+from podx.core.transcode import (
+    TranscodeEngine,
+    TranscodeError,
+    transcode_to_aac,
+    transcode_to_mp3,
+    transcode_to_wav16,
+)
 
 
 class TestTranscodeEngine:

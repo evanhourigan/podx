@@ -5,12 +5,19 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..domain.constants import (COLUMN_WIDTH_ASR, COLUMN_WIDTH_DATE,
-                                COLUMN_WIDTH_DEEP, COLUMN_WIDTH_DIAR,
-                                COLUMN_WIDTH_EPISODE_NUM,
-                                COLUMN_WIDTH_LAST_RUN, COLUMN_WIDTH_PROC,
-                                COLUMN_WIDTH_SHOW, EPISODES_PER_PAGE,
-                                MIN_TITLE_COLUMN_WIDTH, TABLE_BORDER_PADDING)
+from ..domain.constants import (
+    COLUMN_WIDTH_ASR,
+    COLUMN_WIDTH_DATE,
+    COLUMN_WIDTH_DEEP,
+    COLUMN_WIDTH_DIAR,
+    COLUMN_WIDTH_EPISODE_NUM,
+    COLUMN_WIDTH_LAST_RUN,
+    COLUMN_WIDTH_PROC,
+    COLUMN_WIDTH_SHOW,
+    EPISODES_PER_PAGE,
+    MIN_TITLE_COLUMN_WIDTH,
+    TABLE_BORDER_PADDING,
+)
 
 try:
     from rich.table import Table
@@ -202,8 +209,7 @@ def select_episode_interactive(
         )
 
         # Create table
-        from ..ui_styles import (TABLE_BORDER_STYLE, TABLE_HEADER_STYLE,
-                                 TABLE_NUM_STYLE)
+        from ..ui_styles import TABLE_BORDER_STYLE, TABLE_HEADER_STYLE, TABLE_NUM_STYLE
 
         table = Table(
             show_header=True,

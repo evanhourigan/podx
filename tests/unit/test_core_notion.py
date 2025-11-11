@@ -10,8 +10,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from podx.core.notion import (NotionEngine, NotionError, chunk_rich_text,
-                              md_to_blocks, parse_inline_markdown)
+from podx.core.notion import (
+    NotionEngine,
+    NotionError,
+    chunk_rich_text,
+    md_to_blocks,
+    parse_inline_markdown,
+)
 
 
 class TestChunkRichText:

@@ -25,8 +25,7 @@ except ImportError:
 
 # Shared UI components
 try:
-    from podx.ui import (scan_transcodable_episodes,
-                         select_episode_for_processing)
+    from podx.ui import scan_transcodable_episodes, select_episode_for_processing
 except Exception:
     from podx.ui.transcode_browser import scan_transcodable_episodes
 

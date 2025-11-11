@@ -29,8 +29,12 @@ from rich.markdown import Markdown
 from rich.table import Table
 from rich.text import Text
 
-from podx.ui import (EXAMPLE_HEADING_STYLE, TABLE_HEADER_STYLE,
-                     format_example_line, make_console)
+from podx.ui import (
+    EXAMPLE_HEADING_STYLE,
+    TABLE_HEADER_STYLE,
+    format_example_line,
+    make_console,
+)
 
 
 def get_examples() -> Dict[str, List[str]]:

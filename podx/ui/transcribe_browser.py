@@ -21,9 +21,15 @@ except ImportError:
 
 # Shared UI styling
 try:
-    from . import (TABLE_BORDER_STYLE, TABLE_DATE_STYLE, TABLE_HEADER_STYLE,
-                   TABLE_NUM_STYLE, TABLE_SHOW_STYLE, TABLE_TITLE_COL_STYLE,
-                   make_console)
+    from . import (
+        TABLE_BORDER_STYLE,
+        TABLE_DATE_STYLE,
+        TABLE_HEADER_STYLE,
+        TABLE_NUM_STYLE,
+        TABLE_SHOW_STYLE,
+        TABLE_TITLE_COL_STYLE,
+        make_console,
+    )
 except Exception:
 
     def make_console():

@@ -13,8 +13,12 @@ except ImportError:
     RICH_AVAILABLE = False
 
 from ..logging import get_logger
-from ..ui_styles import (TABLE_BORDER_STYLE, TABLE_HEADER_STYLE,
-                         TABLE_NUM_STYLE, TABLE_TITLE_COL_STYLE)
+from ..ui_styles import (
+    TABLE_BORDER_STYLE,
+    TABLE_HEADER_STYLE,
+    TABLE_NUM_STYLE,
+    TABLE_TITLE_COL_STYLE,
+)
 from .episode_browser_tui import ModelLevelProcessingBrowser
 from .two_phase_browser import TwoPhaseTranscriptBrowser
 

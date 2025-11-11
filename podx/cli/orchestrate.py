@@ -33,11 +33,17 @@ except Exception:  # pragma: no cover
     BaseGroup = click.Group
 
 from podx.cli.help import help_cmd
+
 # Import individual command modules for CLI integration
 from podx.config import get_config
-from podx.constants import (DEFAULT_ENCODING, JSON_INDENT,
-                            MIN_NOTION_DB_ID_LENGTH, OPENAI_MODEL_PREFIX,
-                            PREVIEW_MAX_LENGTH, TITLE_MAX_LENGTH)
+from podx.constants import (
+    DEFAULT_ENCODING,
+    JSON_INDENT,
+    MIN_NOTION_DB_ID_LENGTH,
+    OPENAI_MODEL_PREFIX,
+    PREVIEW_MAX_LENGTH,
+    TITLE_MAX_LENGTH,
+)
 from podx.errors import ValidationError
 from podx.logging import get_logger, setup_logging
 from podx.progress import PodxProgress, print_podx_header

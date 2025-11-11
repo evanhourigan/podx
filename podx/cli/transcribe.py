@@ -40,8 +40,11 @@ except ImportError:
 
 # Shared UI components
 try:
-    from podx.ui import (LiveTimer, scan_transcribable_episodes,
-                         select_episode_for_processing)
+    from podx.ui import (
+        LiveTimer,
+        scan_transcribable_episodes,
+        select_episode_for_processing,
+    )
 except Exception:
     from podx.ui.live_timer import LiveTimer
     from podx.ui.transcribe_browser import scan_transcribable_episodes

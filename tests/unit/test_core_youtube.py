@@ -10,10 +10,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from podx.core.youtube import (YouTubeEngine, YouTubeError,
-                               download_youtube_audio, extract_video_id,
-                               fetch_youtube_episode, format_upload_date,
-                               get_youtube_metadata, is_youtube_url)
+from podx.core.youtube import (
+    YouTubeEngine,
+    YouTubeError,
+    download_youtube_audio,
+    extract_video_id,
+    fetch_youtube_episode,
+    format_upload_date,
+    get_youtube_metadata,
+    is_youtube_url,
+)
 
 
 @pytest.fixture

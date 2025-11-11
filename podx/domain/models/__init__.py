@@ -3,8 +3,7 @@
 from .analysis import DeepcastBrief, DeepcastOutlineItem, DeepcastQuote
 from .episode import AudioMeta, EpisodeMeta
 from .pipeline import PipelineConfig, PipelineResult
-from .transcript import (AlignedSegment, DiarizedSegment, Segment, Transcript,
-                         Word)
+from .transcript import AlignedSegment, DiarizedSegment, Segment, Transcript, Word
 
 __all__ = [
     # Episode models

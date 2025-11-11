@@ -15,14 +15,23 @@ from typing import Any, AsyncIterator, Callable, Dict, Optional
 
 from ..errors import AIError, AudioError, NetworkError, ValidationError
 from ..logging import get_logger
+
 # Import the underlying API functions from legacy module
 from .legacy import deepcast as _deepcast
 from .legacy import has_markdown as _has_markdown
 from .legacy import has_transcript as _has_transcript
 from .legacy import transcribe as _transcribe
-from .models import (APIError, DeepcastResponse, DiarizeResponse,
-                     ExistsCheckResponse, ExportResponse, FetchResponse,
-                     NotionResponse, TranscribeResponse, ValidationResult)
+from .models import (
+    APIError,
+    DeepcastResponse,
+    DiarizeResponse,
+    ExistsCheckResponse,
+    ExportResponse,
+    FetchResponse,
+    NotionResponse,
+    TranscribeResponse,
+    ValidationResult,
+)
 
 logger = get_logger(__name__)
 

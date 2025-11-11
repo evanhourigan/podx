@@ -11,14 +11,25 @@ try:
 except ImportError:
     RICH_AVAILABLE = False
 
-from ..domain.constants import (COLUMN_WIDTH_ASR, COLUMN_WIDTH_DATE,
-                                COLUMN_WIDTH_DEEP, COLUMN_WIDTH_DIAR,
-                                COLUMN_WIDTH_EPISODE_NUM,
-                                COLUMN_WIDTH_LAST_RUN, COLUMN_WIDTH_PROC,
-                                COLUMN_WIDTH_SHOW, EPISODES_PER_PAGE,
-                                MIN_TITLE_COLUMN_WIDTH, TABLE_BORDER_PADDING)
-from ..ui_styles import (TABLE_BORDER_STYLE, TABLE_HEADER_STYLE,
-                         TABLE_NUM_STYLE, make_console)
+from ..domain.constants import (
+    COLUMN_WIDTH_ASR,
+    COLUMN_WIDTH_DATE,
+    COLUMN_WIDTH_DEEP,
+    COLUMN_WIDTH_DIAR,
+    COLUMN_WIDTH_EPISODE_NUM,
+    COLUMN_WIDTH_LAST_RUN,
+    COLUMN_WIDTH_PROC,
+    COLUMN_WIDTH_SHOW,
+    EPISODES_PER_PAGE,
+    MIN_TITLE_COLUMN_WIDTH,
+    TABLE_BORDER_PADDING,
+)
+from ..ui_styles import (
+    TABLE_BORDER_STYLE,
+    TABLE_HEADER_STYLE,
+    TABLE_NUM_STYLE,
+    make_console,
+)
 from .episode_selector import scan_episode_status
 from .formatters import clean_cell
 from .interactive_browser import InteractiveBrowser
