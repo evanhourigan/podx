@@ -8,13 +8,15 @@ import json
 from pathlib import Path
 from typing import Dict, Optional
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .prompt_templates import PodcastType
 
 
 class PodcastAnalysisConfig(BaseModel):
     """Configuration for podcast-specific analysis settings."""
+
+    model_config = ConfigDict(extra="ignore")
 
     # Basic identification
     show_name: str = Field(..., description="Podcast show name (used for matching)")
@@ -59,14 +61,12 @@ class PodcastAnalysisConfig(BaseModel):
         default=None, description="Configuration creation date"
     )
 
-    @validator("temperature")
-    def validate_temperature(cls, v):
+    @field_validator("temperature")
+    @classmethod
+    def validate_temperature(cls, v: Optional[float]) -> Optional[float]:
         if v is not None and not 0.0 <= v <= 2.0:
             raise ValueError("Temperature must be between 0.0 and 2.0")
         return v
-
-    class Config:
-        extra = "ignore"
 
 
 class PodcastConfigManager:

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .prompt_templates import PodcastType
 
@@ -58,6 +58,8 @@ yaml.add_constructor("tag:yaml.org,2002:str", podcast_type_constructor)
 class NotionDatabase(BaseModel):
     """Configuration for a specific Notion database."""
 
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(..., description="Friendly name for this database")
     database_id: str = Field(..., description="Notion database ID")
     token: str = Field(..., description="Notion integration token")
@@ -78,14 +80,17 @@ class NotionDatabase(BaseModel):
     )
     description: Optional[str] = Field(default=None, description="Database description")
 
-    @validator("database_id")
-    def format_database_id_validator(cls, v):
+    @field_validator("database_id")
+    @classmethod
+    def format_database_id_validator(cls, v: str) -> str:
         """Format database ID to proper UUID format if needed."""
         return format_database_id(v)
 
 
 class AnalysisConfig(BaseModel):
     """Configuration for AI analysis settings."""
+
+    model_config = ConfigDict(extra="forbid")
 
     type: PodcastType = Field(default=PodcastType.GENERAL, description="Analysis type")
     model: Optional[str] = Field(default=None, description="OpenAI model override")
@@ -97,8 +102,9 @@ class AnalysisConfig(BaseModel):
         default=None, description="Custom prompt additions"
     )
 
-    @validator("temperature")
-    def validate_temperature(cls, v):
+    @field_validator("temperature")
+    @classmethod
+    def validate_temperature(cls, v: Optional[float]) -> Optional[float]:
         if v is not None and not 0.0 <= v <= 2.0:
             raise ValueError("Temperature must be between 0.0 and 2.0")
         return v
@@ -106,6 +112,8 @@ class AnalysisConfig(BaseModel):
 
 class PipelineDefaults(BaseModel):
     """Default pipeline settings."""
+
+    model_config = ConfigDict(extra="forbid")
 
     align: bool = Field(default=False, description="Enable alignment by default")
     diarize: bool = Field(default=False, description="Enable diarization by default")
@@ -121,6 +129,8 @@ class PipelineDefaults(BaseModel):
 
 class PodcastMapping(BaseModel):
     """Configuration mapping for a specific podcast."""
+
+    model_config = ConfigDict(extra="forbid")
 
     # Identification
     names: List[str] = Field(..., description="Show names and aliases")
@@ -149,6 +159,8 @@ class PodcastMapping(BaseModel):
 
 class PodxYamlConfig(BaseModel):
     """Complete YAML configuration for podx."""
+
+    model_config = ConfigDict(extra="forbid")
 
     # Global settings
     version: str = Field(default="1.0", description="Config file version")
