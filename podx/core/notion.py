@@ -46,9 +46,11 @@ def parse_inline_markdown(text: str) -> List[Dict[str, Any]]:
                 )
                 i = end_bold + 2
                 continue
+            # If unclosed, treat as regular text
+            # Fall through to regular text handling
 
         # Handle italic text: *text* (but not **)
-        elif text[i] == "*" and i + 1 < len(text) and text[i : i + 2] != "**":
+        if text[i] == "*" and i + 1 < len(text) and text[i : i + 2] != "**":
             end_italic = text.find("*", i + 1)
             while (
                 end_italic != -1
@@ -66,9 +68,11 @@ def parse_inline_markdown(text: str) -> List[Dict[str, Any]]:
                 )
                 i = end_italic + 1
                 continue
+            # If unclosed, treat as regular text
+            # Fall through to regular text handling
 
         # Handle code: `text`
-        elif text[i] == "`" and i + 1 < len(text):
+        if text[i] == "`" and i + 1 < len(text):
             end_code = text.find("`", i + 1)
             if end_code != -1:
                 rich_text.append(
@@ -80,29 +84,31 @@ def parse_inline_markdown(text: str) -> List[Dict[str, Any]]:
                 )
                 i = end_code + 1
                 continue
+            # If unclosed, treat as regular text
+            # Fall through to regular text handling
 
         # Regular text
-        else:
-            next_special = len(text)
-            for special in ["**", "*", "`"]:
-                pos = text.find(special, i)
-                if pos != -1 and pos < next_special:
-                    next_special = pos
+        next_special = len(text)
+        for special in ["**", "*", "`"]:
+            # Start searching from i+1 to avoid finding the same position
+            pos = text.find(special, i + 1)
+            if pos != -1 and pos < next_special:
+                next_special = pos
 
-            if next_special == len(text):
-                remaining_text = text[i:]
-                if remaining_text:
-                    rich_text.append(
-                        {"type": "text", "text": {"content": remaining_text}}
-                    )
-                break
-            else:
-                text_before_special = text[i:next_special]
-                if text_before_special:
-                    rich_text.append(
-                        {"type": "text", "text": {"content": text_before_special}}
-                    )
-                i = next_special
+        if next_special == len(text):
+            remaining_text = text[i:]
+            if remaining_text:
+                rich_text.append(
+                    {"type": "text", "text": {"content": remaining_text}}
+                )
+            break
+        else:
+            text_before_special = text[i:next_special]
+            if text_before_special:
+                rich_text.append(
+                    {"type": "text", "text": {"content": text_before_special}}
+                )
+            i = next_special
 
     if not rich_text:
         return [{"type": "text", "text": {"content": text}}]
