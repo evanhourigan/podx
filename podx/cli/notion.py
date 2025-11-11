@@ -4,10 +4,13 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import click
+
+from podx.domain.exit_codes import ExitCode
 
 # Optional rich UI (similar feel to podx-browse)
 try:
@@ -857,6 +860,12 @@ def upsert_page(
     is_flag=True,
     help="Interactive selection flow (show → date → model → run)",
 )
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    help="Output structured JSON (suppresses Rich formatting)",
+)
 def main(
     db_id: Optional[str],
     config_db_name: Optional[str],
@@ -881,6 +890,7 @@ def main(
     dry_run: bool,
     output: Optional[Path],
     interactive: bool,
+    json_output: bool,
 ):
     """
     Create or update a Notion page from Markdown (+ optional JSON props).
@@ -1289,7 +1299,24 @@ def main(
             print(f"   Database: {config_db_name if config_db_name else db_id[:8] + '...'}")
             print(f"   Page URL: {result['url']}")
     else:
-        print(json.dumps(result, indent=2))
+        if json_output:
+            # Structured JSON output with success wrapper
+            output_data = {
+                "success": True,
+                "notion": result,
+                "episode": {
+                    "title": episode_title,
+                    "podcast": podcast_name,
+                    "date": date_iso,
+                },
+            }
+            print(json.dumps(output_data, indent=2))
+        else:
+            # Original behavior - simple result JSON
+            print(json.dumps(result, indent=2))
+
+    # Exit with success
+    sys.exit(ExitCode.SUCCESS)
 
 
 if __name__ == "__main__":

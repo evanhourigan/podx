@@ -12,6 +12,7 @@ import click
 
 from podx.cli.cli_shared import print_json, read_stdin_json
 from podx.core.diarize import DiarizationEngine, DiarizationError
+from podx.domain.exit_codes import ExitCode
 from podx.logging import get_logger
 from podx.ui.diarize_browser import DiarizeTwoPhase
 from podx.ui.live_timer import LiveTimer
@@ -57,7 +58,18 @@ except ImportError:
     default=".",
     help="Directory to scan for transcripts (default: current directory)",
 )
-def main(audio, input, output, interactive, scan_dir):
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    help="Output structured JSON (suppresses Rich formatting)",
+)
+@click.option(
+    "--progress-json",
+    is_flag=True,
+    help="Output progress updates as newline-delimited JSON",
+)
+def main(audio, input, output, interactive, scan_dir, json_output, progress_json):
     """
     Read transcript JSON -> WhisperX align + diarize -> print diarized JSON to stdout.
 
@@ -69,9 +81,22 @@ def main(audio, input, output, interactive, scan_dir):
     # Handle interactive mode
     if interactive:
         if not RICH_AVAILABLE:
-            raise SystemExit(
-                "Interactive mode requires rich library. Install with: pip install rich"
-            )
+            if json_output:
+                print(
+                    json.dumps(
+                        {
+                            "error": "Interactive mode requires rich library",
+                            "install": "pip install rich",
+                        }
+                    )
+                )
+            else:
+                console = Console()
+                console.print(
+                    "[red]Error:[/red] Interactive mode requires rich library. "
+                    "Install with: [cyan]pip install rich[/cyan]"
+                )
+            sys.exit(ExitCode.USER_ERROR)
 
         # Two-phase selection: episode → base transcript
         logger.info(f"Scanning for episodes in: {scan_dir}")
@@ -80,8 +105,9 @@ def main(audio, input, output, interactive, scan_dir):
 
         if not selected:
             logger.info("User cancelled transcript selection")
-            print("❌ Transcript selection cancelled")
-            sys.exit(0)
+            if not json_output:
+                print("❌ Transcript selection cancelled")
+            sys.exit(ExitCode.SUCCESS)
 
         # Use selected base transcript
         transcript = selected["transcript_data"]
@@ -97,9 +123,21 @@ def main(audio, input, output, interactive, scan_dir):
             transcript = read_stdin_json()
 
         if not transcript or "segments" not in transcript:
-            raise SystemExit(
-                "input must contain Transcript JSON with 'segments' field"
-            )
+            if json_output:
+                print(
+                    json.dumps(
+                        {
+                            "error": "input must contain Transcript JSON with 'segments' field",
+                            "type": "validation_error",
+                        }
+                    )
+                )
+            else:
+                console = Console()
+                console.print(
+                    "[red]Validation Error:[/red] input must contain Transcript JSON with 'segments' field"
+                )
+            sys.exit(ExitCode.USER_ERROR)
 
     # Preserve metadata from input transcript
     asr_model = transcript.get("asr_model")
@@ -108,12 +146,29 @@ def main(audio, input, output, interactive, scan_dir):
     # Get audio path from --audio flag or from JSON (non-interactive mode)
     if not interactive and not audio:
         if "audio_path" not in transcript:
-            raise SystemExit(
-                "--audio flag required when transcript JSON has no 'audio_path' field"
-            )
+            if json_output:
+                print(
+                    json.dumps(
+                        {
+                            "error": "--audio flag required when transcript JSON has no 'audio_path' field",
+                            "type": "validation_error",
+                        }
+                    )
+                )
+            else:
+                console = Console()
+                console.print(
+                    "[red]Validation Error:[/red] --audio flag required when transcript JSON has no 'audio_path' field"
+                )
+            sys.exit(ExitCode.USER_ERROR)
         audio = Path(transcript["audio_path"])
         if not audio.exists():
-            raise SystemExit(f"Audio file not found: {audio}")
+            if json_output:
+                print(json.dumps({"error": f"Audio file not found: {audio}", "type": "file_not_found"}))
+            else:
+                console = Console()
+                console.print(f"[red]Error:[/red] Audio file not found: {audio}")
+            sys.exit(ExitCode.USER_ERROR)
 
     # Ensure we use absolute path
     if not interactive:
@@ -124,12 +179,22 @@ def main(audio, input, output, interactive, scan_dir):
         from podx.logging import suppress_logging
         suppress_logging()
 
-    # Set up progress callback and timer for interactive mode
+    # Set up progress callback and timer for interactive mode or JSON progress
     timer = None
     progress_callback = None
     console = None
 
-    if interactive and RICH_AVAILABLE:
+    if progress_json and not interactive:
+        # JSON progress mode
+        def progress_callback(message: str):
+            # Output newline-delimited JSON progress
+            progress_data = {
+                "type": "progress",
+                "stage": "diarizing",
+                "message": message,
+            }
+            print(json.dumps(progress_data), flush=True)
+    elif interactive and RICH_AVAILABLE:
         console = Console()
         # Save original stdout before redirecting, so timer can still display
         original_stdout = sys.stdout
@@ -153,10 +218,26 @@ def main(audio, input, output, interactive, scan_dir):
                 progress_callback=progress_callback,
             )
             final = engine.diarize(audio, transcript["segments"])
-    except (DiarizationError, FileNotFoundError) as e:
+    except DiarizationError as e:
         if timer:
             timer.stop()
-        raise SystemExit(str(e))
+        if json_output:
+            print(json.dumps({"error": str(e), "type": "diarization_error"}))
+        else:
+            if not console:
+                console = Console()
+            console.print(f"[red]Diarization Error:[/red] {e}")
+        sys.exit(ExitCode.PROCESSING_ERROR)
+    except FileNotFoundError as e:
+        if timer:
+            timer.stop()
+        if json_output:
+            print(json.dumps({"error": str(e), "type": "file_not_found"}))
+        else:
+            if not console:
+                console = Console()
+            console.print(f"[red]File Not Found:[/red] {e}")
+        sys.exit(ExitCode.USER_ERROR)
 
     # Stop timer and show completion in interactive mode
     if timer:
@@ -191,19 +272,47 @@ def main(audio, input, output, interactive, scan_dir):
         print(f"   Output: {output}")
     else:
         # Non-interactive mode
+        diarized_path = None
         if asr_model and not output:
             # Use model-specific filename in same directory as audio (new format)
             audio_dir = Path(audio).parent
-            output = audio_dir / f"transcript-diarized-{asr_model}.json"
-            output.write_text(
+            diarized_path = audio_dir / f"transcript-diarized-{asr_model}.json"
+            diarized_path.write_text(
                 json.dumps(final, indent=2, ensure_ascii=False), encoding="utf-8"
             )
         elif output:
             # Explicit output file specified
-            output.write_text(json.dumps(final, indent=2))
+            diarized_path = output
+            diarized_path.write_text(json.dumps(final, indent=2))
 
-        # Always print to stdout in non-interactive mode
-        print_json(final)
+        # Output to stdout
+        if json_output:
+            # Count unique speakers
+            speakers = set()
+            for seg in final.get("segments", []):
+                if seg.get("speaker"):
+                    speakers.add(seg["speaker"])
+
+            # Structured JSON output
+            output_data = {
+                "success": True,
+                "transcript": final,
+                "files": {
+                    "transcript": str(diarized_path) if diarized_path else None,
+                },
+                "stats": {
+                    "speakers_found": len(speakers),
+                    "segments": len(final.get("segments", [])),
+                    "language": final.get("language"),
+                },
+            }
+            print(json.dumps(output_data, indent=2))
+        else:
+            # Rich formatted output (existing behavior)
+            print_json(final)
+
+    # Exit with success
+    sys.exit(ExitCode.SUCCESS)
 
 
 if __name__ == "__main__":

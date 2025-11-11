@@ -5,13 +5,18 @@ Handles CLI arguments, input/output, and result formatting.
 """
 
 import json
+import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 import click
+from rich.console import Console
 
 from podx.cli.cli_shared import read_stdin_json
 from podx.core.export import ExportEngine, ExportError
+from podx.domain.exit_codes import ExitCode
+
+console = Console()
 
 
 @click.command(help="Export transcript JSON to text formats (txt, srt, vtt, md)")
@@ -42,12 +47,19 @@ from podx.core.export import ExportEngine, ExportError
     is_flag=True,
     help="Only overwrite files if content has changed",
 )
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    help="Output structured JSON (suppresses Rich formatting)",
+)
 def main(
     input: Optional[Path],
     output: Optional[Path],
     formats: str,
     output_dir: Optional[Path],
     replace: bool,
+    json_output: bool,
 ):
     """
     Convert transcript JSON to various text formats.
@@ -71,14 +83,22 @@ def main(
         try:
             data = json.loads(input.read_text(encoding="utf-8"))
         except Exception as e:
-            raise SystemExit(f"Failed to read input file: {e}")
+            if json_output:
+                print(json.dumps({"error": f"Failed to read input file: {e}", "type": "file_error"}))
+            else:
+                console.print(f"[red]Error:[/red] Failed to read input file: {e}")
+            sys.exit(ExitCode.USER_ERROR)
     else:
         raw = read_stdin_json()
         if isinstance(raw, dict):
             data = raw
 
     if not data:
-        raise SystemExit("Provide transcript JSON via --input or stdin")
+        if json_output:
+            print(json.dumps({"error": "Provide transcript JSON via --input or stdin", "type": "validation_error"}))
+        else:
+            console.print("[red]Error:[/red] Provide transcript JSON via --input or stdin")
+        sys.exit(ExitCode.USER_ERROR)
 
     # Parse formats
     format_list = [f.strip().lower() for f in formats.split(",")]
@@ -108,14 +128,34 @@ def main(
             replace=replace,
         )
     except ExportError as e:
-        raise SystemExit(str(e))
+        if json_output:
+            print(json.dumps({"error": str(e), "type": "export_error"}))
+        else:
+            console.print(f"[red]Export Error:[/red] {e}")
+        sys.exit(ExitCode.PROCESSING_ERROR)
 
     # Save output info if requested
     if output:
         output.write_text(json.dumps(result, indent=2))
 
-    # Always print to stdout
-    print(json.dumps(result, indent=2))
+    # Output to stdout
+    if json_output:
+        # Structured JSON output
+        output_data = {
+            "success": True,
+            "files": result,
+            "stats": {
+                "formats": format_list,
+                "files_created": len(result),
+            },
+        }
+        print(json.dumps(output_data, indent=2))
+    else:
+        # Rich formatted output (existing behavior)
+        print(json.dumps(result, indent=2))
+
+    # Exit with success
+    sys.exit(ExitCode.SUCCESS)
 
 
 if __name__ == "__main__":

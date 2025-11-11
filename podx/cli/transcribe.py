@@ -12,6 +12,7 @@ import click
 from podx.cli.cli_shared import print_json, read_stdin_json
 from podx.config import get_config
 from podx.core.transcribe import TranscriptionEngine, TranscriptionError
+from podx.domain.exit_codes import ExitCode
 from podx.errors import AudioError, ValidationError
 from podx.logging import get_logger
 from podx.schemas import AudioMeta, Transcript
@@ -30,9 +31,9 @@ except ImportError:
 
 # Rich console for live timer in interactive mode
 try:
-    from rich.console import Console
+    import importlib.util
 
-    RICH_AVAILABLE = True
+    RICH_AVAILABLE = importlib.util.find_spec("rich") is not None
 except ImportError:
     RICH_AVAILABLE = False
 
@@ -123,6 +124,17 @@ def _truncate_text(text: str, max_length: int = 60) -> str:
     default=".",
     help="Directory to scan for episodes (default: current directory)",
 )
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    help="Output structured JSON (suppresses Rich formatting)",
+)
+@click.option(
+    "--progress-json",
+    is_flag=True,
+    help="Output progress updates as newline-delimited JSON",
+)
 @validate_output(Transcript)
 def main(
     model,
@@ -136,6 +148,8 @@ def main(
     output,
     interactive,
     scan_dir,
+    json_output,
+    progress_json,
 ):
     """
     Read AudioMeta JSON on stdin -> run faster-whisper -> print Transcript JSON to stdout.
@@ -145,9 +159,23 @@ def main(
     # Handle interactive mode
     if interactive:
         if not TEXTUAL_AVAILABLE:
-            raise SystemExit(
-                "Interactive mode requires textual library. Install with: pip install textual"
-            )
+            if json_output:
+                print(
+                    json.dumps(
+                        {
+                            "error": "Interactive mode requires textual library",
+                            "install": "pip install textual",
+                        }
+                    )
+                )
+            else:
+                from rich.console import Console
+                console = Console()
+                console.print(
+                    "[red]Error:[/red] Interactive mode requires textual library. "
+                    "Install with: [cyan]pip install textual[/cyan]"
+                )
+            sys.exit(ExitCode.USER_ERROR)
 
         # Suppress logging before TUI starts
         from podx.logging import restore_logging, suppress_logging
@@ -213,9 +241,22 @@ def main(
             logger.debug("Reading input from stdin")
 
         if not raw_data or "audio_path" not in raw_data:
-            raise ValidationError(
-                "input must contain AudioMeta JSON with 'audio_path' field"
-            )
+            if json_output:
+                print(
+                    json.dumps(
+                        {
+                            "error": "input must contain AudioMeta JSON with 'audio_path' field",
+                            "type": "validation_error",
+                        }
+                    )
+                )
+            else:
+                from rich.console import Console
+                console = Console()
+                console.print(
+                    "[red]Validation Error:[/red] input must contain AudioMeta JSON with 'audio_path' field"
+                )
+            sys.exit(ExitCode.USER_ERROR)
 
         # Validate input data
         try:
@@ -223,7 +264,15 @@ def main(
             audio = Path(meta.audio_path)
             logger.debug("Input validation passed", audio_path=str(audio))
         except Exception as e:
-            raise ValidationError(f"Invalid AudioMeta input: {e}") from e
+            if json_output:
+                print(
+                    json.dumps({"error": f"Invalid AudioMeta input: {e}", "type": "validation_error"})
+                )
+            else:
+                from rich.console import Console
+                console = Console()
+                console.print(f"[red]Validation Error:[/red] Invalid AudioMeta input: {e}")
+            sys.exit(ExitCode.USER_ERROR)
 
     # Determine provider
     provider_choice = None if asr_provider == "auto" else asr_provider
@@ -240,11 +289,21 @@ def main(
     use_vad = True if vad_filter is None else bool(vad_filter)
     use_condition = True if condition_on_previous_text is None else bool(condition_on_previous_text)
 
-    # Set up progress callback for interactive mode
+    # Set up progress callback for interactive mode or JSON progress
     timer = None
     progress_callback = None
 
-    if interactive:
+    if progress_json and not interactive:
+        # JSON progress mode
+        def progress_callback(message: str):
+            # Output newline-delimited JSON progress
+            progress_data = {
+                "type": "progress",
+                "stage": "transcribing",
+                "message": message,
+            }
+            print(json.dumps(progress_data), flush=True)
+    elif interactive:
         # Suppress logging and show progress
         from podx.logging import suppress_logging
 
@@ -276,10 +335,26 @@ def main(
             progress_callback=progress_callback,
         )
         result = engine.transcribe(Path(audio))
-    except (TranscriptionError, AudioError) as e:
+    except TranscriptionError as e:
         if timer:
             timer.stop()
-        raise SystemExit(str(e))
+        if json_output:
+            print(json.dumps({"error": str(e), "type": "transcription_error"}))
+        else:
+            from rich.console import Console
+            console = Console()
+            console.print(f"[red]Transcription Error:[/red] {e}")
+        sys.exit(ExitCode.PROCESSING_ERROR)
+    except AudioError as e:
+        if timer:
+            timer.stop()
+        if json_output:
+            print(json.dumps({"error": str(e), "type": "audio_error"}))
+        else:
+            from rich.console import Console
+            console = Console()
+            console.print(f"[red]Audio Error:[/red] {e}")
+        sys.exit(ExitCode.USER_ERROR)
 
     # Stop timer and show completion in interactive mode
     if timer:
@@ -309,25 +384,45 @@ def main(
         logger.info(f"Transcript saved to: {output}")
     else:
         # Non-interactive mode: use model-specific filename if model specified and no explicit output
+        transcript_path = None
         if model and not output:
             # Try to determine episode directory from audio path
             audio_dir = Path(audio).parent
             safe_model = sanitize_model_name(model)
-            output = audio_dir / f"transcript-{safe_model}.json"
-            output.write_text(
+            transcript_path = audio_dir / f"transcript-{safe_model}.json"
+            transcript_path.write_text(
                 json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
             )
-            logger.debug("Transcript saved to file", file=str(output))
+            logger.debug("Transcript saved to file", file=str(transcript_path))
         elif output:
             # Explicit output file specified
-            output.write_text(json.dumps(result, indent=2))
-            logger.debug("Transcript saved to file", file=str(output))
+            transcript_path = output
+            transcript_path.write_text(json.dumps(result, indent=2))
+            logger.debug("Transcript saved to file", file=str(transcript_path))
 
-        # Always print to stdout in non-interactive mode
-        print_json(result)
+        # Output to stdout
+        if json_output:
+            # Structured JSON output
+            output_data = {
+                "success": True,
+                "transcript": result,
+                "files": {
+                    "transcript": str(transcript_path) if transcript_path else None,
+                },
+                "stats": {
+                    "model": model,
+                    "provider": result.get("asr_provider"),
+                    "language": result.get("language"),
+                    "segments": len(result.get("segments", [])),
+                },
+            }
+            print(json.dumps(output_data, indent=2))
+        else:
+            # Rich formatted output (existing behavior)
+            print_json(result)
 
-    # Return for validation decorator
-    return result
+    # Exit with success
+    sys.exit(ExitCode.SUCCESS)
 
 
 if __name__ == "__main__":

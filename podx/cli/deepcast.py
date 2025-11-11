@@ -25,6 +25,7 @@ from podx.core.deepcast import (
     segments_to_plain_text,
     split_into_chunks,
 )
+from podx.domain.exit_codes import ExitCode
 
 try:
     from openai import OpenAI
@@ -554,6 +555,17 @@ def deepcast(
     default=".",
     help="Directory to scan for episodes (default: current directory)",
 )
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    help="Output structured JSON (suppresses Rich formatting)",
+)
+@click.option(
+    "--progress-json",
+    is_flag=True,
+    help="Output progress updates as newline-delimited JSON",
+)
 def main(
     inp: Optional[Path],
     output: Optional[Path],
@@ -567,6 +579,8 @@ def main(
     show_prompt: Optional[str],
     interactive: bool,
     scan_dir: Path,
+    json_output: bool,
+    progress_json: bool,
 ):
     """
     podx-deepcast: turn transcripts into a polished Markdown brief (and optional JSON) with summaries key points quotes timestamps and speaker labels when available
@@ -909,7 +923,26 @@ def main(
 
     # Print to stdout (for pipelines) - but not in interactive mode
     if not interactive:
-        print(json.dumps(unified, ensure_ascii=False))
+        if json_output:
+            # Structured JSON output with success wrapper
+            output_data = {
+                "success": True,
+                "deepcast": unified,
+                "files": {
+                    "json": str(json_output),
+                    "markdown": str(markdown_file) if extract_markdown else None,
+                    "pdf": str(pdf_file) if export_pdf and pdf_file.exists() else None,
+                },
+                "stats": {
+                    "model": model,
+                    "temperature": temperature,
+                    "podcast_type": podcast_type.value if podcast_type else "general",
+                },
+            }
+            print(json.dumps(output_data, ensure_ascii=False, indent=2))
+        else:
+            # Original behavior - raw unified JSON
+            print(json.dumps(unified, ensure_ascii=False))
     else:
         # In interactive mode, show detailed completion message
         print("\n✅ Deepcast complete")
@@ -921,6 +954,9 @@ def main(
             print(f"      📄 Markdown: {markdown_file}")
         if export_pdf and pdf_file.exists():
             print(f"      📕 PDF: {pdf_file}")
+
+    # Exit with success
+    sys.exit(ExitCode.SUCCESS)
 
 
 if __name__ == "__main__":
