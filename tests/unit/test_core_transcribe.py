@@ -17,6 +17,21 @@ from podx.core.transcribe import (
     transcribe_audio,
 )
 
+# Check for optional dependencies
+try:
+    import faster_whisper  # noqa: F401
+
+    HAS_FASTER_WHISPER = True
+except ImportError:
+    HAS_FASTER_WHISPER = False
+
+try:
+    import openai  # noqa: F401
+
+    HAS_OPENAI = True
+except ImportError:
+    HAS_OPENAI = False
+
 
 class TestParseModelAndProvider:
     """Test parse_model_and_provider function."""
@@ -131,6 +146,7 @@ class TestTranscriptionEngineInit:
         assert engine.normalized_model == "distil-whisper/distil-large-v3"
 
 
+@pytest.mark.skipif(not HAS_FASTER_WHISPER, reason="faster-whisper not installed")
 class TestTranscriptionEngineLocal:
     """Test TranscriptionEngine with local provider (faster-whisper)."""
 
@@ -296,6 +312,7 @@ class TestTranscriptionEngineLocal:
         callback.assert_any_call("Transcribing audio")
 
 
+@pytest.mark.skipif(not HAS_OPENAI, reason="openai not installed")
 class TestTranscriptionEngineOpenAI:
     """Test TranscriptionEngine with OpenAI provider."""
 
@@ -523,6 +540,9 @@ class TestTranscriptionEngineProviderDispatch:
 class TestConvenienceFunctions:
     """Test convenience functions."""
 
+    @pytest.mark.skipif(
+        not HAS_FASTER_WHISPER, reason="faster-whisper not installed"
+    )
     @patch("faster_whisper.WhisperModel")
     def test_transcribe_audio_convenience(self, mock_whisper_model_class):
         """Test transcribe_audio convenience function."""
@@ -559,6 +579,9 @@ class TestConvenienceFunctions:
 class TestEdgeCases:
     """Test edge cases and corner scenarios."""
 
+    @pytest.mark.skipif(
+        not HAS_FASTER_WHISPER, reason="faster-whisper not installed"
+    )
     @patch("faster_whisper.WhisperModel")
     def test_empty_transcription_result(self, mock_whisper_model_class):
         """Test handling of empty transcription (no segments)."""
@@ -575,6 +598,9 @@ class TestEdgeCases:
         assert result["segments"] == []
         assert result["text"] == ""
 
+    @pytest.mark.skipif(
+        not HAS_FASTER_WHISPER, reason="faster-whisper not installed"
+    )
     @patch("faster_whisper.WhisperModel")
     def test_language_detection_fallback(self, mock_whisper_model_class):
         """Test language detection with fallback to 'en'."""
@@ -594,6 +620,7 @@ class TestEdgeCases:
         # Should default to "en"
         assert result["language"] == "en"
 
+    @pytest.mark.skipif(not HAS_OPENAI, reason="openai not installed")
     @patch("openai.OpenAI")
     def test_openai_timestamp_format_variations(self, mock_openai_class):
         """Test handling of different timestamp formats from OpenAI."""
@@ -622,6 +649,9 @@ class TestEdgeCases:
         """Test handling of 'timestamps' field variation in HF (skipped)."""
         pass
 
+    @pytest.mark.skipif(
+        not HAS_FASTER_WHISPER, reason="faster-whisper not installed"
+    )
     @patch("faster_whisper.WhisperModel")
     def test_audio_path_resolution(self, mock_whisper_model_class):
         """Test that audio path is resolved to absolute path in result."""
