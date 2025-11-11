@@ -654,13 +654,16 @@ class TestDiarizeAPI:
             )
 
     def test_diarize_validation_error_missing_audio(self, tmp_path):
-        """Test diarization raises ValidationError when audio doesn't exist."""
+        """Test diarization handles missing audio file gracefully."""
         transcript_path = tmp_path / "transcript.json"
         transcript_path.write_text('{"segments": [], "asr_model": "base", "audio_path": "/nonexistent/audio.mp3"}')
 
         client = PodxClient()
-        with pytest.raises(ValidationError, match="Audio file not found"):
-            client.diarize(transcript_path=transcript_path)
+        result = client.diarize(transcript_path=transcript_path)
+
+        assert result.success is False
+        assert result.error is not None
+        assert "Audio file not found" in result.error
 
     @patch("podx.core.diarize.DiarizationEngine")
     def test_diarize_handles_audio_error(self, mock_engine_class, tmp_path):
