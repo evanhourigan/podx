@@ -152,8 +152,9 @@ class TestFullPipelineExecution:
         assert transcript.audio_path == str(audio_file)
 
     @patch("podx.core.deepcast.chat_once")
-    @pytest.mark.skip(reason="Feature not implemented - see .ai-docs/unimplemented-features.md")
-
+    @pytest.mark.skip(
+        reason="Feature not implemented - see .ai-docs/unimplemented-features.md"
+    )
     def test_deepcast_stage_with_transcript_input(self, mock_chat, tmp_path):
         """Test deepcast stage accepts transcript and produces markdown."""
         from podx.core.deepcast import deepcast
@@ -423,9 +424,9 @@ class TestErrorPropagation:
         with pytest.raises(ValueError):  # Pydantic validation error
             EpisodeMeta.model_validate(episode_data)
 
-    @pytest.mark.skip(reason="Feature not implemented - see .ai-docs/unimplemented-features.md")
-
-
+    @pytest.mark.skip(
+        reason="Feature not implemented - see .ai-docs/unimplemented-features.md"
+    )
     def test_invalid_transcript_format(self):
         """Test error when transcript has invalid format."""
         from pydantic import ValidationError

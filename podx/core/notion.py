@@ -274,7 +274,9 @@ class NotionEngine:
     def _get_client(self):
         """Get Notion client instance."""
         if not self.api_token:
-            raise NotionError("Notion token not found. Set NOTION_TOKEN environment variable or provide api_token parameter.")
+            raise NotionError(
+                "Notion token not found. Set NOTION_TOKEN environment variable or provide api_token parameter."
+            )
 
         try:
             from notion_client import Client

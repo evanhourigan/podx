@@ -348,7 +348,9 @@ async def test_graceful_cancellation():
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="Feature not implemented - see .ai-docs/unimplemented-features.md")
+@pytest.mark.skip(
+    reason="Feature not implemented - see .ai-docs/unimplemented-features.md"
+)
 async def test_youtube_url_mode():
     """Test YouTube URL processing mode."""
     config = PipelineConfig(
