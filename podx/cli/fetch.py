@@ -99,7 +99,7 @@ def main(show, rss_url, date, title_contains, outdir, output, interactive, json_
             sys.exit(ExitCode.USER_ERROR)
 
         # Import the standalone fetch browser
-        from podx.ui.episode_browser_tui import run_fetch_browser_standalone
+        from podx.ui.apps import run_fetch_browser_standalone
 
         # Run the browser and get selected episode
         result = run_fetch_browser_standalone(
