@@ -66,7 +66,7 @@ class TestPodxClientInit:
 class TestTranscribeAPI:
     """Test transcribe API method."""
 
-    @patch("podx.api.client._transcribe")
+    @patch("podx.api.sync_client._transcribe")
     def test_transcribe_success(self, mock_transcribe, tmp_path):
         """Test successful transcription."""
         # Create transcript file that mock will "create"
@@ -100,7 +100,7 @@ class TestTranscribeAPI:
         assert result.segments_count == 2
         mock_transcribe.assert_called_once_with("test_audio.mp3", "base", str(tmp_path))
 
-    @patch("podx.api.client._transcribe")
+    @patch("podx.api.sync_client._transcribe")
     def test_transcribe_uses_default_model(self, mock_transcribe, tmp_path):
         """Test transcription uses default model from config."""
         transcript_path = tmp_path / "transcript-output.json"
@@ -120,7 +120,7 @@ class TestTranscribeAPI:
         mock_transcribe.assert_called_once_with("audio.mp3", "medium", str(tmp_path))
         assert result.model_used == "medium"
 
-    @patch("podx.api.client._transcribe")
+    @patch("podx.api.sync_client._transcribe")
     def test_transcribe_with_cache(self, mock_transcribe, tmp_path):
         """Test transcription with caching enabled."""
         # Create cached transcript
@@ -165,7 +165,7 @@ class TestTranscribeAPI:
         # This just tests that validation is skipped
         assert client.config.validate_inputs is False
 
-    @patch("podx.api.client._transcribe")
+    @patch("podx.api.sync_client._transcribe")
     def test_transcribe_handles_network_error(self, mock_transcribe, tmp_path):
         """Test transcription handles network errors gracefully."""
         mock_transcribe.side_effect = NetworkError("Download failed")
@@ -183,7 +183,7 @@ class TestTranscribeAPI:
 class TestDeepcastAPI:
     """Test deepcast API method."""
 
-    @patch("podx.api.client._deepcast")
+    @patch("podx.api.sync_client._deepcast")
     def test_deepcast_success(self, mock_deepcast, tmp_path):
         """Test successful deepcast analysis."""
         # Create markdown output
@@ -212,7 +212,7 @@ class TestDeepcastAPI:
         assert result.prompt_used == "Test prompt"
         assert result.model_used == "gpt-4o"
 
-    @patch("podx.api.client._deepcast")
+    @patch("podx.api.sync_client._deepcast")
     def test_deepcast_uses_default_model(self, mock_deepcast, tmp_path):
         """Test deepcast uses default LLM model from config."""
         markdown_path = tmp_path / "analysis.md"
@@ -251,7 +251,7 @@ class TestDeepcastAPI:
         with pytest.raises(ValidationError, match="Transcript file not found"):
             client.deepcast("/nonexistent/transcript.json", llm_model="gpt-4o")
 
-    @patch("podx.api.client._deepcast")
+    @patch("podx.api.sync_client._deepcast")
     def test_deepcast_handles_ai_error(self, mock_deepcast, tmp_path):
         """Test deepcast handles AI errors gracefully."""
         from podx.errors import AIError
@@ -272,8 +272,8 @@ class TestDeepcastAPI:
 class TestTranscribeAndAnalyze:
     """Test transcribe_and_analyze combined API."""
 
-    @patch("podx.api.client._transcribe")
-    @patch("podx.api.client._deepcast")
+    @patch("podx.api.sync_client._transcribe")
+    @patch("podx.api.sync_client._deepcast")
     def test_transcribe_and_analyze_success(
         self, mock_deepcast, mock_transcribe, tmp_path
     ):
@@ -304,7 +304,7 @@ class TestTranscribeAndAnalyze:
         assert result["transcript"].success is True
         assert result["analysis"].success is True
 
-    @patch("podx.api.client._transcribe")
+    @patch("podx.api.sync_client._transcribe")
     def test_transcribe_and_analyze_transcribe_fails(self, mock_transcribe, tmp_path):
         """Test combined API when transcription fails."""
         mock_transcribe.side_effect = AudioError("Audio processing failed")
@@ -320,7 +320,7 @@ class TestTranscribeAndAnalyze:
 class TestExistenceChecks:
     """Test existence check APIs."""
 
-    @patch("podx.api.client._has_transcript")
+    @patch("podx.api.sync_client._has_transcript")
     def test_check_transcript_exists_true(self, mock_has_transcript, tmp_path):
         """Test checking for existing transcript - exists."""
         transcript_path = tmp_path / "transcript.json"
@@ -343,7 +343,7 @@ class TestExistenceChecks:
         assert result.metadata["model"] == "base"
         assert result.metadata["segments"] == 1
 
-    @patch("podx.api.client._has_transcript")
+    @patch("podx.api.sync_client._has_transcript")
     def test_check_transcript_exists_false(self, mock_has_transcript):
         """Test checking for existing transcript - doesn't exist."""
         mock_has_transcript.return_value = None
@@ -355,7 +355,7 @@ class TestExistenceChecks:
         assert result.path is None
         assert result.resource_type == "transcript"
 
-    @patch("podx.api.client._has_markdown")
+    @patch("podx.api.sync_client._has_markdown")
     def test_check_markdown_exists_true(self, mock_has_markdown, tmp_path):
         """Test checking for existing markdown - exists."""
         markdown_path = tmp_path / "analysis.md"
@@ -372,7 +372,7 @@ class TestExistenceChecks:
         assert result.path == str(markdown_path)
         assert result.resource_type == "markdown"
 
-    @patch("podx.api.client._has_markdown")
+    @patch("podx.api.sync_client._has_markdown")
     def test_check_markdown_exists_false(self, mock_has_markdown):
         """Test checking for existing markdown - doesn't exist."""
         mock_has_markdown.return_value = None

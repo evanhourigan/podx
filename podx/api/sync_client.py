@@ -1,0 +1,711 @@
+"""Synchronous API client for podx."""
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+from ..errors import AIError, AudioError, NetworkError, ValidationError
+from ..logging import get_logger
+from .config import ClientConfig
+
+# Import the underlying API functions from legacy module
+from .legacy import deepcast as _deepcast
+from .legacy import has_markdown as _has_markdown
+from .legacy import has_transcript as _has_transcript
+from .legacy import transcribe as _transcribe
+from .models import (
+    APIError,
+    DeepcastResponse,
+    DiarizeResponse,
+    ExistsCheckResponse,
+    ExportResponse,
+    FetchResponse,
+    NotionResponse,
+    TranscribeResponse,
+    ValidationResult,
+)
+
+logger = get_logger(__name__)
+class PodxClient:
+    """High-level client for podx API.
+
+    This class provides a clean, type-safe interface for podcast processing operations.
+    It wraps the underlying API functions with enhanced error handling, validation,
+    and structured responses.
+
+    Examples:
+        Basic transcription:
+        >>> client = PodxClient()
+        >>> result = client.transcribe("audio.mp3")
+        >>> print(result.transcript_path)
+
+        Transcription with analysis:
+        >>> result = client.transcribe_and_analyze("audio.mp3")
+        >>> print(result.transcript.transcript_path)
+        >>> print(result.analysis.markdown_path)
+
+        Check for existing results:
+        >>> exists = client.check_transcript_exists("episode_123", "base")
+        >>> if exists.exists:
+        ...     print(f"Transcript found at {exists.path}")
+    """
+
+    def __init__(self, config: Optional[ClientConfig] = None):
+        """Initialize the client.
+
+        Args:
+            config: Client configuration (uses defaults if not provided)
+        """
+        self.config = config or ClientConfig()
+        self._setup_logging()
+
+    def _setup_logging(self) -> None:
+        """Setup logging based on config."""
+        # Note: structlog doesn't support setLevel like standard logging
+        # Verbose mode is handled by the logging configuration
+        pass
+
+    def transcribe(
+        self,
+        audio_url: str,
+        model: Optional[str] = None,
+        out_dir: Optional[str] = None,
+    ) -> TranscribeResponse:
+        """Transcribe audio to text.
+
+        Args:
+            audio_url: URL or local path to audio file
+            model: ASR model to use (defaults to config.default_model)
+            out_dir: Output directory (defaults to config.output_dir)
+
+        Returns:
+            TranscribeResponse with transcript path and metadata
+
+        Raises:
+            ValidationError: If inputs are invalid
+            AudioError: If audio processing fails
+            NetworkError: If download fails
+        """
+        # Validate inputs
+        if self.config.validate_inputs:
+            validation = self._validate_transcribe_inputs(audio_url, model, out_dir)
+            if not validation.valid:
+                raise ValidationError(f"Invalid inputs: {', '.join(validation.errors)}")
+
+        # Set defaults
+        model = model or self.config.default_model
+        out_dir = out_dir or str(self.config.output_dir or Path.cwd() / "output")
+
+        # Check cache if enabled
+        if self.config.cache_enabled:
+            cached = self._check_cache(audio_url, model, out_dir)
+            if cached:
+                logger.info("Using cached transcript", path=cached.transcript_path)
+                return cached
+
+        try:
+            # Call underlying API
+            result = _transcribe(audio_url, model, out_dir)
+
+            # Wrap in response model
+            response = TranscribeResponse(
+                transcript_path=result["transcript_path"],
+                duration_seconds=result.get("duration_seconds", 0),
+                model_used=model,
+                audio_path=audio_url,
+                success=True,
+            )
+
+            # Extract segments count
+            try:
+                transcript_data = json.loads(Path(response.transcript_path).read_text())
+                response.segments_count = len(transcript_data.get("segments", []))
+            except Exception:
+                pass
+
+            logger.info(
+                "Transcription completed",
+                path=response.transcript_path,
+                duration=response.duration_seconds,
+            )
+            return response
+
+        except Exception as e:
+            error_response = self._handle_error(e, "transcribe")
+            return TranscribeResponse(
+                transcript_path="",
+                duration_seconds=0,
+                success=False,
+                error=str(error_response),
+            )
+
+    def deepcast(
+        self,
+        transcript_path: str,
+        llm_model: Optional[str] = None,
+        out_dir: Optional[str] = None,
+        provider_keys: Optional[Dict[str, str]] = None,
+        prompt: Optional[str] = None,
+        prompt_name: str = "default",
+    ) -> DeepcastResponse:
+        """Run deepcast analysis on a transcript.
+
+        Args:
+            transcript_path: Path to transcript JSON file
+            llm_model: LLM model to use (defaults to config.default_llm_model)
+            out_dir: Output directory (defaults to config.output_dir)
+            provider_keys: API keys for LLM providers
+            prompt: Custom prompt for analysis
+            prompt_name: Name for the prompt (for caching/organization)
+
+        Returns:
+            DeepcastResponse with markdown path and metadata
+
+        Raises:
+            ValidationError: If inputs are invalid
+            AIError: If analysis fails
+        """
+        # Validate inputs
+        if self.config.validate_inputs:
+            validation = self._validate_deepcast_inputs(
+                transcript_path, llm_model, out_dir
+            )
+            if not validation.valid:
+                raise ValidationError(f"Invalid inputs: {', '.join(validation.errors)}")
+
+        # Set defaults
+        llm_model = llm_model or self.config.default_llm_model
+        out_dir = out_dir or str(self.config.output_dir or Path.cwd() / "output")
+
+        try:
+            # Call underlying API
+            result = _deepcast(
+                transcript_path=transcript_path,
+                llm_model=llm_model,
+                out_dir=out_dir,
+                provider_keys=provider_keys,
+                prompt=prompt,
+                prompt_name=prompt_name,
+            )
+
+            # Wrap in response model
+            response = DeepcastResponse(
+                markdown_path=result["markdown_path"],
+                usage=result.get("usage"),
+                prompt_used=result.get("prompt_used"),
+                model_used=llm_model,
+                success=True,
+            )
+
+            logger.info(
+                "Deepcast analysis completed",
+                path=response.markdown_path,
+                model=llm_model,
+            )
+            return response
+
+        except Exception as e:
+            error_response = self._handle_error(e, "deepcast")
+            return DeepcastResponse(
+                markdown_path="",
+                success=False,
+                error=str(error_response),
+            )
+
+    def fetch_episode(
+        self,
+        show_name: Optional[str] = None,
+        rss_url: Optional[str] = None,
+        date: Optional[str] = None,
+        title_contains: Optional[str] = None,
+        output_dir: Optional[Path] = None,
+    ) -> FetchResponse:
+        """Fetch podcast episode by show name or RSS URL.
+
+        Args:
+            show_name: Name of podcast show (e.g., "huberman lab")
+            rss_url: Direct RSS feed URL (alternative to show_name)
+            date: Episode date (YYYY-MM-DD) or "latest"
+            title_contains: Substring to match in episode title
+            output_dir: Directory to save audio and metadata
+
+        Returns:
+            FetchResponse with episode metadata and file paths
+
+        Raises:
+            ValidationError: If inputs are invalid
+            NetworkError: If download fails
+
+        Example:
+            >>> client = PodxClient()
+            >>> result = client.fetch_episode("huberman lab", date="latest")
+            >>> print(result.audio_path)
+        """
+        from ..core.fetch import PodcastFetcher
+
+        if not show_name and not rss_url:
+            raise ValidationError("Either show_name or rss_url must be provided")
+
+        try:
+            fetcher = PodcastFetcher()
+            result = fetcher.fetch_episode(
+                show_name=show_name,
+                rss_url=rss_url,
+                date=date,
+                title_contains=title_contains,
+                output_dir=output_dir or Path.cwd(),
+            )
+
+            return FetchResponse(
+                episode_meta=result["meta"],
+                audio_meta=result.get("audio_meta"),
+                audio_path=str(result["audio_path"]),
+                metadata_path=str(result.get("meta_path")),
+                success=True,
+            )
+        except Exception as e:
+            logger.error("Failed to fetch episode", error=str(e))
+            return FetchResponse(
+                episode_meta={},
+                audio_path="",
+                success=False,
+                error=str(e),
+            )
+
+    def diarize(
+        self,
+        transcript_path: Path,
+        audio_path: Optional[Path] = None,
+        language: str = "en",
+        output_dir: Optional[Path] = None,
+    ) -> DiarizeResponse:
+        """Add speaker identification to transcript.
+
+        Args:
+            transcript_path: Path to existing transcript JSON
+            audio_path: Path to audio file (required for diarization)
+            language: Language code (default: "en")
+            output_dir: Directory to save diarized transcript
+
+        Returns:
+            DiarizeResponse with diarized transcript and speaker count
+
+        Raises:
+            ValidationError: If inputs are invalid
+
+        Example:
+            >>> result = client.diarize(Path("transcript.json"), audio_path=Path("audio.mp3"))
+            >>> print(f"Found {result.speakers_found} speakers")
+        """
+        from ..core.diarize import DiarizationEngine
+
+        if not transcript_path.exists():
+            raise ValidationError(f"Transcript file not found: {transcript_path}")
+
+        try:
+            # Load transcript
+            transcript_data = json.loads(transcript_path.read_text())
+
+            # Get audio path from transcript if not provided
+            if not audio_path:
+                audio_path_str = transcript_data.get("audio_path")
+                if not audio_path_str:
+                    raise ValidationError(
+                        "audio_path must be provided or exist in transcript JSON"
+                    )
+                audio_path = Path(audio_path_str)
+
+            if not audio_path.exists():
+                raise ValidationError(f"Audio file not found: {audio_path}")
+
+            # Diarize
+            engine = DiarizationEngine(language=language)
+            diarized_segments = engine.diarize(audio_path, transcript_data["segments"])
+
+            # Save diarized transcript
+            out_dir = output_dir or transcript_path.parent
+            diarized_path = out_dir / f"{transcript_path.stem}_diarized.json"
+
+            diarized_data = {**transcript_data, "segments": diarized_segments}
+            diarized_path.write_text(json.dumps(diarized_data, indent=2))
+
+            # Count unique speakers
+            speakers = set()
+            for seg in diarized_segments:
+                if seg.get("speaker"):
+                    speakers.add(seg["speaker"])
+
+            return DiarizeResponse(
+                transcript_path=str(diarized_path),
+                speakers_found=len(speakers),
+                transcript=diarized_data,
+                success=True,
+            )
+        except Exception as e:
+            logger.error("Failed to diarize transcript", error=str(e))
+            return DiarizeResponse(
+                transcript_path="",
+                speakers_found=0,
+                success=False,
+                error=str(e),
+            )
+
+    def export(
+        self,
+        transcript_path: Path,
+        formats: list[str] = None,
+        output_dir: Optional[Path] = None,
+    ) -> ExportResponse:
+        """Export transcript to different formats.
+
+        Args:
+            transcript_path: Path to transcript JSON
+            formats: List of output formats (txt, srt, vtt, md)
+            output_dir: Output directory (default: same as transcript)
+
+        Returns:
+            ExportResponse with output file paths
+
+        Example:
+            >>> result = client.export(Path("transcript.json"), formats=["txt", "srt"])
+            >>> print(result.output_files)
+        """
+        from ..core.export import ExportEngine
+
+        if formats is None:
+            formats = ["txt", "srt"]
+
+        if not transcript_path.exists():
+            raise ValidationError(f"Transcript file not found: {transcript_path}")
+
+        try:
+            # Load transcript
+            transcript_data = json.loads(transcript_path.read_text())
+
+            # Export
+            engine = ExportEngine()
+            out_dir = output_dir or transcript_path.parent
+            base_name = transcript_path.stem
+
+            result = engine.export(
+                transcript=transcript_data,
+                formats=formats,
+                output_dir=out_dir,
+                base_name=base_name,
+            )
+
+            return ExportResponse(
+                output_files=result,
+                formats=formats,
+                success=True,
+            )
+        except Exception as e:
+            logger.error("Failed to export transcript", error=str(e))
+            return ExportResponse(
+                output_files={},
+                formats=formats,
+                success=False,
+                error=str(e),
+            )
+
+    def publish_to_notion(
+        self,
+        deepcast_path: Path,
+        database_id: str,
+        notion_token: Optional[str] = None,
+    ) -> NotionResponse:
+        """Publish deepcast analysis to Notion.
+
+        Args:
+            deepcast_path: Path to deepcast JSON file
+            database_id: Notion database ID
+            notion_token: Notion API token (or use NOTION_TOKEN env var)
+
+        Returns:
+            NotionResponse with Notion page URL
+
+        Example:
+            >>> result = client.publish_to_notion(
+            ...     Path("deepcast.json"),
+            ...     database_id="abc123"
+            ... )
+            >>> print(f"Published: {result.page_url}")
+        """
+        import os
+
+        from ..core.notion import NotionEngine
+
+        if not deepcast_path.exists():
+            raise ValidationError(f"Deepcast file not found: {deepcast_path}")
+
+        # Get Notion token
+        token = notion_token or os.getenv("NOTION_TOKEN")
+        if not token:
+            raise ValidationError(
+                "NOTION_TOKEN must be provided or set as environment variable"
+            )
+
+        try:
+            # Load deepcast data
+            deepcast_data = json.loads(deepcast_path.read_text())
+            markdown = deepcast_data.get("markdown", "")
+            metadata = deepcast_data.get("metadata", {})
+
+            # Extract episode info
+            episode_title = (
+                metadata.get("episode_title")
+                or metadata.get("title")
+                or "Podcast Notes"
+            )
+            podcast_name = metadata.get("show") or "Unknown Podcast"
+            date_iso = metadata.get("episode_published") or metadata.get("date")
+
+            # Publish to Notion
+            engine = NotionEngine(api_token=token)
+            page_id = engine.create_page(
+                database_id=database_id,
+                title=episode_title,
+                podcast_name=podcast_name,
+                date=date_iso,
+                markdown=markdown,
+            )
+
+            page_url = f"https://notion.so/{page_id.replace('-', '')}"
+
+            return NotionResponse(
+                page_url=page_url,
+                page_id=page_id,
+                database_id=database_id,
+                success=True,
+            )
+        except Exception as e:
+            logger.error("Failed to publish to Notion", error=str(e))
+            return NotionResponse(
+                page_url="",
+                page_id="",
+                success=False,
+                error=str(e),
+            )
+
+    def transcribe_and_analyze(
+        self,
+        audio_url: str,
+        asr_model: Optional[str] = None,
+        llm_model: Optional[str] = None,
+        out_dir: Optional[str] = None,
+        provider_keys: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """Transcribe audio and run deepcast analysis in one call.
+
+        Args:
+            audio_url: URL or local path to audio file
+            asr_model: ASR model to use
+            llm_model: LLM model to use
+            out_dir: Output directory
+            provider_keys: API keys for LLM providers
+
+        Returns:
+            Dict with transcript and analysis results
+        """
+        # Transcribe
+        transcript_result = self.transcribe(audio_url, asr_model, out_dir)
+        if not transcript_result.success:
+            return {
+                "transcript": transcript_result,
+                "analysis": None,
+                "success": False,
+            }
+
+        # Analyze
+        analysis_result = self.deepcast(
+            transcript_path=transcript_result.transcript_path,
+            llm_model=llm_model,
+            out_dir=out_dir,
+            provider_keys=provider_keys,
+        )
+
+        return {
+            "transcript": transcript_result,
+            "analysis": analysis_result,
+            "success": transcript_result.success and analysis_result.success,
+        }
+
+    def check_transcript_exists(
+        self,
+        episode_id: int | str,
+        asr_model: str,
+        out_dir: str,
+    ) -> ExistsCheckResponse:
+        """Check if a transcript already exists.
+
+        Args:
+            episode_id: Episode identifier
+            asr_model: ASR model used
+            out_dir: Output directory to check
+
+        Returns:
+            ExistsCheckResponse with existence information
+        """
+        try:
+            path = _has_transcript(episode_id, asr_model, out_dir)
+            exists = path is not None
+
+            metadata = None
+            if exists and path:
+                try:
+                    transcript_data = json.loads(Path(path).read_text())
+                    metadata = {
+                        "model": transcript_data.get("asr_model"),
+                        "segments": len(transcript_data.get("segments", [])),
+                        "duration": transcript_data.get("duration"),
+                    }
+                except Exception:
+                    pass
+
+            return ExistsCheckResponse(
+                exists=exists,
+                path=path,
+                resource_type="transcript",
+                metadata=metadata,
+            )
+        except Exception as e:
+            logger.warning("Failed to check transcript existence", error=str(e))
+            return ExistsCheckResponse(
+                exists=False,
+                path=None,
+                resource_type="transcript",
+            )
+
+    def check_markdown_exists(
+        self,
+        episode_id: int | str,
+        asr_model: str,
+        llm_model: str,
+        prompt_name: str,
+        out_dir: str,
+    ) -> ExistsCheckResponse:
+        """Check if a deepcast markdown file already exists.
+
+        Args:
+            episode_id: Episode identifier
+            asr_model: ASR model used
+            llm_model: LLM model used
+            prompt_name: Prompt name used
+            out_dir: Output directory to check
+
+        Returns:
+            ExistsCheckResponse with existence information
+        """
+        try:
+            path = _has_markdown(episode_id, asr_model, llm_model, prompt_name, out_dir)
+            exists = path is not None
+
+            return ExistsCheckResponse(
+                exists=exists,
+                path=path,
+                resource_type="markdown",
+            )
+        except Exception as e:
+            logger.warning("Failed to check markdown existence", error=str(e))
+            return ExistsCheckResponse(
+                exists=False,
+                path=None,
+                resource_type="markdown",
+            )
+
+    def _validate_transcribe_inputs(
+        self, audio_url: str, model: Optional[str], out_dir: Optional[str]
+    ) -> ValidationResult:
+        """Validate inputs for transcribe API."""
+        result = ValidationResult(valid=True)
+
+        # Validate audio_url
+        if not audio_url:
+            result.add_error("audio_url cannot be empty")
+        elif not re.match(r"^https?://", audio_url):
+            # If not a URL, check if file exists (if it's an absolute path)
+            audio_path = Path(audio_url)
+            if audio_path.is_absolute() and not audio_path.exists():
+                result.add_error(f"Audio file not found: {audio_url}")
+
+        # Validate model (basic check)
+        if model and not re.match(r"^[a-zA-Z0-9._-]+$", model):
+            result.add_error(f"Invalid model name: {model}")
+
+        return result
+
+    def _validate_deepcast_inputs(
+        self, transcript_path: str, llm_model: Optional[str], out_dir: Optional[str]
+    ) -> ValidationResult:
+        """Validate inputs for deepcast API."""
+        result = ValidationResult(valid=True)
+
+        # Validate transcript_path
+        if not transcript_path:
+            result.add_error("transcript_path cannot be empty")
+        elif not Path(transcript_path).exists():
+            result.add_error(f"Transcript file not found: {transcript_path}")
+
+        # Validate LLM model
+        if llm_model and not re.match(r"^[a-zA-Z0-9._-]+$", llm_model):
+            result.add_error(f"Invalid LLM model name: {llm_model}")
+
+        return result
+
+    def _check_cache(
+        self, audio_url: str, model: str, out_dir: str
+    ) -> Optional[TranscribeResponse]:
+        """Check if cached result exists."""
+        # Simplified cache check - just look for existing transcript
+        transcript_path = Path(out_dir) / "transcript.json"
+        if transcript_path.exists():
+            try:
+                data = json.loads(transcript_path.read_text())
+                return TranscribeResponse(
+                    transcript_path=str(transcript_path),
+                    duration_seconds=data.get("duration", 0),
+                    model_used=model,
+                    segments_count=len(data.get("segments", [])),
+                    audio_path=audio_url,
+                    success=True,
+                )
+            except Exception:
+                pass
+        return None
+
+    def _handle_error(self, error: Exception, operation: str) -> APIError:
+        """Handle errors and convert to APIError."""
+        if isinstance(error, ValidationError):
+            return APIError(
+                code="VALIDATION_ERROR",
+                message=str(error),
+                resolution="Check input parameters and try again",
+            )
+        elif isinstance(error, NetworkError):
+            return APIError(
+                code="NETWORK_ERROR",
+                message=str(error),
+                retry_after=30,
+                resolution="Check network connection and retry",
+            )
+        elif isinstance(error, AudioError):
+            return APIError(
+                code="AUDIO_ERROR",
+                message=str(error),
+                resolution="Check audio file format and try again",
+            )
+        elif isinstance(error, AIError):
+            return APIError(
+                code="AI_ERROR",
+                message=str(error),
+                resolution="Check API keys and model availability",
+            )
+        else:
+            logger.error(f"{operation} failed", error=str(error), exc_info=error)
+            return APIError(
+                code="UNKNOWN_ERROR",
+                message=str(error),
+                details={"operation": operation},
+            )
