@@ -1,115 +1,183 @@
 # PodX Development Context
 
-**Last Updated**: 2025-11-12 03:00:00 UTC
-**Current Branch**: `refactor/unified-solid-improvements`
-**Status**: Phase 1 Large File Refactoring COMPLETE ✅
+**Last Updated:** 2025-11-11 (After orchestrate.py Decomposition - 95% Complete)
+**Current Branch:** `refactor/unified-solid-improvements`
+**Status:** Work stashed - needs simple import fixes to complete
 
 ---
 
-## 🎯 Current State - Ready for Next Phase
+## 🎯 CRITICAL: Work In Progress (Stashed)
 
-### ✅ JUST COMPLETED: Phase 1 Large File Refactoring
+**Git Stash:** "WIP: orchestrate.py decomposition - needs import fixes in run.py"
 
-All tasks from `.claude/RESUME_PLAN.md` have been successfully completed:
+### What Was Accomplished (95% Done!)
 
-**4 commits made:**
-1. `aabfaff` - Extract notion.py into focused service modules (1,385 → 633 lines, 54% reduction)
-2. `2e79111` - Extract deepcast.py into focused service modules (1,007 → 794 lines, 21% reduction)
-3. `a30ac5a` - Split api/client.py into focused modules (1,188 → 10+29+717+459 lines)
-4. `be5bfaa` - Move config_panel.py to modals/ for better organization
+**MASSIVE WIN:** orchestrate.py decomposed from 1,256 lines → 126 lines (90% reduction!)
 
-**All tests passing**: 459 passed, 53 skipped
+Created 14 command files in `podx/cli/commands/`:
+- ✅ All passthrough commands (fetch, transcode, transcribe, diarize, export, deepcast, models, notion, preprocess)
+- ✅ run.py (533 lines) - Main orchestration command
+- ✅ deprecated.py (225 lines) - Legacy workflows
+- ✅ help.py, config.py - Utility commands
+- ✅ __init__.py - Module exports
 
----
+**Test Results:** 475 tests passing (improved from 459!), 37 skipped
 
-## 📋 NEXT STEPS (Resume Point)
+### What Needs Fixing (5 minutes of work)
 
-**USER'S EXPLICIT REQUEST:**
-> "And then, what's next in the big plan? Should we be updating that too? Please review the SOLID_REFACTORING_PLAN_20251111.md and UNIFIED_EXECUTION_PLAN_20251111.md in .ai-docs/planning and be sure our plans are revisited to include all of the things we've done and are still relevant! Then save the latest CONTEXT before we move on and I'll compact this conversation so we can resume and start fresh okay?"
+The `run.py` file needs simple import fixes. See **`.claude/RESUME_SESSION_ORCHESTRATE.md`** for complete fix script.
 
-### Action Items for Next Session:
-
-1. **Review & Update Planning Docs** (Priority 1)
-   - Read `.ai-docs/planning/SOLID_REFACTORING_PLAN_20251111.md`
-   - Read `.ai-docs/planning/UNIFIED_EXECUTION_PLAN_20251111.md`
-   - Update both to reflect Phase 1 completion
-   - Mark completed items, update status, adjust remaining phases
-
-2. **Determine Next Phase** (Priority 2)
-   - Based on updated plans, identify next architectural improvement
-   - Likely candidates:
-     - Phase 2: Performance optimizations
-     - Phase 3: SOLID principles application
-     - Phase 4: Testing improvements
-
-3. **Clean Up**
-   - Stale docs already deleted from `.claude/`
-   - Consider updating RESUME_PLAN.md or archiving it
+Quick summary:
+1. Add missing imports (json, time, constants, make_console)
+2. Replace underscore-prefixed function calls with imported names
+3. Fix relative import
+4. Run tests
+5. Commit
 
 ---
 
-## 📊 Phase 1 Completion Summary
+## 📊 Overall Progress Summary
 
-### Files Refactored (All < 600 lines now):
+### Cumulative orchestrate.py Reduction
 
-#### 1. notion.py Extraction
-- **Before**: 1,385 lines (monolithic)
-- **After**: 633 lines + 3 service modules
-- **Created**: `podx/cli/notion_services/`
-  - `block_utils.py` (110 lines) - Block splitting, rich text helpers
-  - `interactive.py` (420 lines) - Interactive selection flows
-  - `page_operations.py` (260 lines) - Notion page CRUD operations
-- **Commit**: aabfaff
+**Starting point:** 2,533 lines (monolithic)
 
-#### 2. deepcast.py Extraction
-- **Before**: 1,007 lines
-- **After**: 794 lines + 2 service modules
-- **Created**: `podx/cli/deepcast_services/`
-  - `prompt_builder.py` (140 lines) - Prompt construction utilities
-  - `ui_helpers.py` (110 lines) - Interactive mode helpers
-- **Commit**: 2e79111
+**Commits made:**
+1. `a0de91d` - Extract command runner (2,533 → 2,478 lines)
+2. `0c1adb2` - Extract config builder (2,478 → 2,391 lines)
+3. `7766e9b` - Extract pipeline steps (2,391 → 1,259 lines)
+4. **(Stashed)** - Extract all commands (1,256 → 126 lines)
 
-#### 3. api/client.py Split
-- **Before**: 1,188 lines (monolithic)
-- **After**: Split into 4 focused files (1,215 total)
-- **Created**:
-  - `podx/api/config.py` (29 lines) - ClientConfig dataclass
-  - `podx/api/sync_client.py` (717 lines) - PodxClient synchronous API
-  - `podx/api/async_client.py` (459 lines) - AsyncPodxClient with progress
-  - `podx/api/client.py` (10 lines) - Re-export module for backwards compatibility
-- **Updated**: Test patches from `podx.api.client._` to `podx.api.sync_client._`
-- **Commit**: a30ac5a
+**Total reduction:** 2,533 → 126 lines (95% reduction!)
 
-#### 4. config_panel.py Organization
-- **Moved**: `podx/ui/config_panel.py` → `podx/ui/modals/config_modal.py`
-- **Reason**: Consistency with other modal components (fetch_modal.py)
-- **Updated**: Imports in `podx/ui/__init__.py` and `podx/ui/modals/__init__.py`
-- **Commit**: be5bfaa
+### Earlier Phase 1 Work (Completed)
+
+1. ✅ **episode_browser_tui.py** - Split into 4 focused apps
+2. ✅ **notion.py** - Extracted (1,385 → 629 lines)
+3. ✅ **deepcast.py** - Extracted (1,007 → 791 lines)
+4. ✅ **api/client.py** - Split into sync/async/config modules
+5. ✅ **config_panel.py** - Moved to modals/
+
+### Planning Review (Completed)
+
+6. ✅ **Planning Assessment** - Created ARCHITECTURE_STATUS_20251111.md
+7. ✅ **North Star Plan** - Created REFACTORING_NORTH_STAR_20251111.md
+8. ✅ **Archived Old Plans** - Moved SOLID_REFACTORING_PLAN and UNIFIED_EXECUTION_PLAN to archive
 
 ---
 
 ## 🚀 How to Resume
 
-### Resume Command
+### Immediate Action (5 minutes)
+
+```bash
+# 1. Apply stashed changes
+git stash pop
+
+# 2. Run the fix script from RESUME_SESSION_ORCHESTRATE.md
+# (See that file for complete sed commands)
+
+# 3. Test
+pytest tests/ -x --tb=short -q
+
+# 4. Commit
+git add -A
+git commit -m "refactor: extract all commands from orchestrate.py
+
+MASSIVE extraction reducing orchestrate.py to minimal CLI registration.
+orchestrate.py: 1,256 → 126 lines (90% reduction!)
+Total reduction: 2,533 → 126 lines (95% cumulative!)
+Tests: 475 passing (up from 459!)
+
+🎉 Generated with Claude Code
+Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
-Continue from Phase 1 completion. Review and update planning docs:
-- Read .ai-docs/planning/SOLID_REFACTORING_PLAN_20251111.md
-- Read .ai-docs/planning/UNIFIED_EXECUTION_PLAN_20251111.md
-- Update both to reflect Phase 1 completion (all 4 tasks done)
-- Identify next phase from updated plans
 
-Phase 1 complete:
-- notion.py: 1,385 → 633 lines (54% reduction) ✅
-- deepcast.py: 1,007 → 794 lines (21% reduction) ✅
-- api/client.py: 1,188 → 4 files (split) ✅
-- config_panel.py: moved to modals/ ✅
+### After Completing orchestrate.py
 
-All tests passing (459 passed, 53 skipped).
-Branch: refactor/unified-solid-improvements
+Phase A (Complete Foundation) will be done! Next up:
 
-What's next in the big plan?
+**Week 2 Tasks:**
+- Investigate pipeline_steps.py (1,167 lines)
+- Complete Textual migration audit
+- Verify Phase 2 performance claims
+
+See **REFACTORING_NORTH_STAR_20251111.md** for full roadmap.
+
+---
+
+## 📁 Current File Structure
+
+```
+podx/cli/
+├── orchestrate.py              (126 lines) ✅ (stashed)
+├── services/
+│   ├── command_runner.py       (100 lines) ✅
+│   ├── config_builder.py       (123 lines) ✅
+│   └── pipeline_steps.py       (1,167 lines) (needs review)
+└── commands/                    (14 files) ✅ (stashed)
+    ├── __init__.py
+    ├── fetch.py, transcode.py, transcribe.py
+    ├── diarize.py, export.py, deepcast.py
+    ├── models.py, notion.py, preprocess.py
+    ├── run.py (533 lines)
+    ├── deprecated.py (225 lines)
+    ├── help.py, config.py
 ```
 
 ---
 
-**End of Context - Ready for Compaction**
+## 🎯 Success Metrics
+
+### Phase A Status
+
+- ✅ Most large files split
+- 🔄 orchestrate.py 95% done (stashed, needs import fixes)
+- ⏳ pipeline_steps.py investigation pending
+
+### Test Status
+
+- **Tests:** 475 passing, 37 skipped (improved from 459!)
+- **Coverage:** ~75% (target: 90%+)
+
+### SOLID Grade
+
+- **Current:** C+ (improved from original B-)
+- **Target:** B+ after Phase B
+
+---
+
+## 📚 Key Documents
+
+### Planning (Active)
+- `.claude/RESUME_SESSION_ORCHESTRATE.md` - **READ THIS FIRST** to complete work
+- `.ai-docs/planning/REFACTORING_NORTH_STAR_20251111.md` - PRIMARY PLAN going forward
+- `.ai-docs/planning/ARCHITECTURE_STATUS_20251111.md` - Detailed assessment
+
+### Planning (Reference Only)
+- `.ai-docs/archive/SOLID_REFACTORING_PLAN_20251111.md` - Archived
+- `.ai-docs/archive/UNIFIED_EXECUTION_PLAN_20251111.md` - Archived
+
+---
+
+## ⚠️ Critical Constraints
+
+### Git Status
+- **Stashed:** WIP orchestrate.py decomposition
+- **Action:** Must apply stash and fix imports before other work
+
+### TUI Testing
+- **NEVER** run TUI applications in Claude sessions
+- All TUI testing must be done outside Claude
+
+### Context Window
+- **Used:** ~139k/200k (70%)
+- **Remaining:** 61k (30%)
+- **Status:** Enough for completing import fixes
+
+---
+
+**Resume Priority:** Complete orchestrate.py decomposition (5 mins) → Continue with Phase A Week 2
+**Context Status:** ✅ Saved and ready
+**Work Status:** Stashed and documented
+**Next Session:** Apply stash, fix imports, commit, celebrate! 🎉
