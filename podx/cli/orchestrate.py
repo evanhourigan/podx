@@ -2,11 +2,10 @@
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 # Use rich-click for colorized --help when available
 try:  # pragma: no cover
@@ -34,6 +33,9 @@ except Exception:  # pragma: no cover
 
 from podx.cli.help import help_cmd
 
+# Import services for command execution and orchestration
+from .services import run_command, run_passthrough
+
 # Import individual command modules for CLI integration
 from podx.config import get_config
 from podx.constants import (
@@ -41,7 +43,6 @@ from podx.constants import (
     JSON_INDENT,
     MIN_NOTION_DB_ID_LENGTH,
     OPENAI_MODEL_PREFIX,
-    PREVIEW_MAX_LENGTH,
     TITLE_MAX_LENGTH,
 )
 from podx.errors import ValidationError
@@ -53,67 +54,9 @@ from podx.yaml_config import get_yaml_config_manager
 setup_logging()
 logger = get_logger(__name__)
 
-
-def _run(
-    cmd: List[str],
-    stdin_payload: Optional[Dict[str, Any]] = None,
-    verbose: bool = False,
-    save_to: Optional[Path] = None,
-    label: Optional[str] = None,
-) -> Dict[str, Any]:
-    """Run a CLI tool that prints JSON to stdout; return parsed dict."""
-    if label:
-        logger.debug("Running command", command=" ".join(cmd), label=label)
-
-    proc = subprocess.run(
-        cmd,
-        input=json.dumps(stdin_payload) if stdin_payload else None,
-        text=True,
-        capture_output=True,
-    )
-
-    if proc.returncode != 0:
-        err = proc.stderr.strip() or proc.stdout.strip()
-        logger.error(
-            "Command failed",
-            command=" ".join(cmd),
-            return_code=proc.returncode,
-            error=err,
-        )
-        raise ValidationError(f"Command failed: {' '.join(cmd)}\n{err}")
-
-    # stdout should be JSON; optionally mirror to console
-    out = proc.stdout
-
-    if verbose:
-        # Show a compact preview of the JSON output
-        preview = (
-            out[:PREVIEW_MAX_LENGTH] + "..." if len(out) > PREVIEW_MAX_LENGTH else out
-        )
-        click.secho(preview, fg="white")
-
-    try:
-        data = json.loads(out)
-        logger.debug("Command completed successfully", command=cmd[0])
-    except json.JSONDecodeError:
-        # Some subcommands (e.g., deepcast/notion) print plain text "Wrote: ..."
-        data = {"stdout": out.strip()}
-        logger.debug("Command returned non-JSON output", command=cmd[0])
-
-    if save_to:
-        save_to.write_text(out, encoding=DEFAULT_ENCODING)
-        logger.debug("Output saved", file=str(save_to))
-
-    return data
-
-
-def _run_passthrough(cmd: List[str]) -> int:
-    """Run a CLI tool in passthrough mode (inherit stdio). Returns returncode.
-
-    Use this for interactive child processes so the user sees the UI and can interact.
-    """
-    proc = subprocess.run(cmd)
-    return proc.returncode
+# Alias for backwards compatibility within this module
+_run = run_command
+_run_passthrough = run_passthrough
 
 
 class PodxGroup(BaseGroup):
