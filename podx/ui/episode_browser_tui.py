@@ -4,9 +4,15 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 from .apps import EpisodeBrowserTUI
+from .apps.simple_processing import select_episode_for_processing
 
 # Re-export for backwards compatibility
-__all__ = ["EpisodeBrowserTUI", "select_episode_with_config", "select_episode_with_tui"]
+__all__ = [
+    "EpisodeBrowserTUI",
+    "select_episode_with_config",
+    "select_episode_with_tui",
+    "select_episode_for_processing",
+]
 
 
 def select_episode_with_config(
