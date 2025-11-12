@@ -25,7 +25,7 @@ from ..ui_styles import (
     TABLE_NUM_STYLE,
     TABLE_TITLE_COL_STYLE,
 )
-from .episode_browser_tui import ModelLevelProcessingBrowser
+from .apps import ModelLevelProcessingBrowser
 from .two_phase_browser import TwoPhaseTranscriptBrowser
 
 logger = get_logger(__name__)
