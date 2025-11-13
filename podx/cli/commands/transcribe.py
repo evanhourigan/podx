@@ -8,7 +8,7 @@ from podx.cli.services import run_passthrough
 
 @click.command(
     "transcribe",
-    help="Shim: run podx-transcribe with the given arguments",
+    help="Convert audio to text using Whisper ASR models",
     context_settings={
         "ignore_unknown_options": True,
         "allow_extra_args": True,

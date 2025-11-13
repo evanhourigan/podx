@@ -8,7 +8,7 @@ from podx.cli.services import run_passthrough
 
 @click.command(
     "fetch",
-    help="Shim: run podx-fetch with the given arguments",
+    help="Find and download podcast episodes by show name or RSS URL",
     context_settings={
         "ignore_unknown_options": True,
         "allow_extra_args": True,

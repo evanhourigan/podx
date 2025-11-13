@@ -8,7 +8,7 @@ from podx.cli.services import run_passthrough
 
 @click.command(
     "notion",
-    help="Shim: run podx-notion with the given arguments",
+    help="Upload processed content to Notion databases",
     context_settings={
         "ignore_unknown_options": True,
         "allow_extra_args": True,

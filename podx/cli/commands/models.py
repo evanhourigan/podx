@@ -8,7 +8,7 @@ from podx.cli.services import run_passthrough
 
 @click.command(
     "models",
-    help="Shim: run podx-models with the given arguments",
+    help="List AI models with pricing and estimate deepcast cost",
     context_settings={
         "ignore_unknown_options": True,
         "allow_extra_args": True,

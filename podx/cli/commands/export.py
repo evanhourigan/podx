@@ -8,7 +8,7 @@ from podx.cli.services import run_passthrough
 
 @click.command(
     "export",
-    help="Shim: run podx-export with the given arguments",
+    help="Export transcripts to various formats (TXT, SRT, VTT, MD)",
     context_settings={
         "ignore_unknown_options": True,
         "allow_extra_args": True,

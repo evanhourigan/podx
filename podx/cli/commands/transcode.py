@@ -8,7 +8,7 @@ from podx.cli.services import run_passthrough
 
 @click.command(
     "transcode",
-    help="Shim: run podx-transcode with the given arguments",
+    help="Convert audio files to different formats (wav16, mp3, aac)",
     context_settings={
         "ignore_unknown_options": True,
         "allow_extra_args": True,

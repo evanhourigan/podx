@@ -8,7 +8,7 @@ from podx.cli.services import run_passthrough
 
 @click.command(
     "deepcast",
-    help="Shim: run podx-deepcast with the given arguments",
+    help="AI-powered transcript analysis and summarization",
     context_settings={
         "ignore_unknown_options": True,
         "allow_extra_args": True,

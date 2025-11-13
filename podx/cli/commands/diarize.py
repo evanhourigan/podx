@@ -8,7 +8,7 @@ from podx.cli.services import run_passthrough
 
 @click.command(
     "diarize",
-    help="Shim: run podx-diarize with the given arguments",
+    help="Add speaker identification to transcripts using WhisperX",
     context_settings={
         "ignore_unknown_options": True,
         "allow_extra_args": True,
