@@ -347,12 +347,15 @@ class TranscriptionEngine:
                     ts = c.get("timestamp") or c.get("timestamps")
                     if isinstance(ts, (list, tuple)) and len(ts) == 2:
                         start, end = ts
+                        # Handle None values in timestamps
+                        start = float(start) if start is not None else 0.0
+                        end = float(end) if end is not None else 0.0
                     else:
                         start, end = 0.0, 0.0
                     segments.append(
                         {
-                            "start": float(start),
-                            "end": float(end),
+                            "start": start,
+                            "end": end,
                             "text": c.get("text", ""),
                         }
                     )
