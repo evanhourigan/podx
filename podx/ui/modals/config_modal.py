@@ -29,7 +29,7 @@ class DeepcastTypeSelector(ModalScreen[str]):
 
     def compose(self) -> ComposeResult:
         """Compose the modal screen."""
-        from ..deepcast import ALIAS_TYPES, CANONICAL_TYPES
+        from ...cli.deepcast_services import ALIAS_TYPES, CANONICAL_TYPES
 
         # Build selectable list: canonical + aliases
         type_options = [t.value for t in CANONICAL_TYPES] + list(ALIAS_TYPES.keys())
@@ -528,7 +528,7 @@ def configure_pipeline_interactive(config: Dict[str, Any]) -> Optional[Dict[str,
     """
     import time
 
-    from ..logging import restore_logging, suppress_logging
+    from ...logging import restore_logging, suppress_logging
 
     # Brief pause to ensure terminal is ready after previous TUI
     time.sleep(0.1)

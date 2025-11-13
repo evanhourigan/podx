@@ -88,7 +88,7 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
     """
 
     BINDINGS = [
-        Binding("escape", "dismiss", "Cancel", show=True),
+        Binding("escape", "go_back", "Back/Cancel", show=True),
         Binding("enter", "fetch_selected", "Fetch Episode", show=True),
     ]
 
@@ -278,7 +278,7 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
         """
         try:
             # Search for podcasts
-            from ..fetch import search_podcasts
+            from ...core.fetch import search_podcasts
 
             podcasts = search_podcasts(show_name)
             if not podcasts:
@@ -318,6 +318,17 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
         """
         status = self.query_one("#status-message", Static)
         status.update(f"❌ {message}")
+
+    def _show_search_screen(self) -> None:
+        """Return to the search screen."""
+        # Hide both tables
+        self.query_one("#podcast-table-container").add_class("hidden")
+        self.query_one("#episode-table-container").add_class("hidden")
+
+        # Clear status and focus search input
+        status = self.query_one("#status-message", Static)
+        status.update("")
+        self.query_one("#search-input", Input).focus()
 
     def _show_podcast_selection(self, podcasts: List[Dict[str, Any]]) -> None:
         """Show podcast selection table.
@@ -403,7 +414,7 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
         table.clear()
 
 
-        from ..utils import format_date, format_duration
+        from ...utils import format_date, format_duration
 
         for ep in self.rss_episodes:
             # Format date
@@ -493,7 +504,7 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
 
         ep = self.rss_episodes[row_index]
 
-        from ..utils import format_duration
+        from ...utils import format_duration
 
         # Build detail text
         details = []
@@ -528,6 +539,25 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
         detail_content = self.query_one("#fetch-detail-content", Static)
         detail_content.update(detail_text)
 
+    def action_go_back(self) -> None:
+        """Navigate back through viewing modes or dismiss if on root screen."""
+        if self.viewing_mode == "episodes":
+            # Go back to podcast selection (if we had multiple podcasts)
+            if len(self.podcast_results) > 1:
+                self.viewing_mode = "podcasts"
+                self._show_podcast_selection(self.podcast_results)
+            else:
+                # Go back to search
+                self.viewing_mode = "search"
+                self._show_search_screen()
+        elif self.viewing_mode == "podcasts":
+            # Go back to search
+            self.viewing_mode = "search"
+            self._show_search_screen()
+        else:
+            # We're on the search screen - dismiss the modal
+            self.dismiss(None)
+
     def action_fetch_selected(self) -> None:
         """Fetch the selected episode."""
         table = self.query_one("#fetch-episode-table", DataTable)
@@ -553,15 +583,17 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
             episode: Episode dictionary to fetch
         """
         try:
-            from ..fetch import fetch_episode_from_feed
+            from ...core.fetch import fetch_episode
 
             # Fetch the episode
-            result = fetch_episode_from_feed(
-                show_name=self.show_name or "Unknown",
-                rss_url=self.feed_url or "",
-                episode_published=episode.get("published", "Unknown"),
-                episode_title=episode.get("title", "Unknown"),
-                output_dir=self.scan_dir,
+            # Use rss_url if available (preferred), otherwise use show_name
+            # Don't pass output_dir - let fetch_episode() use smart directory naming
+            result = fetch_episode(
+                show_name=None if self.feed_url else self.show_name,
+                rss_url=self.feed_url,
+                date=episode.get("published", "Unknown"),
+                title_contains=episode.get("title", "Unknown"),
+                output_dir=None,  # Use smart naming: show/YYYY-MM-DD-title/
             )
 
             if result:

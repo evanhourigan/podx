@@ -53,8 +53,8 @@ class SimpleProcessingBrowser(App):
     }
 
     #detail-panel {
-        height: 8;
-        border-top: solid $primary;
+        height: 10;
+        border: solid $primary;
         padding: 1 2;
         background: $panel;
     }
@@ -242,7 +242,7 @@ def select_episode_for_processing(
     Raises:
         SystemExit: If no episodes found
     """
-    from ..logging import restore_logging, suppress_logging
+    from ...logging import restore_logging, suppress_logging
     from ..episode_selector import scan_episode_status
 
     # Suppress logging during TUI interaction
