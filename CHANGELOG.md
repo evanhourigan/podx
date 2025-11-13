@@ -5,6 +5,18 @@ All notable changes to podx will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **Major code organization improvements** - Decomposed large modules for better maintainability
+  - orchestrate.py reduced from ~1,214 lines, extracted to commands/ and services/
+  - api/client.py split into sync_client.py, async_client.py, and config.py
+  - notion.py reduced from 1,385 to 633 lines (extracted to notion_services/)
+  - deepcast.py reduced from 1,007 to 794 lines (extracted to deepcast_services/)
+  - episode_browser_tui.py reduced from ~1,696 lines (extracted to ui/apps/)
+  - Better adherence to Single Responsibility Principle
+  - Foundation for future Phase 6 refactorings
+
 ## [2.0.0] - 2025-01-19
 
 ### 🎉 First Stable Release
