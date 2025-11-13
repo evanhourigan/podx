@@ -398,6 +398,76 @@ podx-export --input transcript.json --formats srt,vtt,md
 
 ---
 
+## 📖 Usage Examples
+
+### Basic Usage
+
+```bash
+# Fetch and transcribe a podcast episode
+podx-fetch --show 'This American Life' --date 2024-01-15 | podx-transcribe
+
+# Complete pipeline with smart directory
+podx run --show 'Radio Lab' --date 2024-01-15
+```
+
+### Advanced Pipeline
+
+```bash
+# Full pipeline with AI analysis
+podx run --show 'The Podcast' --date 2024-01-15 --diarize --deepcast
+
+# Upload to Notion
+podx run --show 'The Podcast' --date 2024-01-15 --deepcast --notion
+```
+
+### Unix-style Piping
+
+```bash
+# Chain commands manually
+podx-fetch --show 'Radiolab' --date 2024-01-15 \
+| podx-transcode --to wav16 \
+| podx-transcribe \
+| podx-export --formats txt,srt
+```
+
+### RSS Feeds
+
+```bash
+# Use direct RSS URL
+podx-fetch --rss-url 'https://feeds.example.com/podcast.xml' --date 2024-01-15
+
+# Private podcast with full pipeline
+podx run --rss-url 'https://private-feed.com/feed.xml' --date 2024-01-15 --deepcast
+```
+
+### Providers & Models
+
+```bash
+# Local provider (default)
+podx-transcribe --model large-v3 < audio-meta.json
+
+# OpenAI provider
+OPENAI_API_KEY=sk-... podx-transcribe --model openai:large-v3-turbo < audio-meta.json
+
+# Hugging Face provider
+podx-transcribe --model hf:distil-large-v3 < audio-meta.json
+
+# Expert flags (local only)
+podx-transcribe --expert --vad-filter --condition-on-previous-text < audio-meta.json
+```
+
+### Preprocess & Restore
+
+```bash
+# Preprocess transcript (merge + normalize)
+podx-preprocess --merge --normalize -i transcript.json -o transcript-preprocessed.json
+
+# Run with orchestrator (with semantic restore)
+podx run --rss-url '...' --date 2024-01-15 --preprocess --restore --deepcast
+```
+
+---
+
 ## ⚡ Performance & GPU Acceleration
 
 ### Automatic Device Detection

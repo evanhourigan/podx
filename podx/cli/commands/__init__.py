@@ -7,7 +7,6 @@ from .deprecated import register_deprecated_commands
 from .diarize import diarize_cmd
 from .export import export_cmd
 from .fetch import fetch_cmd
-from .help import help_command
 from .models import models_cmd
 from .notion import notion_cmd
 from .preprocess import preprocess_shim
@@ -27,7 +26,6 @@ __all__ = [
     "notion_cmd",
     "preprocess_shim",
     # Utility commands
-    "help_command",
     "config_command",
     # Main orchestration command
     "run",

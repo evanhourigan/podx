@@ -39,7 +39,6 @@ from podx.cli.commands import (
     diarize_cmd,
     export_cmd,
     fetch_cmd,
-    help_command,
     models_cmd,
     notion_cmd,
     preprocess_shim,
@@ -79,8 +78,8 @@ def main():
 
     Tips:
     - Use 'podx COMMAND --help' for details on each tool
-    - Use 'podx help --examples' for copy‑paste examples
     - All tools read JSON from stdin and write JSON to stdout so you can pipe them
+    - See README.md for usage examples
     """
     pass
 
@@ -100,7 +99,6 @@ main.add_command(notion_cmd, name="notion")
 main.add_command(preprocess_shim, name="preprocess")
 
 # Register utility commands
-main.add_command(help_command, name="help")
 main.add_command(config_command, name="config")
 
 # Register deprecated commands (hidden from help)
