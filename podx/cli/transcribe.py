@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 import click
+from rich.console import Console
 
 from podx.cli.cli_shared import print_json, read_stdin_json
 from podx.config import get_config
@@ -76,27 +77,6 @@ def _truncate_text(text: str, max_length: int = 60) -> str:
     help="ASR provider (auto-detect by model prefix/alias if 'auto')",
 )
 @click.option(
-    "--expert",
-    is_flag=True,
-    help="Show and enable expert decoder flags (for advanced users)",
-)
-@click.option(
-    "--vad-filter/--no-vad",
-    default=None,
-    help="Enable/disable VAD filtering (default: enabled)",
-)
-@click.option(
-    "--condition-on-previous-text/--no-condition",
-    "condition_on_previous_text",
-    default=None,
-    help="Enable/disable conditioning on previous text (default: enabled)",
-)
-@click.option(
-    "--decode-option",
-    multiple=True,
-    help="Expert decoder options (key=value format, e.g., beam_size=5)",
-)
-@click.option(
     "--compute",
     type=click.Choice(["auto", "int8", "int8_float16", "int8_bfloat16", "float16"]),
     default=lambda: get_config().default_compute,
@@ -145,10 +125,6 @@ def _truncate_text(text: str, max_length: int = 60) -> str:
 def main(
     model,
     asr_provider,
-    expert,
-    vad_filter,
-    condition_on_previous_text,
-    decode_option,
     compute,
     input,
     output,
@@ -176,8 +152,6 @@ def main(
                     )
                 )
             else:
-                from rich.console import Console
-
                 console = Console()
                 console.print(
                     "[red]Error:[/red] Interactive mode requires textual library. "
@@ -259,8 +233,6 @@ def main(
                     )
                 )
             else:
-                from rich.console import Console
-
                 console = Console()
                 console.print(
                     "[red]Validation Error:[/red] input must contain AudioMeta JSON with 'audio_path' field"
@@ -283,8 +255,6 @@ def main(
                     )
                 )
             else:
-                from rich.console import Console
-
                 console = Console()
                 console.print(
                     f"[red]Validation Error:[/red] Invalid AudioMeta input: {e}"
@@ -293,20 +263,6 @@ def main(
 
     # Determine provider
     provider_choice = None if asr_provider == "auto" else asr_provider
-
-    # Parse additional decode options for expert mode
-    extra_kwargs = {}
-    if expert and decode_option:
-        for opt in decode_option:
-            if "=" in opt:
-                k, v = opt.split("=", 1)
-                extra_kwargs[k.strip()] = v.strip()
-
-    # Determine VAD and conditioning settings
-    use_vad = True if vad_filter is None else bool(vad_filter)
-    use_condition = (
-        True if condition_on_previous_text is None else bool(condition_on_previous_text)
-    )
 
     # Set up progress callback for interactive mode or JSON progress
     timer = None
@@ -349,9 +305,6 @@ def main(
             provider=provider_choice,
             compute_type=compute_type_arg,
             device=None,  # Auto-detect best device (CUDA/CPU)
-            vad_filter=use_vad,
-            condition_on_previous_text=use_condition,
-            extra_decode_options=extra_kwargs,
             progress_callback=progress_callback,
         )
         result = engine.transcribe(Path(audio))
@@ -361,8 +314,6 @@ def main(
         if json_output:
             print(json.dumps({"error": str(e), "type": "transcription_error"}))
         else:
-            from rich.console import Console
-
             console = Console()
             console.print(f"[red]Transcription Error:[/red] {e}")
         sys.exit(ExitCode.PROCESSING_ERROR)
@@ -372,8 +323,6 @@ def main(
         if json_output:
             print(json.dumps({"error": str(e), "type": "audio_error"}))
         else:
-            from rich.console import Console
-
             console = Console()
             console.print(f"[red]Audio Error:[/red] {e}")
         sys.exit(ExitCode.USER_ERROR)
