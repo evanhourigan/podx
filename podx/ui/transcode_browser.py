@@ -21,6 +21,10 @@ def scan_transcodable_episodes(base_dir: Path = Path.cwd()) -> List[Dict[str, An
 
     # Recursively search for episode-meta.json files
     for meta_file in base_dir.rglob("episode-meta.json"):
+        # Skip root-level episode-meta.json (should be in subdirectories)
+        if meta_file.parent == base_dir:
+            continue
+
         try:
             meta_data = json.loads(meta_file.read_text(encoding="utf-8"))
 

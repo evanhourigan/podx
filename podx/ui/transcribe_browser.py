@@ -21,6 +21,10 @@ def scan_transcribable_episodes(base_dir: Path = Path.cwd()) -> List[Dict[str, A
 
     # Recursively search for audio-meta.json files
     for meta_file in base_dir.rglob("audio-meta.json"):
+        # Skip root-level audio-meta.json (should be in subdirectories)
+        if meta_file.parent == base_dir:
+            continue
+
         try:
             meta_data = json.loads(meta_file.read_text(encoding="utf-8"))
 
