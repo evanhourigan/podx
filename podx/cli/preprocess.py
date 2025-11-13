@@ -84,8 +84,8 @@ logger = get_logger(__name__)
 )
 @click.option(
     "--keep-intermediates/--no-keep-intermediates",
-    default=False,
-    help="Keep intermediate files after preprocessing (default: auto-cleanup)",
+    default=True,
+    help="Keep intermediate files after preprocessing (default: keep files)",
 )
 @validate_output(Transcript)
 def main(

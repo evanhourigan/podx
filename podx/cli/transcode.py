@@ -72,8 +72,8 @@ except Exception:
 )
 @click.option(
     "--keep-intermediates/--no-keep-intermediates",
-    default=False,
-    help="Keep intermediate files after transcoding (default: auto-cleanup)",
+    default=True,
+    help="Keep intermediate files after transcoding (default: keep files)",
 )
 def main(
     fmt, bitrate, outdir, input, output, interactive, scan_dir, keep_intermediates
@@ -166,8 +166,7 @@ def main(
         raise SystemExit(str(e))
 
     # Cleanup intermediate files if not keeping them
-    # In interactive mode, always keep intermediates (user likely continuing pipeline)
-    if not keep_intermediates and not interactive:
+    if not keep_intermediates:
         transcoded_path = Path(result["audio_path"])
         # Only delete original if it's different from the output
         if original_audio_path != transcoded_path and original_audio_path.exists():

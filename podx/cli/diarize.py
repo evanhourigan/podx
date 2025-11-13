@@ -72,8 +72,8 @@ except ImportError:
 )
 @click.option(
     "--keep-intermediates/--no-keep-intermediates",
-    default=False,
-    help="Keep intermediate files after diarization (default: auto-cleanup)",
+    default=True,
+    help="Keep intermediate files after diarization (default: keep files)",
 )
 def main(
     audio,

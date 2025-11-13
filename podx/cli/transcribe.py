@@ -118,8 +118,8 @@ def _truncate_text(text: str, max_length: int = 60) -> str:
 )
 @click.option(
     "--keep-intermediates/--no-keep-intermediates",
-    default=False,
-    help="Keep intermediate files after transcription (default: auto-cleanup)",
+    default=True,
+    help="Keep intermediate files after transcription (default: keep files)",
 )
 @validate_output(Transcript)
 def main(
@@ -395,8 +395,7 @@ def main(
             print_json(result)
 
     # Cleanup intermediate files if not keeping them
-    # In interactive mode, always keep intermediates (user likely continuing pipeline)
-    if not keep_intermediates and not interactive:
+    if not keep_intermediates:
         # Only cleanup .wav files (from transcode step)
         # Don't cleanup original audio (e.g., .mp3 from podcast download)
         if audio.suffix == ".wav" and audio.exists():
