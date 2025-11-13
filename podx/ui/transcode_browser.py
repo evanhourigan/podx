@@ -1,27 +1,16 @@
-"""Interactive browser for selecting episodes to transcode."""
+"""Interactive browser for selecting episodes to transcode.
+
+Migrated to Textual TUI using SelectionBrowserApp widget (Phase 3.2.2).
+"""
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-try:
-    from rich.panel import Panel
-    from rich.table import Table
-
-    RICH_AVAILABLE = True
-except ImportError:
-    RICH_AVAILABLE = False
+from rich.text import Text
 
 from ..logging import get_logger
-from ..ui_styles import (
-    TABLE_BORDER_STYLE,
-    TABLE_DATE_STYLE,
-    TABLE_HEADER_STYLE,
-    TABLE_NUM_STYLE,
-    TABLE_SHOW_STYLE,
-    TABLE_TITLE_COL_STYLE,
-)
-from .interactive_browser import InteractiveBrowser
+from .widgets import show_selection_browser
 
 logger = get_logger(__name__)
 
@@ -69,128 +58,92 @@ def scan_transcodable_episodes(base_dir: Path = Path.cwd()) -> List[Dict[str, An
     return episodes
 
 
-class TranscodeBrowser(InteractiveBrowser):
-    """Interactive browser for selecting episodes to transcode."""
+def _format_transcode_cell(column_key: str, value: Any, item: Dict[str, Any]) -> Text:
+    """Format cell content for transcode browser."""
+    meta = item.get("meta_data", {})
+
+    if column_key == "status":
+        if item.get("is_transcoded"):
+            return Text("✓ Done", style="green")
+        return Text("○ New", style="yellow")
+
+    if column_key == "show":
+        show = meta.get("show", "Unknown")
+        return Text(show[:20], style="cyan")
+
+    if column_key == "date":
+        # Extract date from published or path
+        date_str = meta.get("episode_published", "")
+        if date_str:
+            # Try to parse date
+            try:
+                from dateutil import parser as dtparse
+
+                parsed = dtparse.parse(date_str)
+                return Text(parsed.strftime("%Y-%m-%d"), style="green")
+            except Exception:
+                date = date_str[:10] if len(date_str) >= 10 else date_str
+                return Text(date, style="green")
+        # Try to extract from directory name
+        parts = str(item["directory"]).split("/")
+        date = parts[-1] if parts else "Unknown"
+        return Text(date, style="green")
+
+    if column_key == "title":
+        title_text = meta.get("episode_title", "Unknown")
+        return Text(title_text, style="white")
+
+    return Text(str(value) if value is not None else "", style="white")
+
+
+def show_transcode_browser(episodes: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Show interactive browser for selecting episodes to transcode.
+
+    Args:
+        episodes: List of episode dictionaries (from scan_transcodable_episodes)
+
+    Returns:
+        Selected episode dict, or None if cancelled
+    """
+    columns = [
+        ("Status", "status", 12),
+        ("Show", "show", 20),
+        ("Date", "date", 12),
+        ("Title", "title", 60),
+    ]
+
+    return show_selection_browser(
+        items=episodes,
+        columns=columns,
+        title="🎙️ Select Episode for Transcoding",
+        item_name="episode",
+        format_cell=_format_transcode_cell,
+    )
+
+
+# Backward compatibility: keep TranscodeBrowser class as deprecated wrapper
+class TranscodeBrowser:
+    """DEPRECATED: Use show_transcode_browser() function instead.
+
+    This class is kept for backward compatibility but now uses Textual TUI internally.
+    """
 
     def __init__(self, episodes: List[Dict[str, Any]], episodes_per_page: int = 10):
-        super().__init__(episodes, episodes_per_page, item_name="episode")
-        # Keep episodes as alias for backward compatibility
-        self.episodes = self.items
-        self.episodes_per_page = self.items_per_page
+        """Initialize browser with episodes.
 
-    def _get_item_title(self, item: Dict[str, Any]) -> str:
-        """Get title of episode for selection confirmation."""
-        meta = item.get("meta_data", {})
-        return meta.get("episode_title", "Unknown")
+        Args:
+            episodes: List of episode dictionaries
+            episodes_per_page: Ignored (Textual handles pagination automatically)
+        """
+        self.episodes = episodes
+        self.items = episodes  # Alias for compatibility
+        self.episodes_per_page = episodes_per_page
+        self.items_per_page = episodes_per_page
 
-    def display_page(self) -> None:
-        """Display current page with table and navigation options."""
-        if not self.console:
-            return
+    def browse(self) -> Optional[Dict[str, Any]]:
+        """Show browser and return selected episode.
 
-        start_idx = self.current_page * self.items_per_page
-        end_idx = min(start_idx + self.items_per_page, len(self.items))
-        page_episodes = self.items[start_idx:end_idx]
-
-        # Create title
-        title = f"🎙️ Episodes Available for Transcoding (Page {self.current_page + 1}/{self.total_pages})"
-
-        # Compute dynamic Title width - standardize status width to 24
-        term_width = self.console.size.width
-        fixed_widths = {"num": 4, "status": 24, "show": 20, "date": 12}
-        borders_allowance = 16
-        title_width = max(
-            30, term_width - sum(fixed_widths.values()) - borders_allowance
-        )
-
-        table = Table(
-            show_header=True,
-            header_style=TABLE_HEADER_STYLE,
-            border_style=TABLE_BORDER_STYLE,
-            title=title,
-            expand=False,
-        )
-        table.add_column(
-            "#",
-            style=TABLE_NUM_STYLE,
-            width=fixed_widths["num"],
-            justify="right",
-            no_wrap=True,
-        )
-        table.add_column(
-            "Status",
-            style="magenta",
-            width=fixed_widths["status"],
-            no_wrap=True,
-            overflow="ellipsis",
-        )
-        table.add_column(
-            "Show",
-            style=TABLE_SHOW_STYLE,
-            width=fixed_widths["show"],
-            no_wrap=True,
-            overflow="ellipsis",
-        )
-        table.add_column(
-            "Date", style=TABLE_DATE_STYLE, width=fixed_widths["date"], no_wrap=True
-        )
-        table.add_column(
-            "Title",
-            style=TABLE_TITLE_COL_STYLE,
-            width=title_width,
-            no_wrap=True,
-            overflow="ellipsis",
-        )
-
-        # Add episodes to table
-        for i, episode in enumerate(page_episodes):
-            episode_num = start_idx + i + 1
-            meta = episode["meta_data"]
-
-            # Status indicator
-            status = "✓ Done" if episode["is_transcoded"] else "○ New"
-
-            # Extract info from metadata
-            show = meta.get("show", "Unknown")
-
-            # Extract date from published or path
-            date_str = meta.get("episode_published", "")
-            if date_str:
-                # Try to parse date
-                try:
-                    from dateutil import parser as dtparse
-
-                    parsed = dtparse.parse(date_str)
-                    date = parsed.strftime("%Y-%m-%d")
-                except Exception:
-                    date = date_str[:10] if len(date_str) >= 10 else date_str
-            else:
-                # Try to extract from directory name
-                parts = str(episode["directory"]).split("/")
-                date = parts[-1] if parts else "Unknown"
-
-            title_text = meta.get("episode_title", "Unknown")
-
-            table.add_row(str(episode_num), status, show, date, title_text)
-
-        self.console.print(table)
-
-        # Show navigation options
-        options = []
-        options.append(f"[cyan]1-{len(self.items)}[/cyan]: Select episode to transcode")
-
-        if self.current_page < self.total_pages - 1:
-            options.append("[yellow]N[/yellow]: Next page")
-
-        if self.current_page > 0:
-            options.append("[yellow]P[/yellow]: Previous page")
-
-        options.append("[red]Q[/red]: Quit")
-
-        options_text = " • ".join(options)
-
-        panel = Panel(
-            options_text, title="Options", border_style="blue", padding=(0, 1)
-        )
-
-        self.console.print(panel)
+        Returns:
+            Selected episode dict, or None if cancelled
+        """
+        return show_transcode_browser(self.episodes)
