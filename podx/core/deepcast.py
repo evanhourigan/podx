@@ -75,7 +75,7 @@ class DeepcastEngine:
     3. Synthesize results (reduce phase)
     4. Extract structured JSON if requested
 
-    Can be used by CLI, TUI studio, web API, or any other interface.
+    Can be used by CLI, web API, or any other interface.
     """
 
     def __init__(

@@ -24,7 +24,7 @@ class TranscodeError(Exception):
 class TranscodeEngine:
     """Pure transcoding logic with no UI dependencies.
 
-    Can be used by CLI, TUI studio, web API, or any other interface.
+    Can be used by CLI, web API, or any other interface.
     """
 
     def __init__(self, format: AudioFormat = "wav16", bitrate: str = "128k"):

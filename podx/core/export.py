@@ -52,7 +52,7 @@ class ExportEngine:
     - VTT: WebVTT subtitles
     - MD: Markdown
 
-    Can be used by CLI, TUI studio, web API, or any other interface.
+    Can be used by CLI, web API, or any other interface.
     """
 
     def __init__(self, progress_callback: Optional[Callable[[str], None]] = None):

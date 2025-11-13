@@ -92,7 +92,7 @@ class YouTubeEngine:
     Handles video metadata extraction, audio downloading, and episode format conversion.
     Uses yt-dlp for YouTube interactions.
 
-    Can be used by CLI, TUI studio, web API, or any other interface.
+    Can be used by CLI, web API, or any other interface.
     """
 
     def __init__(self, progress_callback: Optional[Callable[[str], None]] = None):

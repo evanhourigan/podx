@@ -27,7 +27,7 @@ class DiarizationEngine:
     1. Alignment: Add word-level timing to transcript segments
     2. Diarization: Identify speakers and assign to words
 
-    Can be used by CLI, TUI studio, web API, or any other interface.
+    Can be used by CLI, web API, or any other interface.
     """
 
     def __init__(

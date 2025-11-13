@@ -1,10 +1,10 @@
-# Migration Guide: v0.x → v1.0
+# Migration Guide: v1.x → v2.0
 
-This guide helps you upgrade from podx v0.x (alpha) to v1.0 (stable).
+This guide helps you upgrade from podx v1.x to v2.0 (stable).
 
 ## Quick Migration Checklist
 
-- [ ] Update `pyproject.toml` or `requirements.txt` to `podx==1.0.0`
+- [ ] Update `pyproject.toml` or `requirements.txt` to `podx==2.0.0`
 - [ ] Update import paths (`podx.schemas` → `podx.domain`)
 - [ ] Replace string literals with type-safe enums
 - [ ] Update Pydantic v1 API calls to v2

@@ -34,7 +34,7 @@ class FetchError(Exception):
 class PodcastFetcher:
     """Pure podcast fetching logic with no UI dependencies.
 
-    Can be used by CLI, TUI studio, web API, or any other interface.
+    Can be used by CLI, web API, or any other interface.
     """
 
     def __init__(self, user_agent: str = USER_AGENT):

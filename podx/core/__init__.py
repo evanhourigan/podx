@@ -2,7 +2,7 @@
 
 This package contains pure processing logic with no UI or CLI dependencies.
 Each module can be tested independently and used by different interfaces
-(CLI, TUI studio, web API, etc.).
+(CLI, web API, etc.).
 
 Architecture principles:
 - No imports from ui/ or cli/

@@ -98,7 +98,7 @@ class TranscriptionEngine:
     """Pure transcription logic with no UI dependencies.
 
     Supports multiple backends: local (faster-whisper), OpenAI API, Hugging Face.
-    Can be used by CLI, TUI studio, web API, or any other interface.
+    Can be used by CLI, web API, or any other interface.
     """
 
     def __init__(

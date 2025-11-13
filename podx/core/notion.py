@@ -249,7 +249,7 @@ class NotionEngine:
     """Pure Notion API integration logic with no UI dependencies.
 
     Handles page creation, updates, markdown conversion, and content publishing.
-    Can be used by CLI, TUI studio, web API, or any other interface.
+    Can be used by CLI, web API, or any other interface.
     """
 
     def __init__(
