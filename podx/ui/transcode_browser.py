@@ -73,7 +73,7 @@ def _format_transcode_cell(column_key: str, value: Any, item: Dict[str, Any]) ->
 
     if column_key == "show":
         show = meta.get("show", "Unknown")
-        return Text(show[:20], style="cyan")
+        return Text(show[:20], style="magenta")
 
     if column_key == "date":
         # Extract date from published or path

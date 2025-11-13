@@ -82,6 +82,7 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
     }
     """
 
+    # Default bindings include fetch - subclass can override
     BINDINGS = [
         Binding("f", "open_fetch", "Fetch Episode", show=True),
         Binding("enter", "select", "Continue", show=True),
@@ -95,6 +96,8 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
         show_last_run: bool = False,
         show_config_on_select: bool = False,
         initial_config: Optional[Dict[str, Any]] = None,
+        enable_fetch: bool = None,  # Deprecated parameter, kept for compatibility
+        title: Optional[str] = None,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -106,6 +109,8 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
             show_last_run: Whether to show Last Run column (for podx run)
             show_config_on_select: If True, show config modal before exiting
             initial_config: Initial configuration for config modal
+            enable_fetch: Whether to show the 'f' Fetch Episode binding (orchestration mode only)
+            title: Custom title for the browser (overrides class TITLE)
         """
         super().__init__(*args, **kwargs)
         self.episodes = episodes
@@ -115,6 +120,10 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
         self.initial_config = initial_config or {}
         self.selected_episode: Optional[Dict[str, Any]] = None
         self.final_config: Optional[Dict[str, Any]] = None
+
+        # Set custom title if provided
+        if title:
+            self.title = title
 
     def compose(self) -> ComposeResult:
         """Compose the application layout."""
@@ -423,3 +432,19 @@ class EpisodeBrowserTUI(App[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, A
     def action_quit_app(self) -> None:
         """Quit the application."""
         self.exit((None, None))
+
+
+class EpisodeBrowserTUINoFetch(EpisodeBrowserTUI):
+    """Episode browser without fetch binding (for non-orchestration commands)."""
+
+    TITLE = "Episodes Available for Processing"
+
+    BINDINGS = [
+        Binding("f", "noop", show=False),  # Disable parent's fetch binding
+        Binding("enter", "select", "Continue", show=True),
+        Binding("escape", "quit_app", "Cancel", show=True),
+    ]
+
+    def action_noop(self) -> None:
+        """No-op action to disable fetch binding."""
+        pass

@@ -220,9 +220,7 @@ def main(
 
     elif interactive and RICH_AVAILABLE:
         console = Console()
-        # Save original stdout before redirecting, so timer can still display
-        original_stdout = sys.stdout
-        timer = LiveTimer("Diarizing audio", output_stream=original_stdout)
+        timer = LiveTimer("Diarizing audio")
         timer.start()
 
         def progress_callback(message: str):

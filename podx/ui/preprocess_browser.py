@@ -440,49 +440,60 @@ class PreprocessTwoPhase(TwoPhaseTranscriptBrowser):
                 reverse=True,
             )
 
-            # Run the TUI
-            from .episode_browser_tui import EpisodeBrowserTUI
-
-            app = EpisodeBrowserTUI(episodes_sorted, self.scan_dir)
-            result = app.run()
-
-            if result == (None, None):
-                restore_logging()
-                print("❌ Transcript pre-processing cancelled")
-                raise SystemExit(0)
-
-            episode, episode_meta = result
-
         finally:
             restore_logging()
 
-        if not episode:
-            return None
+        # Loop to allow going back from transcript selection to episode selection
+        while True:
+            # Run episode browser
+            from .apps.episode_browser import EpisodeBrowserTUINoFetch
 
-        # Phase 2: Select transcript using Textual TUI
-        transcripts = self.scan_transcripts(episode["directory"])
+            suppress_logging()
+            try:
+                app = EpisodeBrowserTUINoFetch(
+                    episodes_sorted,
+                    self.scan_dir,
+                    title="Episodes Available for Preprocessing",
+                )
+                result = app.run()
 
-        if not transcripts:
-            print(
-                f"❌ No transcripts found in episode: {episode.get('title', 'Unknown')}"
+                if result == (None, None):
+                    restore_logging()
+                    print("❌ Transcript pre-processing cancelled")
+                    raise SystemExit(0)
+
+                episode, episode_meta = result
+            finally:
+                restore_logging()
+
+            if not episode:
+                return None
+
+            # Phase 2: Select transcript using Textual TUI
+            transcripts = self.scan_transcripts(episode["directory"])
+
+            if not transcripts:
+                print(
+                    f"❌ No transcripts found in episode: {episode.get('title', 'Unknown')}"
+                )
+                raise SystemExit(0)
+
+            # Use ModelLevelProcessingBrowser for transcript selection
+            # For preprocess, we want to show processing_stage instead of completion status
+            app = ModelLevelProcessingBrowser(
+                items=transcripts,
+                model_key="asr_model",
+                status_key="processing_level",  # Not used for checkmarks in preprocess
             )
-            raise SystemExit(0)
+            app.TITLE = "Select Transcript to Preprocess"
+            selected_transcript = app.run()
 
-        # Use ModelLevelProcessingBrowser for transcript selection
-        # For preprocess, we want to show processing_stage instead of completion status
-        app = ModelLevelProcessingBrowser(
-            items=transcripts,
-            model_key="asr_model",
-            status_key="processing_level",  # Not used for checkmarks in preprocess
-        )
-        app.TITLE = "Select Transcript to Preprocess"
-        selected_transcript = app.run()
+            # If user cancelled transcript selection (pressed ESC), go back to episode selection
+            if selected_transcript is None:
+                continue
 
-        if not selected_transcript:
-            return None
+            # Show config modal
+            config_app = PreprocessConfigApp(selected_transcript)
+            result = config_app.run()
 
-        # Show config modal
-        config_app = PreprocessConfigApp(selected_transcript)
-        result = config_app.run()
-
-        return result
+            return result

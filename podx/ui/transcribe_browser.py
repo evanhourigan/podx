@@ -102,7 +102,7 @@ def _format_transcribe_cell(column_key: str, value: Any, item: Dict[str, Any]) -
 
     if column_key == "show":
         show = episode_meta.get("show", "Unknown")
-        return Text(show[:20], style="cyan")
+        return Text(show[:20], style="magenta")
 
     if column_key == "date":
         date_str = episode_meta.get("episode_published", "")
@@ -111,14 +111,14 @@ def _format_transcribe_cell(column_key: str, value: Any, item: Dict[str, Any]) -
                 from dateutil import parser as dtparse
 
                 parsed = dtparse.parse(date_str)
-                return Text(parsed.strftime("%Y-%m-%d"), style="blue")
+                return Text(parsed.strftime("%Y-%m-%d"), style="green")
             except Exception:
                 date = date_str[:10] if len(date_str) >= 10 else date_str
-                return Text(date, style="blue")
+                return Text(date, style="green")
         # Try to extract from directory name
         parts = str(item["directory"]).split("/")
         date = parts[-1] if parts else "Unknown"
-        return Text(date, style="blue")
+        return Text(date, style="green")
 
     if column_key == "title":
         title = episode_meta.get("episode_title", "Unknown")

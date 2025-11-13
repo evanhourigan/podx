@@ -141,9 +141,22 @@ class SelectionBrowserApp(App[Optional[Dict[str, Any]]]):
         """Set up the table on mount."""
         table = self.query_one("#selection-table", DataTable)
 
-        # Add columns
+        # Add columns with colored headers
+        # Standard color mapping for common column names
+        header_colors = {
+            "Status": "bold cyan",
+            "Show": "bold magenta",
+            "Date": "bold green",
+            "Title": "bold white",
+            "ASR Model": "bold cyan",
+            "Stage": "bold yellow",
+        }
+
         for col_name, col_key, col_width in self.columns:
-            table.add_column(col_name, key=col_key, width=col_width)
+            # Use colored header if available, otherwise default to bold white
+            header_style = header_colors.get(col_name, "bold white")
+            header_text = Text(col_name, style=header_style)
+            table.add_column(header_text, key=col_key, width=col_width)
 
         # Add rows
         for item in self.items:

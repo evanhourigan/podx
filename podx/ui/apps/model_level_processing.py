@@ -51,8 +51,8 @@ class ModelLevelProcessingBrowser(App):
 
     #detail-panel {
         width: 100%;
-        height: 8;
-        border-top: solid $primary;
+        height: 10;
+        border: solid $accent;
         padding: 1 2;
         background: $panel;
     }
@@ -107,11 +107,11 @@ class ModelLevelProcessingBrowser(App):
         if self.has_checkmarks:
             table.add_column("", key="check", width=2)
 
-        table.add_column("ASR Model", key="model", width=16)
-        table.add_column("Stage", key="stage", width=13)
-        table.add_column("Show", key="show", width=20)
-        table.add_column("Date", key="date", width=10)
-        table.add_column("Title", key="title")
+        table.add_column(Text("ASR Model", style="bold cyan"), key="model", width=16)
+        table.add_column(Text("Stage", style="bold yellow"), key="stage", width=13)
+        table.add_column(Text("Show", style="bold magenta"), key="show", width=20)
+        table.add_column(Text("Date", style="bold green"), key="date", width=10)
+        table.add_column(Text("Title", style="bold white"), key="title")
 
         # Add rows
         for idx, item in enumerate(self.items):
