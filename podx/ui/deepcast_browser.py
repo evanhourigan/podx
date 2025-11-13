@@ -1,7 +1,14 @@
-"""Interactive browser for selecting episodes to deepcast."""
+"""Interactive browser for selecting episodes to deepcast.
+
+DEPRECATED: This module is deprecated and no longer used.
+The deepcast CLI now uses select_episode_with_tui() for interactive mode.
+
+All classes and functions in this module are kept for backward compatibility only.
+"""
 
 import json
 import re
+import warnings
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -83,9 +90,18 @@ def parse_deepcast_metadata(deepcast_file: Path) -> Dict[str, str]:
 
 def scan_deepcastable_episodes(scan_dir: Path) -> List[Dict[str, Any]]:
     """
+    DEPRECATED: This function is no longer used. The deepcast CLI now uses
+    select_episode_with_tui() for interactive episode selection.
+
     Scan directory for episodes that can be deepcast (have transcripts).
     Returns grouped data structure for complex table display.
     """
+    warnings.warn(
+        "scan_deepcastable_episodes() is deprecated and no longer used. "
+        "Use select_episode_with_tui() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     episodes_dict = {}  # Key: (show, date, episode_dir)
 
     # Find all transcript files (diarized, aligned, base)
@@ -280,9 +296,18 @@ def scan_deepcastable_episodes(scan_dir: Path) -> List[Dict[str, Any]]:
 
 def flatten_episodes_to_rows(episodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
+    DEPRECATED: This function is no longer used. The deepcast CLI now uses
+    select_episode_with_tui() for interactive episode selection.
+
     Flatten episodes structure into rows for table display.
     Each row represents one (Episode, ASR Model, AI Model) combination.
     """
+    warnings.warn(
+        "flatten_episodes_to_rows() is deprecated and no longer used. "
+        "Use select_episode_with_tui() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     rows = []
 
     for episode in episodes:
@@ -340,9 +365,20 @@ def flatten_episodes_to_rows(episodes: List[Dict[str, Any]]) -> List[Dict[str, A
 
 
 class DeepcastBrowser(InteractiveBrowser):
-    """Interactive browser for selecting episodes to deepcast."""
+    """DEPRECATED: This class is no longer used.
+
+    The deepcast CLI now uses select_episode_with_tui() for interactive mode.
+
+    This class is kept for backward compatibility but should not be used in new code.
+    """
 
     def __init__(self, rows: List[Dict[str, Any]], items_per_page: int = 10):
+        warnings.warn(
+            "DeepcastBrowser is deprecated and no longer used. "
+            "Use select_episode_with_tui() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         super().__init__(rows, items_per_page, item_name="row")
         # Keep rows as alias for backward compatibility
         self.rows = self.items

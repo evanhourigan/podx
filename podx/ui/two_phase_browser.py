@@ -1,5 +1,12 @@
-"""Base class for two-phase episode → transcript selection browsers."""
+"""Base class for two-phase episode → transcript selection browsers.
 
+DEPRECATED: The Rich-based browsers in this module are deprecated.
+Subclasses (DiarizeTwoPhase, PreprocessTwoPhase) now override browse() to use Textual TUI.
+
+The EpisodeBrowser and TranscriptBrowser classes are kept for backward compatibility only.
+"""
+
+import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -36,11 +43,20 @@ from .interactive_browser import InteractiveBrowser
 
 
 class EpisodeBrowser(InteractiveBrowser):
-    """Browser for selecting episodes from scanned directory."""
+    """DEPRECATED: Rich-based episode browser.
+
+    This class is deprecated. Subclasses now use EpisodeBrowserTUI (Textual) instead.
+    Kept for backward compatibility only.
+    """
 
     def __init__(
         self, episodes: List[Dict[str, Any]], items_per_page: int = EPISODES_PER_PAGE
     ):
+        warnings.warn(
+            "EpisodeBrowser is deprecated. Use EpisodeBrowserTUI (Textual) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         super().__init__(episodes, items_per_page, item_name="episode")
 
     def _get_item_title(self, item: Dict[str, Any]) -> str:
@@ -163,7 +179,11 @@ class EpisodeBrowser(InteractiveBrowser):
 
 
 class TranscriptBrowser(InteractiveBrowser):
-    """Browser for selecting transcripts within an episode."""
+    """DEPRECATED: Rich-based transcript browser.
+
+    This class is deprecated. Subclasses now use ModelLevelProcessingBrowser (Textual) instead.
+    Kept for backward compatibility only.
+    """
 
     def __init__(
         self,
@@ -180,6 +200,11 @@ class TranscriptBrowser(InteractiveBrowser):
             display_fn: Function to display the transcript table
             items_per_page: Number of items per page
         """
+        warnings.warn(
+            "TranscriptBrowser is deprecated. Use ModelLevelProcessingBrowser (Textual) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         super().__init__(transcripts, items_per_page, item_name="transcript")
         self.title_fn = title_fn
         self.display_fn = display_fn
