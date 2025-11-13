@@ -175,14 +175,14 @@ logger = get_logger(__name__)
 )
 @click.option("-v", "--verbose", is_flag=True, help="Print interstitial outputs")
 @click.option(
-    "--clean",
-    is_flag=True,
-    help="Delete intermediates after success (default: keep all files)",
+    "--keep-intermediates/--no-keep-intermediates",
+    default=False,
+    help="Keep intermediate files after pipeline completion (default: auto-cleanup)",
 )
 @click.option(
-    "--no-keep-audio",
-    is_flag=True,
-    help="Delete audio files when --clean is used (default: keep audio)",
+    "--keep-audio/--no-keep-audio",
+    default=True,
+    help="Keep audio files when cleaning up intermediates (default: keep audio)",
 )
 def run(
     show: Optional[str],
@@ -216,8 +216,8 @@ def run(
     append_content: bool,
     full: bool,
     verbose: bool,
-    clean: bool,
-    no_keep_audio: bool,
+    keep_intermediates: bool,
+    keep_audio: bool,
 ):
     """Orchestrate the complete podcast processing pipeline.
 
@@ -275,8 +275,8 @@ def run(
         append_content: Append to existing Notion page instead of replacing
         full: Convenience flag to enable align + deepcast + markdown + notion
         verbose: Enable verbose logging
-        clean: Clean intermediate files after completion
-        no_keep_audio: Don't keep audio files after transcription
+        keep_intermediates: Keep intermediate files after completion (default: cleanup)
+        keep_audio: Keep audio files when cleaning intermediates (default: keep)
 
     Raises:
         ValidationError: On configuration or input validation failures
@@ -315,8 +315,8 @@ def run(
         append_content=append_content,
         full=full,
         verbose=verbose,
-        clean=clean,
-        no_keep_audio=no_keep_audio,
+        clean=not keep_intermediates,  # Invert: cleanup by default unless keeping
+        no_keep_audio=not keep_audio,  # Invert: keep audio by default unless not keeping
     )
 
     # Print header and start progress tracking

@@ -13,8 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Titles truncated to ~20 chars for manageable paths
   - Handles special characters (é → e, spaces → hyphens, etc.)
   - Example: `lex_fridman_podcast/2024-10-15-yann-lecun-meta-ai`
+- **Auto-cleanup with --keep-intermediates flag** - Pipeline now cleans up intermediate files by default
+  - `podx-transcode`: Removes original audio after creating .wav (use `--keep-intermediates` to keep)
+  - `podx-transcribe`: Removes .wav file after transcription (use `--keep-intermediates` to keep)
+  - `podx run`: Auto-cleanup enabled by default (use `--keep-intermediates` to keep all files)
+  - `--keep-audio` / `--no-keep-audio` flag to control audio file preservation (default: keep audio)
+  - Reduces disk usage for large-scale processing workflows
 
 ### Changed
+- **Inverted cleanup default in `podx run`** - Now cleans intermediates by default (was opt-in with `--clean`)
+  - Old: `--clean` to enable cleanup, `--no-keep-audio` to also delete audio
+  - New: `--keep-intermediates` to disable cleanup (cleanup is default), `--no-keep-audio` to also delete audio
 - **Major code organization improvements** - Decomposed large modules for better maintainability
   - orchestrate.py reduced from ~1,214 lines, extracted to commands/ and services/
   - api/client.py split into sync_client.py, async_client.py, and config.py

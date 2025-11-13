@@ -136,6 +136,11 @@ def _truncate_text(text: str, max_length: int = 60) -> str:
     is_flag=True,
     help="Output progress updates as newline-delimited JSON",
 )
+@click.option(
+    "--keep-intermediates/--no-keep-intermediates",
+    default=False,
+    help="Keep intermediate files after transcription (default: auto-cleanup)",
+)
 @validate_output(Transcript)
 def main(
     model,
@@ -151,6 +156,7 @@ def main(
     scan_dir,
     json_output,
     progress_json,
+    keep_intermediates,
 ):
     """
     Read AudioMeta JSON on stdin -> run faster-whisper -> print Transcript JSON to stdout.
@@ -438,6 +444,24 @@ def main(
         else:
             # Rich formatted output (existing behavior)
             print_json(result)
+
+    # Cleanup intermediate files if not keeping them
+    if not keep_intermediates:
+        # Only cleanup .wav files (from transcode step)
+        # Don't cleanup original audio (e.g., .mp3 from podcast download)
+        if audio.suffix == ".wav" and audio.exists():
+            try:
+                audio.unlink()
+                logger.info(
+                    "Removed intermediate audio file",
+                    file=str(audio),
+                )
+            except Exception as e:
+                logger.warning(
+                    "Failed to remove intermediate file",
+                    file=str(audio),
+                    error=str(e),
+                )
 
     # Exit with success
     sys.exit(ExitCode.SUCCESS)

@@ -82,6 +82,11 @@ logger = get_logger(__name__)
     default=".",
     help="Directory to scan for transcripts (default: current directory)",
 )
+@click.option(
+    "--keep-intermediates/--no-keep-intermediates",
+    default=False,
+    help="Keep intermediate files after preprocessing (default: auto-cleanup)",
+)
 @validate_output(Transcript)
 def main(
     input: Optional[Path],
@@ -95,6 +100,7 @@ def main(
     restore_batch_size: int,
     interactive: bool,
     scan_dir: Path,
+    keep_intermediates: bool,
 ):
     """
     Preprocess a Transcript JSON by merging segments and normalizing text.
@@ -208,6 +214,14 @@ def main(
     # Only print JSON in non-interactive mode (for piping/scripting)
     if not interactive:
         print_json(out)
+
+    # Cleanup intermediate files if not keeping them
+    # Note: Preprocess processes transcript JSON and doesn't create intermediate files
+    # Cleanup happens at the orchestrator level (podx run) for pipeline-wide intermediates
+    if not keep_intermediates:
+        # If input was from a file (not stdin), we could optionally clean it up
+        # But we preserve input files by default - cleanup is for generated intermediates
+        pass
 
     return out
 

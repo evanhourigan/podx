@@ -70,7 +70,12 @@ except ImportError:
     is_flag=True,
     help="Output progress updates as newline-delimited JSON",
 )
-def main(audio, input, output, interactive, scan_dir, json_output, progress_json):
+@click.option(
+    "--keep-intermediates/--no-keep-intermediates",
+    default=False,
+    help="Keep intermediate files after diarization (default: auto-cleanup)",
+)
+def main(audio, input, output, interactive, scan_dir, json_output, progress_json, keep_intermediates):
     """
     Read transcript JSON -> WhisperX align + diarize -> print diarized JSON to stdout.
 
@@ -326,6 +331,14 @@ def main(audio, input, output, interactive, scan_dir, json_output, progress_json
         else:
             # Rich formatted output (existing behavior)
             print_json(final)
+
+    # Cleanup intermediate files if not keeping them
+    # Note: Diarize processes transcript JSON and doesn't create intermediate files
+    # Cleanup happens at the orchestrator level (podx run) for pipeline-wide intermediates
+    if not keep_intermediates:
+        # If input was from a file (not stdin), we could optionally clean it up
+        # But we preserve input files by default - cleanup is for generated intermediates
+        pass
 
     # Exit with success
     sys.exit(ExitCode.SUCCESS)

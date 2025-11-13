@@ -70,7 +70,12 @@ except Exception:
     default=".",
     help="Directory to scan for episodes (default: current directory)",
 )
-def main(fmt, bitrate, outdir, input, output, interactive, scan_dir):
+@click.option(
+    "--keep-intermediates/--no-keep-intermediates",
+    default=False,
+    help="Keep intermediate files after transcoding (default: auto-cleanup)",
+)
+def main(fmt, bitrate, outdir, input, output, interactive, scan_dir, keep_intermediates):
     """
     Read EpisodeMeta JSON on stdin (with audio_path), transcode, print AudioMeta JSON on stdout.
 
@@ -148,12 +153,33 @@ def main(fmt, bitrate, outdir, input, output, interactive, scan_dir):
     else:
         output_dir = src.parent
 
+    # Track original audio path for cleanup
+    original_audio_path = src
+
     # Use core transcode engine (pure business logic)
     try:
         engine = TranscodeEngine(format=fmt, bitrate=bitrate)
         result = engine.transcode(src, output_dir)
     except (TranscodeError, FileNotFoundError) as e:
         raise SystemExit(str(e))
+
+    # Cleanup intermediate files if not keeping them
+    if not keep_intermediates:
+        transcoded_path = Path(result["audio_path"])
+        # Only delete original if it's different from the output
+        if original_audio_path != transcoded_path and original_audio_path.exists():
+            try:
+                original_audio_path.unlink()
+                logger.info(
+                    "Removed intermediate audio file",
+                    file=str(original_audio_path),
+                )
+            except Exception as e:
+                logger.warning(
+                    "Failed to remove intermediate file",
+                    file=str(original_audio_path),
+                    error=str(e),
+                )
 
     # Handle output based on interactive mode
     if interactive:
