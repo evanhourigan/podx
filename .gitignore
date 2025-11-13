@@ -54,6 +54,7 @@ episodes/
 .coverage
 htmlcov/
 coverage.json
+.benchmarks/
 
 # Claude Code local settings (user-specific)
 .claude/settings.local.json

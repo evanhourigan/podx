@@ -39,6 +39,7 @@ dev = [
   "pytest-asyncio~=1.2.0",
   "pytest-cov~=7.0.0",
   "pytest-timeout~=2.3.1",
+  "pytest-benchmark~=5.2.3",
   "ruff~=0.14.0",
   "mypy~=1.18.2",
   "types-requests~=2.32.4",
@@ -68,6 +69,20 @@ line-length = 100
 addopts = "-q"
 testpaths = ["tests"]
 pythonpath = ["podx"]
+
+# Benchmark configuration
+[tool.pytest-benchmark]
+# Only compare benchmarks within the same group
+group-by = "group"
+# Save benchmark results
+save = true
+save-data = true
+# Auto-save baseline when running benchmarks
+autosave = true
+# Compare against previous benchmarks
+compare = true
+# Columns to display
+columns = "min, max, mean, stddev, median, iqr, outliers, rounds, iterations"
 
 [tool.isort]
 profile = "black"
