@@ -75,7 +75,9 @@ except Exception:
     default=False,
     help="Keep intermediate files after transcoding (default: auto-cleanup)",
 )
-def main(fmt, bitrate, outdir, input, output, interactive, scan_dir, keep_intermediates):
+def main(
+    fmt, bitrate, outdir, input, output, interactive, scan_dir, keep_intermediates
+):
     """
     Read EpisodeMeta JSON on stdin (with audio_path), transcode, print AudioMeta JSON on stdout.
 

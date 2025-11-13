@@ -1,18 +1,13 @@
 """Main run command for orchestrating the complete podcast processing pipeline."""
+
+import json
+import time
 from pathlib import Path
 from typing import Optional
 
 import click
 
-from podx.config import get_config
-from podx.logging import get_logger
-from podx.progress import PodxProgress, print_podx_header
-
-import json
-import time
-
-from podx.constants import DEFAULT_ENCODING, JSON_INDENT
-
+from podx.cli.services.command_runner import run_command
 from podx.cli.services.config_builder import build_pipeline_config
 from podx.cli.services.pipeline_steps import (
     display_pipeline_config,
@@ -27,9 +22,13 @@ from podx.cli.services.pipeline_steps import (
     handle_interactive_mode,
     print_results_summary,
 )
-from podx.cli.services.command_runner import run_command
+from podx.config import get_config
+from podx.constants import DEFAULT_ENCODING, JSON_INDENT
+from podx.logging import get_logger
+from podx.progress import PodxProgress, print_podx_header
 
 logger = get_logger(__name__)
+
 
 @click.command("run", help="Orchestrate the complete podcast processing pipeline.")
 @click.option("--show", help="Podcast show name (iTunes search)")

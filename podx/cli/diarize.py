@@ -75,7 +75,16 @@ except ImportError:
     default=False,
     help="Keep intermediate files after diarization (default: auto-cleanup)",
 )
-def main(audio, input, output, interactive, scan_dir, json_output, progress_json, keep_intermediates):
+def main(
+    audio,
+    input,
+    output,
+    interactive,
+    scan_dir,
+    json_output,
+    progress_json,
+    keep_intermediates,
+):
     """
     Read transcript JSON -> WhisperX align + diarize -> print diarized JSON to stdout.
 
