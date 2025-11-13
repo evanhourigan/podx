@@ -395,7 +395,8 @@ def main(
             print_json(result)
 
     # Cleanup intermediate files if not keeping them
-    if not keep_intermediates:
+    # In interactive mode, always keep intermediates (user likely continuing pipeline)
+    if not keep_intermediates and not interactive:
         # Only cleanup .wav files (from transcode step)
         # Don't cleanup original audio (e.g., .mp3 from podcast download)
         if audio.suffix == ".wav" and audio.exists():
