@@ -1,46 +1,18 @@
-"""Interactive episode browser for transcription."""
+"""Interactive episode browser for transcription.
+
+Migrated to Textual TUI using SelectionBrowserApp widget (Phase 3.2.3).
+"""
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+from rich.text import Text
 
 from ..logging import get_logger
-from .interactive_browser import InteractiveBrowser
+from .widgets import show_selection_browser
 
 logger = get_logger(__name__)
-
-# Interactive browser imports (optional)
-try:
-    from rich.console import Console
-    from rich.panel import Panel
-    from rich.table import Table
-
-    RICH_AVAILABLE = True
-except ImportError:
-    RICH_AVAILABLE = False
-
-# Shared UI styling
-try:
-    from . import (
-        TABLE_BORDER_STYLE,
-        TABLE_DATE_STYLE,
-        TABLE_HEADER_STYLE,
-        TABLE_NUM_STYLE,
-        TABLE_SHOW_STYLE,
-        TABLE_TITLE_COL_STYLE,
-        make_console,
-    )
-except Exception:
-
-    def make_console():
-        return Console()
-
-    TABLE_BORDER_STYLE = "grey50"
-    TABLE_HEADER_STYLE = "bold magenta"
-    TABLE_NUM_STYLE = "cyan"
-    TABLE_SHOW_STYLE = "yellow3"
-    TABLE_DATE_STYLE = "bright_blue"
-    TABLE_TITLE_COL_STYLE = "white"
 
 
 def scan_transcribable_episodes(base_dir: Path = Path.cwd()) -> List[Dict[str, Any]]:
@@ -107,153 +79,98 @@ def scan_transcribable_episodes(base_dir: Path = Path.cwd()) -> List[Dict[str, A
     return episodes
 
 
-class TranscribeBrowser(InteractiveBrowser):
-    """Interactive episode browser for transcription."""
+def _format_transcribe_cell(column_key: str, value: Any, item: Dict[str, Any]) -> Text:
+    """Format cell content for transcribe browser."""
+    # Load episode metadata if needed
+    episode_meta = {}
+    episode_meta_file = item["directory"] / "episode-meta.json"
+    if episode_meta_file.exists():
+        try:
+            episode_meta = json.loads(episode_meta_file.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    if column_key == "status":
+        if item.get("transcripts"):
+            models_list = ", ".join(item["transcripts"].keys())
+            return Text(f"✓ {models_list}", style="green")
+        return Text("○ New", style="yellow")
+
+    if column_key == "show":
+        show = episode_meta.get("show", "Unknown")
+        return Text(show[:20], style="cyan")
+
+    if column_key == "date":
+        date_str = episode_meta.get("episode_published", "")
+        if date_str:
+            try:
+                from dateutil import parser as dtparse
+
+                parsed = dtparse.parse(date_str)
+                return Text(parsed.strftime("%Y-%m-%d"), style="blue")
+            except Exception:
+                date = date_str[:10] if len(date_str) >= 10 else date_str
+                return Text(date, style="blue")
+        # Try to extract from directory name
+        parts = str(item["directory"]).split("/")
+        date = parts[-1] if parts else "Unknown"
+        return Text(date, style="blue")
+
+    if column_key == "title":
+        title = episode_meta.get("episode_title", "Unknown")
+        return Text(title, style="white")
+
+    return Text(str(value) if value is not None else "", style="white")
+
+
+def show_transcribe_browser(episodes: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Show interactive browser for selecting episodes to transcribe.
+
+    Args:
+        episodes: List of episode dictionaries (from scan_transcribable_episodes)
+
+    Returns:
+        Selected episode dict, or None if cancelled
+    """
+    columns = [
+        ("Status", "status", 24),
+        ("Show", "show", 20),
+        ("Date", "date", 12),
+        ("Title", "title", 50),
+    ]
+
+    return show_selection_browser(
+        items=episodes,
+        columns=columns,
+        title="🎙️ Select Episode for Transcription",
+        item_name="episode",
+        format_cell=_format_transcribe_cell,
+    )
+
+
+# Backward compatibility: keep TranscribeBrowser class as deprecated wrapper
+class TranscribeBrowser:
+    """DEPRECATED: Use show_transcribe_browser() function instead.
+
+    This class is kept for backward compatibility but now uses Textual TUI internally.
+    """
 
     def __init__(self, episodes: List[Dict[str, Any]], episodes_per_page: int = 10):
-        super().__init__(episodes, episodes_per_page, item_name="episode")
-        # Keep episodes as alias for backward compatibility
-        self.episodes = self.items
-        self.episodes_per_page = self.items_per_page
+        """Initialize browser with episodes.
 
-    def _get_item_title(self, item: Dict[str, Any]) -> str:
-        """Get title of episode for selection confirmation."""
-        episode_meta_file = item["directory"] / "episode-meta.json"
-        if episode_meta_file.exists():
-            try:
-                import json
+        Args:
+            episodes: List of episode dictionaries
+            episodes_per_page: Ignored (Textual handles pagination automatically)
+        """
+        self.episodes = episodes
+        self.items = episodes  # Alias for compatibility
+        self.episodes_per_page = episodes_per_page
+        self.items_per_page = episodes_per_page
 
-                episode_meta = json.loads(episode_meta_file.read_text(encoding="utf-8"))
-                return episode_meta.get("episode_title", "Unknown")
-            except Exception:
-                pass
-        return "Unknown"
+    def browse(self) -> Optional[Dict[str, Any]]:
+        """Show browser and return selected episode.
 
-    def display_page(self) -> None:
-        """Display current page of episodes."""
-        if not self.console:
-            return
-
-        start_idx = self.current_page * self.items_per_page
-        end_idx = min(start_idx + self.items_per_page, len(self.items))
-        page_episodes = self.items[start_idx:end_idx]
-
-        # Create title
-        title = f"🎙️ Episodes Available for Transcription (Page {self.current_page + 1}/{self.total_pages})"
-
-        # Compute dynamic Title width so table fits terminal
-        term_width = self.console.size.width
-        fixed_widths = {"num": 4, "status": 24, "show": 20, "date": 12}
-        borders_allowance = 16
-        title_width = max(
-            30, term_width - sum(fixed_widths.values()) - borders_allowance
-        )
-
-        # Create table with shared styling
-        table = Table(
-            show_header=True,
-            header_style=TABLE_HEADER_STYLE,
-            border_style=TABLE_BORDER_STYLE,
-            title=title,
-            expand=False,
-        )
-        table.add_column(
-            "#",
-            style=TABLE_NUM_STYLE,
-            width=fixed_widths["num"],
-            justify="right",
-            no_wrap=True,
-        )
-        table.add_column(
-            "Status",
-            style="magenta",
-            width=fixed_widths["status"],
-            no_wrap=True,
-            overflow="ellipsis",
-        )
-        table.add_column(
-            "Show",
-            style=TABLE_SHOW_STYLE,
-            width=fixed_widths["show"],
-            no_wrap=True,
-            overflow="ellipsis",
-        )
-        table.add_column(
-            "Date", style=TABLE_DATE_STYLE, width=fixed_widths["date"], no_wrap=True
-        )
-        table.add_column(
-            "Title",
-            style=TABLE_TITLE_COL_STYLE,
-            width=title_width,
-            no_wrap=True,
-            overflow="ellipsis",
-        )
-
-        # Add episodes to table
-        for i, episode in enumerate(page_episodes):
-            episode_num = start_idx + i + 1
-
-            # Load episode metadata from episode-meta.json if it exists
-            episode_meta_file = episode["directory"] / "episode-meta.json"
-            if episode_meta_file.exists():
-                try:
-                    episode_meta = json.loads(
-                        episode_meta_file.read_text(encoding="utf-8")
-                    )
-                except Exception:
-                    episode_meta = {}
-            else:
-                episode_meta = {}
-
-            # Status indicator
-            if episode["transcripts"]:
-                models_list = ", ".join(episode["transcripts"].keys())
-                status = f"✓ {models_list}"
-            else:
-                status = "○ New"
-
-            # Extract info from metadata
-            show = episode_meta.get("show", "Unknown")
-
-            # Extract date
-            date_str = episode_meta.get("episode_published", "")
-            if date_str:
-                try:
-                    from dateutil import parser as dtparse
-
-                    parsed = dtparse.parse(date_str)
-                    date = parsed.strftime("%Y-%m-%d")
-                except Exception:
-                    date = date_str[:10] if len(date_str) >= 10 else date_str
-            else:
-                # Try to extract from directory name
-                parts = str(episode["directory"]).split("/")
-                date = parts[-1] if parts else "Unknown"
-
-            title = episode_meta.get("episode_title", "Unknown")
-
-            table.add_row(str(episode_num), status, show, date, title)
-
-        self.console.print(table)
-
-        # Show navigation options
-        options = []
-        options.append(
-            f"[cyan]1-{len(self.items)}[/cyan]: Select episode to transcribe"
-        )
-
-        if self.current_page < self.total_pages - 1:
-            options.append("[yellow]N[/yellow]: Next page")
-
-        if self.current_page > 0:
-            options.append("[yellow]P[/yellow]: Previous page")
-
-        options.append("[red]Q[/red]: Quit")
-
-        options_text = " • ".join(options)
-
-        panel = Panel(
-            options_text, title="Options", border_style="blue", padding=(0, 1)
-        )
-
-        self.console.print(panel)
+        Returns:
+            Selected episode dict, or None if cancelled
+        """
+        return show_transcribe_browser(self.episodes)
