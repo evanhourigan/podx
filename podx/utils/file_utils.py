@@ -72,18 +72,23 @@ def sanitize_filename(s: str) -> str:
     return re.sub(r'[<>:"/\\|?*]', "_", s.strip())
 
 
-def generate_workdir(show_name: str, episode_date: str) -> Path:
-    """Generate a work directory path based on show name and episode date.
+def generate_workdir(show_name: str, episode_date: str, title: str = "") -> Path:
+    """Generate a work directory path based on show name, date, and optional title.
+
+    Creates URL-safe directory structure: show_name/YYYY-MM-DD-title-slug
 
     Args:
         show_name: Name of the podcast show
         episode_date: Episode publication date (will be parsed and formatted)
+        title: Optional episode title (will be slugified and truncated to 20 chars)
 
     Returns:
-        Path object for the work directory (show_name/YYYY-MM-DD)
+        Path object for the work directory
     """
-    # Sanitize show name for filesystem
-    safe_show = sanitize_filename(show_name)
+    from slugify import slugify
+
+    # Sanitize show name for filesystem (using slugify for consistency)
+    safe_show = slugify(show_name, separator="_")
 
     # Parse and format date
     try:
@@ -94,6 +99,14 @@ def generate_workdir(show_name: str, episode_date: str) -> Path:
     except Exception:
         # Fallback to original date string if parsing fails
         date_str = sanitize_filename(episode_date)
+
+    # Add slugified title if provided
+    if title:
+        # Truncate to 20 chars before slugifying to keep URL manageable
+        truncated = title[:20].strip()
+        title_slug = slugify(truncated, separator="-")
+        if title_slug:  # Only add if slugification produced something
+            date_str = f"{date_str}-{title_slug}"
 
     return Path(safe_show) / date_str
 

@@ -372,14 +372,15 @@ class PodcastFetcher:
 
         # Determine output directory
         if output_dir is None:
-            # Use smart naming: show/date/
+            # Use smart naming: show/date-title-slug/
             episode_date = (
                 episode.get("published") or episode.get("updated") or "unknown"
             )
+            episode_title = episode.get("title", "")
             # Import here to avoid circular dependency
             from ..utils import generate_workdir
 
-            output_dir = generate_workdir(extracted_show_name, episode_date)
+            output_dir = generate_workdir(extracted_show_name, episode_date, episode_title)
 
         # Download audio
         audio_path = self.download_audio(episode, output_dir)

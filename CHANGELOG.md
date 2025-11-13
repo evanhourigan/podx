@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **URL-safe directory naming** - Episode directories now use slugified names: `show_name/YYYY-MM-DD-title-slug`
+  - Show names use underscores, titles use hyphens
+  - Titles truncated to ~20 chars for manageable paths
+  - Handles special characters (é → e, spaces → hyphens, etc.)
+  - Example: `lex_fridman_podcast/2024-10-15-yann-lecun-meta-ai`
+
 ### Changed
 - **Major code organization improvements** - Decomposed large modules for better maintainability
   - orchestrate.py reduced from ~1,214 lines, extracted to commands/ and services/
