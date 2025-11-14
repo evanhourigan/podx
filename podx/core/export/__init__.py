@@ -10,8 +10,14 @@ Usage:
     content = formatter.format(segments)
 """
 
-# Import legacy classes for backward compatibility
-from ..export_legacy import ExportEngine, ExportError
+# Import legacy classes and functions for backward compatibility
+from ..export_legacy import (
+    ExportEngine,
+    ExportError,
+    export_transcript,
+    format_timestamp,
+    write_if_changed,
+)
 from .base import ExportFormatter, FormatRegistry
 from .formats import MDFormatter, SRTFormatter, TXTFormatter, VTTFormatter
 
@@ -19,6 +25,9 @@ __all__ = [
     # Legacy (backward compatibility)
     "ExportEngine",
     "ExportError",
+    "export_transcript",
+    "format_timestamp",
+    "write_if_changed",
     # Base
     "ExportFormatter",
     "FormatRegistry",
