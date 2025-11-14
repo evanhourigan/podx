@@ -1,4 +1,4 @@
-"""Domain layer for podx - data models, enums, and business logic."""
+"""Domain layer for podx - data models, enums, protocols, and business logic."""
 
 from .enums import AnalysisType, ASRPreset, ASRProvider, AudioFormat, PipelineStep
 from .models import (
@@ -14,6 +14,22 @@ from .models import (
     Segment,
     Transcript,
     Word,
+)
+from .protocols import (
+    Analyzer,
+    AnalysisResult,
+    Diarizer,
+    Exporter,
+    Fetcher,
+    FetchResult,
+    Logger,
+    Preprocessor,
+    ProgressReporter,
+    Publisher,
+    PublishResult,
+    Result,
+    Transcriber,
+    TranscriptResult,
 )
 
 __all__ = [
@@ -36,4 +52,20 @@ __all__ = [
     "DeepcastBrief",
     "PipelineConfig",
     "PipelineResult",
+    # Protocols
+    "Fetcher",
+    "Transcriber",
+    "Diarizer",
+    "Analyzer",
+    "Publisher",
+    "Exporter",
+    "Preprocessor",
+    "ProgressReporter",
+    "Logger",
+    # Result Types
+    "Result",
+    "TranscriptResult",
+    "AnalysisResult",
+    "PublishResult",
+    "FetchResult",
 ]
