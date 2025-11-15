@@ -11,6 +11,8 @@ The PodX Python API provides a clean, type-safe interface for podcast processing
 5. [Response Models](#response-models)
 6. [Error Handling](#error-handling)
 7. [Best Practices](#best-practices)
+8. [Advanced: Multi-Provider LLM Support](#advanced-multi-provider-llm-support)
+9. [Advanced: Progress Reporting](#advanced-progress-reporting-with-progressreporter)
 
 ## Installation
 
@@ -724,6 +726,152 @@ def safe_transcribe(audio_path: str) -> bool:
         )
         return False
 ```
+
+## Advanced: Multi-Provider LLM Support
+
+**NEW in Phase 6:** PodX supports multiple LLM providers through a unified abstraction layer. This allows you to easily switch between OpenAI, Anthropic, OpenRouter, and local models (Ollama) without changing your code.
+
+### Using LLM Providers
+
+```python
+from podx.llm import get_provider
+
+# OpenAI (GPT-4, GPT-4o, GPT-4o-mini)
+openai = get_provider("openai", api_key="sk-...")
+response = openai.complete(
+    messages=[{"role": "user", "content": "Summarize this transcript"}],
+    model="gpt-4o"
+)
+print(response.content)
+
+# Anthropic (Claude 3.5 Sonnet, Haiku)
+anthropic = get_provider("anthropic", api_key="sk-ant-...")
+response = anthropic.complete(
+    messages=[{"role": "user", "content": "Analyze this podcast"}],
+    model="claude-3-5-sonnet-20241022"
+)
+
+# OpenRouter (access to many models)
+openrouter = get_provider("openrouter", api_key="sk-or-...")
+response = openrouter.complete(
+    messages=[{"role": "user", "content": "Extract key points"}],
+    model="anthropic/claude-3.5-sonnet"
+)
+
+# Ollama (local models, FREE)
+ollama = get_provider("ollama")
+response = ollama.complete(
+    messages=[{"role": "user", "content": "Generate summary"}],
+    model="llama2"
+)
+```
+
+### Using LLM Providers with Core Engines
+
+```python
+from podx.core.deepcast import DeepcastEngine
+from podx.llm import get_provider
+
+# Use Claude for AI analysis
+claude = get_provider("anthropic", api_key="sk-ant-...")
+engine = DeepcastEngine(llm_provider=claude, model="claude-3-5-sonnet-20241022")
+
+# Process transcript
+markdown, insights = engine.deepcast(
+    transcript=transcript_data,
+    metadata={"title": "Episode 1", "show_name": "My Podcast"}
+)
+
+# Or use local Ollama (no API costs)
+ollama = get_provider("ollama")
+engine = DeepcastEngine(llm_provider=ollama, model="llama2")
+markdown, insights = engine.deepcast(transcript, metadata)
+```
+
+### Async LLM Support
+
+All LLM providers support async completion for non-blocking operations:
+
+```python
+from podx.llm import get_provider
+import asyncio
+
+async def analyze_transcript():
+    provider = get_provider("openai", api_key="sk-...")
+
+    # Async completion
+    response = await provider.complete_async(
+        messages=[{"role": "user", "content": "Summarize this"}],
+        model="gpt-4o"
+    )
+
+    return response.content
+
+# Run async
+summary = asyncio.run(analyze_transcript())
+```
+
+### Available LLM Providers
+
+| Provider | Models | Cost | Setup |
+|----------|--------|------|-------|
+| **OpenAI** | gpt-4o, gpt-4, gpt-4o-mini | Paid | API key required |
+| **Anthropic** | claude-3-5-sonnet, claude-3-haiku | Paid | API key required |
+| **OpenRouter** | 100+ models | Varies | API key required |
+| **Ollama** | llama2, mistral, mixtral, phi-2 | FREE | Local installation |
+
+### Custom LLM Provider
+
+You can create your own LLM provider by implementing the `LLMProvider` interface:
+
+```python
+from podx.llm.base import LLMProvider, LLMResponse, LLMMessage
+from typing import List, Optional
+
+class MyCustomProvider(LLMProvider):
+    """Custom LLM provider implementation."""
+
+    def __init__(self, api_key: Optional[str] = None, **kwargs):
+        self.api_key = api_key
+
+    def complete(
+        self,
+        messages: List[LLMMessage],
+        model: str,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        **kwargs
+    ) -> LLMResponse:
+        """Synchronous completion."""
+        # Your implementation here
+        response_text = self._call_custom_api(messages, model)
+        return LLMResponse(
+            content=response_text,
+            model=model,
+            usage={"prompt_tokens": 100, "completion_tokens": 50}
+        )
+
+    async def complete_async(
+        self,
+        messages: List[LLMMessage],
+        model: str,
+        **kwargs
+    ) -> LLMResponse:
+        """Async completion."""
+        # Your async implementation
+        pass
+
+# Register custom provider
+from podx.llm.factory import register_provider
+register_provider("custom", MyCustomProvider)
+
+# Use custom provider
+provider = get_provider("custom", api_key="...")
+```
+
+**For more details on LLM providers, see [ADVANCED.md](../ADVANCED.md#multi-provider-llm-support).**
+
+---
 
 ## Advanced: Progress Reporting with ProgressReporter
 
