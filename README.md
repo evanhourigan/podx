@@ -440,20 +440,181 @@ podx-fetch --rss-url 'https://feeds.example.com/podcast.xml' --date 2024-01-15
 podx run --rss-url 'https://private-feed.com/feed.xml' --date 2024-01-15 --deepcast
 ```
 
-### Providers & Models
+### Multi-Provider LLM Examples
 
 ```bash
-# Local provider (default)
-podx-transcribe --model large-v3 < audio-meta.json
+# Use OpenAI (default)
+export OPENAI_API_KEY="sk-..."
+podx run --show "My Podcast" --date 2024-10-15 --llm-provider openai --llm-model gpt-4o
 
-# OpenAI provider
-OPENAI_API_KEY=sk-... podx-transcribe --model openai:large-v3-turbo < audio-meta.json
+# Use Anthropic Claude
+export ANTHROPIC_API_KEY="sk-ant-..."
+podx run --show "My Podcast" --date 2024-10-15 --llm-provider anthropic --llm-model claude-3-5-sonnet-20241022
 
-# Hugging Face provider
-podx-transcribe --model hf:distil-large-v3 < audio-meta.json
+# Use OpenRouter (access to many models)
+export OPENROUTER_API_KEY="sk-or-..."
+podx run --show "My Podcast" --date 2024-10-15 --llm-provider openrouter --llm-model anthropic/claude-3.5-sonnet
 
-# Expert flags (local only)
-podx-transcribe --expert --vad-filter --condition-on-previous-text < audio-meta.json
+# Use Ollama (local, FREE)
+podx run --show "My Podcast" --date 2024-10-15 --llm-provider ollama --llm-model llama2
+```
+
+### Batch Processing
+
+```bash
+# Process a week of episodes sequentially
+for day in {01..07}; do
+  podx run --show "Daily Podcast" --date "2024-10-$day"
+done
+
+# Process multiple episodes in parallel
+cat episode_dates.txt | parallel -j 4 podx run --show "My Podcast" --date {}
+
+# Batch process all MP3 files in a directory
+for file in *.mp3; do
+  podx-transcribe --input "$file"
+  podx-export --input "${file%.mp3}-transcript.json" --formats txt,srt
+done
+
+# Process multiple shows from a list
+while IFS=',' read -r show date; do
+  podx run --show "$show" --date "$date" &
+done < shows.csv
+wait
+```
+
+### Custom Export Workflows
+
+```bash
+# Export to all formats
+podx-export --input transcript.json --formats txt,srt,vtt,md,json
+
+# Export with custom output directory
+podx-export --input transcript.json --formats txt,srt --output-dir exports/
+
+# Generate subtitles only
+podx run --show "Video Podcast" --date 2024-10-15 --no-deepcast --no-notion
+podx-export --input transcript.json --formats srt,vtt
+
+# Create searchable text archive
+for transcript in **/*-diarized.json; do
+  podx-export --input "$transcript" --formats txt --output-dir archive/
+done
+```
+
+### Model Selection & Optimization
+
+```bash
+# Fast transcription with base model
+podx-transcribe --model base --input audio.mp3  # ~0.3x real-time on GPU
+
+# Balanced: large-v3-turbo (recommended)
+podx-transcribe --model large-v3-turbo --input audio.mp3  # ~0.5x real-time on GPU
+
+# Maximum accuracy with large-v3
+podx-transcribe --model large-v3 --input audio.mp3  # ~1x real-time on GPU
+
+# Force CPU mode (no GPU required)
+podx-transcribe --device cpu --compute-type int8 --input audio.mp3
+
+# Use OpenAI Whisper API (fastest, paid)
+export OPENAI_API_KEY="sk-..."
+podx-transcribe --asr-provider openai --input audio.mp3
+```
+
+### Diarization Examples
+
+```bash
+# Auto-detect speakers
+podx-diarize --input transcript.json
+
+# Specify exact number of speakers
+podx-diarize --num-speakers 2 --input transcript.json
+
+# Specify speaker range
+podx-diarize --min-speakers 2 --max-speakers 4 --input transcript.json
+
+# Use WhisperX for better diarization
+podx-diarize --engine whisperx --input transcript.json
+
+# Skip diarization (faster processing)
+podx run --show "Solo Podcast" --date 2024-10-15 --no-diarize
+```
+
+### Web Integration Examples
+
+```python
+# FastAPI endpoint with SSE progress
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+from podx.api import AsyncPodxClient
+from podx.progress import APIProgressReporter
+import json
+
+app = FastAPI()
+
+@app.post("/transcribe")
+async def transcribe_endpoint(audio_url: str):
+    reporter = APIProgressReporter()
+    client = AsyncPodxClient()
+
+    async def event_stream():
+        # Start transcription in background
+        task = asyncio.create_task(
+            client.transcribe(audio_url, progress_reporter=reporter)
+        )
+
+        # Stream progress events
+        while not task.done():
+            events = reporter.get_events(since=last_timestamp)
+            for event in events:
+                yield f"data: {json.dumps(event)}\n\n"
+            await asyncio.sleep(0.5)
+
+        # Send final result
+        result = await task
+        yield f"data: {json.dumps({'done': True, 'result': result.dict()})}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+# Flask endpoint with polling
+from flask import Flask, jsonify
+from podx.api import PodxClient
+from podx.progress import APIProgressReporter
+import threading
+
+app = Flask(__name__)
+tasks = {}
+
+@app.post("/transcribe")
+def transcribe_flask():
+    task_id = str(uuid.uuid4())
+    reporter = APIProgressReporter()
+    client = PodxClient()
+
+    def process():
+        tasks[task_id]["result"] = client.transcribe(
+            audio_url,
+            progress_reporter=reporter
+        )
+
+    tasks[task_id] = {"reporter": reporter, "result": None}
+    threading.Thread(target=process).start()
+
+    return jsonify({"task_id": task_id})
+
+@app.get("/progress/<task_id>")
+def get_progress(task_id):
+    task = tasks.get(task_id)
+    if not task:
+        return jsonify({"error": "Task not found"}), 404
+
+    events = task["reporter"].get_events()
+    return jsonify({
+        "events": events,
+        "done": task["result"] is not None,
+        "result": task["result"].dict() if task["result"] else None
+    })
 ```
 
 ### Preprocess & Restore
@@ -465,6 +626,75 @@ podx-preprocess --merge --normalize -i transcript.json -o transcript-preprocesse
 # Run with orchestrator (with semantic restore)
 podx run --rss-url '...' --date 2024-01-15 --preprocess --restore --deepcast
 ```
+
+### Automation & Scripting
+
+```bash
+# Daily automation script
+#!/bin/bash
+# process-daily-podcast.sh
+
+SHOW="The Daily"
+DATE=$(date +%Y-%m-%d)
+
+# Process today's episode
+podx run --show "$SHOW" --date "$DATE" \
+  --llm-provider ollama --llm-model llama2 \
+  --notion
+
+# Archive transcripts
+find . -name "transcript-diarized.json" -mtime 0 \
+  -exec podx-export --input {} --formats txt \;
+
+# Notify on completion
+echo "Processed $SHOW episode for $DATE" | mail -s "PodX Complete" admin@example.com
+
+# Cron schedule: daily at 6 AM
+# 0 6 * * * /path/to/process-daily-podcast.sh
+```
+
+### Research & Analysis
+
+```python
+# Analyze multiple episodes for research
+from podx.api import PodxClient
+import pandas as pd
+
+client = PodxClient()
+
+# Process a series of episodes
+episodes = [
+    {"show": "Podcast", "date": f"2024-10-{day:02d}"}
+    for day in range(1, 31)
+]
+
+results = []
+for ep in episodes:
+    # Transcribe
+    transcript = client.transcribe_episode(**ep)
+
+    # Analyze
+    analysis = client.deepcast(
+        transcript.transcript_path,
+        llm_provider="anthropic",
+        llm_model="claude-3-5-sonnet-20241022"
+    )
+
+    # Extract insights
+    results.append({
+        "date": ep["date"],
+        "duration": transcript.stats["duration"],
+        "word_count": len(transcript.text.split()),
+        "summary": analysis.summary
+    })
+
+# Create DataFrame for analysis
+df = pd.DataFrame(results)
+df.to_csv("podcast_analysis.csv")
+print(df.describe())
+```
+
+**📖 See [docs/QUICKSTART.md](docs/QUICKSTART.md) for beginner guides and [docs/ADVANCED.md](docs/ADVANCED.md) for advanced usage.**
 
 ---
 
@@ -520,6 +750,13 @@ wait
 ---
 
 ## 📚 Documentation
+
+### Getting Started
+
+- **[Quick Start Guide](docs/QUICKSTART.md)** - Beginner-friendly installation and first steps
+- **[Advanced Usage](docs/ADVANCED.md)** - Multi-provider LLMs, batch processing, Python API
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[FAQ](docs/FAQ.md)** - Frequently asked questions
 
 ### User Guides
 
