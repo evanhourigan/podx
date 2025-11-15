@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from ..llm import LLMMessage, LLMProvider, get_provider
 from ..logging import get_logger
+from ..progress import ProgressReporter, SilentProgressReporter
 
 logger = get_logger(__name__)
 
@@ -35,6 +36,7 @@ class TranscriptPreprocessor:
         restore_batch_size: int = 20,
         llm_provider: Optional[LLMProvider] = None,
         provider_name: str = "openai",
+        progress: Optional[ProgressReporter] = None,
     ):
         """Initialize transcript preprocessor.
 
@@ -48,6 +50,7 @@ class TranscriptPreprocessor:
             restore_batch_size: Segments per LLM request
             llm_provider: Optional pre-configured LLM provider instance
             provider_name: Provider to use if llm_provider not provided (default: openai)
+            progress: Optional progress reporter for status updates
         """
         self.merge = merge
         self.normalize = normalize
@@ -56,6 +59,7 @@ class TranscriptPreprocessor:
         self.max_len = max_len
         self.restore_model = restore_model
         self.restore_batch_size = restore_batch_size
+        self.progress = progress or SilentProgressReporter()
 
         # Use provided provider or create one
         if llm_provider:
@@ -163,8 +167,18 @@ class TranscriptPreprocessor:
         )
 
         out: List[str] = []
+        total_batches = (len(texts) + self.restore_batch_size - 1) // self.restore_batch_size
+
         for i in range(0, len(texts), self.restore_batch_size):
+            batch_num = i // self.restore_batch_size + 1
             chunk = texts[i : i + self.restore_batch_size]
+
+            # Report progress
+            self.progress.update_step(
+                f"Restoring batch {batch_num}/{total_batches}",
+                step=batch_num,
+                progress=batch_num / total_batches,
+            )
 
             # Batch processing: join texts with delimiter
             delimiter = "\n---SEGMENT---\n"
@@ -186,7 +200,7 @@ class TranscriptPreprocessor:
                 batch_result = response.content
             except Exception as e:
                 logger.error(
-                    f"LLM API request failed for batch {i//self.restore_batch_size + 1}: {e}"
+                    f"LLM API request failed for batch {batch_num}: {e}"
                 )
                 raise PreprocessError(f"Semantic restore failed: {e}") from e
 

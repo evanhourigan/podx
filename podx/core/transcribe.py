@@ -4,7 +4,7 @@ No UI dependencies, no CLI concerns. Just audio transcription across multiple ba
 """
 
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from ..device import (
     detect_device_for_ctranslate2,
@@ -12,6 +12,7 @@ from ..device import (
     log_device_usage,
 )
 from ..logging import get_logger
+from ..progress import ProgressReporter, SilentProgressReporter
 
 logger = get_logger(__name__)
 
@@ -110,7 +111,8 @@ class TranscriptionEngine:
         vad_filter: bool = True,
         condition_on_previous_text: bool = True,
         extra_decode_options: Optional[Dict[str, Any]] = None,
-        progress_callback: Optional[Callable[[str], None]] = None,
+        progress: Optional[Union[ProgressReporter, Callable[[str], None]]] = None,
+        progress_callback: Optional[Callable[[str], None]] = None,  # Deprecated
     ):
         """Initialize transcription engine.
 
@@ -122,7 +124,8 @@ class TranscriptionEngine:
             vad_filter: Enable voice activity detection filtering
             condition_on_previous_text: Enable conditioning on previous text
             extra_decode_options: Additional decoder options
-            progress_callback: Optional callback for progress updates
+            progress: Optional ProgressReporter or legacy callback function
+            progress_callback: Deprecated - use progress parameter instead
         """
         self.provider, self.normalized_model = parse_model_and_provider(model, provider)
 
@@ -139,11 +142,32 @@ class TranscriptionEngine:
         self.vad_filter = vad_filter
         self.condition_on_previous_text = condition_on_previous_text
         self.extra_decode_options = extra_decode_options or {}
-        self.progress_callback = progress_callback
+
+        # Handle progress reporting (support both new and legacy APIs)
+        if progress is not None:
+            if isinstance(progress, ProgressReporter):
+                self.progress = progress
+                self.progress_callback = None
+            else:
+                # Legacy callback function
+                self.progress = None
+                self.progress_callback = progress
+        elif progress_callback is not None:
+            # Deprecated parameter
+            self.progress = None
+            self.progress_callback = progress_callback
+        else:
+            # No progress reporting
+            self.progress = SilentProgressReporter()
+            self.progress_callback = None
 
     def _report_progress(self, message: str):
-        """Report progress via callback if available."""
-        if self.progress_callback:
+        """Report progress via ProgressReporter or legacy callback."""
+        # New API: ProgressReporter
+        if self.progress and not isinstance(self.progress, SilentProgressReporter):
+            self.progress.update_step(message)
+        # Legacy API: callback function
+        elif self.progress_callback:
             self.progress_callback(message)
 
     def transcribe(self, audio_path: Path) -> Dict[str, Any]:
