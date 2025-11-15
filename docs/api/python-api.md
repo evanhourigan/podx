@@ -725,8 +725,131 @@ def safe_transcribe(audio_path: str) -> bool:
         return False
 ```
 
+## Advanced: Progress Reporting with ProgressReporter
+
+For more granular control over progress reporting, you can use the `ProgressReporter` abstraction directly with core engines. This is especially useful for web API integration with Server-Sent Events (SSE) or WebSocket.
+
+### Using APIProgressReporter for Real-Time Updates
+
+```python
+from podx.core.transcribe import TranscribeEngine
+from podx.progress import APIProgressReporter
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+import asyncio
+import json
+
+app = FastAPI()
+
+@app.post("/transcribe")
+async def transcribe_audio(audio_path: str):
+    """Stream transcription progress via SSE."""
+    progress = APIProgressReporter()
+
+    # Start transcription in background
+    async def run_transcription():
+        engine = TranscribeEngine(
+            model="large-v3",
+            progress=progress  # Use ProgressReporter
+        )
+        return engine.transcribe(audio_path)
+
+    task = asyncio.create_task(run_transcription())
+    last_timestamp = 0.0
+
+    # Stream events
+    async def event_stream():
+        nonlocal last_timestamp
+        while not task.done():
+            events = progress.get_events(since=last_timestamp)
+            for event in events:
+                yield f"data: {json.dumps({
+                    'type': event.type,
+                    'message': event.message,
+                    'progress': event.progress
+                })}\n\n"
+                last_timestamp = event.timestamp
+            await asyncio.sleep(0.1)
+
+        result = await task
+        yield f"data: {json.dumps({
+            'type': 'complete',
+            'result': str(result)
+        })}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+```
+
+### Client-Side JavaScript for SSE
+
+```javascript
+const eventSource = new EventSource('/transcribe?audio_path=podcast.mp3');
+
+eventSource.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+
+    if (data.type === 'update') {
+        // Update progress bar
+        updateProgressBar(data.progress * 100);
+        console.log(data.message);
+    } else if (data.type === 'complete') {
+        console.log('Transcription complete!');
+        eventSource.close();
+    }
+};
+```
+
+### WebSocket Integration
+
+```python
+from fastapi import WebSocket
+from podx.core.deepcast import DeepcastEngine
+from podx.progress import APIProgressReporter
+
+@app.websocket("/ws/deepcast")
+async def deepcast_websocket(websocket: WebSocket):
+    await websocket.accept()
+
+    # Receive request
+    data = await websocket.receive_json()
+    transcript = data["transcript"]
+
+    # Setup progress reporter
+    progress = APIProgressReporter()
+    engine = DeepcastEngine(model="gpt-4o", progress=progress)
+
+    # Run analysis in background
+    async def run_analysis():
+        return engine.deepcast(transcript)
+
+    task = asyncio.create_task(run_analysis())
+    last_timestamp = 0.0
+
+    # Stream progress updates
+    while not task.done():
+        events = progress.get_events(since=last_timestamp)
+        for event in events:
+            await websocket.send_json({
+                "type": event.type,
+                "message": event.message,
+                "progress": event.progress
+            })
+            last_timestamp = event.timestamp
+        await asyncio.sleep(0.1)
+
+    # Send result
+    result = await task
+    await websocket.send_json({
+        "type": "complete",
+        "result": result
+    })
+```
+
+**For comprehensive documentation on progress reporting, see [Progress Reporting API](../PROGRESS_REPORTING.md).**
+
 ## See Also
 
+- [Progress Reporting API](../PROGRESS_REPORTING.md) - **NEW:** Unified progress reporting for CLI, web API, and testing
 - [Examples](../../examples/api/README.md) - Complete working examples
 - [CLI Documentation](../cli/README.md) - Command-line interface
 - [Architecture](../ARCHITECTURE.md) - System design and patterns

@@ -60,9 +60,32 @@ engine = ModuleEngine(
 )
 ```
 
-### Progress Callbacks
+### Progress Reporting
 
-Progress callbacks allow UI integration without coupling core logic to UI frameworks:
+PodX provides unified progress reporting via the `ProgressReporter` abstraction. All engines accept either a `ProgressReporter` instance or a legacy callback function.
+
+#### Using ProgressReporter (Recommended)
+
+```python
+from podx.progress import ConsoleProgressReporter
+
+# Create a progress reporter
+progress = ConsoleProgressReporter(verbose=True)
+
+# Use with any engine
+engine = SomeEngine(progress=progress)
+result = engine.process(input_data)
+```
+
+**Available Reporters:**
+- `ConsoleProgressReporter` - Rich-based CLI output with spinners and colors
+- `APIProgressReporter` - Event queue for web API integration (SSE/WebSocket)
+- `SilentProgressReporter` - No-op for testing (optional call tracking)
+- Custom reporters - Implement `ProgressReporter` interface
+
+#### Legacy Progress Callbacks (Backward Compatible)
+
+For backward compatibility, engines still support simple callback functions:
 
 ```python
 from typing import Callable, Optional
@@ -71,9 +94,14 @@ def my_callback(message: str):
     """Progress callback receives status messages."""
     print(f"Status: {message}")
 
+# Works with legacy callback
 engine = SomeEngine(progress_callback=my_callback)
-result = engine.process(input_data)
+
+# Or via 'progress' parameter (auto-detected)
+engine = SomeEngine(progress=my_callback)
 ```
+
+**For comprehensive progress reporting documentation, see [Progress Reporting API](./PROGRESS_REPORTING.md).**
 
 ### Error Handling
 
@@ -725,6 +753,7 @@ def transcribe(audio_file, model):
 
 ## Additional Resources
 
+- **[Progress Reporting API](./PROGRESS_REPORTING.md)** - **NEW:** Unified progress reporting for CLI, web API, and testing
 - **[Architecture Guide](./ARCHITECTURE_V2.md)** - Deep dive into v2.0 architecture
 - **[Testing Guide](./TESTING.md)** - Testing patterns and best practices
 - **[Configuration Guide](./CONFIGURATION.md)** - YAML configuration
