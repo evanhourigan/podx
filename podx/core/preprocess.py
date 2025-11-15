@@ -4,8 +4,9 @@ No UI dependencies, no CLI concerns. Just transcript text processing.
 """
 
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
+from ..llm import LLMMessage, LLMProvider, get_provider
 from ..logging import get_logger
 
 logger = get_logger(__name__)
@@ -30,8 +31,10 @@ class TranscriptPreprocessor:
         restore: bool = False,
         max_gap: float = 1.0,
         max_len: int = 800,
-        restore_model: str = "gpt-4.1-mini",
+        restore_model: str = "gpt-4o-mini",
         restore_batch_size: int = 20,
+        llm_provider: Optional[LLMProvider] = None,
+        provider_name: str = "openai",
     ):
         """Initialize transcript preprocessor.
 
@@ -43,6 +46,8 @@ class TranscriptPreprocessor:
             max_len: Maximum merged text length (characters)
             restore_model: Model for semantic restore
             restore_batch_size: Segments per LLM request
+            llm_provider: Optional pre-configured LLM provider instance
+            provider_name: Provider to use if llm_provider not provided (default: openai)
         """
         self.merge = merge
         self.normalize = normalize
@@ -51,6 +56,18 @@ class TranscriptPreprocessor:
         self.max_len = max_len
         self.restore_model = restore_model
         self.restore_batch_size = restore_batch_size
+
+        # Use provided provider or create one
+        if llm_provider:
+            self.llm_provider = llm_provider
+        elif restore:
+            # Only create provider if restore is enabled
+            try:
+                self.llm_provider = get_provider(provider_name)
+            except Exception as e:
+                raise PreprocessError(f"Failed to initialize LLM provider: {e}") from e
+        else:
+            self.llm_provider = None
 
     def merge_segments(self, segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Merge adjacent segments based on timing gaps and length.
@@ -130,24 +147,12 @@ class TranscriptPreprocessor:
             List of restored text segments
 
         Raises:
-            PreprocessError: If OpenAI API fails
+            PreprocessError: If LLM API fails
         """
-        # Best-effort import: support both new and legacy OpenAI SDKs
-        try:
-            from openai import OpenAI
-
-            client = OpenAI()
-            use_new = True
-        except Exception:
-            try:
-                import openai  # type: ignore
-
-                use_new = False
-            except ImportError:
-                raise PreprocessError(
-                    "OpenAI library required for semantic restore. "
-                    "Install with: pip install openai"
-                )
+        if not self.llm_provider:
+            raise PreprocessError(
+                "LLM provider not configured. Enable restore in constructor."
+            )
 
         prompt = (
             "You are cleaning up noisy ASR transcript text.\n"
@@ -171,27 +176,17 @@ class TranscriptPreprocessor:
             )
 
             try:
-                if use_new:
-                    resp = client.chat.completions.create(
-                        model=self.restore_model,
-                        messages=[
-                            {"role": "system", "content": prompt},
-                            {"role": "user", "content": batch_prompt},
-                        ],
-                    )
-                    batch_result = resp.choices[0].message.content or ""
-                else:
-                    resp = openai.ChatCompletion.create(
-                        model=self.restore_model,
-                        messages=[
-                            {"role": "system", "content": prompt},
-                            {"role": "user", "content": batch_prompt},
-                        ],
-                    )
-                    batch_result = resp.choices[0].message.get("content") or ""
+                messages = [
+                    LLMMessage.system(prompt),
+                    LLMMessage.user(batch_prompt),
+                ]
+                response = self.llm_provider.complete(
+                    messages=messages, model=self.restore_model
+                )
+                batch_result = response.content
             except Exception as e:
                 logger.error(
-                    f"OpenAI API request failed for batch {i//self.restore_batch_size + 1}: {e}"
+                    f"LLM API request failed for batch {i//self.restore_batch_size + 1}: {e}"
                 )
                 raise PreprocessError(f"Semantic restore failed: {e}") from e
 

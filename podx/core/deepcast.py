@@ -9,6 +9,7 @@ import json
 import os
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from ..llm import LLMMessage, LLMProvider, get_provider
 from ..logging import get_logger
 
 logger = get_logger(__name__)
@@ -80,9 +81,11 @@ class DeepcastEngine:
 
     def __init__(
         self,
-        model: str = "gpt-4.1",
+        model: str = "gpt-4",
         temperature: float = 0.2,
         max_chars_per_chunk: int = 24000,
+        llm_provider: Optional[LLMProvider] = None,
+        provider_name: str = "openai",
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         progress_callback: Optional[Callable[[str], None]] = None,
@@ -90,24 +93,34 @@ class DeepcastEngine:
         """Initialize deepcast engine.
 
         Args:
-            model: OpenAI model name (e.g., 'gpt-4.1', 'gpt-4.1-mini')
+            model: Model name (e.g., 'gpt-4', 'claude-3-opus', 'llama2')
             temperature: Model temperature for generation
             max_chars_per_chunk: Maximum characters per chunk for map phase
-            api_key: OpenAI API key (defaults to OPENAI_API_KEY env var)
-            base_url: Optional OpenAI base URL override
+            llm_provider: Optional pre-configured LLM provider instance
+            provider_name: Provider to use if llm_provider not provided (default: openai)
+            api_key: API key (defaults to provider-specific env var)
+            base_url: Optional base URL override
             progress_callback: Optional callback for progress updates
         """
         self.model = model
         self.temperature = temperature
         self.max_chars_per_chunk = max_chars_per_chunk
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-        self.base_url = base_url or os.getenv("OPENAI_BASE_URL")
         self.progress_callback = progress_callback
 
-        if not self.api_key:
-            raise DeepcastError(
-                "OpenAI API key not found. Set OPENAI_API_KEY environment variable."
-            )
+        # Backward compatibility: expose api_key and base_url attributes
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        self.base_url = base_url
+
+        # Use provided provider or create one
+        if llm_provider:
+            self.llm_provider = llm_provider
+        else:
+            try:
+                self.llm_provider = get_provider(
+                    provider_name, api_key=api_key, base_url=base_url
+                )
+            except Exception as e:
+                raise DeepcastError(f"Failed to initialize LLM provider: {e}") from e
 
     def _report_progress(self, message: str):
         """Report progress via callback if available."""
@@ -115,32 +128,32 @@ class DeepcastEngine:
             self.progress_callback(message)
 
     def _get_client(self):
-        """Get OpenAI client instance."""
-        try:
-            from openai import OpenAI
-        except ImportError:
-            raise DeepcastError(
-                "openai library not installed. Install with: pip install openai"
-            )
+        """Get OpenAI client instance (backward compatibility).
 
-        return OpenAI(api_key=self.api_key, base_url=self.base_url)
+        This method exists for backward compatibility with tests.
+        New code should use self.llm_provider directly.
+        """
+        # Return a mock-friendly object that works with old tests
+        if hasattr(self.llm_provider, '_sync_client'):
+            return self.llm_provider._sync_client
+        # For non-OpenAI providers or mocks, return the provider itself
+        return self.llm_provider
 
-    def _chat_once(self, client, system: str, user: str) -> str:
-        """Make a single chat completion call."""
-        resp = client.chat.completions.create(
-            model=self.model,
-            temperature=self.temperature,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
+    def _chat_once(self, system: str, user: str) -> str:
+        """Make a single chat completion call (synchronous)."""
+        messages = [LLMMessage.system(system), LLMMessage.user(user)]
+        response = self.llm_provider.complete(
+            messages=messages, model=self.model, temperature=self.temperature
         )
-        return resp.choices[0].message.content or ""
+        return response.content
 
-    async def _chat_once_async(self, client, system: str, user: str) -> str:
-        """Async wrapper for chat_once to enable concurrent API calls."""
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self._chat_once, client, system, user)
+    async def _chat_once_async(self, system: str, user: str) -> str:
+        """Make a single chat completion call (asynchronous)."""
+        messages = [LLMMessage.system(system), LLMMessage.user(user)]
+        response = await self.llm_provider.complete_async(
+            messages=messages, model=self.model, temperature=self.temperature
+        )
+        return response.content
 
     def deepcast(
         self,
@@ -193,9 +206,6 @@ class DeepcastEngine:
         chunks = split_into_chunks(text, self.max_chars_per_chunk)
         logger.info("Split transcript into chunks", chunk_count=len(chunks))
 
-        # Get OpenAI client
-        client = self._get_client()
-
         # Map phase: process chunks in parallel
         self._report_progress(f"Processing {len(chunks)} chunks")
 
@@ -209,7 +219,7 @@ class DeepcastEngine:
                         f"{map_instructions}\n\nChunk {i+1}/{len(chunks)}:\n\n{chunk}"
                     )
                     self._report_progress(f"Processing chunk {i+1}/{len(chunks)}")
-                    note = await self._chat_once_async(client, system_prompt, prompt)
+                    note = await self._chat_once_async(system_prompt, prompt)
                     return note
 
             tasks = [process_chunk(i, chunk) for i, chunk in enumerate(chunks)]
@@ -233,7 +243,7 @@ class DeepcastEngine:
             reduce_prompt += f"\n\n{json_schema}"
 
         try:
-            final = self._chat_once(client, system_prompt, reduce_prompt)
+            final = self._chat_once(system_prompt, reduce_prompt)
         except Exception as e:
             raise DeepcastError(f"Reduce phase failed: {e}") from e
 
