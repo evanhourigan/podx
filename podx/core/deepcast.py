@@ -7,10 +7,11 @@ Handles chunking, parallel API calls, and structured output generation.
 import asyncio
 import json
 import os
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from ..llm import LLMMessage, LLMProvider, get_provider
 from ..logging import get_logger
+from ..progress import ProgressReporter, SilentProgressReporter
 
 logger = get_logger(__name__)
 
@@ -88,7 +89,8 @@ class DeepcastEngine:
         provider_name: str = "openai",
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
-        progress_callback: Optional[Callable[[str], None]] = None,
+        progress: Optional[Union[ProgressReporter, Callable[[str], None]]] = None,
+        progress_callback: Optional[Callable[[str], None]] = None,  # Deprecated
     ):
         """Initialize deepcast engine.
 
@@ -100,16 +102,34 @@ class DeepcastEngine:
             provider_name: Provider to use if llm_provider not provided (default: openai)
             api_key: API key (defaults to provider-specific env var)
             base_url: Optional base URL override
-            progress_callback: Optional callback for progress updates
+            progress: Optional ProgressReporter or legacy callback function
+            progress_callback: Deprecated - use progress parameter instead
         """
         self.model = model
         self.temperature = temperature
         self.max_chars_per_chunk = max_chars_per_chunk
-        self.progress_callback = progress_callback
 
         # Backward compatibility: expose api_key and base_url attributes
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self.base_url = base_url
+
+        # Handle progress reporting (support both new and legacy APIs)
+        if progress is not None:
+            if isinstance(progress, ProgressReporter):
+                self.progress = progress
+                self.progress_callback = None
+            else:
+                # Legacy callback function
+                self.progress = None
+                self.progress_callback = progress
+        elif progress_callback is not None:
+            # Deprecated parameter
+            self.progress = None
+            self.progress_callback = progress_callback
+        else:
+            # No progress reporting
+            self.progress = SilentProgressReporter()
+            self.progress_callback = None
 
         # Use provided provider or create one
         if llm_provider:
@@ -123,8 +143,12 @@ class DeepcastEngine:
                 raise DeepcastError(f"Failed to initialize LLM provider: {e}") from e
 
     def _report_progress(self, message: str):
-        """Report progress via callback if available."""
-        if self.progress_callback:
+        """Report progress via ProgressReporter or legacy callback."""
+        # New API: ProgressReporter
+        if self.progress and not isinstance(self.progress, SilentProgressReporter):
+            self.progress.update_step(message)
+        # Legacy API: callback function
+        elif self.progress_callback:
             self.progress_callback(message)
 
     def _get_client(self):
