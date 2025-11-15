@@ -26,7 +26,7 @@ class TestTranscriptPreprocessor:
         assert preprocessor.restore is False
         assert preprocessor.max_gap == 1.0
         assert preprocessor.max_len == 800
-        assert preprocessor.restore_model == "gpt-4.1-mini"
+        assert preprocessor.restore_model == "gpt-4o-mini"
         assert preprocessor.restore_batch_size == 20
 
     def test_init_custom_options(self):

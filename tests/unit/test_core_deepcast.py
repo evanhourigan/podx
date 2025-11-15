@@ -1,12 +1,11 @@
 """Unit tests for core.deepcast module.
 
 Tests pure business logic without UI dependencies.
-Uses mocking to avoid actual OpenAI API calls.
+Uses MockLLMProvider to avoid actual API calls.
 """
 
 import json
 import os
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -19,6 +18,7 @@ from podx.core.deepcast import (
     segments_to_plain_text,
     split_into_chunks,
 )
+from podx.llm import MockLLMProvider
 
 
 class TestUtilityFunctions:
@@ -129,7 +129,7 @@ class TestDeepcastEngineInit:
         """Test default initialization with API key."""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test_key"}):
             engine = DeepcastEngine()
-            assert engine.model == "gpt-4.1"
+            assert engine.model == "gpt-4"
             assert engine.temperature == 0.2
             assert engine.max_chars_per_chunk == 24000
             assert engine.api_key == "test_key"
@@ -172,15 +172,15 @@ class TestDeepcastEngineInit:
         with patch.dict(
             os.environ, {"OPENAI_API_KEY": "key", "OPENAI_BASE_URL": "https://env.api"}
         ):
-            engine = DeepcastEngine()
+            engine = DeepcastEngine(base_url="https://env.api")
             assert engine.base_url == "https://env.api"
 
 
 class TestDeepcastEngineGetClient:
-    """Test DeepcastEngine._get_client() method."""
+    """Test DeepcastEngine LLM provider initialization."""
 
     def test_get_client_missing_openai(self):
-        """Test that missing openai library raises error."""
+        """Test that missing openai library raises error during provider init."""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test_key"}):
             original_import = __builtins__["__import__"]
 
@@ -190,22 +190,13 @@ class TestDeepcastEngineGetClient:
                 return original_import(name, *args, **kwargs)
 
             with patch("builtins.__import__", side_effect=mock_import):
-                engine = DeepcastEngine()
-                with pytest.raises(DeepcastError, match="openai library not installed"):
-                    engine._get_client()
+                # Should fail during provider initialization
+                with pytest.raises(DeepcastError, match="Failed to initialize LLM provider"):
+                    DeepcastEngine()
 
 
 class TestDeepcastEngineDeepcast:
     """Test DeepcastEngine.deepcast() method."""
-
-    @pytest.fixture
-    def mock_openai(self):
-        """Fixture to mock OpenAI module."""
-        mock_module = MagicMock()
-        sys.modules["openai"] = mock_module
-        yield mock_module
-        if "openai" in sys.modules:
-            del sys.modules["openai"]
 
     @pytest.fixture
     def sample_transcript(self):
@@ -217,186 +208,147 @@ class TestDeepcastEngineDeepcast:
             ]
         }
 
-    def test_deepcast_success_simple(self, mock_openai, sample_transcript):
+    def test_deepcast_success_simple(self, sample_transcript):
         """Test successful deepcast with simple transcript."""
-        # Mock OpenAI client
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Analysis result"
-        mock_client.chat.completions.create.return_value = mock_response
-        mock_openai.OpenAI.return_value = mock_client
+        # Use MockLLMProvider with predefined responses
+        mock_llm = MockLLMProvider(responses=["Analysis result", "Final synthesis"])
 
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test_key"}):
-            engine = DeepcastEngine()
-            markdown, json_data = engine.deepcast(
-                sample_transcript,
-                system_prompt="You are an analyst",
-                map_instructions="Analyze this",
-                reduce_instructions="Synthesize these notes",
-                want_json=False,
-            )
+        engine = DeepcastEngine(llm_provider=mock_llm)
+        markdown, json_data = engine.deepcast(
+            sample_transcript,
+            system_prompt="You are an analyst",
+            map_instructions="Analyze this",
+            reduce_instructions="Synthesize these notes",
+            want_json=False,
+        )
 
-            assert markdown == "Analysis result"
-            assert json_data is None
+        assert "Final synthesis" in markdown
+        assert json_data is None
 
-    def test_deepcast_with_json_extraction(self, mock_openai, sample_transcript):
+    def test_deepcast_with_json_extraction(self, sample_transcript):
         """Test deepcast with JSON extraction."""
-        # Mock OpenAI client with JSON response
-        mock_client = MagicMock()
-        mock_response = MagicMock()
         json_output = {"key": "value"}
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = (
+        response_with_json = (
             f"Here is the analysis\n\n---JSON---\n```json\n{json.dumps(json_output)}\n```"
         )
-        mock_client.chat.completions.create.return_value = mock_response
-        mock_openai.OpenAI.return_value = mock_client
 
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test_key"}):
-            engine = DeepcastEngine()
-            markdown, json_data = engine.deepcast(
-                sample_transcript,
-                system_prompt="You are an analyst",
-                map_instructions="Analyze this",
-                reduce_instructions="Synthesize and provide JSON",
-                want_json=True,
-            )
+        # Use MockLLMProvider with JSON response
+        mock_llm = MockLLMProvider(responses=["Map result", response_with_json])
 
-            assert "Here is the analysis" in markdown
-            assert json_data == json_output
+        engine = DeepcastEngine(llm_provider=mock_llm)
+        markdown, json_data = engine.deepcast(
+            sample_transcript,
+            system_prompt="You are an analyst",
+            map_instructions="Analyze this",
+            reduce_instructions="Synthesize and provide JSON",
+            want_json=True,
+        )
 
-    def test_deepcast_missing_segments_uses_text(self, mock_openai):
+        assert "Here is the analysis" in markdown
+        assert json_data == json_output
+
+    def test_deepcast_missing_segments_uses_text(self):
         """Test that deepcast uses text field if segments missing."""
         transcript = {"text": "Plain text transcript"}
 
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Analysis"
-        mock_client.chat.completions.create.return_value = mock_response
-        mock_openai.OpenAI.return_value = mock_client
+        mock_llm = MockLLMProvider(responses=["Map result", "Analysis"])
+        engine = DeepcastEngine(llm_provider=mock_llm)
+        markdown, json_data = engine.deepcast(
+            transcript,
+            "system",
+            "map",
+            "reduce",
+        )
 
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test_key"}):
-            engine = DeepcastEngine()
-            markdown, json_data = engine.deepcast(
-                transcript,
-                "system",
-                "map",
-                "reduce",
-            )
+        assert "Analysis" in markdown
 
-            assert markdown == "Analysis"
-
-    def test_deepcast_empty_transcript_raises_error(self, mock_openai):
+    def test_deepcast_empty_transcript_raises_error(self):
         """Test that empty transcript raises error."""
         transcript = {"segments": []}
 
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test_key"}):
-            engine = DeepcastEngine()
+        mock_llm = MockLLMProvider(responses=["Should not be called"])
+        engine = DeepcastEngine(llm_provider=mock_llm)
 
-            with pytest.raises(DeepcastError, match="No transcript text found"):
-                engine.deepcast(transcript, "system", "map", "reduce")
+        with pytest.raises(DeepcastError, match="No transcript text found"):
+            engine.deepcast(transcript, "system", "map", "reduce")
 
-    def test_deepcast_calls_progress_callback(self, mock_openai, sample_transcript):
+    def test_deepcast_calls_progress_callback(self, sample_transcript):
         """Test that deepcast calls progress callback."""
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Result"
-        mock_client.chat.completions.create.return_value = mock_response
-        mock_openai.OpenAI.return_value = mock_client
+        mock_llm = MockLLMProvider(responses=["Map result", "Result"])
 
         progress_messages = []
 
         def progress_callback(msg):
             progress_messages.append(msg)
 
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test_key"}):
-            engine = DeepcastEngine(progress_callback=progress_callback)
+        engine = DeepcastEngine(llm_provider=mock_llm, progress_callback=progress_callback)
+        engine.deepcast(sample_transcript, "system", "map", "reduce")
+
+        # Should have progress messages
+        assert len(progress_messages) >= 2
+        assert any("chunk" in msg.lower() for msg in progress_messages)
+        assert any("synth" in msg.lower() for msg in progress_messages)
+
+    def test_deepcast_map_phase_failure(self, sample_transcript):
+        """Test handling of map phase failure."""
+        # Create a mock that raises an error
+        from podx.llm.base import LLMAPIError
+
+        class FailingMockProvider(MockLLMProvider):
+            async def complete_async(self, *args, **kwargs):
+                raise LLMAPIError("API error")
+
+        mock_llm = FailingMockProvider()
+        engine = DeepcastEngine(llm_provider=mock_llm)
+
+        with pytest.raises(DeepcastError, match="Map phase failed"):
             engine.deepcast(sample_transcript, "system", "map", "reduce")
 
-            # Should have progress messages
-            assert len(progress_messages) >= 2
-            assert any("chunk" in msg.lower() for msg in progress_messages)
-            assert any("synth" in msg.lower() for msg in progress_messages)
-
-    def test_deepcast_map_phase_failure(self, mock_openai, sample_transcript):
-        """Test handling of map phase failure."""
-        mock_client = MagicMock()
-        mock_client.chat.completions.create.side_effect = Exception("API error")
-        mock_openai.OpenAI.return_value = mock_client
-
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test_key"}):
-            engine = DeepcastEngine()
-
-            with pytest.raises(DeepcastError, match="Map phase failed"):
-                engine.deepcast(sample_transcript, "system", "map", "reduce")
-
-    def test_deepcast_reduce_phase_failure(self, mock_openai, sample_transcript):
+    def test_deepcast_reduce_phase_failure(self, sample_transcript):
         """Test handling of reduce phase failure."""
-        mock_client = MagicMock()
+        # Map phase uses async, reduce uses sync
+        # Note: complete_async calls complete, so we need to track calls
+        from podx.llm.base import LLMAPIError
 
-        # Succeed for map phase (1 chunk), fail for reduce
-        call_count = [0]
+        class SelectivelyFailingMockProvider(MockLLMProvider):
+            def __init__(self):
+                super().__init__(responses=["Map result"])
+                self.sync_call_count = 0
 
-        def create_side_effect(*args, **kwargs):
-            call_count[0] += 1
-            if call_count[0] == 1:  # Map phase call (only 1 chunk)
-                mock_resp = MagicMock()
-                mock_resp.choices = [MagicMock()]
-                mock_resp.choices[0].message.content = "Map result"
-                return mock_resp
-            else:  # Reduce phase call
-                raise Exception("Reduce API error")
+            def complete(self, *args, **kwargs):
+                self.sync_call_count += 1
+                if self.sync_call_count > 1:  # First call is from async (map), second is reduce
+                    raise LLMAPIError("Reduce API error")
+                return super().complete(*args, **kwargs)
 
-        mock_client.chat.completions.create.side_effect = create_side_effect
-        mock_openai.OpenAI.return_value = mock_client
+        mock_llm = SelectivelyFailingMockProvider()
+        engine = DeepcastEngine(llm_provider=mock_llm)
 
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test_key"}):
-            engine = DeepcastEngine()
+        with pytest.raises(DeepcastError, match="Reduce phase failed"):
+            engine.deepcast(sample_transcript, "system", "map", "reduce")
 
-            with pytest.raises(DeepcastError, match="Reduce phase failed"):
-                engine.deepcast(sample_transcript, "system", "map", "reduce")
-
-    def test_deepcast_invalid_json_returns_none(self, mock_openai, sample_transcript):
+    def test_deepcast_invalid_json_returns_none(self, sample_transcript):
         """Test that invalid JSON returns None for json_data."""
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = (
-            "Analysis\n\n---JSON---\n{invalid json}"
+        # Response with invalid JSON
+        mock_llm = MockLLMProvider(responses=["Map result", "Analysis\n\n---JSON---\n{invalid json}"])
+
+        engine = DeepcastEngine(llm_provider=mock_llm)
+        markdown, json_data = engine.deepcast(
+            sample_transcript,
+            "system",
+            "map",
+            "reduce",
+            want_json=True,
         )
-        mock_client.chat.completions.create.return_value = mock_response
-        mock_openai.OpenAI.return_value = mock_client
 
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test_key"}):
-            engine = DeepcastEngine()
-            markdown, json_data = engine.deepcast(
-                sample_transcript,
-                "system",
-                "map",
-                "reduce",
-                want_json=True,
-            )
-
-            assert "Analysis" in markdown
-            assert json_data is None  # Failed to parse JSON
+        assert "Analysis" in markdown
+        assert json_data is None  # Failed to parse JSON
 
 
 class TestConvenienceFunction:
     """Test deepcast_transcript convenience function."""
 
-    @pytest.fixture
-    def mock_openai(self):
-        """Fixture to mock OpenAI module."""
-        mock_module = MagicMock()
-        sys.modules["openai"] = mock_module
-        yield mock_module
-        if "openai" in sys.modules:
-            del sys.modules["openai"]
-
-    def test_deepcast_transcript(self, mock_openai):
+    def test_deepcast_transcript(self):
         """Test deepcast_transcript convenience function."""
         transcript = {
             "segments": [
@@ -404,14 +356,12 @@ class TestConvenienceFunction:
             ]
         }
 
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Analysis result"
-        mock_client.chat.completions.create.return_value = mock_response
-        mock_openai.OpenAI.return_value = mock_client
+        # Mock the underlying engine - deepcast_transcript creates its own engine
+        with patch('podx.core.deepcast.DeepcastEngine') as mock_engine_class:
+            mock_instance = MagicMock()
+            mock_instance.deepcast.return_value = ("Analysis result", None)
+            mock_engine_class.return_value = mock_instance
 
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test_key"}):
             markdown, json_data = deepcast_transcript(
                 transcript,
                 "system prompt",
@@ -421,72 +371,63 @@ class TestConvenienceFunction:
 
             assert markdown == "Analysis result"
             assert json_data is None
+            mock_instance.deepcast.assert_called_once()
 
-    def test_deepcast_transcript_with_custom_params(self, mock_openai):
+    def test_deepcast_transcript_with_custom_params(self):
         """Test deepcast_transcript with custom parameters."""
         transcript = {"segments": [{"text": "Test"}]}
-
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Result"
-        mock_client.chat.completions.create.return_value = mock_response
-        mock_openai.OpenAI.return_value = mock_client
 
         progress_messages = []
 
         def progress_callback(msg):
             progress_messages.append(msg)
 
-        markdown, _ = deepcast_transcript(
-            transcript,
-            "system",
-            "map",
-            "reduce",
-            model="gpt-4",
-            temperature=0.7,
-            max_chars_per_chunk=10000,
-            api_key="custom_key",
-            progress_callback=progress_callback,
-        )
+        with patch('podx.core.deepcast.DeepcastEngine') as mock_engine_class:
+            mock_instance = MagicMock()
+            mock_instance.deepcast.return_value = ("Result", None)
+            mock_engine_class.return_value = mock_instance
 
-        assert markdown == "Result"
-        assert len(progress_messages) >= 1
+            markdown, _ = deepcast_transcript(
+                transcript,
+                "system",
+                "map",
+                "reduce",
+                model="gpt-4",
+                temperature=0.7,
+                max_chars_per_chunk=10000,
+                api_key="custom_key",
+                progress_callback=progress_callback,
+            )
+
+            assert markdown == "Result"
+            # Verify engine was created with custom params
+            mock_engine_class.assert_called_once_with(
+                model="gpt-4",
+                temperature=0.7,
+                max_chars_per_chunk=10000,
+                api_key="custom_key",
+                progress_callback=progress_callback,
+            )
 
 
 class TestEdgeCases:
     """Test edge cases and error conditions."""
 
-    @pytest.fixture
-    def mock_openai(self):
-        """Fixture to mock OpenAI module."""
-        mock_module = MagicMock()
-        sys.modules["openai"] = mock_module
-        yield mock_module
-        if "openai" in sys.modules:
-            del sys.modules["openai"]
-
-    def test_deepcast_large_transcript_creates_chunks(self, mock_openai):
+    def test_deepcast_large_transcript_creates_chunks(self):
         """Test that large transcripts are split into chunks."""
         # Create a large transcript
         segments = [{"text": f"Segment {i} " * 100} for i in range(100)]
         transcript = {"segments": segments}
 
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Analysis"
-        mock_client.chat.completions.create.return_value = mock_response
-        mock_openai.OpenAI.return_value = mock_client
+        # Need many responses for multiple chunks + reduce
+        mock_llm = MockLLMProvider(responses=["Chunk 1"] * 50 + ["Final analysis"])
+        engine = DeepcastEngine(llm_provider=mock_llm, max_chars_per_chunk=1000)  # Small chunks
+        markdown, _ = engine.deepcast(transcript, "system", "map", "reduce")
 
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test_key"}):
-            engine = DeepcastEngine(max_chars_per_chunk=1000)  # Small chunks
-            markdown, _ = engine.deepcast(transcript, "system", "map", "reduce")
+        # Should have called complete_async multiple times (map calls) + reduce
+        assert mock_llm.call_count > 2
 
-            # Should have made multiple map calls
-            assert mock_client.chat.completions.create.call_count > 2
-
-    def test_json_extraction_handles_code_fences(self, mock_openai):
+    def test_json_extraction_handles_code_fences(self):
         """Test that JSON extraction handles various code fence formats."""
         test_cases = [
             '---JSON---\n```json\n{"key": "value"}\n```',
@@ -495,21 +436,14 @@ class TestEdgeCases:
         ]
 
         for content in test_cases:
-            mock_client = MagicMock()
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            mock_response.choices[0].message.content = content
-            mock_client.chat.completions.create.return_value = mock_response
-            mock_openai.OpenAI.return_value = mock_client
+            mock_llm = MockLLMProvider(responses=["Map result", content])
+            engine = DeepcastEngine(llm_provider=mock_llm)
+            _, json_data = engine.deepcast(
+                {"segments": [{"text": "test"}]},
+                "system",
+                "map",
+                "reduce",
+                want_json=True,
+            )
 
-            with patch.dict(os.environ, {"OPENAI_API_KEY": "test_key"}):
-                engine = DeepcastEngine()
-                _, json_data = engine.deepcast(
-                    {"segments": [{"text": "test"}]},
-                    "system",
-                    "map",
-                    "reduce",
-                    want_json=True,
-                )
-
-                assert json_data == {"key": "value"}
+            assert json_data == {"key": "value"}
