@@ -35,6 +35,7 @@ asr = ["faster-whisper~=1.2.0"]
 whisperx = ["whisperx @ git+https://github.com/m-bain/whisperx.git"]
 llm = ["openai~=2.2.0", "tiktoken~=0.12.0"]
 notion = ["notion-client~=2.5.0"]
+audio-analysis = ["librosa~=0.10.0"]
 dev = [
   "pytest~=8.4.2",
   "pytest-asyncio~=1.2.0",
@@ -66,6 +67,7 @@ podx-hq = "podx.cli.aliases:hq"
 podx-batch-transcribe = "podx.cli.batch:batch_transcribe"
 podx-batch-pipeline = "podx.cli.batch:batch_pipeline"
 podx-batch-status = "podx.cli.batch:batch_status_cmd"
+podx-analyze-audio = "podx.cli.analyze_audio:main"
 podx-run = "podx.cli.orchestrate:run_main"
 podx = "podx.cli.orchestrate:main"
 
