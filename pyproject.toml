@@ -68,6 +68,7 @@ podx-batch-transcribe = "podx.cli.batch:batch_transcribe"
 podx-batch-pipeline = "podx.cli.batch:batch_pipeline"
 podx-batch-status = "podx.cli.batch:batch_status_cmd"
 podx-analyze-audio = "podx.cli.analyze_audio:main"
+podx-init = "podx.cli.init:main"
 podx-run = "podx.cli.orchestrate:run_main"
 podx = "podx.cli.orchestrate:main"
 
