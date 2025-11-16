@@ -73,7 +73,7 @@ pip install -e ".[asr]"
 #### Recommended Installation (All features)
 
 ```bash
-pip install -e ".[asr,whisperx,llm,notion]"
+pip install -e ".[asr,whisperx,llm,notion,search,audio-analysis]"
 ```
 
 #### Installation Options Explained
@@ -82,6 +82,8 @@ pip install -e ".[asr,whisperx,llm,notion]"
 - `whisperx` - Advanced diarization with WhisperX (recommended)
 - `llm` - AI analysis with GPT-4/Claude (optional)
 - `notion` - Notion publishing (optional)
+- `search` - **NEW!** Transcript search & analysis (optional)
+- `audio-analysis` - **NEW!** Audio quality analysis (optional)
 
 ### Step 3: Verify Installation
 
@@ -101,7 +103,22 @@ podx-transcribe --help
 
 ## Basic Configuration
 
-### API Keys (Optional)
+### 🧙 Interactive Setup Wizard (Recommended - NEW in v2.1.0!)
+
+The easiest way to configure PodX is with the interactive setup wizard:
+
+```bash
+podx-init
+```
+
+This will guide you through:
+- API key configuration (OpenAI, Anthropic, OpenRouter, Notion)
+- Default transcription settings
+- Default AI model selection
+- Output preferences
+- Optional features (shell completion, profiles)
+
+### Manual API Key Setup (Alternative)
 
 PodX works without API keys for local transcription. Add keys for optional features:
 
@@ -283,8 +300,20 @@ podx run --show "The Daily" --date $(date +%Y-%m-%d)
 podx run --show "The Daily" --date $(date -d yesterday +%Y-%m-%d)
 ```
 
-### 2. Batch Process Multiple Episodes
+### 2. Batch Process Multiple Episodes (NEW in v2.1.0!)
 
+```bash
+# Auto-detect and transcribe all new episodes (parallel processing!)
+podx-batch-transcribe --auto-detect --parallel 4
+
+# Full pipeline for multiple episodes
+podx-batch-pipeline --auto-detect --steps transcribe,diarize,export --parallel 2
+
+# Check batch status
+podx-batch-status
+```
+
+**Old method (still works):**
 ```bash
 # Process a week of episodes
 for day in {01..07}; do
@@ -372,29 +401,48 @@ Now that you've processed your first episode, explore more features:
 
 ### 🎯 Try These Features
 
-1. **Interactive Mode**: Browse episodes visually
+1. **🔍 Search & Analysis (NEW!)**: Search your transcript library
+   ```bash
+   # Index a transcript
+   podx-search index transcript.json --episode-id ep001
+
+   # Keyword search
+   podx-search query "artificial intelligence"
+
+   # Extract quotes
+   podx-analyze quotes transcript.json
+
+   # Speaker analytics
+   podx-analyze speakers transcript.json
+   ```
+
+2. **🎨 PDF & HTML Export (NEW!)**: Beautiful exports with dark mode
+   ```bash
+   podx-export transcript.json --formats pdf,html
+   ```
+
+3. **⚡ Quick Commands (NEW!)**: Use preset profiles
+   ```bash
+   podx-quick podcast.mp3   # Fast transcription
+   podx-full podcast.mp3    # Complete pipeline
+   podx-hq podcast.mp3      # High-quality processing
+   ```
+
+4. **💰 Cost Estimation (NEW!)**: Know before you spend
+   ```bash
+   podx-estimate --duration 3600 --llm-model gpt-4o
+   ```
+
+5. **Interactive Mode**: Browse episodes visually
    ```bash
    podx-fetch --show "Huberman Lab" --interactive
    ```
 
-2. **Different Models**: Try faster or more accurate models
-   ```bash
-   podx run --model large-v3  # More accurate
-   podx run --model base      # Faster
-   ```
-
-3. **Python API**: Use PodX in your own code
+6. **Python API**: Use PodX in your own code
    ```python
    from podx.api import PodxClient
    client = PodxClient()
    result = client.transcribe("episode.mp3")
-   ```
-
-4. **Notion Publishing**: Upload to Notion automatically
-   ```bash
-   export NOTION_TOKEN="secret_..."
-   export NOTION_DATABASE_ID="abc123..."
-   podx run --show "My Podcast" --date 2024-10-15 --notion
    ```
 
 ---
