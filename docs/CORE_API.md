@@ -31,6 +31,8 @@ This architecture enables:
 | **[notion](#notion-module)** | Notion API integration | `NotionEngine` |
 | **[export](#export-module)** | Format conversion | `ExportEngine` |
 | **[youtube](#youtube-module)** | YouTube download | `YouTubeEngine` |
+| **[audio_quality](#audio-quality-module)** | Audio quality analysis | `AudioQualityAnalyzer` |
+| **[batch](#batch-processing-module)** | Batch processing | `BatchProcessor`, `EpisodeDiscovery`, `BatchStatus` |
 
 ---
 
@@ -748,6 +750,661 @@ def transcribe(audio_file, model):
 - ✅ Reusable in other contexts (API, GUI, etc.)
 - ✅ Clear separation of concerns
 - ✅ Progress callbacks work with any UI framework
+
+---
+
+## Batch Processing Module
+
+### Overview
+
+The Batch Processing module (`podx.batch`) provides tools for processing multiple podcast episodes in parallel with automatic discovery, filtering, error handling, and status tracking.
+
+**Key Features:**
+- Automatic episode discovery from directory structure
+- Flexible filtering (show name, date range, duration, status)
+- Parallel processing with configurable workers
+- Retry logic with exponential backoff
+- Continue-on-error support
+- Persistent status tracking
+- Rich progress display
+
+### EpisodeDiscovery
+
+Discovers and filters episodes for batch processing.
+
+#### Basic Usage
+
+```python
+from pathlib import Path
+from podx.batch import EpisodeDiscovery, EpisodeFilter
+
+# Create discovery engine
+discovery = EpisodeDiscovery(base_path=Path("episodes"))
+
+# Auto-discover all episodes
+episodes = discovery.discover_episodes(auto_detect=True)
+print(f"Found {len(episodes)} episodes")
+
+# Discover with filters
+filters = EpisodeFilter(
+    show="My Podcast",
+    since="2024-01-01",
+    min_duration=300,  # 5 minutes
+    max_duration=7200,  # 2 hours
+    status="new"  # Only unprocessed episodes
+)
+filtered = discovery.discover_episodes(auto_detect=True, filters=filters)
+```
+
+#### Episode Filter Options
+
+```python
+from podx.batch import EpisodeFilter
+
+filter_options = EpisodeFilter(
+    show="Podcast Name",           # Filter by show name
+    since="2024-01-01",             # Episodes since date
+    date_range=("2024-01-01", "2024-12-31"),  # Date range tuple
+    min_duration=300,               # Minimum duration in seconds
+    max_duration=7200,              # Maximum duration in seconds
+    status="new"                    # "new", "partial", or "complete"
+)
+```
+
+### BatchProcessor
+
+Processes multiple episodes in parallel with error handling and progress tracking.
+
+#### Basic Usage
+
+```python
+from pathlib import Path
+from podx.batch import BatchProcessor, EpisodeDiscovery
+
+# Discover episodes
+discovery = EpisodeDiscovery(base_path=Path("episodes"))
+episodes = discovery.discover_episodes(auto_detect=True)
+
+# Create processor
+processor = BatchProcessor(
+    parallel_workers=4,
+    continue_on_error=True,
+    max_retries=2,
+    retry_delay=5
+)
+
+# Define processing function
+def transcribe_episode(episode):
+    from podx.core.transcribe import TranscribeEngine
+
+    audio_path = Path(episode["directory"]) / "episode-audio.wav"
+    transcriber = TranscribeEngine(model="large-v3")
+    return transcriber.transcribe(audio_path)
+
+# Process batch
+results = processor.process_batch(
+    episodes=episodes,
+    process_fn=transcribe_episode,
+    operation_name="Transcribing"
+)
+
+# Check results
+successful = sum(1 for r in results if r.success)
+failed = sum(1 for r in results if not r.success)
+print(f"✓ {successful} succeeded, ✗ {failed} failed")
+```
+
+#### Configuration Options
+
+```python
+from podx.batch import BatchProcessor
+
+processor = BatchProcessor(
+    parallel_workers=4,        # Number of parallel threads (default: 1)
+    continue_on_error=True,    # Continue if episodes fail (default: True)
+    max_retries=2,             # Retry failed episodes (default: 0)
+    retry_delay=5              # Seconds between retries (default: 5)
+)
+```
+
+#### Batch Result
+
+Each batch operation returns a list of `BatchResult` objects:
+
+```python
+from podx.batch import BatchResult
+
+result = BatchResult(
+    episode=dict,     # Episode metadata
+    success=bool,     # Whether processing succeeded
+    result=Any,       # Processing result (if successful)
+    error=str,        # Error message (if failed)
+    retries=int       # Number of retries attempted
+)
+```
+
+### BatchStatus
+
+Tracks processing status for pipeline operations with persistence.
+
+#### Basic Usage
+
+```python
+from pathlib import Path
+from podx.batch import BatchStatus, ProcessingState
+
+# Create status tracker
+status = BatchStatus(status_file=Path.home() / ".podx" / "batch-status.json")
+
+# Update episode status
+status.update_episode_status(
+    title="Episode 1",
+    step="transcribe",
+    state=ProcessingState.IN_PROGRESS
+)
+
+# Mark step complete
+status.update_episode_status(
+    title="Episode 1",
+    step="transcribe",
+    state=ProcessingState.COMPLETED
+)
+
+# Display status table
+status.display_status_table()
+
+# Save to disk
+status.save()
+```
+
+#### Processing States
+
+```python
+from podx.batch import ProcessingState
+
+ProcessingState.NOT_STARTED   # Step not started
+ProcessingState.IN_PROGRESS   # Currently processing
+ProcessingState.COMPLETED     # Successfully completed
+ProcessingState.FAILED        # Failed with error
+```
+
+#### Status Display
+
+The status tracker provides a rich table view:
+
+```
+Batch Processing Status
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┓
+┃ Episode         ┃ Fetch ┃ Transcribe  ┃ Diarize ┃ Export  ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━┩
+│ Episode 1       │   ✓   │      ⏳     │    ○    │    ○    │
+│ Episode 2       │   ✓   │      ✓      │    ✓    │    ○    │
+│ Episode 3       │   ✗   │      ○      │    ○    │    ○    │
+└─────────────────┴───────┴─────────────┴─────────┴─────────┘
+
+Legend: ○ Not Started  ⏳ In Progress  ✓ Completed  ✗ Failed
+```
+
+### CLI Commands
+
+The batch module provides three CLI commands:
+
+#### podx-batch-transcribe
+
+Batch transcribe multiple episodes:
+
+```bash
+# Auto-detect and transcribe all episodes
+podx-batch-transcribe --auto-detect
+
+# Filter by show and date
+podx-batch-transcribe --auto-detect --show "My Podcast" --since 2024-01-01
+
+# Use pattern matching
+podx-batch-transcribe --pattern "*/episode-audio.wav"
+
+# Configure processing
+podx-batch-transcribe \
+  --auto-detect \
+  --model large-v3 \
+  --parallel 4 \
+  --max-retries 2 \
+  --continue-on-error
+```
+
+**Options:**
+- `--auto-detect` - Auto-discover episodes
+- `--pattern GLOB` - Glob pattern for audio files
+- `--show NAME` - Filter by show name
+- `--since DATE` - Process episodes since date
+- `--date-range START:END` - Date range filter
+- `--min-duration SECS` - Minimum duration filter
+- `--max-duration SECS` - Maximum duration filter
+- `--model NAME` - ASR model (default: large-v3)
+- `--parallel N` - Parallel workers (default: 1)
+- `--max-retries N` - Retry attempts (default: 0)
+- `--retry-delay SECS` - Retry delay (default: 5)
+- `--continue-on-error` - Continue on failures (default: true)
+
+#### podx-batch-pipeline
+
+Run full pipeline on multiple episodes:
+
+```bash
+# Run all steps
+podx-batch-pipeline --auto-detect
+
+# Select specific steps
+podx-batch-pipeline \
+  --auto-detect \
+  --steps transcribe,diarize,export
+
+# Configure export formats
+podx-batch-pipeline \
+  --auto-detect \
+  --export-formats txt,srt,md
+
+# Parallel processing
+podx-batch-pipeline --auto-detect --parallel 4
+```
+
+**Options:**
+- All options from `podx-batch-transcribe`
+- `--steps STEPS` - Comma-separated steps (default: all)
+  - Available: `transcribe`, `diarize`, `preprocess`, `deepcast`, `export`
+- `--export-formats FORMATS` - Export formats (default: txt,srt,md)
+
+#### podx-batch-status
+
+View and manage batch processing status:
+
+```bash
+# Display status table
+podx-batch-status
+
+# Export to JSON
+podx-batch-status --export status.json
+
+# Clear completed episodes
+podx-batch-status --clear-completed
+```
+
+### Practical Examples
+
+**Batch transcribe with quality check:**
+
+```python
+from pathlib import Path
+from podx.batch import BatchProcessor, EpisodeDiscovery
+from podx.core.audio_quality import AudioQualityAnalyzer
+from podx.core.transcribe import TranscribeEngine
+
+# Discover episodes
+discovery = EpisodeDiscovery(base_path=Path("episodes"))
+episodes = discovery.discover_episodes(auto_detect=True)
+
+# Process with quality-based settings
+analyzer = AudioQualityAnalyzer()
+
+def smart_transcribe(episode):
+    audio_path = Path(episode["directory"]) / "episode-audio.wav"
+
+    # Analyze audio quality
+    analysis = analyzer.analyze(audio_path)
+    recommendations = analysis["recommendations"]
+
+    # Use recommended settings
+    transcriber = TranscribeEngine(
+        model=recommendations["model"],
+        vad_filter=recommendations["vad_filter"]
+    )
+    return transcriber.transcribe(audio_path)
+
+# Process batch
+processor = BatchProcessor(parallel_workers=2)
+results = processor.process_batch(episodes, smart_transcribe, "Transcribing")
+```
+
+**Filter and process recent episodes:**
+
+```python
+from datetime import datetime, timedelta
+from pathlib import Path
+from podx.batch import EpisodeDiscovery, EpisodeFilter, BatchProcessor
+
+# Find episodes from last 7 days
+since_date = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+
+discovery = EpisodeDiscovery(base_path=Path("episodes"))
+filters = EpisodeFilter(since=since_date, status="new")
+episodes = discovery.discover_episodes(auto_detect=True, filters=filters)
+
+print(f"Found {len(episodes)} new episodes from last 7 days")
+
+# Process them
+def process_episode(episode):
+    # Your processing logic here
+    pass
+
+processor = BatchProcessor(parallel_workers=4, continue_on_error=True)
+results = processor.process_batch(episodes, process_episode)
+```
+
+**Track pipeline progress:**
+
+```python
+from pathlib import Path
+from podx.batch import BatchStatus, ProcessingState
+
+# Load status
+status = BatchStatus()
+
+# Process episodes with status tracking
+for episode in episodes:
+    try:
+        # Transcribe
+        status.update_episode_status(
+            episode["title"],
+            "transcribe",
+            ProcessingState.IN_PROGRESS
+        )
+        transcribe_result = transcribe(episode)
+        status.update_episode_status(
+            episode["title"],
+            "transcribe",
+            ProcessingState.COMPLETED
+        )
+
+        # Diarize
+        status.update_episode_status(
+            episode["title"],
+            "diarize",
+            ProcessingState.IN_PROGRESS
+        )
+        diarize_result = diarize(episode)
+        status.update_episode_status(
+            episode["title"],
+            "diarize",
+            ProcessingState.COMPLETED
+        )
+
+    except Exception as e:
+        status.update_episode_status(
+            episode["title"],
+            current_step,
+            ProcessingState.FAILED
+        )
+
+    # Save after each episode
+    status.save()
+
+# Display final status
+status.display_status_table()
+```
+
+---
+
+## Audio Quality Module
+
+### Overview
+
+The Audio Quality module (`podx.core.audio_quality`) provides intelligent audio analysis to detect quality issues and recommend optimal transcription settings.
+
+**Key Features:**
+- Signal-to-noise ratio (SNR) calculation
+- Dynamic range analysis
+- Clipping detection
+- Silence ratio estimation
+- Speech content estimation
+- Automatic model recommendations
+- Processing suggestions (VAD, noise reduction, etc.)
+
+### AudioQualityAnalyzer
+
+Analyzes audio files and provides comprehensive quality metrics plus recommendations for optimal transcription.
+
+#### Basic Usage
+
+```python
+from pathlib import Path
+from podx.core.audio_quality import AudioQualityAnalyzer
+
+# Create analyzer
+analyzer = AudioQualityAnalyzer()
+
+# Analyze audio file
+audio_path = Path("episode-audio.wav")
+analysis = analyzer.analyze(audio_path)
+
+# Access quality metrics
+quality = analysis["quality"]
+print(f"SNR: {quality['snr_db']} dB")
+print(f"Dynamic Range: {quality['dynamic_range_db']} dB")
+print(f"Clipping: {quality['clipping_ratio']*100:.2f}%")
+print(f"Silence: {quality['silence_ratio']*100:.1f}%")
+print(f"Speech Content: {quality['speech_ratio']*100:.1f}%")
+
+# Get recommendations
+recommendations = analysis["recommendations"]
+print(f"Recommended Model: {recommendations['model']}")
+print(f"Use VAD Filter: {recommendations['vad_filter']}")
+
+# Review suggestions
+for suggestion in recommendations["suggestions"]:
+    print(f"[{suggestion['type']}] {suggestion['message']}")
+    print(f"  → {suggestion['recommendation']}")
+```
+
+#### Analysis Output
+
+The `analyze()` method returns a dictionary with the following structure:
+
+```python
+{
+    "audio_path": str,              # Path to analyzed file
+    "duration_seconds": float,      # Audio duration
+    "sample_rate": int,             # Sample rate in Hz
+    "quality": {
+        "snr_db": float,            # Signal-to-noise ratio (higher is better)
+        "dynamic_range_db": float,  # Dynamic range (peak vs RMS)
+        "clipping_ratio": float,    # Ratio of clipped samples (0.0-1.0)
+        "silence_ratio": float,     # Ratio of silent frames (0.0-1.0)
+        "speech_ratio": float,      # Estimated speech content (0.0-1.0)
+    },
+    "recommendations": {
+        "model": str,               # Recommended ASR model
+        "vad_filter": bool,         # Whether to use VAD filter
+        "suggestions": [            # List of quality suggestions
+            {
+                "type": str,        # "success", "info", "warning", "error"
+                "message": str,     # User-friendly message
+                "recommendation": str  # Actionable recommendation
+            }
+        ]
+    }
+}
+```
+
+#### Quality Metrics
+
+**Signal-to-Noise Ratio (SNR)**
+- Measures signal quality vs background noise
+- Uses high-pass filtering to isolate noise floor
+- `> 30 dB`: Excellent quality
+- `20-30 dB`: Good quality
+- `10-20 dB`: Fair quality
+- `< 10 dB`: Poor quality (recommend large model)
+
+**Dynamic Range**
+- Measures variation between loud and quiet parts
+- Calculated as peak amplitude vs RMS
+- `> 20 dB`: Good dynamic range
+- `10-20 dB`: Fair dynamic range
+- `< 10 dB`: Low dynamic range (compressed audio)
+
+**Clipping Ratio**
+- Detects distortion from samples near maximum amplitude
+- `< 0.1%`: Minimal clipping (acceptable)
+- `0.1-1%`: Moderate clipping (may affect quality)
+- `> 1%`: High clipping (recommend re-recording)
+
+**Silence Ratio**
+- Percentage of audio that is silent
+- `< 15%`: Low silence (VAD not needed)
+- `15-50%`: Moderate silence (VAD recommended)
+- `> 50%`: High silence (VAD highly recommended)
+
+**Speech Ratio**
+- Estimates speech vs music/noise content
+- Uses spectral features (centroid, zero-crossing rate)
+- `> 70%`: High speech content
+- `30-70%`: Moderate speech content
+- `< 30%`: Low speech content (may not be speech audio)
+
+#### Model Recommendations
+
+The analyzer automatically recommends the optimal ASR model based on audio quality:
+
+```python
+# Excellent quality (SNR > 30 dB, minimal clipping)
+# → "small" (fast, accurate enough)
+
+# Good quality (SNR > 20 dB)
+# → "medium" (balanced accuracy/speed)
+
+# Moderate quality (SNR > 15 dB)
+# → "large-v3" (better accuracy for challenging audio)
+
+# Poor quality (SNR < 15 dB)
+# → "large-v3" (most robust model)
+```
+
+#### Practical Examples
+
+**Check audio quality before transcription:**
+
+```python
+from pathlib import Path
+from podx.core.audio_quality import AudioQualityAnalyzer
+from podx.core.transcribe import TranscribeEngine
+
+# Analyze audio
+analyzer = AudioQualityAnalyzer()
+analysis = analyzer.analyze(Path("podcast.wav"))
+
+# Use recommended settings
+recommendations = analysis["recommendations"]
+model = recommendations["model"]
+vad_filter = recommendations["vad_filter"]
+
+# Transcribe with optimal settings
+transcriber = TranscribeEngine(
+    model=model,
+    vad_filter=vad_filter
+)
+result = transcriber.transcribe(Path("podcast.wav"))
+```
+
+**Batch quality analysis:**
+
+```python
+from pathlib import Path
+from podx.core.audio_quality import AudioQualityAnalyzer
+
+analyzer = AudioQualityAnalyzer()
+audio_files = Path("episodes").glob("*.wav")
+
+for audio_file in audio_files:
+    analysis = analyzer.analyze(audio_file)
+    quality = analysis["quality"]
+
+    # Flag low-quality files
+    if quality["snr_db"] < 15:
+        print(f"⚠️  Low quality: {audio_file.name}")
+        print(f"   SNR: {quality['snr_db']:.1f} dB")
+
+    # Flag excessive clipping
+    if quality["clipping_ratio"] > 0.01:
+        print(f"⚠️  Clipping detected: {audio_file.name}")
+        print(f"   {quality['clipping_ratio']*100:.2f}% clipped")
+```
+
+**Export analysis results:**
+
+```python
+import json
+from pathlib import Path
+from podx.core.audio_quality import AudioQualityAnalyzer
+
+analyzer = AudioQualityAnalyzer()
+analysis = analyzer.analyze(Path("episode.wav"))
+
+# Export to JSON
+with open("quality-analysis.json", "w") as f:
+    json.dump(analysis, f, indent=2)
+```
+
+#### CLI Command
+
+The audio quality analyzer is also available as a CLI command:
+
+```bash
+# Analyze audio file
+podx-analyze-audio episode.wav
+
+# Output as JSON
+podx-analyze-audio episode.wav --json
+
+# Export to file
+podx-analyze-audio episode.wav --export analysis.json
+```
+
+**Output example:**
+
+```
+Audio Quality Analysis
+============================================================
+
+File: episode.wav
+Duration: 45m 32s
+Sample Rate: 16000 Hz
+
+Quality Metrics:
+┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                 ┃ Value     ┃ Rating    ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ Signal-to-Noise Ratio  │ 25.3 dB   │ Good      │
+│ Dynamic Range          │ 18.5 dB   │ Fair      │
+│ Clipping               │ 0.02%     │ Minimal   │
+│ Silence                │ 12.4%     │ Low       │
+│ Speech Content         │ 78.3%     │ High      │
+└────────────────────────┴───────────┴───────────┘
+
+Recommendations:
+  Model: medium
+  VAD Filter: Not needed
+
+Suggestions:
+  ✓ Good audio quality
+    → medium model recommended for optimal accuracy/speed balance
+
+Suggested Command:
+┌────────────────────────────────────────────────────────┐
+│ podx-transcribe episode.wav --model medium             │
+└────────────────────────────────────────────────────────┘
+```
+
+#### Dependencies
+
+The audio quality analyzer requires the optional `audio-analysis` dependency group:
+
+```bash
+pip install 'podx[audio-analysis]'
+```
+
+This installs:
+- `librosa` - Audio analysis library
+- `scipy` - Signal processing (included with librosa)
 
 ---
 
