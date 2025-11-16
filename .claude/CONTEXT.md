@@ -9,9 +9,9 @@
 
 ## 🎯 Current State
 
-### Phase 10: Feature Enhancements - 60% COMPLETE ✨
+### Phase 10: Feature Enhancements - 80% COMPLETE ✨
 
-**Status:** 6/10 features complete
+**Status:** 8/10 features complete
 
 **Recently Completed:**
 - ✅ Part A: Git & Tracking Cleanup (100% - c93e311)
@@ -21,6 +21,8 @@
 - ✅ Part B.7: CLI Improvements (100% - 48158ae)
 - ✅ Part B.2: Batch Processing (100% - cbfc6c0)
 - ✅ Part B.5: Audio Quality Analysis (100% - 7212df7)
+- ✅ Part B.8: Interactive Setup Wizard (100% - 65089ad)
+- ✅ Part B.4: Transcript Search & Analysis (100% - bbb0ebe)
 
 ### Phase 6.1: LLM Provider Abstraction - 100% COMPLETE ✨
 
@@ -30,10 +32,8 @@
 - ✅ Updated README.md with API Key Configuration section
 - ✅ Commit ccb1f3b
 
-**Deferred Items:**
-- Part B.8: Interactive Setup Wizard
-- Part B.4: Transcript Search & Analysis
-- Phase 3.4: TUI Testing & Remaining Fixes
+**Remaining Items:**
+- Phase 3.4: TUI Testing & Remaining Fixes (1-2 hours, deferred)
 
 ---
 
@@ -51,7 +51,7 @@
 - ✅ Phase 8: CI/CD & Quality Automation (80% complete - verification pending)
 
 ### Current Phase (v2.1.0 - v2.2.0)
-- 🚧 Phase 10: Feature Enhancements (60% complete - 6/10 features)
+- 🚧 Phase 10: Feature Enhancements (80% complete - 8/10 features)
 
 **Delivered Features:**
 1. **Export Formats (B.1)**: PDF and HTML export via ReportLab
@@ -60,17 +60,22 @@
 4. **CLI Improvements (B.7)**: Better help text, examples, command aliases
 5. **Batch Processing (B.2)**: Parallel processing of multiple episodes
 6. **Audio Quality Analysis (B.5)**: SNR, dynamic range, clipping detection
-
-**In Progress:**
-- Finalizing B.5 (audio quality) with SNR calculation fix
+7. **Interactive Setup Wizard (B.8)**: podx-init for first-time setup
+8. **Transcript Search & Analysis (B.4)**: Full-text & semantic search, quotes, topics
 
 **Deferred to Future:**
-- B.8: Interactive Setup Wizard
-- B.4: Transcript Search & Analysis
+- Phase 3.4: TUI Testing & Remaining Fixes
 
 **Versioning Plan:**
-- **v2.1.0**: Export, profiles, cost, CLI, batch, audio quality (near complete)
-- **v2.2.0**: Setup wizard, transcript search (future)
+- **v2.1.0**: 8 major features complete ✨ (ready to tag!)
+  - Export formats (PDF/HTML)
+  - Configuration profiles
+  - Cost estimation
+  - CLI improvements
+  - Batch processing
+  - Audio quality analysis
+  - Interactive setup wizard
+  - Transcript search & analysis
 - **v3.0.0**: Web API Server + Phase 8 verification (future)
 
 ---
@@ -97,22 +102,16 @@
 - `.claude/CONTEXT.md` (this file - updated for Phase 6.1 + B.5 completion)
 
 **Recent Commits:**
+- bbb0ebe - feat(search): add transcript search and analysis (Part B.4 complete)
+- 65089ad - feat(setup): add interactive setup wizard (Part B.8 complete)
+- 8b77297 - docs: mark Phase 6.1 as 100% complete
 - ccb1f3b - feat(models): add API key configuration and status display (Phase 6.1 complete)
 - 7212df7 - fix(quality): improve SNR calculation with high-pass filtering (Part B.5 complete)
-- 63ad649 - feat(quality): add audio quality analysis (Part B.5 - partial)
-- cbfc6c0 - feat(batch): add batch processing infrastructure (Part B.2)
-- 48158ae - fix(cli): replace "Shim" with user-friendly help text (Part B.7)
-- c0a5011 - fix(ui): comprehensive TUI improvements (Part B.7)
-- 670ec88 - refactor(cli): change default to keep intermediates (Part B.7)
-- b3cd2aa - feat(config): add configuration profiles system (Part B.3)
-- ac47020 - feat(cost): add cost estimation for LLM operations (Part B.6)
-- 65bd725 - feat(export): add PDF and HTML export formats (Part B.1)
-- c93e311 - docs: consolidate tracking to CURRENT_ROADMAP.md (Part A)
 
-**Current Work:**
-- Completed Phase 6.1 deferred items (API key configuration)
-- Completed Part B.5 (Audio Quality Analysis)
-- Ready to commit tracking updates
+**Current State:**
+- Phase 10: 80% complete (8/10 features delivered)
+- Only 1 item remaining (Phase 3.4 TUI Testing - deferred)
+- Ready to tag v2.1.0!
 
 ---
 
