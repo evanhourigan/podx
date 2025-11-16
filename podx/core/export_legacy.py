@@ -1,11 +1,14 @@
 """Core export engine - pure business logic.
 
 No UI dependencies, no CLI concerns. Just transcript format conversion.
-Handles conversion to TXT, SRT, VTT, and Markdown formats.
+Handles conversion to TXT, SRT, VTT, Markdown, PDF, and HTML formats.
 """
 
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
+
+# Import FormatRegistry for new formats (PDF, HTML)
+from .export.base import FormatRegistry
 
 
 class ExportError(Exception):
@@ -172,39 +175,51 @@ class ExportEngine:
         if not segments:
             raise ExportError("Transcript missing 'segments' field")
 
-        # Validate formats
-        valid_formats = {"txt", "srt", "vtt", "md"}
-        invalid = set(formats) - valid_formats
+        # Validate formats using FormatRegistry
+        available_formats = FormatRegistry.list_formats()
+        invalid = set(formats) - set(available_formats.keys())
         if invalid:
+            valid_list = ", ".join(available_formats.keys())
             raise ExportError(
-                f"Invalid formats: {', '.join(invalid)}. Valid: {', '.join(valid_formats)}"
+                f"Invalid formats: {', '.join(invalid)}. Valid: {valid_list}"
             )
 
         output_files = {}
         files_written = 0
 
-        # Generate each requested format
+        # Generate each requested format using FormatRegistry
         for fmt in formats:
             self._report_progress(f"Generating {fmt.upper()} format")
 
-            if fmt == "txt":
-                content = self.to_txt(segments)
-                out_path = output_dir / f"{base_name}.txt"
-            elif fmt == "srt":
-                content = self.to_srt(segments)
-                out_path = output_dir / f"{base_name}.srt"
-            elif fmt == "vtt":
-                content = self.to_vtt(segments)
-                out_path = output_dir / f"{base_name}.vtt"
-            elif fmt == "md":
-                content = self.to_md(segments)
-                out_path = output_dir / f"{base_name}.md"
-            else:
-                continue
+            # Get formatter from registry
+            formatter_class = FormatRegistry.get(fmt)
+            formatter = formatter_class()
 
-            # Write file
-            if write_if_changed(out_path, content, replace):
+            # Get output path
+            out_path = output_dir / f"{base_name}.{formatter.extension}"
+
+            # Special handling for PDF (needs write_pdf method)
+            if fmt == "pdf":
+                # Import here to avoid circular dependency
+                from .export.pdf_formatter import PDFFormatter
+
+                pdf_formatter = PDFFormatter()
+                # Extract metadata from transcript if available
+                metadata = transcript.get("metadata", {})
+                pdf_formatter.write_pdf(
+                    segments=segments,
+                    output_path=str(out_path),
+                    title=transcript.get("title", "Podcast Transcript"),
+                    metadata=metadata,
+                )
                 files_written += 1
+            else:
+                # Standard format() method for all other formats
+                content = formatter.format(segments)
+
+                # Write file
+                if write_if_changed(out_path, content, replace):
+                    files_written += 1
 
             output_files[fmt] = str(out_path)
 

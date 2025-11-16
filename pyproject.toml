@@ -27,6 +27,7 @@ dependencies = [
   "psutil~=7.1.0",
   "PyYAML~=6.0.3",
   "yt-dlp~=2025.9.26",
+  "reportlab~=4.0.0",
 ]
 
 [project.optional-dependencies]

@@ -20,6 +20,8 @@ from ..export_legacy import (
 )
 from .base import ExportFormatter, FormatRegistry
 from .formats import MDFormatter, SRTFormatter, TXTFormatter, VTTFormatter
+from .html_formatter import HTMLFormatter
+from .pdf_formatter import PDFFormatter
 
 __all__ = [
     # Legacy (backward compatibility)
@@ -36,4 +38,6 @@ __all__ = [
     "SRTFormatter",
     "VTTFormatter",
     "MDFormatter",
+    "PDFFormatter",
+    "HTMLFormatter",
 ]

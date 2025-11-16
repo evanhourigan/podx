@@ -3,6 +3,8 @@
 from typing import Any, Dict, List
 
 from .base import ExportFormatter, FormatRegistry
+from .html_formatter import HTMLFormatter
+from .pdf_formatter import PDFFormatter
 
 
 def format_timestamp(sec: float) -> str:
@@ -137,3 +139,5 @@ FormatRegistry.register("txt", TXTFormatter)
 FormatRegistry.register("srt", SRTFormatter)
 FormatRegistry.register("vtt", VTTFormatter)
 FormatRegistry.register("md", MDFormatter)
+FormatRegistry.register("pdf", PDFFormatter)
+FormatRegistry.register("html", HTMLFormatter)

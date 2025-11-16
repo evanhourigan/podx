@@ -19,7 +19,7 @@ from podx.domain.exit_codes import ExitCode
 console = Console()
 
 
-@click.command(help="Export transcript JSON to text formats (txt, srt, vtt, md)")
+@click.command(help="Export transcript JSON to text formats (txt, srt, vtt, md, pdf, html)")
 @click.option(
     "--input",
     "-i",
@@ -35,7 +35,7 @@ console = Console()
 @click.option(
     "--formats",
     default="txt,srt",
-    help="Output formats: comma-separated list of txt, srt, vtt, md (default: txt,srt)",
+    help="Output formats: txt, srt, vtt, md, pdf, html (comma-separated, default: txt,srt)",
 )
 @click.option(
     "--output-dir",
@@ -69,12 +69,15 @@ def main(
     - SRT: SubRip subtitle format with timestamps
     - VTT: WebVTT subtitle format with timestamps
     - MD: Markdown format with heading
+    - PDF: Professional PDF document (ReportLab)
+    - HTML: Interactive HTML with search and dark mode
 
     Reads transcript JSON from --input file or stdin.
     Writes output files to --output-dir or same directory as input.
 
     Examples:
         podx-export -i transcript.json --formats txt,srt,md
+        podx-export -i transcript.json --formats pdf,html
         cat transcript.json | podx-export --formats vtt
     """
     # Read input
