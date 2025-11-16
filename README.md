@@ -84,6 +84,32 @@ podx run --show "Lex Fridman Podcast" --date 2024-10-15
 #   └── notion-page-url.txt                # Notion URL
 ```
 
+### API Key Configuration
+
+For AI-powered features (deepcast analysis, preprocessing), you'll need to configure LLM provider API keys:
+
+```bash
+# Interactive setup wizard
+podx-models --configure
+
+# Or set environment variables manually
+export OPENAI_API_KEY="sk-..."
+export ANTHROPIC_API_KEY="sk-ant-..."
+export OPENROUTER_API_KEY="sk-or-..."
+
+# Check configuration status
+podx-models --status
+
+# Browse available models and pricing
+podx-models
+```
+
+**Supported Providers:**
+- **OpenAI** - GPT-4, GPT-3.5 models
+- **Anthropic** - Claude Opus, Sonnet, Haiku
+- **OpenRouter** - Access multiple models through one API
+- **Ollama** - Local models (no API key required)
+
 ---
 
 ## ✨ Features
