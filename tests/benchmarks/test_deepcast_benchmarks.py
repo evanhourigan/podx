@@ -1,4 +1,5 @@
 """Benchmarks for deepcast utility operations."""
+
 import pytest
 
 from podx.core.deepcast import hhmmss, segments_to_plain_text, split_into_chunks

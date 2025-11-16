@@ -1,4 +1,5 @@
 """Transcribe command for speech-to-text conversion."""
+
 import sys
 
 import click

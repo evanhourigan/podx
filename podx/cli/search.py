@@ -131,7 +131,9 @@ def search_query(
             return
     else:
         db = TranscriptDatabase()
-        results = db.search(query, limit=limit, episode_filter=episode, speaker_filter=speaker)
+        results = db.search(
+            query, limit=limit, episode_filter=episode, speaker_filter=speaker
+        )
 
         if json_output:
             console.print(json.dumps(results, indent=2))
@@ -207,8 +209,12 @@ def extract_quotes(
 
     # Load transcript (need to reconstruct from segments)
     # For now, just show error - proper implementation would cache transcript path
-    console.print("[yellow]Quote extraction from indexed episodes coming soon![/yellow]")
-    console.print("[dim]Tip: Use podx-search quotes on a transcript file directly[/dim]")
+    console.print(
+        "[yellow]Quote extraction from indexed episodes coming soon![/yellow]"
+    )
+    console.print(
+        "[dim]Tip: Use podx-search quotes on a transcript file directly[/dim]"
+    )
 
 
 @search_group.command(name="stats")
@@ -255,7 +261,9 @@ def _display_search_results(results: list, query: str) -> None:
     console.print(f"\n[bold]Search results for '{query}'[/bold]\n")
 
     for i, result in enumerate(results, 1):
-        console.print(f"[cyan]{i}. [{result['episode_id']}] {result.get('title', '')}[/cyan]")
+        console.print(
+            f"[cyan]{i}. [{result['episode_id']}] {result.get('title', '')}[/cyan]"
+        )
         console.print(f"   {result['speaker']} @ {result['timestamp']:.1f}s")
         console.print(f"   {result['text'][:150]}...")
         console.print()
@@ -270,7 +278,7 @@ def _display_semantic_results(results: list, query: str) -> None:
     console.print(f"\n[bold]Semantic search results for '{query}'[/bold]\n")
 
     for i, result in enumerate(results, 1):
-        similarity_pct = result['similarity'] * 100
+        similarity_pct = result["similarity"] * 100
         console.print(
             f"[cyan]{i}. [{result['episode_id']}] "
             f"(similarity: {similarity_pct:.1f}%)[/cyan]"

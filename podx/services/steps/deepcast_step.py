@@ -55,7 +55,9 @@ class DeepcastStep(PipelineStep):
             return True, f"Found existing deepcast analysis for {self.deepcast_model}"
         return False, None
 
-    def execute(self, context: StepContext, progress: Any, verbose: bool = False) -> StepResult:
+    def execute(
+        self, context: StepContext, progress: Any, verbose: bool = False
+    ) -> StepResult:
         """Execute deepcast step."""
         from podx.utils import build_deepcast_command
 
@@ -72,7 +74,9 @@ class DeepcastStep(PipelineStep):
             context.results.update({"deepcast_json": str(json_out)})
             if self.extract_markdown and md_out.exists():
                 context.results.update({"deepcast_md": str(md_out)})
-            return StepResult.skip(f"Using existing deepcast analysis for {self.deepcast_model}")
+            return StepResult.skip(
+                f"Using existing deepcast analysis for {self.deepcast_model}"
+            )
 
         # Perform deepcast analysis
         progress.start_step(f"Analyzing transcript with {self.deepcast_model}")
@@ -105,5 +109,8 @@ class DeepcastStep(PipelineStep):
         return StepResult.ok(
             "AI analysis completed",
             duration=step_duration,
-            data={"deepcast_json": str(json_out), "deepcast_md": str(md_out) if md_out.exists() else None}
+            data={
+                "deepcast_json": str(json_out),
+                "deepcast_md": str(md_out) if md_out.exists() else None,
+            },
         )

@@ -46,7 +46,9 @@ def main():
 @click.option("--diarize/--no-diarize", default=None, help="Enable speaker diarization")
 @click.option("--preprocess/--no-preprocess", default=None, help="Enable preprocessing")
 @click.option("--deepcast/--no-deepcast", default=None, help="Enable deepcast")
-@click.option("--llm-model", help="LLM model for deepcast (e.g., gpt-4o, claude-3-sonnet)")
+@click.option(
+    "--llm-model", help="LLM model for deepcast (e.g., gpt-4o, claude-3-sonnet)"
+)
 @click.option(
     "--llm-provider",
     type=click.Choice(["openai", "anthropic", "openrouter"]),
@@ -188,7 +190,12 @@ def delete_profile(profile_name: str, yes: bool):
 
 @main.command(name="export-profile", help="Export profile as YAML")
 @click.argument("profile_name")
-@click.option("--output", "-o", type=click.Path(), help="Output file (prints to stdout if not specified)")
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    help="Output file (prints to stdout if not specified)",
+)
 def export_profile(profile_name: str, output: Optional[str]):
     """Export profile configuration as YAML."""
     manager = ProfileManager()
@@ -244,7 +251,9 @@ def install_builtins():
 
 
 @main.command(name="set-key", help="Set an API key")
-@click.argument("service", type=click.Choice(["openai", "anthropic", "openrouter", "notion"]))
+@click.argument(
+    "service", type=click.Choice(["openai", "anthropic", "openrouter", "notion"])
+)
 @click.option("--key", prompt=True, hide_input=True, help="API key value")
 def set_key(service: str, key: str):
     """Set API key for a service.
@@ -339,7 +348,9 @@ def list_keys():
 
 
 @main.command(name="remove-key", help="Remove an API key")
-@click.argument("service", type=click.Choice(["openai", "anthropic", "openrouter", "notion"]))
+@click.argument(
+    "service", type=click.Choice(["openai", "anthropic", "openrouter", "notion"])
+)
 def remove_key(service: str):
     """Remove API key for a service."""
     env_file = Path.home() / ".podx" / ".env"

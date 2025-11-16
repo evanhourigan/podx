@@ -191,7 +191,9 @@ class TestDeepcastEngineGetClient:
 
             with patch("builtins.__import__", side_effect=mock_import):
                 # Should fail during provider initialization
-                with pytest.raises(DeepcastError, match="Failed to initialize LLM provider"):
+                with pytest.raises(
+                    DeepcastError, match="Failed to initialize LLM provider"
+                ):
                     DeepcastEngine()
 
 
@@ -228,9 +230,7 @@ class TestDeepcastEngineDeepcast:
     def test_deepcast_with_json_extraction(self, sample_transcript):
         """Test deepcast with JSON extraction."""
         json_output = {"key": "value"}
-        response_with_json = (
-            f"Here is the analysis\n\n---JSON---\n```json\n{json.dumps(json_output)}\n```"
-        )
+        response_with_json = f"Here is the analysis\n\n---JSON---\n```json\n{json.dumps(json_output)}\n```"
 
         # Use MockLLMProvider with JSON response
         mock_llm = MockLLMProvider(responses=["Map result", response_with_json])
@@ -281,7 +281,9 @@ class TestDeepcastEngineDeepcast:
         def progress_callback(msg):
             progress_messages.append(msg)
 
-        engine = DeepcastEngine(llm_provider=mock_llm, progress_callback=progress_callback)
+        engine = DeepcastEngine(
+            llm_provider=mock_llm, progress_callback=progress_callback
+        )
         engine.deepcast(sample_transcript, "system", "map", "reduce")
 
         # Should have progress messages
@@ -317,7 +319,9 @@ class TestDeepcastEngineDeepcast:
 
             def complete(self, *args, **kwargs):
                 self.sync_call_count += 1
-                if self.sync_call_count > 1:  # First call is from async (map), second is reduce
+                if (
+                    self.sync_call_count > 1
+                ):  # First call is from async (map), second is reduce
                     raise LLMAPIError("Reduce API error")
                 return super().complete(*args, **kwargs)
 
@@ -330,7 +334,9 @@ class TestDeepcastEngineDeepcast:
     def test_deepcast_invalid_json_returns_none(self, sample_transcript):
         """Test that invalid JSON returns None for json_data."""
         # Response with invalid JSON
-        mock_llm = MockLLMProvider(responses=["Map result", "Analysis\n\n---JSON---\n{invalid json}"])
+        mock_llm = MockLLMProvider(
+            responses=["Map result", "Analysis\n\n---JSON---\n{invalid json}"]
+        )
 
         engine = DeepcastEngine(llm_provider=mock_llm)
         markdown, json_data = engine.deepcast(
@@ -357,7 +363,7 @@ class TestConvenienceFunction:
         }
 
         # Mock the underlying engine - deepcast_transcript creates its own engine
-        with patch('podx.core.deepcast.DeepcastEngine') as mock_engine_class:
+        with patch("podx.core.deepcast.DeepcastEngine") as mock_engine_class:
             mock_instance = MagicMock()
             mock_instance.deepcast.return_value = ("Analysis result", None)
             mock_engine_class.return_value = mock_instance
@@ -382,7 +388,7 @@ class TestConvenienceFunction:
         def progress_callback(msg):
             progress_messages.append(msg)
 
-        with patch('podx.core.deepcast.DeepcastEngine') as mock_engine_class:
+        with patch("podx.core.deepcast.DeepcastEngine") as mock_engine_class:
             mock_instance = MagicMock()
             mock_instance.deepcast.return_value = ("Result", None)
             mock_engine_class.return_value = mock_instance
@@ -421,7 +427,9 @@ class TestEdgeCases:
 
         # Need many responses for multiple chunks + reduce
         mock_llm = MockLLMProvider(responses=["Chunk 1"] * 50 + ["Final analysis"])
-        engine = DeepcastEngine(llm_provider=mock_llm, max_chars_per_chunk=1000)  # Small chunks
+        engine = DeepcastEngine(
+            llm_provider=mock_llm, max_chars_per_chunk=1000
+        )  # Small chunks
         markdown, _ = engine.deepcast(transcript, "system", "map", "reduce")
 
         # Should have called complete_async multiple times (map calls) + reduce

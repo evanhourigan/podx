@@ -76,6 +76,7 @@ def execute_fetch(
 
     if not result.success:
         from podx.errors import ValidationError
+
         raise ValidationError(result.error or "Fetch failed")
 
     return context.metadata, context.working_dir

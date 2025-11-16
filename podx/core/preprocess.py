@@ -167,7 +167,9 @@ class TranscriptPreprocessor:
         )
 
         out: List[str] = []
-        total_batches = (len(texts) + self.restore_batch_size - 1) // self.restore_batch_size
+        total_batches = (
+            len(texts) + self.restore_batch_size - 1
+        ) // self.restore_batch_size
 
         for i in range(0, len(texts), self.restore_batch_size):
             batch_num = i // self.restore_batch_size + 1
@@ -199,9 +201,7 @@ class TranscriptPreprocessor:
                 )
                 batch_result = response.content
             except Exception as e:
-                logger.error(
-                    f"LLM API request failed for batch {batch_num}: {e}"
-                )
+                logger.error(f"LLM API request failed for batch {batch_num}: {e}")
                 raise PreprocessError(f"Semantic restore failed: {e}") from e
 
             # Split response back into individual segments

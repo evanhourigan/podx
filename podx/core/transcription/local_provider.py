@@ -3,7 +3,11 @@
 from pathlib import Path
 from typing import Any, Dict, List
 
-from ...device import detect_device_for_ctranslate2, get_optimal_compute_type, log_device_usage
+from ...device import (
+    detect_device_for_ctranslate2,
+    get_optimal_compute_type,
+    log_device_usage,
+)
 from ...logging import get_logger
 from .base import ASRProvider, ProviderConfig, TranscriptionError, TranscriptionResult
 

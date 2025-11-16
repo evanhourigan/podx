@@ -151,7 +151,9 @@ def _display_analysis(analysis: dict) -> None:
     console.print("\n[bold]Suggested Command:[/bold]")
     model = recommendations["model"]
     vad_flag = " --vad-filter" if recommendations["vad_filter"] else ""
-    suggested_cmd = f"podx-transcribe {analysis['audio_path']} --model {model}{vad_flag}"
+    suggested_cmd = (
+        f"podx-transcribe {analysis['audio_path']} --model {model}{vad_flag}"
+    )
     console.print(Panel(suggested_cmd, border_style="cyan"))
     console.print()
 

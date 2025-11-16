@@ -126,14 +126,16 @@ class AnthropicProvider(LLMProvider):
             return LLMResponse(
                 content=content,
                 model=response.model,
-                usage={
-                    "prompt_tokens": response.usage.input_tokens,
-                    "completion_tokens": response.usage.output_tokens,
-                    "total_tokens": response.usage.input_tokens
-                    + response.usage.output_tokens,
-                }
-                if response.usage
-                else None,
+                usage=(
+                    {
+                        "prompt_tokens": response.usage.input_tokens,
+                        "completion_tokens": response.usage.output_tokens,
+                        "total_tokens": response.usage.input_tokens
+                        + response.usage.output_tokens,
+                    }
+                    if response.usage
+                    else None
+                ),
                 raw_response=response,
             )
 
@@ -202,14 +204,16 @@ class AnthropicProvider(LLMProvider):
             return LLMResponse(
                 content=content,
                 model=response.model,
-                usage={
-                    "prompt_tokens": response.usage.input_tokens,
-                    "completion_tokens": response.usage.output_tokens,
-                    "total_tokens": response.usage.input_tokens
-                    + response.usage.output_tokens,
-                }
-                if response.usage
-                else None,
+                usage=(
+                    {
+                        "prompt_tokens": response.usage.input_tokens,
+                        "completion_tokens": response.usage.output_tokens,
+                        "total_tokens": response.usage.input_tokens
+                        + response.usage.output_tokens,
+                    }
+                    if response.usage
+                    else None
+                ),
                 raw_response=response,
             )
 

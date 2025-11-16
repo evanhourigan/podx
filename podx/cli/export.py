@@ -19,7 +19,9 @@ from podx.domain.exit_codes import ExitCode
 console = Console()
 
 
-@click.command(help="Export transcript JSON to text formats (txt, srt, vtt, md, pdf, html)")
+@click.command(
+    help="Export transcript JSON to text formats (txt, srt, vtt, md, pdf, html)"
+)
 @click.option(
     "--input",
     "-i",

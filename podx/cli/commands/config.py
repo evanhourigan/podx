@@ -1,4 +1,5 @@
 """Configuration commands for podx."""
+
 from typing import Optional
 
 import click
@@ -105,7 +106,9 @@ def register_config_group(main_group):
         console.print(
             f"✅ Created example YAML configuration at: [cyan]{manager.config_file}[/cyan]"
         )
-        console.print("\n📝 Edit this file to customize your podcast processing settings:")
+        console.print(
+            "\n📝 Edit this file to customize your podcast processing settings:"
+        )
         console.print("   - Multiple Notion databases with different API keys")
         console.print("   - Podcast-specific analysis types and prompts")
         console.print("   - Global pipeline defaults")

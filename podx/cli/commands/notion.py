@@ -1,4 +1,5 @@
 """Notion command for uploading content to Notion databases."""
+
 import sys
 
 import click

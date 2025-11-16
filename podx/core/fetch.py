@@ -380,7 +380,9 @@ class PodcastFetcher:
             # Import here to avoid circular dependency
             from ..utils import generate_workdir
 
-            output_dir = generate_workdir(extracted_show_name, episode_date, episode_title)
+            output_dir = generate_workdir(
+                extracted_show_name, episode_date, episode_title
+            )
 
         # Download audio
         audio_path = self.download_audio(episode, output_dir)

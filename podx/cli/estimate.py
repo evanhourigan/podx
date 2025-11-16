@@ -160,9 +160,7 @@ def main(
                 )
             )
         else:
-            console.print(
-                "[red]Error:[/red] Provide either AUDIO_FILE or --duration"
-            )
+            console.print("[red]Error:[/red] Provide either AUDIO_FILE or --duration")
         sys.exit(ExitCode.USER_ERROR)
 
     # Estimate costs

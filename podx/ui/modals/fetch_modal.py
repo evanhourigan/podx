@@ -413,7 +413,6 @@ class FetchModal(ModalScreen[Optional[Tuple[Dict[str, Any], Dict[str, Any]]]]):
         table = self.query_one("#fetch-episode-table", DataTable)
         table.clear()
 
-
         from ...utils import format_date, format_duration
 
         for ep in self.rss_episodes:

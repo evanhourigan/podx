@@ -51,7 +51,9 @@ class SetupWizard:
             self._save_configuration()
             self._show_next_steps()
         else:
-            console.print("\n[yellow]Setup cancelled. No changes were saved.[/yellow]\n")
+            console.print(
+                "\n[yellow]Setup cancelled. No changes were saved.[/yellow]\n"
+            )
 
     def _show_welcome(self) -> None:
         """Display welcome message."""
@@ -120,9 +122,7 @@ class SetupWizard:
             )
 
         # Notion (optional)
-        if Confirm.ask(
-            "\nDo you want to configure Notion integration?", default=False
-        ):
+        if Confirm.ask("\nDo you want to configure Notion integration?", default=False):
             self._prompt_for_api_key(
                 provider="Notion",
                 env_var="NOTION_API_KEY",
@@ -194,7 +194,9 @@ class SetupWizard:
             console.print("Choose your default model for summaries and analysis:\n")
             console.print("  [cyan]gpt-4o[/cyan] - Best quality (OpenAI)")
             console.print("  [dim]gpt-4o-mini[/dim] - Fast and affordable (OpenAI)")
-            console.print("  [dim]claude-3-5-sonnet[/dim] - Excellent reasoning (Anthropic)\n")
+            console.print(
+                "  [dim]claude-3-5-sonnet[/dim] - Excellent reasoning (Anthropic)\n"
+            )
 
             llm_model = Prompt.ask(
                 "Default AI model",
@@ -206,9 +208,7 @@ class SetupWizard:
         # Output directory
         console.print("\n[bold]Output Directory[/bold]")
         default_output = str(Path.home() / "podx-episodes")
-        output_dir = Prompt.ask(
-            "Default output directory", default=default_output
-        )
+        output_dir = Prompt.ask("Default output directory", default=default_output)
         self.config["default_output_dir"] = output_dir
 
         # Export formats
@@ -217,9 +217,7 @@ class SetupWizard:
             "Available formats: txt, srt, vtt, md, pdf, html\n"
             "[dim]Enter comma-separated formats (e.g., txt,srt,md)[/dim]"
         )
-        export_formats = Prompt.ask(
-            "Default export formats", default="txt,srt,md"
-        )
+        export_formats = Prompt.ask("Default export formats", default="txt,srt,md")
         self.config["default_export_formats"] = export_formats
 
     def _configure_optional_features(self) -> None:
@@ -230,9 +228,7 @@ class SetupWizard:
 
         # Shell completion
         console.print("[bold]Shell Completion[/bold]")
-        if Confirm.ask(
-            "Install shell completion for podx commands?", default=True
-        ):
+        if Confirm.ask("Install shell completion for podx commands?", default=True):
             self.config["install_completion"] = "true"
             console.print(
                 "[dim]You'll need to add the completion script to your shell config.[/dim]"
@@ -315,22 +311,30 @@ class SetupWizard:
         if self.config.get("install_completion") == "true":
             console.print("[bold]2. Set up shell completion:[/bold]")
             console.print("   [cyan]podx-completion[/cyan]")
-            console.print("   [dim]Follow the instructions to add to your shell[/dim]\n")
+            console.print(
+                "   [dim]Follow the instructions to add to your shell[/dim]\n"
+            )
 
         console.print("[bold]3. Try processing your first episode:[/bold]")
-        console.print('   [cyan]podx-quick podcast.mp3[/cyan]  [dim]# Fast transcription[/dim]')
         console.print(
-            '   [cyan]podx-full podcast.mp3[/cyan]   [dim]# Complete pipeline[/dim]'
+            "   [cyan]podx-quick podcast.mp3[/cyan]  [dim]# Fast transcription[/dim]"
+        )
+        console.print(
+            "   [cyan]podx-full podcast.mp3[/cyan]   [dim]# Complete pipeline[/dim]"
         )
 
         if self.config.get("install_profiles") == "true":
             console.print(
-                '   [cyan]podx-config list-profiles[/cyan]  [dim]# See available profiles[/dim]'
+                "   [cyan]podx-config list-profiles[/cyan]  [dim]# See available profiles[/dim]"
             )
 
         console.print("\n[bold]4. Check configuration:[/bold]")
-        console.print("   [cyan]podx-models --status[/cyan]  [dim]# Verify API keys[/dim]")
-        console.print("   [cyan]podx-config list-keys[/cyan]  [dim]# List configured keys[/dim]\n")
+        console.print(
+            "   [cyan]podx-models --status[/cyan]  [dim]# Verify API keys[/dim]"
+        )
+        console.print(
+            "   [cyan]podx-config list-keys[/cyan]  [dim]# List configured keys[/dim]\n"
+        )
 
         console.print(
             Panel.fit(

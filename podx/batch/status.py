@@ -174,9 +174,7 @@ class BatchStatus:
         Args:
             output_path: Output file path
         """
-        data = {
-            key: asdict(status) for key, status in self.episodes.items()
-        }
+        data = {key: asdict(status) for key, status in self.episodes.items()}
 
         with open(output_path, "w") as f:
             json.dump(data, f, indent=2)
@@ -195,31 +193,35 @@ class BatchStatus:
             writer = csv.writer(f)
 
             # Header
-            writer.writerow([
-                "Episode",
-                "Show",
-                "Fetch",
-                "Transcode",
-                "Transcribe",
-                "Diarize",
-                "Preprocess",
-                "Deepcast",
-                "Export",
-            ])
+            writer.writerow(
+                [
+                    "Episode",
+                    "Show",
+                    "Fetch",
+                    "Transcode",
+                    "Transcribe",
+                    "Diarize",
+                    "Preprocess",
+                    "Deepcast",
+                    "Export",
+                ]
+            )
 
             # Rows
             for episode in self.episodes.values():
-                writer.writerow([
-                    episode.title,
-                    episode.show or "",
-                    episode.fetch.value,
-                    episode.transcode.value,
-                    episode.transcribe.value,
-                    episode.diarize.value,
-                    episode.preprocess.value,
-                    episode.deepcast.value,
-                    episode.export.value,
-                ])
+                writer.writerow(
+                    [
+                        episode.title,
+                        episode.show or "",
+                        episode.fetch.value,
+                        episode.transcode.value,
+                        episode.transcribe.value,
+                        episode.diarize.value,
+                        episode.preprocess.value,
+                        episode.deepcast.value,
+                        episode.export.value,
+                    ]
+                )
 
         console.print(f"[green]Status exported to {output_path}[/green]")
 
@@ -272,7 +274,15 @@ class BatchStatus:
 
             for key, episode_data in data.items():
                 # Convert state strings to enums
-                for field in ["fetch", "transcode", "transcribe", "diarize", "preprocess", "deepcast", "export"]:
+                for field in [
+                    "fetch",
+                    "transcode",
+                    "transcribe",
+                    "diarize",
+                    "preprocess",
+                    "deepcast",
+                    "export",
+                ]:
                     if field in episode_data:
                         episode_data[field] = ProcessingState(episode_data[field])
 
@@ -284,9 +294,7 @@ class BatchStatus:
     def _save(self) -> None:
         """Save status to disk."""
         try:
-            data = {
-                key: asdict(status) for key, status in self.episodes.items()
-            }
+            data = {key: asdict(status) for key, status in self.episodes.items()}
 
             with open(self.status_file, "w") as f:
                 json.dump(data, f, indent=2)

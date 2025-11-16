@@ -94,9 +94,7 @@ class BatchProcessor:
             TimeElapsedColumn(),
             console=console,
         ) as progress:
-            task = progress.add_task(
-                f"[cyan]{operation_name}...", total=len(episodes)
-            )
+            task = progress.add_task(f"[cyan]{operation_name}...", total=len(episodes))
 
             # Process in parallel
             with ThreadPoolExecutor(max_workers=self.parallel_workers) as executor:
@@ -192,9 +190,7 @@ class BatchProcessor:
             episode=episode, success=False, error=last_error, retries=retries
         )
 
-    def _print_summary(
-        self, results: List[BatchResult], operation_name: str
-    ) -> None:
+    def _print_summary(self, results: List[BatchResult], operation_name: str) -> None:
         """Print batch processing summary.
 
         Args:

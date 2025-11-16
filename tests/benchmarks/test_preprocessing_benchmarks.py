@@ -1,4 +1,5 @@
 """Benchmarks for transcript preprocessing operations."""
+
 import pytest
 
 from podx.core.preprocess import TranscriptPreprocessor

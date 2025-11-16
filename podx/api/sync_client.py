@@ -1,4 +1,5 @@
 """Synchronous API client for podx."""
+
 from __future__ import annotations
 
 import json
@@ -28,6 +29,8 @@ from .models import (
 )
 
 logger = get_logger(__name__)
+
+
 class PodxClient:
     """High-level client for podx API.
 

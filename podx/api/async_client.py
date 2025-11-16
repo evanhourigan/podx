@@ -1,4 +1,5 @@
 """Asynchronous API client for podx."""
+
 from __future__ import annotations
 
 import asyncio
@@ -18,6 +19,8 @@ logger = get_logger(__name__)
 # Type alias for progress callbacks
 ProgressCallback = Callable[[Dict[str, Any]], None]
 AsyncProgressCallback = Callable[[Dict[str, Any]], asyncio.Future[None]]
+
+
 class AsyncPodxClient:
     """Async client for podx API with real-time progress updates.
 

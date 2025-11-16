@@ -85,12 +85,8 @@ class TestBatchProcessor:
         counter = FailCounter()
         episodes = [{"title": "Episode 1"}]
 
-        processor = BatchProcessor(
-            parallel_workers=1, max_retries=2, retry_delay=0
-        )
-        results = processor.process_batch(
-            episodes, counter.process, "Test Processing"
-        )
+        processor = BatchProcessor(parallel_workers=1, max_retries=2, retry_delay=0)
+        results = processor.process_batch(episodes, counter.process, "Test Processing")
 
         assert len(results) == 1
         assert results[0].success
@@ -104,9 +100,7 @@ class TestBatchProcessor:
 
         episodes = [{"title": "Episode 1"}]
 
-        processor = BatchProcessor(
-            parallel_workers=1, max_retries=2, retry_delay=0
-        )
+        processor = BatchProcessor(parallel_workers=1, max_retries=2, retry_delay=0)
         results = processor.process_batch(episodes, always_fail, "Test Processing")
 
         assert len(results) == 1

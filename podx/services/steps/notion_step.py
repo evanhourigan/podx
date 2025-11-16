@@ -56,7 +56,9 @@ class NotionStep(PipelineStep):
     def name(self) -> str:
         return "Upload to Notion"
 
-    def execute(self, context: StepContext, progress: Any, verbose: bool = False) -> StepResult:
+    def execute(
+        self, context: StepContext, progress: Any, verbose: bool = False
+    ) -> StepResult:
         """Execute Notion upload step."""
         progress.start_step("Uploading to Notion")
         step_start = time.time()
@@ -78,7 +80,9 @@ class NotionStep(PipelineStep):
         # If exported exists, use it directly
         if exported_md and exported_md.exists():
             md_path = str(exported_md)
-            json_path = str(model_specific_json) if model_specific_json.exists() else None
+            json_path = (
+                str(model_specific_json) if model_specific_json.exists() else None
+            )
             cmd.add_option("--markdown", md_path)
             cmd.add_option("--meta", str(wd / "episode-meta.json"))
             if json_path:
@@ -136,5 +140,5 @@ class NotionStep(PipelineStep):
         return StepResult.ok(
             "Notion page created/updated",
             duration=step_duration,
-            data={"notion": str(wd / "notion.out.json")}
+            data={"notion": str(wd / "notion.out.json")},
         )

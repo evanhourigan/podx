@@ -1,4 +1,5 @@
 """Benchmarks for transcription utility operations."""
+
 import pytest
 
 from podx.core.transcribe import parse_model_and_provider

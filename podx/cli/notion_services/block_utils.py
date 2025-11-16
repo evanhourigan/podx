@@ -1,4 +1,5 @@
 """Block utilities for Notion API - splitting and rich text helpers."""
+
 from typing import Any, Dict, List
 
 
