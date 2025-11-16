@@ -58,6 +58,7 @@ podx-notion = "podx.cli.notion:main"
 podx-preprocess = "podx.cli.preprocess:main"
 podx-models = "podx.cli.models:main"
 podx-estimate = "podx.cli.estimate:main"
+podx-config = "podx.cli.config:main"
 podx-run = "podx.cli.orchestrate:run_main"
 podx = "podx.cli.orchestrate:main"
 

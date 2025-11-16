@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """
 Centralized configuration management for podx.
+
+Includes profile management for saving/loading named configuration presets.
 """
 
-from typing import Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
+import yaml
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -114,3 +118,239 @@ def reset_config() -> None:
     """Reset the global configuration (useful for testing)."""
     global _config
     _config = None
+
+
+# ============================================================================
+# Configuration Profiles
+# ============================================================================
+
+
+class ConfigProfile:
+    """Named configuration profile for reusable settings.
+
+    Profiles allow users to save common configuration combinations
+    and reuse them across commands.
+    """
+
+    def __init__(self, name: str, settings: Dict[str, Any], description: str = ""):
+        """Initialize configuration profile.
+
+        Args:
+            name: Profile name (must be filesystem-safe)
+            settings: Dictionary of configuration settings
+            description: Optional profile description
+        """
+        self.name = name
+        self.settings = settings
+        self.description = description
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert profile to dictionary for serialization."""
+        return {
+            "name": self.name,
+            "description": self.description,
+            "settings": self.settings,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ConfigProfile":
+        """Create profile from dictionary.
+
+        Args:
+            data: Profile data dictionary
+
+        Returns:
+            ConfigProfile instance
+        """
+        return cls(
+            name=data["name"],
+            settings=data.get("settings", {}),
+            description=data.get("description", ""),
+        )
+
+
+class ProfileManager:
+    """Manage configuration profiles.
+
+    Handles saving, loading, listing, and deleting configuration profiles.
+    Profiles are stored as YAML files in ~/.podx/profiles/
+    """
+
+    def __init__(self, profile_dir: Optional[Path] = None):
+        """Initialize profile manager.
+
+        Args:
+            profile_dir: Directory to store profiles (defaults to ~/.podx/profiles)
+        """
+        self.profile_dir = profile_dir or (Path.home() / ".podx" / "profiles")
+        self.profile_dir.mkdir(parents=True, exist_ok=True)
+
+    def save(self, profile: ConfigProfile) -> None:
+        """Save profile to disk.
+
+        Args:
+            profile: Profile to save
+
+        Raises:
+            ValueError: If profile name contains invalid characters
+        """
+        # Validate profile name (filesystem-safe)
+        if not profile.name or "/" in profile.name or "\\" in profile.name:
+            raise ValueError(
+                f"Invalid profile name: {profile.name}. "
+                "Name must not contain / or \\ characters."
+            )
+
+        profile_file = self.profile_dir / f"{profile.name}.yaml"
+        with profile_file.open("w") as f:
+            yaml.dump(profile.to_dict(), f, default_flow_style=False, sort_keys=False)
+
+    def load(self, name: str) -> Optional[ConfigProfile]:
+        """Load profile from disk.
+
+        Args:
+            name: Profile name
+
+        Returns:
+            ConfigProfile if found, None otherwise
+        """
+        profile_file = self.profile_dir / f"{name}.yaml"
+        if not profile_file.exists():
+            return None
+
+        with profile_file.open("r") as f:
+            data = yaml.safe_load(f)
+
+        return ConfigProfile.from_dict(data)
+
+    def list_profiles(self) -> List[str]:
+        """List all available profile names.
+
+        Returns:
+            List of profile names (sorted alphabetically)
+        """
+        profiles = [p.stem for p in self.profile_dir.glob("*.yaml")]
+        return sorted(profiles)
+
+    def delete(self, name: str) -> bool:
+        """Delete profile.
+
+        Args:
+            name: Profile name to delete
+
+        Returns:
+            True if profile was deleted, False if not found
+        """
+        profile_file = self.profile_dir / f"{name}.yaml"
+        if profile_file.exists():
+            profile_file.unlink()
+            return True
+        return False
+
+    def export_profile(self, name: str) -> Optional[str]:
+        """Export profile as YAML string.
+
+        Args:
+            name: Profile name to export
+
+        Returns:
+            YAML string if profile exists, None otherwise
+        """
+        profile = self.load(name)
+        if profile is None:
+            return None
+
+        return yaml.dump(profile.to_dict(), default_flow_style=False, sort_keys=False)
+
+    def import_profile(self, yaml_content: str) -> ConfigProfile:
+        """Import profile from YAML string.
+
+        Args:
+            yaml_content: YAML string containing profile data
+
+        Returns:
+            Imported ConfigProfile
+
+        Raises:
+            ValueError: If YAML is invalid or profile data is malformed
+        """
+        try:
+            data = yaml.safe_load(yaml_content)
+            profile = ConfigProfile.from_dict(data)
+            self.save(profile)
+            return profile
+        except Exception as e:
+            raise ValueError(f"Failed to import profile: {e}") from e
+
+
+def get_builtin_profiles() -> List[ConfigProfile]:
+    """Get built-in configuration profiles.
+
+    Returns:
+        List of built-in profiles (quick, standard, high-quality)
+    """
+    return [
+        ConfigProfile(
+            name="quick",
+            description="Fast processing with minimal features",
+            settings={
+                "asr_model": "base",
+                "asr_provider": "local",
+                "diarize": False,
+                "preprocess": False,
+                "deepcast": False,
+                "export_formats": ["txt"],
+            },
+        ),
+        ConfigProfile(
+            name="standard",
+            description="Balanced quality and speed",
+            settings={
+                "asr_model": "medium",
+                "asr_provider": "local",
+                "diarize": True,
+                "preprocess": True,
+                "restore_punctuation": True,
+                "restore_model": "gpt-4o-mini",
+                "deepcast": True,
+                "llm_model": "gpt-4o-mini",
+                "llm_provider": "openai",
+                "export_formats": ["txt", "srt", "md"],
+            },
+        ),
+        ConfigProfile(
+            name="high-quality",
+            description="Best quality processing with all features",
+            settings={
+                "asr_model": "large-v3",
+                "asr_provider": "local",
+                "diarize": True,
+                "num_speakers": None,  # Auto-detect
+                "preprocess": True,
+                "restore_punctuation": True,
+                "restore_model": "gpt-4o",
+                "deepcast": True,
+                "llm_model": "gpt-4o",
+                "llm_provider": "openai",
+                "export_formats": ["txt", "srt", "vtt", "md", "pdf", "html"],
+            },
+        ),
+    ]
+
+
+def install_builtin_profiles(profile_dir: Optional[Path] = None) -> int:
+    """Install built-in profiles to disk.
+
+    Args:
+        profile_dir: Directory to install profiles (defaults to ~/.podx/profiles)
+
+    Returns:
+        Number of profiles installed
+    """
+    manager = ProfileManager(profile_dir)
+    profiles = get_builtin_profiles()
+
+    for profile in profiles:
+        manager.save(profile)
+
+    return len(profiles)
