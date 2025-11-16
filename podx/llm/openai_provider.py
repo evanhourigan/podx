@@ -108,13 +108,15 @@ class OpenAIProvider(LLMProvider):
             return LLMResponse(
                 content=response.choices[0].message.content or "",
                 model=response.model,
-                usage={
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens,
-                }
-                if response.usage
-                else None,
+                usage=(
+                    {
+                        "prompt_tokens": response.usage.prompt_tokens,
+                        "completion_tokens": response.usage.completion_tokens,
+                        "total_tokens": response.usage.total_tokens,
+                    }
+                    if response.usage
+                    else None
+                ),
                 raw_response=response,
             )
 
@@ -158,13 +160,15 @@ class OpenAIProvider(LLMProvider):
             return LLMResponse(
                 content=response.choices[0].message.content or "",
                 model=response.model,
-                usage={
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens,
-                }
-                if response.usage
-                else None,
+                usage=(
+                    {
+                        "prompt_tokens": response.usage.prompt_tokens,
+                        "completion_tokens": response.usage.completion_tokens,
+                        "total_tokens": response.usage.total_tokens,
+                    }
+                    if response.usage
+                    else None
+                ),
                 raw_response=response,
             )
 

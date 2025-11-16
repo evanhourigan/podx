@@ -158,7 +158,7 @@ class DeepcastEngine:
         New code should use self.llm_provider directly.
         """
         # Return a mock-friendly object that works with old tests
-        if hasattr(self.llm_provider, '_sync_client'):
+        if hasattr(self.llm_provider, "_sync_client"):
             return self.llm_provider._sync_client
         # For non-OpenAI providers or mocks, return the provider itself
         return self.llm_provider

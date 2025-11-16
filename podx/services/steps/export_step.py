@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import Any
 
 from podx.cli.services.command_runner import run_command
-from podx.services.command_builder import CommandBuilder
 from podx.constants import DEFAULT_ENCODING
+from podx.services.command_builder import CommandBuilder
 
 from .base import PipelineStep, StepContext, StepResult
 
@@ -32,7 +32,9 @@ class ExportStep(PipelineStep):
     def name(self) -> str:
         return "Export Transcript Files"
 
-    def execute(self, context: StepContext, progress: Any, verbose: bool = False) -> StepResult:
+    def execute(
+        self, context: StepContext, progress: Any, verbose: bool = False
+    ) -> StepResult:
         """Execute export step."""
         step_start = time.time()
 
@@ -85,9 +87,7 @@ class ExportStep(PipelineStep):
         self._execute_final_export(context)
 
         return StepResult.ok(
-            "Transcript files exported",
-            duration=step_duration,
-            data=results
+            "Transcript files exported", duration=step_duration, data=results
         )
 
     def _execute_final_export(self, context: StepContext) -> None:
@@ -102,7 +102,9 @@ class ExportStep(PipelineStep):
                 export_source_path = Path(single)
                 export_track = (self.preset or "balanced") if self.preset else "single"
 
-                data = json.loads(export_source_path.read_text(encoding=DEFAULT_ENCODING))
+                data = json.loads(
+                    export_source_path.read_text(encoding=DEFAULT_ENCODING)
+                )
                 # Use unified exporter (handles deepcast JSON, and PDF auto-install)
                 try:
                     md_path, pdf_path = export_from_deepcast_json(

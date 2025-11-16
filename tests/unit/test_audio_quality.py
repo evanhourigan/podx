@@ -200,10 +200,12 @@ class TestAudioQualityAnalyzer:
         analyzer = AudioQualityAnalyzer()
 
         # High dynamic range signal (peak vs RMS)
-        signal = np.concatenate([
-            0.1 * np.sin(2 * np.pi * 440 * np.linspace(0, 0.5, 8000)),  # Quiet
-            0.9 * np.sin(2 * np.pi * 440 * np.linspace(0, 0.5, 8000)),  # Loud
-        ])
+        signal = np.concatenate(
+            [
+                0.1 * np.sin(2 * np.pi * 440 * np.linspace(0, 0.5, 8000)),  # Quiet
+                0.9 * np.sin(2 * np.pi * 440 * np.linspace(0, 0.5, 8000)),  # Loud
+            ]
+        )
         dr = analyzer._calculate_dynamic_range(signal)
         assert dr > 5  # Should have reasonable dynamic range
 
@@ -229,10 +231,12 @@ class TestAudioQualityAnalyzer:
         sr = 16000
 
         # Mostly silence
-        mostly_silent = np.concatenate([
-            0.5 * np.sin(2 * np.pi * 440 * np.linspace(0, 0.2, int(sr * 0.2))),
-            np.zeros(int(sr * 0.8)),
-        ])
+        mostly_silent = np.concatenate(
+            [
+                0.5 * np.sin(2 * np.pi * 440 * np.linspace(0, 0.2, int(sr * 0.2))),
+                np.zeros(int(sr * 0.8)),
+            ]
+        )
         silence_ratio = analyzer._detect_silence(mostly_silent, sr)
         assert silence_ratio > 0.5
 

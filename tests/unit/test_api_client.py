@@ -148,13 +148,15 @@ class TestTranscribeAPI:
         with pytest.raises(ValidationError, match="audio_url cannot be empty"):
             client.transcribe("", model="base")
 
-    def test_transcribe_validation_error_missing_file(self):
+    def test_transcribe_validation_error_missing_file(self, tmp_path):
         """Test transcription fails when local file doesn't exist."""
 
         client = PodxClient()
+        # Use tmp_path to ensure cross-platform non-existent file
+        nonexistent = tmp_path / "definitely_does_not_exist_12345.mp3"
 
         with pytest.raises(ValidationError, match="Audio file not found"):
-            client.transcribe("/nonexistent/audio.mp3", model="base")
+            client.transcribe(str(nonexistent), model="base")
 
     def test_transcribe_validation_disabled(self):
         """Test transcription with validation disabled."""

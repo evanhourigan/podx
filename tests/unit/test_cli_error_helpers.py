@@ -4,7 +4,6 @@
 import tempfile
 from pathlib import Path
 
-
 from podx.cli.error_helpers import (
     find_similar_files,
     format_error_message,

@@ -144,7 +144,7 @@ class PDFFormatter(ExportFormatter):
             if "date" in metadata:
                 metadata_lines.append(f"<b>Date:</b> {metadata['date']}")
             if "duration" in metadata:
-                duration = metadata['duration']
+                duration = metadata["duration"]
                 # Handle both float seconds and string durations
                 if isinstance(duration, (int, float)):
                     duration_str = format_timestamp(duration)
@@ -152,7 +152,7 @@ class PDFFormatter(ExportFormatter):
                     duration_str = str(duration)
                 metadata_lines.append(f"<b>Duration:</b> {duration_str}")
             if "speakers" in metadata:
-                speakers = metadata['speakers']
+                speakers = metadata["speakers"]
                 # Handle both list and count
                 if isinstance(speakers, list):
                     speakers_str = ", ".join(speakers)
@@ -196,11 +196,15 @@ class PDFFormatter(ExportFormatter):
 
             # Transcript text (clean - no emojis!)
             # Remove any potentially problematic characters
-            clean_text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            clean_text = (
+                text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            )
             story.append(Paragraph(clean_text, text_style))
 
         # Build PDF
-        doc.build(story, onFirstPage=self._add_page_number, onLaterPages=self._add_page_number)
+        doc.build(
+            story, onFirstPage=self._add_page_number, onLaterPages=self._add_page_number
+        )
 
     @staticmethod
     def _add_page_number(canvas_obj: canvas.Canvas, doc: SimpleDocTemplate) -> None:
@@ -217,7 +221,7 @@ class PDFFormatter(ExportFormatter):
         canvas_obj.setFillColor(colors.HexColor("#6b7280"))
         canvas_obj.drawCentredString(
             4.25 * inch,  # Center of 8.5" page
-            0.5 * inch,   # Bottom margin
+            0.5 * inch,  # Bottom margin
             text,
         )
         canvas_obj.restoreState()

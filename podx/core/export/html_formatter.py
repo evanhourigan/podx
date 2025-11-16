@@ -103,20 +103,20 @@ class HTMLFormatter(ExportFormatter):
                 f'  <div class="segment-header">\n'
                 f'    <span class="speaker {speaker_class}">{self._html_escape(speaker)}</span>\n'
                 f'    <span class="timestamp" data-seconds="{start}">{timestamp}</span>\n'
-                f'  </div>\n'
+                f"  </div>\n"
             )
             html_parts.append(
                 f'  <div class="segment-text">{self._html_escape(text)}</div>\n'
             )
-            html_parts.append('</div>\n')
+            html_parts.append("</div>\n")
 
-        html_parts.append('</div>\n')
+        html_parts.append("</div>\n")
 
         # JavaScript
         html_parts.append(self._get_javascript())
 
         # Close body and html
-        html_parts.append('</body>\n</html>')
+        html_parts.append("</body>\n</html>")
 
         return "".join(html_parts)
 
@@ -469,8 +469,8 @@ class HTMLFormatter(ExportFormatter):
             items.append(
                 f'      <div class="legend-item">\n'
                 f'        <div class="color-dot" style="background: {color};"></div>\n'
-                f'        <span>{escaped_speaker}</span>\n'
-                f'      </div>'
+                f"        <span>{escaped_speaker}</span>\n"
+                f"      </div>"
             )
 
         items_html = "\n".join(items)

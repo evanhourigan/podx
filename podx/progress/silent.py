@@ -24,9 +24,7 @@ class SilentProgressReporter(ProgressReporter):
     def start_task(self, task_name: str, total_steps: Optional[int] = None) -> None:
         """Start a new task (no-op)."""
         if self.track_calls:
-            self.calls.append(
-                ("start_task", task_name, {"total_steps": total_steps})
-            )
+            self.calls.append(("start_task", task_name, {"total_steps": total_steps}))
 
     def update_step(
         self,

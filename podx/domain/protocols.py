@@ -14,7 +14,6 @@ from .enums import AnalysisType, ASRProvider
 from .models.analysis import DeepcastBrief
 from .models.transcript import Transcript
 
-
 # ============================================================================
 # Result Types for Better Error Handling
 # ============================================================================

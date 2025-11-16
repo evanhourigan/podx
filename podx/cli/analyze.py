@@ -77,9 +77,7 @@ def extract_quotes(
 @click.argument("transcript_path", type=click.Path(exists=True))
 @click.option("--duration", default=30.0, help="Max time gap between quotes (seconds)")
 @click.option("--json-output", is_flag=True, help="Output as JSON")
-def find_highlights(
-    transcript_path: str, duration: float, json_output: bool
-) -> None:
+def find_highlights(transcript_path: str, duration: float, json_output: bool) -> None:
     """Find highlight moments in a transcript.
 
     Highlights are clusters of high-quality quotes close in time.
@@ -107,9 +105,7 @@ def find_highlights(
 @click.argument("episode_id", required=False)
 @click.option("--clusters", default=10, help="Number of topic clusters")
 @click.option("--json-output", is_flag=True, help="Output as JSON")
-def cluster_topics(
-    episode_id: Optional[str], clusters: int, json_output: bool
-) -> None:
+def cluster_topics(episode_id: Optional[str], clusters: int, json_output: bool) -> None:
     """Cluster transcript segments into topics.
 
     Requires semantic search to be installed.
@@ -180,7 +176,11 @@ def analyze_speakers(transcript_path: str, json_output: bool) -> None:
     # Calculate percentages
     for speaker in speaker_stats:
         stats = speaker_stats[speaker]
-        stats["percentage"] = (stats["total_duration"] / total_duration * 100) if total_duration > 0 else 0
+        stats["percentage"] = (
+            (stats["total_duration"] / total_duration * 100)
+            if total_duration > 0
+            else 0
+        )
 
     if json_output:
         console.print(json.dumps(speaker_stats, indent=2))
@@ -202,7 +202,9 @@ def _display_quotes(quotes: list) -> None:
         mins = int(timestamp // 60)
         secs = int(timestamp % 60)
 
-        console.print(f"[cyan]{i}. {quote['speaker']} [{mins:02d}:{secs:02d}] (score: {score_pct:.0f}%)[/cyan]")
+        console.print(
+            f"[cyan]{i}. {quote['speaker']} [{mins:02d}:{secs:02d}] (score: {score_pct:.0f}%)[/cyan]"
+        )
         console.print(f"   \"{quote['text']}\"")
         console.print()
 
@@ -278,7 +280,9 @@ def _display_topics(topics: list) -> None:
         size = topic["size"]
         rep = topic["representative"]
 
-        console.print(f"[bold magenta]Topic {cluster_id + 1}[/bold magenta] ({size} segments)")
+        console.print(
+            f"[bold magenta]Topic {cluster_id + 1}[/bold magenta] ({size} segments)"
+        )
         console.print(f"  Representative: {rep['speaker']}")
         console.print(f"  {rep['text'][:100]}...")
         console.print()

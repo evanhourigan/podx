@@ -1,4 +1,5 @@
 """Transcode command for audio format conversion."""
+
 import sys
 
 import click

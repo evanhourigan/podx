@@ -1,4 +1,5 @@
 """Page operations for Notion API - CRUD operations for pages and blocks."""
+
 from typing import Any, Dict, List, Optional
 
 import click

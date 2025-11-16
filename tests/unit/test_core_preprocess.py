@@ -4,6 +4,8 @@ Tests pure business logic without UI dependencies.
 Uses mocking to avoid actual LLM API calls.
 """
 
+from unittest import mock
+
 import pytest
 
 from podx.core.preprocess import (
@@ -29,8 +31,12 @@ class TestTranscriptPreprocessor:
         assert preprocessor.restore_model == "gpt-4o-mini"
         assert preprocessor.restore_batch_size == 20
 
-    def test_init_custom_options(self):
+    @mock.patch("podx.core.preprocess.get_provider")
+    def test_init_custom_options(self, mock_get_provider):
         """Test initialization with custom options."""
+        # Mock the LLM provider to avoid needing API keys
+        mock_get_provider.return_value = mock.Mock()
+
         preprocessor = TranscriptPreprocessor(
             merge=True,
             normalize=True,

@@ -166,9 +166,9 @@ class AudioQualityAnalyzer:
         frame_length = int(sr * 0.025)  # 25ms frames
         hop_length = int(sr * 0.010)  # 10ms hop
 
-        rms = librosa.feature.rms(y=y, frame_length=frame_length, hop_length=hop_length)[
-            0
-        ]
+        rms = librosa.feature.rms(
+            y=y, frame_length=frame_length, hop_length=hop_length
+        )[0]
         rms_db = librosa.amplitude_to_db(rms, ref=np.max)
 
         silent_frames = rms_db < threshold_db
@@ -196,7 +196,9 @@ class AudioQualityAnalyzer:
         zcr = librosa.feature.zero_crossing_rate(y)[0]
 
         # Simple heuristic: speech if centroid in 1-4 kHz and high ZCR
-        speech_like = (spectral_centroids > 1000) & (spectral_centroids < 4000) & (zcr > 0.1)
+        speech_like = (
+            (spectral_centroids > 1000) & (spectral_centroids < 4000) & (zcr > 0.1)
+        )
 
         speech_ratio = np.sum(speech_like) / len(spectral_centroids)
         return float(speech_ratio)

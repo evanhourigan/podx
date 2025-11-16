@@ -177,7 +177,8 @@ class TestPipelineResult:
 
         result_dict = result.to_dict()
 
-        assert result_dict["workdir"] == "/tmp/test"
+        # Use Path().as_posix() for cross-platform comparison
+        assert Path(result_dict["workdir"]).as_posix() == "/tmp/test"
         assert result_dict["steps_completed"] == ["fetch", "transcribe", "deepcast"]
         assert result_dict["artifacts"] == {"transcript": "/tmp/test/transcript.json"}
         assert result_dict["duration"] == 123.45

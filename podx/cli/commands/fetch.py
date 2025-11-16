@@ -1,4 +1,5 @@
 """Fetch command for podcast episode retrieval."""
+
 import sys
 
 import click

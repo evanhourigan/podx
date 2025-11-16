@@ -1,4 +1,5 @@
 """Diarize command for speaker identification."""
+
 import sys
 
 import click

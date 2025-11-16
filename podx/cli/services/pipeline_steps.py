@@ -10,6 +10,8 @@ The step executors follow the Strategy pattern, enabling:
 - Resumability: Steps can detect existing artifacts and skip execution
 """
 
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Optional
 
@@ -51,7 +53,7 @@ __all__ = [
 def execute_fetch(
     config: dict,
     interactive_mode_meta: dict | None,
-    interactive_mode_wd: Path | None,
+    interactive_mode_wd: Optional[Path],
     progress,
     verbose: bool,
 ) -> tuple[dict, Path]:
@@ -76,6 +78,7 @@ def execute_fetch(
 
     if not result.success:
         from podx.errors import ValidationError
+
         raise ValidationError(result.error or "Fetch failed")
 
     return context.metadata, context.working_dir
@@ -262,7 +265,7 @@ def execute_cleanup(
     wd: Path,
     latest_name: str,
     transcoded_path: Path,
-    original_audio_path: Path | None,
+    original_audio_path: Optional[Path],
     progress,
 ) -> None:
     """Execute optional file cleanup (legacy wrapper).

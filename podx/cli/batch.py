@@ -7,7 +7,13 @@ from typing import Optional
 import click
 from rich.console import Console
 
-from podx.batch import BatchProcessor, BatchStatus, EpisodeDiscovery, EpisodeFilter, ProcessingState
+from podx.batch import (
+    BatchProcessor,
+    BatchStatus,
+    EpisodeDiscovery,
+    EpisodeFilter,
+    ProcessingState,
+)
 from podx.core.diarize import DiarizationEngine
 from podx.core.export_legacy import export_transcript
 from podx.core.preprocess import TranscriptPreprocessor
@@ -159,7 +165,9 @@ def batch_transcribe(
     # Add episodes to tracking
     for episode in episodes:
         episode_key = batch_status.add_episode(episode)
-        batch_status.update_episode(episode_key, "transcribe", ProcessingState.IN_PROGRESS)
+        batch_status.update_episode(
+            episode_key, "transcribe", ProcessingState.IN_PROGRESS
+        )
 
     # Define transcription function
     def transcribe_episode(episode):
@@ -180,7 +188,9 @@ def batch_transcribe(
             output_file.write_text(transcript.model_dump_json(indent=2))
 
             # Update status
-            batch_status.update_episode(episode_key, "transcribe", ProcessingState.COMPLETED)
+            batch_status.update_episode(
+                episode_key, "transcribe", ProcessingState.COMPLETED
+            )
 
             return transcript
 
@@ -192,7 +202,9 @@ def batch_transcribe(
             raise
 
     # Process batch
-    results = processor.process_batch(episodes, transcribe_episode, "Batch Transcription")
+    results = processor.process_batch(
+        episodes, transcribe_episode, "Batch Transcription"
+    )
 
     # Show final status
     console.print()
@@ -323,7 +335,9 @@ def batch_pipeline(
         try:
             # Step 1: Transcribe
             if "transcribe" in pipeline_steps:
-                batch_status.update_episode(episode_key, "transcribe", ProcessingState.IN_PROGRESS)
+                batch_status.update_episode(
+                    episode_key, "transcribe", ProcessingState.IN_PROGRESS
+                )
 
                 audio_meta = AudioMeta(audio_path=str(audio_path))
                 engine = TranscriptionEngine(model=model)
@@ -333,13 +347,16 @@ def batch_pipeline(
                 output_file = output_dir / "transcript.json"
                 output_file.write_text(transcript.model_dump_json(indent=2))
 
-                batch_status.update_episode(episode_key, "transcribe", ProcessingState.COMPLETED)
+                batch_status.update_episode(
+                    episode_key, "transcribe", ProcessingState.COMPLETED
+                )
 
             # Load existing transcript if not transcribing
             if transcript is None:
                 transcript_file = output_dir / "transcript.json"
                 if transcript_file.exists():
                     import json
+
                     with open(transcript_file) as f:
                         transcript_data = json.load(f)
                 else:
@@ -349,20 +366,27 @@ def batch_pipeline(
 
             # Step 2: Diarize
             if "diarize" in pipeline_steps:
-                batch_status.update_episode(episode_key, "diarize", ProcessingState.IN_PROGRESS)
+                batch_status.update_episode(
+                    episode_key, "diarize", ProcessingState.IN_PROGRESS
+                )
 
                 diarize_engine = DiarizationEngine()
                 transcript_data = diarize_engine.diarize(audio_path, transcript_data)
 
                 output_file = output_dir / "diarized-transcript.json"
                 import json
+
                 output_file.write_text(json.dumps(transcript_data, indent=2))
 
-                batch_status.update_episode(episode_key, "diarize", ProcessingState.COMPLETED)
+                batch_status.update_episode(
+                    episode_key, "diarize", ProcessingState.COMPLETED
+                )
 
             # Step 3: Preprocess
             if "preprocess" in pipeline_steps:
-                batch_status.update_episode(episode_key, "preprocess", ProcessingState.IN_PROGRESS)
+                batch_status.update_episode(
+                    episode_key, "preprocess", ProcessingState.IN_PROGRESS
+                )
 
                 preprocessor = TranscriptPreprocessor()
                 transcript_data = preprocessor.preprocess(
@@ -371,13 +395,18 @@ def batch_pipeline(
 
                 output_file = output_dir / "preprocessed-transcript.json"
                 import json
+
                 output_file.write_text(json.dumps(transcript_data, indent=2))
 
-                batch_status.update_episode(episode_key, "preprocess", ProcessingState.COMPLETED)
+                batch_status.update_episode(
+                    episode_key, "preprocess", ProcessingState.COMPLETED
+                )
 
             # Step 4: Deepcast
             if "deepcast" in pipeline_steps:
-                batch_status.update_episode(episode_key, "deepcast", ProcessingState.IN_PROGRESS)
+                batch_status.update_episode(
+                    episode_key, "deepcast", ProcessingState.IN_PROGRESS
+                )
 
                 try:
                     from podx.core.deepcast import DeepcastEngine
@@ -394,17 +423,24 @@ def batch_pipeline(
                     if metadata:
                         transcript_data["deepcast_metadata"] = metadata
 
-                    batch_status.update_episode(episode_key, "deepcast", ProcessingState.COMPLETED)
+                    batch_status.update_episode(
+                        episode_key, "deepcast", ProcessingState.COMPLETED
+                    )
 
                 except ImportError:
                     logger.warning("Deepcast requires LLM dependencies")
                     batch_status.update_episode(
-                        episode_key, "deepcast", ProcessingState.FAILED, "Missing LLM dependencies"
+                        episode_key,
+                        "deepcast",
+                        ProcessingState.FAILED,
+                        "Missing LLM dependencies",
                     )
 
             # Step 5: Export
             if "export" in pipeline_steps:
-                batch_status.update_episode(episode_key, "export", ProcessingState.IN_PROGRESS)
+                batch_status.update_episode(
+                    episode_key, "export", ProcessingState.IN_PROGRESS
+                )
 
                 export_transcript(
                     transcript_data=transcript_data,
@@ -414,7 +450,9 @@ def batch_pipeline(
                     title=episode.get("title", audio_path.stem),
                 )
 
-                batch_status.update_episode(episode_key, "export", ProcessingState.COMPLETED)
+                batch_status.update_episode(
+                    episode_key, "export", ProcessingState.COMPLETED
+                )
 
             return transcript_data
 
@@ -476,9 +514,7 @@ def batch_status_cmd(export: Optional[Path], clear_completed: bool):
         elif export.suffix == ".csv":
             batch_status.export_csv(export)
         else:
-            console.print(
-                "[red]Unsupported export format. Use .json or .csv[/red]"
-            )
+            console.print("[red]Unsupported export format. Use .json or .csv[/red]")
             sys.exit(ExitCode.USER_ERROR)
     else:
         batch_status.display_status_table()

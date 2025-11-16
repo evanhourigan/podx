@@ -231,12 +231,15 @@ class ASRModelModal(ModalScreen[Optional[str]]):
         """Update detail panel with model information."""
         detail = self.query_one("#asr-detail-content", Static)
 
-        info = ASR_MODEL_INFO.get(model, {
-            "size": "Unknown",
-            "speed": "Unknown",
-            "accuracy": "Unknown",
-            "description": "No information available",
-        })
+        info = ASR_MODEL_INFO.get(
+            model,
+            {
+                "size": "Unknown",
+                "speed": "Unknown",
+                "accuracy": "Unknown",
+                "description": "No information available",
+            },
+        )
 
         content = (
             f"[bold cyan]{model}[/bold cyan]\n"
@@ -520,12 +523,15 @@ class ASRModelSelectionApp(App[Optional[str]]):
         """Update detail panel with model information."""
         detail = self.query_one("#asr-detail-content", Static)
 
-        info = ASR_MODEL_INFO.get(model, {
-            "size": "Unknown",
-            "speed": "Unknown",
-            "accuracy": "Unknown",
-            "description": "No information available",
-        })
+        info = ASR_MODEL_INFO.get(
+            model,
+            {
+                "size": "Unknown",
+                "speed": "Unknown",
+                "accuracy": "Unknown",
+                "description": "No information available",
+            },
+        )
 
         content = (
             f"[bold cyan]{model}[/bold cyan]\n"

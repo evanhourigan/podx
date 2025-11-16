@@ -1,4 +1,5 @@
 """Benchmark fixtures and configuration."""
+
 import json
 
 import pytest

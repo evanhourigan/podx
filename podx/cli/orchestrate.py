@@ -45,8 +45,8 @@ from podx.cli.commands import (
     register_config_group,
     register_deprecated_commands,
     run,
-    transcribe_cmd,
     transcode_cmd,
+    transcribe_cmd,
 )
 from podx.logging import setup_logging
 

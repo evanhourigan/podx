@@ -5,10 +5,10 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from podx.cli.services.command_runner import run_command
-from podx.services.command_builder import CommandBuilder
 from podx.constants import TITLE_MAX_LENGTH
 from podx.errors import ValidationError
 from podx.logging import get_logger
+from podx.services.command_builder import CommandBuilder
 
 from .base import PipelineStep, StepContext, StepResult
 
@@ -44,27 +44,38 @@ class FetchStep(PipelineStep):
     def name(self) -> str:
         return "Fetch Episode Metadata"
 
-    def execute(self, context: StepContext, progress: Any, verbose: bool = False) -> StepResult:
+    def execute(
+        self, context: StepContext, progress: Any, verbose: bool = False
+    ) -> StepResult:
         """Execute fetch step."""
         step_start = time.time()
 
         try:
             # 1. Interactive mode: metadata and workdir already determined
-            if self.interactive_mode_meta is not None and self.interactive_mode_wd is not None:
+            if (
+                self.interactive_mode_meta is not None
+                and self.interactive_mode_wd is not None
+            ):
                 # Check if audio file exists; if not, need to fetch
                 audio_path = self.interactive_mode_meta.get("audio_path")
                 if audio_path and Path(audio_path).exists():
                     context.metadata = self.interactive_mode_meta
                     context.working_dir = self.interactive_mode_wd
-                    return StepResult.skip("Using pre-selected episode from interactive mode")
+                    return StepResult.skip(
+                        "Using pre-selected episode from interactive mode"
+                    )
 
                 # Audio missing - populate config from metadata and fall through to fetch
                 if self.interactive_mode_meta.get("show"):
                     context.config["show"] = self.interactive_mode_meta["show"]
                 if self.interactive_mode_meta.get("episode_published"):
-                    context.config["date"] = self.interactive_mode_meta["episode_published"]
+                    context.config["date"] = self.interactive_mode_meta[
+                        "episode_published"
+                    ]
                 if self.interactive_mode_meta.get("episode_title"):
-                    context.config["title_contains"] = self.interactive_mode_meta["episode_title"]
+                    context.config["title_contains"] = self.interactive_mode_meta[
+                        "episode_title"
+                    ]
                 if self.interactive_mode_meta.get("feed"):
                     context.config["rss_url"] = self.interactive_mode_meta["feed"]
 
@@ -89,7 +100,11 @@ class FetchStep(PipelineStep):
                 from podx.utils import generate_workdir
 
                 show = meta.get("show", "Unknown Show")
-                episode_date = meta.get("episode_published") or context.config.get("date") or "unknown"
+                episode_date = (
+                    meta.get("episode_published")
+                    or context.config.get("date")
+                    or "unknown"
+                )
                 wd = generate_workdir(show, episode_date)
 
             # Update context
@@ -101,7 +116,7 @@ class FetchStep(PipelineStep):
             return StepResult.ok(
                 f"Episode fetched: {episode_title}",
                 duration=duration,
-                data={"metadata": meta, "working_dir": str(wd)}
+                data={"metadata": meta, "working_dir": str(wd)},
             )
 
         except ValidationError as e:
@@ -111,7 +126,9 @@ class FetchStep(PipelineStep):
             duration = time.time() - step_start
             return StepResult.fail("Fetch failed", str(e), duration=duration)
 
-    def _fetch_youtube(self, context: StepContext, progress: Any, verbose: bool) -> Dict[str, Any]:
+    def _fetch_youtube(
+        self, context: StepContext, progress: Any, verbose: bool
+    ) -> Dict[str, Any]:
         """Fetch YouTube video metadata."""
         from podx.cli.youtube import get_youtube_metadata, is_youtube_url
 
@@ -137,7 +154,9 @@ class FetchStep(PipelineStep):
 
         return meta
 
-    def _fetch_podcast(self, context: StepContext, progress: Any, verbose: bool) -> Dict[str, Any]:
+    def _fetch_podcast(
+        self, context: StepContext, progress: Any, verbose: bool
+    ) -> Dict[str, Any]:
         """Fetch podcast episode metadata from RSS/iTunes."""
         fetch_cmd = CommandBuilder("podx-fetch")
         if context.config.get("show"):

@@ -1,4 +1,5 @@
 """Deepcast command for AI-powered transcript analysis."""
+
 import sys
 
 import click

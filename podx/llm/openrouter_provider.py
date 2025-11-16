@@ -61,7 +61,9 @@ class OpenRouterProvider(LLMProvider):
             )
 
         self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")
-        self.base_url = base_url or os.getenv("OPENROUTER_BASE_URL", self.OPENROUTER_BASE_URL)
+        self.base_url = base_url or os.getenv(
+            "OPENROUTER_BASE_URL", self.OPENROUTER_BASE_URL
+        )
         self.app_name = app_name or "PodX"
 
         if not self.api_key:
@@ -131,13 +133,15 @@ class OpenRouterProvider(LLMProvider):
             return LLMResponse(
                 content=response.choices[0].message.content or "",
                 model=response.model,
-                usage={
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens,
-                }
-                if response.usage
-                else None,
+                usage=(
+                    {
+                        "prompt_tokens": response.usage.prompt_tokens,
+                        "completion_tokens": response.usage.completion_tokens,
+                        "total_tokens": response.usage.total_tokens,
+                    }
+                    if response.usage
+                    else None
+                ),
                 raw_response=response,
             )
 
@@ -181,13 +185,15 @@ class OpenRouterProvider(LLMProvider):
             return LLMResponse(
                 content=response.choices[0].message.content or "",
                 model=response.model,
-                usage={
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens,
-                }
-                if response.usage
-                else None,
+                usage=(
+                    {
+                        "prompt_tokens": response.usage.prompt_tokens,
+                        "completion_tokens": response.usage.completion_tokens,
+                        "total_tokens": response.usage.total_tokens,
+                    }
+                    if response.usage
+                    else None
+                ),
                 raw_response=response,
             )
 
@@ -243,7 +249,11 @@ class OpenRouterProvider(LLMProvider):
         """
         error_str = str(error).lower()
 
-        if "authentication" in error_str or "api key" in error_str or "unauthorized" in error_str:
+        if (
+            "authentication" in error_str
+            or "api key" in error_str
+            or "unauthorized" in error_str
+        ):
             raise LLMAuthenticationError(
                 f"OpenRouter authentication failed: {error}. "
                 f"Get API key at: https://openrouter.ai/keys"

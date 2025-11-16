@@ -1,4 +1,5 @@
 """Models command for AI model information and pricing."""
+
 import sys
 
 import click

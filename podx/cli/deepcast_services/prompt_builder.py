@@ -1,4 +1,5 @@
 """Prompt building utilities for deepcast command."""
+
 import textwrap
 from typing import Any, Dict, List
 

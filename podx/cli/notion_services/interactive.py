@@ -1,4 +1,5 @@
 """Interactive selection flows for Notion uploads."""
+
 import json
 import os
 import re
@@ -402,7 +403,9 @@ def _interactive_table_flow(
             if notion_client_from_env:
                 client = notion_client_from_env()
                 filt = {
-                    "and": [{"property": "Episode", "rich_text": {"equals": episode_title}}]
+                    "and": [
+                        {"property": "Episode", "rich_text": {"equals": episode_title}}
+                    ]
                 }
                 if isinstance(date_val, str) and len(date_val) >= 10:
                     filt["and"].append(

@@ -5,8 +5,8 @@ import time
 from typing import Any, Optional
 
 from podx.cli.services.command_runner import run_command
-from podx.services.command_builder import CommandBuilder
 from podx.logging import get_logger
+from podx.services.command_builder import CommandBuilder
 
 from .base import PipelineStep, StepContext, StepResult
 
@@ -55,7 +55,9 @@ class EnhancementStep(PipelineStep):
             return True, "No enhancement steps enabled"
         return False, None
 
-    def execute(self, context: StepContext, progress: Any, verbose: bool = False) -> StepResult:
+    def execute(
+        self, context: StepContext, progress: Any, verbose: bool = False
+    ) -> StepResult:
         """Execute enhancement step."""
         if not self.preprocess and not self.diarize:
             return StepResult.skip("No enhancement steps enabled")
@@ -85,16 +87,11 @@ class EnhancementStep(PipelineStep):
         return StepResult.ok(
             f"Enhancement complete: {latest_name}",
             duration=total_duration,
-            data={"transcript": latest, "transcript_name": latest_name}
+            data={"transcript": latest, "transcript_name": latest_name},
         )
 
     def _execute_preprocess(
-        self,
-        latest: dict,
-        latest_name: str,
-        wd,
-        progress,
-        verbose: bool
+        self, latest: dict, latest_name: str, wd, progress, verbose: bool
     ) -> tuple[dict, str]:
         """Execute preprocessing step."""
         from podx.utils import build_preprocess_command, sanitize_model_name
@@ -126,12 +123,7 @@ class EnhancementStep(PipelineStep):
         return latest, latest_name
 
     def _execute_diarize(
-        self,
-        latest: dict,
-        latest_name: str,
-        wd,
-        progress,
-        verbose: bool
+        self, latest: dict, latest_name: str, wd, progress, verbose: bool
     ) -> tuple[dict, str]:
         """Execute diarization step."""
         from podx.utils import sanitize_model_name
@@ -177,6 +169,7 @@ class EnhancementStep(PipelineStep):
 
             if verbose:
                 import click
+
                 click.secho(
                     f"Debug: Passing {latest_name} JSON to diarize with {len(latest.get('segments', []))} segments",
                     fg="yellow",

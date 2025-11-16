@@ -5,8 +5,8 @@ import time
 from typing import Any, Optional
 
 from podx.cli.services.command_runner import run_command
-from podx.services.command_builder import CommandBuilder
 from podx.logging import get_logger
+from podx.services.command_builder import CommandBuilder
 
 from .base import PipelineStep, StepContext, StepResult
 
@@ -72,7 +72,9 @@ class TranscribeStep(PipelineStep):
 
         return False, None
 
-    def execute(self, context: StepContext, progress: Any, verbose: bool = False) -> StepResult:
+    def execute(
+        self, context: StepContext, progress: Any, verbose: bool = False
+    ) -> StepResult:
         """Execute transcription step."""
         from podx.utils import discover_transcripts, sanitize_model_name
 
@@ -103,7 +105,9 @@ class TranscribeStep(PipelineStep):
                 0,
             )
             context.latest_transcript = base
-            context.latest_transcript_name = f"transcript-{base.get('asr_model', self.model)}"
+            context.latest_transcript_name = (
+                f"transcript-{base.get('asr_model', self.model)}"
+            )
             return StepResult.skip(f"Using existing transcript ({self.model})")
 
         elif existing_transcripts:
@@ -124,7 +128,9 @@ class TranscribeStep(PipelineStep):
                 0,
             )
             context.latest_transcript = base
-            context.latest_transcript_name = f"transcript-{base.get('asr_model', best_model)}"
+            context.latest_transcript_name = (
+                f"transcript-{base.get('asr_model', best_model)}"
+            )
             return StepResult.skip(f"Using existing transcript ({best_model})")
 
         else:
@@ -140,7 +146,9 @@ class TranscribeStep(PipelineStep):
             if self.asr_provider and self.asr_provider != "auto":
                 # Convert asr_provider enum to string value if needed
                 asr_provider_value = (
-                    self.asr_provider.value if hasattr(self.asr_provider, "value") else self.asr_provider
+                    self.asr_provider.value
+                    if hasattr(self.asr_provider, "value")
+                    else self.asr_provider
                 )
                 transcribe_cmd.add_option("--asr-provider", asr_provider_value)
 
@@ -153,7 +161,7 @@ class TranscribeStep(PipelineStep):
             )
 
             step_duration = time.time() - step_start
-            num_segments = len(base.get('segments', []))
+            num_segments = len(base.get("segments", []))
             progress.complete_step(
                 f"Transcription complete - {num_segments} segments",
                 step_duration,
@@ -161,10 +169,15 @@ class TranscribeStep(PipelineStep):
 
             # Update context
             context.latest_transcript = base
-            context.latest_transcript_name = f"transcript-{base.get('asr_model', self.model)}"
+            context.latest_transcript_name = (
+                f"transcript-{base.get('asr_model', self.model)}"
+            )
 
             return StepResult.ok(
                 f"Transcription complete - {num_segments} segments",
                 duration=step_duration,
-                data={"transcript": base, "transcript_name": context.latest_transcript_name}
+                data={
+                    "transcript": base,
+                    "transcript_name": context.latest_transcript_name,
+                },
             )

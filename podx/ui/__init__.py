@@ -23,7 +23,6 @@ from ..ui_styles import (
 
 # Import from new ui/ package modules
 from .asr_selector import ASR_MODELS, get_most_sophisticated_model, select_asr_model
-from .modals.config_modal import configure_pipeline_interactive
 from .confirmation import Confirmation
 from .deepcast_browser import (
     DeepcastBrowser,
@@ -43,6 +42,7 @@ from .fetch_browser import EpisodeBrowser
 from .formatters import clean_cell, sanitize_filename
 from .interactive_browser import InteractiveBrowser
 from .live_timer import LiveTimer
+from .modals.config_modal import configure_pipeline_interactive
 from .transcode_browser import TranscodeBrowser, scan_transcodable_episodes
 from .transcribe_browser import TranscribeBrowser, scan_transcribable_episodes
 from .transcribe_tui import (

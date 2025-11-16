@@ -50,8 +50,6 @@ def notion_client_from_env(token: Optional[str] = None) -> Client:
     return Client(auth=auth_token)
 
 
-
-
 @click.command()
 @click.option(
     "--db",

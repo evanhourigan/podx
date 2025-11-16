@@ -6,7 +6,7 @@ Error handling and retry utilities for podx.
 import logging
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, TypeVar, Union
 
 import requests
 from tenacity import (
@@ -102,7 +102,7 @@ def with_retries(
     return decorator
 
 
-def validate_file_exists(path: str | Path, description: str = "File") -> Path:
+def validate_file_exists(path: Union[str, Path], description: str = "File") -> Path:
     """
     Validate that a file exists and return Path object.
 
@@ -124,7 +124,7 @@ def validate_file_exists(path: str | Path, description: str = "File") -> Path:
     return path_obj
 
 
-def validate_directory_exists(path: str | Path, create: bool = False) -> Path:
+def validate_directory_exists(path: Union[str, Path], create: bool = False) -> Path:
     """
     Validate that a directory exists, optionally creating it.
 

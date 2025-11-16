@@ -34,18 +34,18 @@ class QuoteExtractor:
 
         # Patterns that indicate quotable content
         self.quotable_patterns = [
-            r'\b(I think|I believe|In my opinion|My view is)\b',
-            r'\b(The key is|The point is|What matters is)\b',
-            r'\b(The truth is|The fact is|The reality is)\b',
-            r'\b(Remember|Keep in mind|Don\'t forget)\b',
-            r'\b(Always|Never|Must|Should)\b',
+            r"\b(I think|I believe|In my opinion|My view is)\b",
+            r"\b(The key is|The point is|What matters is)\b",
+            r"\b(The truth is|The fact is|The reality is)\b",
+            r"\b(Remember|Keep in mind|Don\'t forget)\b",
+            r"\b(Always|Never|Must|Should)\b",
         ]
 
         # Patterns to exclude
         self.exclude_patterns = [
-            r'\b(um|uh|like|you know|I mean)\b',
-            r'\?\s*$',  # Questions
-            r'\b(yeah|yes|no|okay|alright)\b',
+            r"\b(um|uh|like|you know|I mean)\b",
+            r"\?\s*$",  # Questions
+            r"\b(yeah|yes|no|okay|alright)\b",
         ]
 
     def extract_quotes(
@@ -130,11 +130,11 @@ class QuoteExtractor:
                 break
 
         # Boost for complete sentence
-        if text.endswith('.'):
+        if text.endswith("."):
             score += 0.1
 
         # Boost for numbers/data
-        if re.search(r'\d+', text):
+        if re.search(r"\d+", text):
             score += 0.05
 
         # Boost for uncommon words (simple heuristic: long words)

@@ -38,7 +38,9 @@ class CleanupStep(PipelineStep):
             return True, "Cleanup disabled"
         return False, None
 
-    def execute(self, context: StepContext, progress: Any, verbose: bool = False) -> StepResult:
+    def execute(
+        self, context: StepContext, progress: Any, verbose: bool = False
+    ) -> StepResult:
         """Execute cleanup step."""
         if not self.clean:
             return StepResult.skip("Cleanup disabled")
@@ -87,7 +89,9 @@ class CleanupStep(PipelineStep):
                         cleaned_files += 1
                         logger.debug("Cleaned intermediate file", file=str(p))
                     except Exception as e:
-                        logger.warning("Failed to clean file", file=str(p), error=str(e))
+                        logger.warning(
+                            "Failed to clean file", file=str(p), error=str(e)
+                        )
 
         # Remove audio files if not keeping them
         if self.no_keep_audio:
@@ -110,5 +114,5 @@ class CleanupStep(PipelineStep):
         return StepResult.ok(
             f"Cleanup completed ({cleaned_files} files removed)",
             duration=step_duration,
-            data={"files_removed": cleaned_files}
+            data={"files_removed": cleaned_files},
         )

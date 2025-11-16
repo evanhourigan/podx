@@ -1,4 +1,5 @@
 """Benchmarks for Notion utility operations."""
+
 import pytest
 
 from podx.core.notion import chunk_rich_text, md_to_blocks, parse_inline_markdown

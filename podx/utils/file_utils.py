@@ -1,5 +1,7 @@
 """File and filename utilities for podx."""
 
+from __future__ import annotations
+
 import json
 import re
 from pathlib import Path
@@ -197,7 +199,7 @@ def build_deepcast_command(
     output_path: Path,
     model: str,
     temperature: float,
-    meta_path: Path | None = None,
+    meta_path: Optional[Path] = None,
     analysis_type: str | None = None,
     extract_markdown: bool = False,
     generate_pdf: bool = False,

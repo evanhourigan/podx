@@ -221,9 +221,9 @@ def handle_invalid_model(
         title=f"Invalid {model_type}",
         message=f"Model '[cyan]{model}[/cyan]' is not recognized.",
         suggestions=suggestions,
-        similar_files=[Path(m) for m in similar]
-        if similar
-        else None,  # Reuse file display
+        similar_files=(
+            [Path(m) for m in similar] if similar else None
+        ),  # Reuse file display
         docs_link="https://docs.podx.ai/models",
     )
 

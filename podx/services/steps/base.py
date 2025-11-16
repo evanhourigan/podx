@@ -51,7 +51,9 @@ class StepResult:
     error: Optional[str] = None
 
     @classmethod
-    def ok(cls, message: str, duration: float = 0.0, data: Optional[Dict[str, Any]] = None) -> "StepResult":
+    def ok(
+        cls, message: str, duration: float = 0.0, data: Optional[Dict[str, Any]] = None
+    ) -> "StepResult":
         """Create a successful result."""
         return cls(success=True, message=message, duration=duration, data=data)
 
@@ -83,7 +85,9 @@ class PipelineStep(ABC):
         pass
 
     @abstractmethod
-    def execute(self, context: StepContext, progress: Any, verbose: bool = False) -> StepResult:
+    def execute(
+        self, context: StepContext, progress: Any, verbose: bool = False
+    ) -> StepResult:
         """Execute this pipeline step.
 
         Args:

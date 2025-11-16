@@ -1,5 +1,7 @@
 """Display formatting utilities for pipeline configuration and results."""
 
+from __future__ import annotations
+
 import json
 import subprocess
 import time

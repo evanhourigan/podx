@@ -1,4 +1,5 @@
 """Benchmarks for transcription utility operations."""
+
 import pytest
 
 from podx.core.transcribe import parse_model_and_provider
@@ -36,13 +37,13 @@ class TestModelParserBenchmarks:
         """Benchmark parsing model with provider prefix."""
         result = benchmark(parse_model_and_provider, "openai:large-v3-turbo")
         assert result[0] == "openai"
-        assert result[1] == "whisper-1"
+        assert result[1] == "whisper-large-v3-turbo"
 
     def test_parse_model_with_explicit_provider(self, benchmark):
         """Benchmark parsing with explicit provider argument."""
         result = benchmark(parse_model_and_provider, "large-v3", "openai")
         assert result[0] == "openai"
-        assert result[1] == "whisper-1"
+        assert result[1] == "whisper-large-v3"
 
     def test_parse_model_hf_alias(self, benchmark):
         """Benchmark parsing Hugging Face model alias."""

@@ -11,8 +11,8 @@ from .models import models_cmd
 from .notion import notion_cmd
 from .preprocess import preprocess_shim
 from .run import run
-from .transcribe import transcribe_cmd
 from .transcode import transcode_cmd
+from .transcribe import transcribe_cmd
 
 __all__ = [
     # Simple passthrough commands

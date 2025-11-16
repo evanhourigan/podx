@@ -18,8 +18,8 @@ logger = get_logger(__name__)
 
 # Model alias maps per provider
 OPENAI_MODEL_ALIASES: Dict[str, str] = {
-    "large-v3": "whisper-1",
-    "large-v3-turbo": "whisper-1",
+    "large-v3": "whisper-large-v3",
+    "large-v3-turbo": "whisper-large-v3-turbo",
 }
 
 HF_MODEL_ALIASES: Dict[str, str] = {

@@ -54,6 +54,12 @@ except ImportError:
     scan_deepcastable_episodes = None  # type: ignore
     LiveTimer = None  # type: ignore
 
+from podx.cli.deepcast_services import (
+    ALIAS_TYPES,
+    CANONICAL_TYPES,
+    _build_prompt_display,
+    build_episode_header,
+)
 from podx.podcast_config import get_podcast_config
 from podx.prompt_templates import (
     ENHANCED_JSON_SCHEMA,
@@ -62,12 +68,6 @@ from podx.prompt_templates import (
     detect_podcast_type,
     get_template,
     map_to_canonical,
-)
-from podx.cli.deepcast_services import (
-    ALIAS_TYPES,
-    CANONICAL_TYPES,
-    _build_prompt_display,
-    build_episode_header,
 )
 from podx.utils import sanitize_model_name
 from podx.yaml_config import get_podcast_yaml_config

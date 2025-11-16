@@ -31,7 +31,9 @@ class TestProgressReporterInterface:
 
     def test_progress_step_dataclass(self):
         """ProgressStep dataclass works correctly."""
-        step = ProgressStep(name="Test step", status="running", progress=0.5, message="In progress")
+        step = ProgressStep(
+            name="Test step", status="running", progress=0.5, message="In progress"
+        )
         assert step.name == "Test step"
         assert step.status == "running"
         assert step.progress == 0.5
@@ -40,12 +42,13 @@ class TestProgressReporterInterface:
     def test_progress_event_dataclass(self):
         """ProgressEvent dataclass works correctly."""
         import time
+
         event = ProgressEvent(
             timestamp=time.time(),
             event_type="step_update",
             message="Processing",
             step=2,
-            progress=0.67
+            progress=0.67,
         )
         assert event.event_type == "step_update"
         assert event.message == "Processing"
@@ -453,9 +456,7 @@ class TestProgressReporterIntegration:
 
         mock_llm = MockLLMProvider(responses=["Analysis result", "Final summary"])
 
-        engine = DeepcastEngine(
-            model="gpt-4", llm_provider=mock_llm, progress=reporter
-        )
+        engine = DeepcastEngine(model="gpt-4", llm_provider=mock_llm, progress=reporter)
 
         # Verify reporter was accepted
         assert engine.progress is reporter

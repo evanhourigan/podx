@@ -16,8 +16,8 @@ from .models import (
     Word,
 )
 from .protocols import (
-    Analyzer,
     AnalysisResult,
+    Analyzer,
     Diarizer,
     Exporter,
     Fetcher,
