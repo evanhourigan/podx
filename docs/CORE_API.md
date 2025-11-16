@@ -1408,6 +1408,275 @@ This installs:
 
 ---
 
+## Search Module (NEW in v2.1.0)
+
+**Location:** `podx/search/`
+
+The search module provides powerful transcript search and analysis capabilities, including full-text search, semantic search, quote extraction, and topic clustering.
+
+### Components
+
+1. **TranscriptDatabase** - SQLite FTS5 full-text search
+2. **SemanticSearch** - Embedding-based semantic search
+3. **QuoteExtractor** - Quote extraction and highlight detection
+
+### Full-Text Search
+
+**Module:** `podx.search.database`
+
+The `TranscriptDatabase` class provides fast keyword search using SQLite FTS5 with BM25 ranking.
+
+#### Key Features
+
+- **FTS5 full-text search** with BM25 ranking
+- **Episode indexing** with metadata (title, show, date, duration)
+- **Speaker filtering** for targeted search
+- **Episode management** (list, delete, get info)
+- **Database statistics** (episode count, segment count)
+
+#### Basic Usage
+
+```python
+from pathlib import Path
+from podx.domain.models.transcript import Transcript
+from podx.search import TranscriptDatabase
+
+# Initialize database (defaults to ~/.podx/transcripts.db)
+db = TranscriptDatabase()
+
+# Load and index a transcript
+transcript = Transcript.from_file(Path("transcript.json"))
+metadata = {
+    "title": "AI Safety Discussion",
+    "show_name": "Lex Fridman Podcast",
+    "date": "2024-11-15",
+    "duration": 3612.5
+}
+db.index_transcript("ep001", transcript, metadata)
+
+# Search transcripts
+results = db.search("artificial intelligence", limit=10)
+for result in results:
+    print(f"{result['show_name']} - {result['title']}")
+    print(f"  {result['speaker']} @ {result['timestamp']:.1f}s")
+    print(f"  {result['text'][:100]}...")
+    print()
+
+# Filter by speaker
+alice_results = db.search("quantum computing", speaker_filter="Alice")
+
+# List all indexed episodes
+episodes = db.list_episodes(limit=20)
+for ep in episodes:
+    print(f"{ep['episode_id']}: {ep['title']} ({ep['date']})")
+
+# Get database stats
+stats = db.get_stats()
+print(f"Indexed: {stats['episodes']} episodes, {stats['segments']} segments")
+```
+
+### Semantic Search
+
+**Module:** `podx.search.semantic`
+
+The `SemanticSearch` class provides meaning-based search using sentence transformers and FAISS.
+
+#### Key Features
+
+- **Semantic similarity search** with sentence embeddings
+- **FAISS vector index** for fast similarity search
+- **Topic clustering** with K-means
+- **Similar segment discovery**
+- **Multiple embedding models** supported
+
+#### Dependencies
+
+Semantic search requires optional dependencies:
+
+```bash
+pip install podx[search]
+# Or manually:
+pip install sentence-transformers~=2.2.0 faiss-cpu>=1.8.0 scikit-learn~=1.3.0
+```
+
+#### Basic Usage
+
+```python
+from pathlib import Path
+from podx.domain.models.transcript import Transcript
+from podx.search import SemanticSearch
+
+# Initialize (defaults to ~/.podx/semantic_index/)
+semantic = SemanticSearch(model_name="all-MiniLM-L6-v2")
+
+# Index a transcript
+transcript = Transcript.from_file(Path("transcript.json"))
+metadata = {"title": "AI Safety", "show_name": "Lex Fridman"}
+semantic.index_transcript("ep001", transcript, metadata)
+
+# Semantic search (find by meaning, not just keywords)
+results = semantic.search("dangers of artificial intelligence", k=5)
+for result in results:
+    print(f"Similarity: {result['similarity']:.2%}")
+    print(f"{result['speaker']} @ {result['timestamp']:.1f}s")
+    print(f"{result['text']}")
+    print()
+
+# Find similar segments
+similar = semantic.find_similar_segments("ep001", timestamp=120.0, k=5)
+
+# Cluster topics
+topics = semantic.cluster_topics(n_clusters=10)
+for topic in topics:
+    rep = topic['representative']
+    print(f"Topic {topic['cluster_id'] + 1} ({topic['size']} segments):")
+    print(f"  {rep['text'][:100]}...")
+```
+
+### Quote Extraction
+
+**Module:** `podx.search.quotes`
+
+The `QuoteExtractor` class identifies and extracts notable quotes using heuristics and quality scoring.
+
+#### Key Features
+
+- **Quality scoring** (0-1 scale) based on quotable patterns
+- **Quote extraction** with configurable filters
+- **Highlight detection** (temporal clustering of quotes)
+- **Speaker grouping** for per-speaker quotes
+- **Customizable** word count and quality thresholds
+
+#### Basic Usage
+
+```python
+from pathlib import Path
+from podx.domain.models.transcript import Transcript
+from podx.search import QuoteExtractor
+
+# Initialize extractor
+extractor = QuoteExtractor(
+    min_words=10,      # Minimum quote length
+    max_words=100,     # Maximum quote length
+    min_score=0.3      # Minimum quality score
+)
+
+# Load transcript
+transcript = Transcript.from_file(Path("transcript.json"))
+
+# Extract top quotes
+quotes = extractor.extract_quotes(transcript, max_quotes=20)
+for quote in quotes:
+    score_pct = quote["score"] * 100
+    print(f"[{score_pct:.0f}%] {quote['speaker']}:")
+    print(f'  "{quote["text"]}"')
+    print()
+
+# Extract quotes by speaker
+by_speaker = extractor.extract_by_speaker(transcript, top_n=5)
+for speaker, speaker_quotes in by_speaker.items():
+    print(f"\n{speaker}:")
+    for quote in speaker_quotes:
+        print(f'  "{quote["text"][:80]}..."')
+
+# Find highlight moments (clusters of good quotes)
+highlights = extractor.find_highlights(transcript, duration_threshold=30.0)
+for i, highlight in enumerate(highlights, 1):
+    start_min = int(highlight["start"] // 60)
+    end_min = int(highlight["end"] // 60)
+    print(f"\nHighlight {i}: {start_min}:{start_min%60:02d} - {end_min}:{end_min%60:02d}")
+    print(f"  {highlight['quote_count']} quotes, avg score: {highlight['avg_score']:.0%}")
+    for quote in highlight["quotes"][:3]:
+        print(f'  • {quote["text"][:60]}...')
+```
+
+#### Quote Scoring Heuristics
+
+The quote scoring algorithm considers:
+
+- **Quotable patterns** (+boost): "I think", "The key is", "The truth is", "Remember"
+- **Exclude patterns** (-penalty): Filler words ("um", "uh", "like"), questions
+- **Complete sentences** (+boost): Ends with period
+- **Data/numbers** (+boost): Contains specific numbers
+- **Uncommon words** (+boost): Long words (8+ characters)
+- **Length optimization** (+/-): Prefers 15-60 words
+
+### CLI Commands
+
+The search module is also available via CLI commands:
+
+#### podx-search
+
+```bash
+# Index a transcript
+podx-search index transcript.json --episode-id ep001 --title "AI Safety"
+
+# Keyword search
+podx-search query "artificial intelligence" --limit 10
+
+# Semantic search
+podx-search query "dangers of AI" --semantic --limit 5
+
+# List indexed episodes
+podx-search list --show "Lex Fridman"
+
+# Show statistics
+podx-search stats
+```
+
+#### podx-analyze
+
+```bash
+# Extract quotes
+podx-analyze quotes transcript.json --max-quotes 20
+
+# Group quotes by speaker
+podx-analyze quotes transcript.json --by-speaker
+
+# Find highlights
+podx-analyze highlights transcript.json --duration 30
+
+# Cluster topics (requires semantic search)
+podx-analyze topics ep001 --clusters 10
+
+# Speaker statistics
+podx-analyze speakers transcript.json
+```
+
+### Performance Considerations
+
+#### Database Size
+
+- SQLite FTS5 index size: ~2-3x the size of original transcript JSON
+- FAISS semantic index: ~1.5KB per segment (384-dim embeddings)
+- Recommended: Store indices on SSD for best performance
+
+#### Search Performance
+
+- **FTS5 keyword search**: <10ms for typical queries (100K segments)
+- **Semantic search**: ~50-100ms for k=10 (after initial embedding load)
+- **Topic clustering**: 1-5 seconds for 1000 segments (K-means)
+
+#### Optimization Tips
+
+1. **Batch indexing**: Index multiple transcripts in one session to amortize model loading
+2. **Custom embeddings**: Use smaller models (e.g., "all-MiniLM-L6-v2") for faster embedding
+3. **Filter early**: Use episode/speaker filters to reduce search space
+4. **Cache results**: Semantic search results can be cached for repeated queries
+
+### Dependencies
+
+**Core (included):**
+- `sqlite3` - Full-text search (Python standard library)
+
+**Optional (for semantic search):**
+- `sentence-transformers~=2.2.0` - Embedding models
+- `faiss-cpu>=1.8.0` - Vector similarity search
+- `scikit-learn~=1.3.0` - Clustering algorithms
+- `numpy` - Array operations
+
+---
+
 ## Additional Resources
 
 - **[Progress Reporting API](./PROGRESS_REPORTING.md)** - **NEW:** Unified progress reporting for CLI, web API, and testing
