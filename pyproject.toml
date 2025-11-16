@@ -36,6 +36,11 @@ whisperx = ["whisperx @ git+https://github.com/m-bain/whisperx.git"]
 llm = ["openai~=2.2.0", "tiktoken~=0.12.0"]
 notion = ["notion-client~=2.5.0"]
 audio-analysis = ["librosa~=0.10.0"]
+search = [
+  "sentence-transformers~=2.2.0",
+  "faiss-cpu>=1.8.0",
+  "scikit-learn~=1.3.0",
+]
 dev = [
   "pytest~=8.4.2",
   "pytest-asyncio~=1.2.0",
@@ -69,6 +74,8 @@ podx-batch-pipeline = "podx.cli.batch:batch_pipeline"
 podx-batch-status = "podx.cli.batch:batch_status_cmd"
 podx-analyze-audio = "podx.cli.analyze_audio:main"
 podx-init = "podx.cli.init:main"
+podx-search = "podx.cli.search:main"
+podx-analyze = "podx.cli.analyze:main"
 podx-run = "podx.cli.orchestrate:run_main"
 podx = "podx.cli.orchestrate:main"
 

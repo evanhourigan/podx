@@ -399,6 +399,33 @@ podx-fetch --show "My Podcast" --date 2024-10-15 \
   | podx-export --formats srt,txt
 ```
 
+### Search & Analysis
+
+**NEW in v2.1:** Search transcripts and extract insights!
+
+```bash
+# Index a transcript for searching
+podx-search index transcript.json --episode-id ep001 --title "AI Safety"
+
+# Keyword search
+podx-search query "artificial intelligence"
+
+# Semantic search (requires: pip install podx[search])
+podx-search query "dangers of AI" --semantic
+
+# Extract notable quotes
+podx-analyze quotes transcript.json
+
+# Find highlight moments
+podx-analyze highlights transcript.json
+
+# Topic clustering (semantic search required)
+podx-analyze topics ep001 --clusters 10
+
+# Speaker statistics
+podx-analyze speakers transcript.json
+```
+
 ### Interactive Mode
 
 Browse and select episodes visually:
