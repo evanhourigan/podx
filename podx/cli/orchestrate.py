@@ -59,6 +59,7 @@ from podx.cli import (
     init,
     search,
 )
+from podx.cli.commands import server
 from podx.logging import setup_logging
 
 # Initialize logging
@@ -145,6 +146,9 @@ batch_group.add_command(batch.batch_status_cmd, name="status")
 
 # Register batch group to main CLI
 main.add_command(batch_group)
+
+# Register server command group (v3.0 - Web API Server)
+main.add_command(server.server, name="server")
 
 
 # ============================================================================
