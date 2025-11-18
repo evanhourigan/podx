@@ -1,58 +1,94 @@
 """Unit tests for server authentication middleware."""
 
 import os
-import tempfile
 from unittest.mock import patch
 
 import pytest
+from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from podx.server.app import create_app
+from podx.server.middleware.auth import APIKeyAuthMiddleware
 
 
 @pytest.fixture
 def app_no_auth():
-    """Create app without authentication."""
-    # Create temp database
-    db_fd, db_path = tempfile.mkstemp(suffix=".db")
-
-    with patch.dict(os.environ, {"PODX_DB_PATH": db_path}, clear=False):
+    """Create minimal app without authentication."""
+    with patch.dict(os.environ, {}, clear=False):
         # Clear any existing API key
         if "PODX_API_KEY" in os.environ:
             del os.environ["PODX_API_KEY"]
 
-        app = create_app()
-        yield app
+        # Create minimal FastAPI app for testing auth middleware
+        app = FastAPI()
+        app.add_middleware(APIKeyAuthMiddleware)
 
-    # Cleanup
-    os.close(db_fd)
-    if os.path.exists(db_path):
-        os.unlink(db_path)
+        # Add test endpoints
+        @app.get("/health")
+        async def health():
+            return {"status": "healthy"}
+
+        @app.get("/docs")
+        async def docs():
+            return {"message": "docs"}
+
+        @app.get("/api/v1/jobs")
+        async def list_jobs():
+            return []
+
+        @app.post("/api/v1/transcribe", status_code=202)
+        async def create_transcribe():
+            return {"job_id": "test-job-123"}
+
+        @app.get("/api/v1/jobs/{job_id}")
+        async def get_job(job_id: str):
+            return {"job_id": job_id, "status": "queued"}
+
+        @app.get("/api/v1/jobs/{job_id}/stream")
+        async def stream_job(job_id: str):
+            return {"message": "streaming"}
+
+        yield app
 
 
 @pytest.fixture
 def app_with_auth():
-    """Create app with authentication enabled."""
-    # Create temp database
-    db_fd, db_path = tempfile.mkstemp(suffix=".db")
+    """Create minimal app with authentication enabled."""
+    with patch.dict(os.environ, {"PODX_API_KEY": "test-api-key-12345"}, clear=False):
+        # Create minimal FastAPI app for testing auth middleware
+        app = FastAPI()
+        app.add_middleware(APIKeyAuthMiddleware)
 
-    with patch.dict(os.environ, {"PODX_API_KEY": "test-api-key-12345", "PODX_DB_PATH": db_path}, clear=False):
-        app = create_app()
+        # Add test endpoints
+        @app.get("/health")
+        async def health():
+            return {"status": "healthy"}
+
+        @app.get("/docs")
+        async def docs():
+            return {"message": "docs"}
+
+        @app.get("/api/v1/jobs")
+        async def list_jobs():
+            return []
+
+        @app.post("/api/v1/transcribe", status_code=202)
+        async def create_transcribe():
+            return {"job_id": "test-job-123"}
+
+        @app.get("/api/v1/jobs/{job_id}")
+        async def get_job(job_id: str):
+            return {"job_id": job_id, "status": "queued"}
+
+        @app.get("/api/v1/jobs/{job_id}/stream")
+        async def stream_job(job_id: str):
+            return {"message": "streaming"}
+
         yield app
-
-    # Cleanup
-    os.close(db_fd)
-    if os.path.exists(db_path):
-        os.unlink(db_path)
 
 
 @pytest.mark.asyncio
 async def test_health_endpoint_no_auth_required(app_with_auth):
     """Test that health endpoint doesn't require authentication."""
-    from podx.server.database import init_db
-
-    await init_db()
-
     transport = ASGITransport(app=app_with_auth)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/health")
@@ -63,10 +99,6 @@ async def test_health_endpoint_no_auth_required(app_with_auth):
 @pytest.mark.asyncio
 async def test_docs_endpoint_no_auth_required(app_with_auth):
     """Test that /docs endpoint doesn't require authentication."""
-    from podx.server.database import init_db
-
-    await init_db()
-
     transport = ASGITransport(app=app_with_auth)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/docs")
@@ -77,10 +109,6 @@ async def test_docs_endpoint_no_auth_required(app_with_auth):
 @pytest.mark.asyncio
 async def test_api_endpoint_without_auth_disabled(app_no_auth):
     """Test API endpoint works when auth is disabled."""
-    from podx.server.database import init_db
-
-    await init_db()
-
     transport = ASGITransport(app=app_no_auth)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Should work without X-API-Key header when auth disabled
@@ -92,10 +120,6 @@ async def test_api_endpoint_without_auth_disabled(app_no_auth):
 @pytest.mark.asyncio
 async def test_api_endpoint_without_header_auth_enabled(app_with_auth):
     """Test API endpoint returns 401 when auth enabled but no header provided."""
-    from podx.server.database import init_db
-
-    await init_db()
-
     transport = ASGITransport(app=app_with_auth)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/api/v1/jobs")
@@ -109,10 +133,6 @@ async def test_api_endpoint_without_header_auth_enabled(app_with_auth):
 @pytest.mark.asyncio
 async def test_api_endpoint_with_invalid_key(app_with_auth):
     """Test API endpoint returns 403 with invalid API key."""
-    from podx.server.database import init_db
-
-    await init_db()
-
     transport = ASGITransport(app=app_with_auth)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get(
@@ -129,10 +149,6 @@ async def test_api_endpoint_with_invalid_key(app_with_auth):
 @pytest.mark.asyncio
 async def test_api_endpoint_with_valid_key(app_with_auth):
     """Test API endpoint works with valid API key."""
-    from podx.server.database import init_db
-
-    await init_db()
-
     transport = ASGITransport(app=app_with_auth)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get(
@@ -147,10 +163,6 @@ async def test_api_endpoint_with_valid_key(app_with_auth):
 @pytest.mark.asyncio
 async def test_post_endpoint_with_valid_key(app_with_auth):
     """Test POST endpoint works with valid API key."""
-    from podx.server.database import init_db
-
-    await init_db()
-
     transport = ASGITransport(app=app_with_auth)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
@@ -167,10 +179,6 @@ async def test_post_endpoint_with_valid_key(app_with_auth):
 @pytest.mark.asyncio
 async def test_post_endpoint_without_key(app_with_auth):
     """Test POST endpoint returns 401 without API key."""
-    from podx.server.database import init_db
-
-    await init_db()
-
     transport = ASGITransport(app=app_with_auth)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
@@ -183,10 +191,6 @@ async def test_post_endpoint_without_key(app_with_auth):
 @pytest.mark.asyncio
 async def test_streaming_endpoint_with_valid_key(app_with_auth):
     """Test SSE streaming endpoint works with valid API key."""
-    from podx.server.database import init_db
-
-    await init_db()
-
     transport = ASGITransport(app=app_with_auth)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # First create a job
@@ -211,10 +215,6 @@ async def test_streaming_endpoint_with_valid_key(app_with_auth):
 @pytest.mark.asyncio
 async def test_streaming_endpoint_without_key(app_with_auth):
     """Test SSE streaming endpoint returns 401 without API key."""
-    from podx.server.database import init_db
-
-    await init_db()
-
     transport = ASGITransport(app=app_with_auth)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Create job first (with auth)
@@ -233,10 +233,6 @@ async def test_streaming_endpoint_without_key(app_with_auth):
 @pytest.mark.asyncio
 async def test_multiple_requests_with_valid_key(app_with_auth):
     """Test multiple API requests with valid key all work."""
-    from podx.server.database import init_db
-
-    await init_db()
-
     transport = ASGITransport(app=app_with_auth)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         headers = {"X-API-Key": "test-api-key-12345"}
