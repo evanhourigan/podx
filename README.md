@@ -509,25 +509,25 @@ podx fetch --show "My Podcast" --date 2024-10-15 \
 
 ```bash
 # Index a transcript for searching
-podx-search index transcript.json --episode-id ep001 --title "AI Safety"
+podx search index transcript.json --episode-id ep001 --title "AI Safety"
 
 # Keyword search
-podx-search query "artificial intelligence"
+podx search query "artificial intelligence"
 
 # Semantic search (requires: pip install podx[search])
-podx-search query "dangers of AI" --semantic
+podx search query "dangers of AI" --semantic
 
 # Extract notable quotes
-podx-analyze quotes transcript.json
+podx analyze quotes transcript.json
 
 # Find highlight moments
-podx-analyze highlights transcript.json
+podx analyze highlights transcript.json
 
 # Topic clustering (semantic search required)
-podx-analyze topics ep001 --clusters 10
+podx analyze topics ep001 --clusters 10
 
 # Speaker statistics
-podx-analyze speakers transcript.json
+podx analyze speakers transcript.json
 ```
 
 ### Interactive Mode

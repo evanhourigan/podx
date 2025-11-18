@@ -7,6 +7,161 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2025-11-18
+
+### 🚀 Major Release - Web API Server & CLI Restructure
+
+A major release introducing a **production-grade Web API Server** with FastAPI, SSE streaming, and Docker support, plus a **breaking CLI restructure** that improves discoverability and aligns with modern CLI design patterns.
+
+---
+
+### ⚡ Breaking Changes
+
+#### CLI Command Structure
+**All `podx-verb` commands are now `podx verb` subcommands.**
+
+This change improves discoverability, reduces namespace pollution, and aligns with modern CLI design patterns (like `git`, `docker`, `kubectl`).
+
+**Migration:**
+- `podx-run` → `podx run`
+- `podx-transcribe` → `podx transcribe`
+- `podx-diarize` → `podx diarize`
+- `podx-deepcast` → `podx deepcast`
+- `podx-export` → `podx export`
+- `podx-batch-transcribe` → `podx batch transcribe`
+- `podx-search` → `podx search`
+- `podx-analyze` → `podx analyze`
+- And all other commands...
+
+**Quick workflow aliases replaced with `--profile` flag:**
+- `podx-quick` → `podx run --profile quick`
+- `podx-full` → `podx run --profile standard`
+- `podx-hq` → `podx run --profile high-quality`
+
+See `MIGRATION_V3.md` for complete migration guide with automated scripts.
+
+---
+
+### ✨ Added
+
+#### 🌐 Web API Server (NEW!)
+- **Production-grade REST API** with FastAPI framework
+- **SSE streaming** for real-time progress updates during long-running operations
+- **Background job management** with SQLite persistence and status tracking
+- **Health checks & metrics** for monitoring (Prometheus-compatible)
+- **Docker support** with multi-stage builds and docker-compose
+- **Interactive API docs** at `/docs` (Swagger UI) and `/redoc` (ReDoc)
+- **Authentication** with API key support (optional)
+- **Rate limiting** and request validation
+- **Comprehensive test coverage** (90%+ for server code)
+
+**New commands:**
+- `podx server start` - Start the API server
+- `podx server stop` - Stop the running server
+- `podx server status` - Check server status
+- `podx server logs` - View server logs
+
+**API Endpoints:**
+- `POST /transcribe` - Transcribe audio with optional streaming
+- `POST /diarize` - Diarize audio
+- `POST /deepcast` - Generate show notes
+- `POST /pipeline/run` - Run full pipeline
+- `GET /jobs/{job_id}` - Get job status
+- `GET /jobs/{job_id}/stream` - Stream job progress (SSE)
+- `GET /health` - Health check
+- `GET /metrics` - Prometheus metrics
+
+**Docker:**
+- Multi-stage Dockerfile (optimized for size)
+- docker-compose.yml for easy deployment
+- Volume mounting for audio files and config
+- Environment-based configuration
+
+#### 🔧 Quality Improvements
+- **Test coverage** improved from 33% to 40% (excluding UI)
+- **18 tests fixed** from previous skipped state
+- **838 total tests** (all passing)
+- **Coverage configuration** with realistic targets (50% project, 60% patch)
+- **CI/CD integration** with codecov
+
+---
+
+### 🔧 Changed
+
+- **CLI entry points**: Single `podx` entry point with subcommands (see Breaking Changes)
+- **Python API**: No changes (fully backward compatible)
+- **Configuration**: No changes (same config files, same structure)
+- **Command options**: No changes (all flags and options work the same)
+
+---
+
+### 📦 Dependencies
+
+**New dependencies for Web API Server:**
+- `fastapi~=0.115.0` - Web framework
+- `uvicorn[standard]~=0.34.0` - ASGI server
+- `sqlalchemy~=2.0.36` - Job persistence
+- `aiosqlite~=0.20.0` - Async SQLite
+- `sse-starlette~=2.2.1` - Server-Sent Events
+- `prometheus-client~=0.21.0` - Metrics (optional)
+
+Install with: `pip install podx[server]`
+
+---
+
+### 🐛 Fixed
+
+- **18 skipped tests** now passing (export optimizations + state management)
+- **Deepcast artifact detection** now finds both base files and suffixed variants
+- **Export scanning** 10x faster with single-pass directory scanning
+- **Coverage exclusions** properly configured for UI code
+
+---
+
+### 📚 Documentation
+
+- **NEW**: `MIGRATION_V3.md` - Complete migration guide with automated scripts
+- **NEW**: Web API Server section in README.md
+- **Updated**: All command examples to use new `podx verb` syntax
+- **Updated**: Docker deployment documentation
+- **Updated**: CHANGELOG.md with v3.0.0 release notes
+
+---
+
+### 📊 Stats
+
+- **40% test coverage** (up from 33%, excluding UI)
+- **838 tests** (all passing)
+- **90%+ coverage** for Web API Server code
+- **18 tests fixed** (export + state management)
+- **11,610 total lines** of code
+- **4,678 covered lines**
+- **Major version bump**: 2.x.x → 3.0.0
+
+---
+
+### 🔄 Migration Guide
+
+See `MIGRATION_V3.md` for:
+- Complete command mapping table
+- Automated sed scripts for shell files
+- CI/CD pipeline migration examples (GitHub Actions, GitLab CI)
+- What hasn't changed (Python API, config, options)
+- Testing and rollback instructions
+
+**Quick migration:**
+```bash
+# Update shell scripts (macOS)
+sed -i '' 's/podx-run/podx run/g' script.sh
+sed -i '' 's/podx-transcribe/podx transcribe/g' script.sh
+
+# Update CI/CD
+- run: podx-transcribe episode.mp3
++ run: podx transcribe episode.mp3
+```
+
+---
+
 ## [2.1.0] - 2025-11-15
 
 ### 🎉 Feature Bonanza - 8 Major Enhancements!

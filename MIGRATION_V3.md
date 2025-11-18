@@ -1,253 +1,214 @@
-# Migration Guide: v2.x → v3.0.0
+# Migrating to PodX v3.0
 
-This guide helps you migrate from PodX v2.x to v3.0.0.
+This guide helps you migrate from PodX v2.x to v3.0.
 
-## 🚨 Breaking Changes
+## Breaking Changes
 
-### CLI Restructure: `podx-verb` → `podx verb`
+### CLI Command Structure
 
-**v3.0.0 unifies all commands under a single `podx` entry point.**
+**All `podx-verb` commands are now `podx verb` subcommands.**
 
-All standalone `podx-verb` commands have been removed. Use `podx <verb>` instead.
+This change improves discoverability, reduces namespace pollution, and aligns with modern CLI design patterns (like `git`, `docker`, `kubectl`).
 
-#### Command Mapping
+## Migration Mapping
 
-| v2.x Command | v3.0 Command | Notes |
-|--------------|--------------|-------|
-| `podx-run` | `podx run` | Main pipeline orchestrator |
-| `podx-transcribe` | `podx transcribe` | Transcription only |
-| `podx-fetch` | `podx fetch` | Fetch episode metadata |
-| `podx-transcode` | `podx transcode` | Audio format conversion |
-| `podx-diarize` | `podx diarize` | Speaker diarization |
-| `podx-preprocess` | `podx preprocess` | Transcript preprocessing |
-| `podx-deepcast` | `podx deepcast` | AI analysis |
-| `podx-export` | `podx export` | Export to formats |
-| `podx-notion` | `podx notion` | Notion upload |
-| `podx-models` | `podx models` | Model management |
-| `podx-config` | `podx config` | Configuration |
-| `podx-estimate` | `podx estimate` | Cost estimation |
-| `podx-init` | `podx init` | Interactive setup |
-| `podx-completion` | `podx completion` | Shell completion |
-| `podx-analyze-audio` | `podx analyze-audio` | Audio quality analysis |
-| `podx-quick` | `podx run --profile quick` | Fast transcription |
-| `podx-full` | `podx run --profile standard` | Standard pipeline |
-| `podx-hq` | `podx run --profile high-quality` | High-quality pipeline |
-
-#### Batch Commands
+### Core Commands
 
 | v2.x Command | v3.0 Command |
-|--------------|--------------|
+|---|---|
+| `podx-run` | `podx run` |
+| `podx-transcribe` | `podx transcribe` |
+| `podx-diarize` | `podx diarize` |
+| `podx-deepcast` | `podx deepcast` |
+| `podx-export` | `podx export` |
+| `podx-config` | `podx config` |
+| `podx-fetch` | `podx fetch` |
+| `podx-transcode` | `podx transcode` |
+| `podx-preprocess` | `podx preprocess` |
+| `podx-align` | `podx align` |
+| `podx-notion` | `podx notion` |
+
+### Batch Commands
+
+| v2.x Command | v3.0 Command |
+|---|---|
 | `podx-batch-transcribe` | `podx batch transcribe` |
 | `podx-batch-pipeline` | `podx batch pipeline` |
 | `podx-batch-status` | `podx batch status` |
 
-#### Search & Analysis
+### Utility Commands
 
 | v2.x Command | v3.0 Command |
-|--------------|--------------|
-| `podx-search` | `podx search <subcommand>` |
-| - | `podx search index` |
-| - | `podx search query` |
-| - | `podx search list` |
-| - | `podx search quotes` |
-| - | `podx search stats` |
-| `podx-analyze` | `podx analyze <subcommand>` |
-| - | `podx analyze highlights` |
-| - | `podx analyze quotes` |
-| - | `podx analyze speakers` |
-| - | `podx analyze topics` |
+|---|---|
+| `podx-models` | `podx models` |
+| `podx-estimate` | `podx estimate` |
+| `podx-init` | `podx init` |
+| `podx-search` | `podx search` |
+| `podx-analyze` | `podx analyze` |
 
-### Workflow Aliases Removed
+### Quick Aliases (REMOVED)
 
-The `podx-quick`, `podx-full`, and `podx-hq` commands have been replaced with **profiles**.
+The quick workflow aliases have been replaced with the `--profile` flag:
 
-#### Before (v2.x):
+| v2.x Alias | v3.0 Equivalent |
+|---|---|
+| `podx-quick` | `podx run --profile quick` |
+| `podx-full` | `podx run --profile standard` |
+| `podx-hq` | `podx run --profile high-quality` |
+
+## Automated Migration
+
+### Shell Scripts
+
+Update your scripts with find & replace:
+
 ```bash
-podx-quick podcast.mp3
-podx-full podcast.mp3
-podx-hq podcast.mp3
+# Backup first!
+cp script.sh script.sh.backup
+
+# Update commands (macOS)
+sed -i '' 's/podx-run/podx run/g' script.sh
+sed -i '' 's/podx-transcribe/podx transcribe/g' script.sh
+sed -i '' 's/podx-diarize/podx diarize/g' script.sh
+sed -i '' 's/podx-deepcast/podx deepcast/g' script.sh
+sed -i '' 's/podx-export/podx export/g' script.sh
+sed -i '' 's/podx-batch-transcribe/podx batch transcribe/g' script.sh
+sed -i '' 's/podx-batch-pipeline/podx batch pipeline/g' script.sh
+sed -i '' 's/podx-batch-status/podx batch status/g' script.sh
+sed -i '' 's/podx-search/podx search/g' script.sh
+sed -i '' 's/podx-analyze/podx analyze/g' script.sh
+
+# Update quick aliases
+sed -i '' 's/podx-quick/podx run --profile quick/g' script.sh
+sed -i '' 's/podx-full/podx run --profile standard/g' script.sh
+sed -i '' 's/podx-hq/podx run --profile high-quality/g' script.sh
 ```
 
-#### After (v3.0):
+On Linux, remove the `''` after `-i`:
+
 ```bash
-podx run --profile quick --show "My Podcast"
-podx run --profile standard --show "My Podcast"
-podx run --profile high-quality --show "My Podcast"
+sed -i 's/podx-run/podx run/g' script.sh
 ```
 
-#### Profile Settings
-
-- **quick**: Fast processing (base model, no diarize/preprocess/deepcast)
-- **standard**: Balanced quality (medium model, all features, gpt-4o-mini)
-- **high-quality**: Best quality (large-v3, all features, gpt-4o)
-
-## 📦 Installation
-
-### Upgrade
+### Multiple Files
 
 ```bash
-pip install --upgrade podx
+# Update all shell scripts in directory
+find . -name "*.sh" -type f -exec sed -i '' 's/podx-run/podx run/g' {} +
+find . -name "*.sh" -type f -exec sed -i '' 's/podx-transcribe/podx transcribe/g' {} +
 ```
 
-### Reinstall (Clean)
+### CI/CD Pipelines
 
-If you encounter issues, try a clean reinstall:
+**GitHub Actions:**
+```yaml
+# Before
+- run: podx-transcribe episode.mp3
 
-```bash
-pip uninstall podx
-pip install podx
+# After
+- run: podx transcribe episode.mp3
 ```
 
-## 🔧 Shell Scripts & Aliases
+**GitLab CI:**
+```yaml
+# Before
+script:
+  - podx-quick --show "My Podcast"
 
-If you have shell scripts or aliases using the old commands, update them:
-
-### Example: Update Shell Script
-
-**Before:**
-```bash
-#!/bin/bash
-podx-run --show "$1" --date "$2"
+# After
+script:
+  - podx run --profile quick --show "My Podcast"
 ```
 
-**After:**
-```bash
-#!/bin/bash
-podx run --show "$1" --date "$2"
+## What Hasn't Changed
+
+### Configuration Files
+
+All configuration files remain the same:
+- `~/.config/podx/config.yaml`
+- `~/.config/podx/profiles.yaml`
+- Working directory structure
+- Output file formats
+
+### Python API
+
+The Python API is unchanged:
+
+```python
+# Still works in v3.0
+from podx.api import PodxClient
+
+client = PodxClient()
+result = client.transcribe("episode.mp3")
 ```
 
-### Example: Update Bash Alias
+### Command Options
 
-**Before:**
+All command-line options and flags remain the same. Only the command names have changed.
+
 ```bash
-alias pq='podx-quick'
-alias pf='podx-full'
+# v2.x
+podx-transcribe episode.mp3 --model large-v3-turbo --language en
+
+# v3.0
+podx transcribe episode.mp3 --model large-v3-turbo --language en
+#       ^^^^^^^^^ only this changed
 ```
 
-**After:**
+## New in v3.0
+
+### Web API Server
+
+v3.0 introduces a production-grade REST API server:
+
 ```bash
-alias pq='podx run --profile quick'
-alias pf='podx run --profile standard'
-alias phq='podx run --profile high-quality'
+# Start server
+podx server start
+
+# Access API documentation
+open http://localhost:8000/docs
 ```
 
-## 🧪 Testing Your Migration
+See the [README](README.md#-web-api-server-v30) for full documentation.
 
-After upgrading, verify everything works:
+### Server Commands
+
+| Command | Description |
+|---|---|
+| `podx server start` | Start the API server |
+| `podx server stop` | Stop the running server |
+| `podx server status` | Check server status |
+| `podx server logs` | View server logs |
+
+## Testing Your Migration
 
 ```bash
-# Check version
-podx --version
-
-# Test help for main commands
-podx --help
+# Test individual commands
 podx run --help
-podx batch --help
-podx search --help
+podx transcribe --help
+podx server --help
 
-# Test a simple command
+# Test workflows
+podx run --show "Test Podcast" --date 2024-01-01 --dry-run
+
+# Verify configuration
 podx models --status
-podx estimate --help
+podx config show
 ```
 
-## ✨ New Features in v3.0
+## Getting Help
 
-While migrating, take advantage of these new features:
+- [CHANGELOG](CHANGELOG.md) - Detailed changes
+- [README](README.md) - Updated examples
+- `podx --help` - Command reference
+- [GitHub Issues](https://github.com/evanhourigan/podx/issues)
 
-### 1. Configuration Profiles
-
-Create and use custom profiles:
-
-```bash
-# Use built-in profiles
-podx run --profile quick --show "My Podcast"
-
-# Or configure defaults in ~/.podx/config.yaml
-```
-
-### 2. Unified CLI
-
-All commands are now organized under a single entry point:
+## Rollback
 
 ```bash
-podx <command> [options]
-```
-
-### 3. Improved Help
-
-Get help for any command or subcommand:
-
-```bash
-podx run --help
-podx batch transcribe --help
-podx search query --help
-```
-
-## 🆘 Troubleshooting
-
-### Command Not Found
-
-**Error:** `bash: podx-run: command not found`
-
-**Solution:** Update to use `podx run` instead of `podx-run`.
-
-### Old Commands Still Work
-
-If old `podx-verb` commands still work, you may have an old version installed:
-
-```bash
+# Uninstall v3.0
 pip uninstall podx
-pip install podx
-which podx
+
+# Reinstall v2.x
+pip install podx==2.1.0
 ```
-
-### Shell Completion Broke
-
-Reinstall shell completion after upgrading:
-
-```bash
-podx completion bash  # or zsh/fish
-```
-
-## 📚 Need Help?
-
-- **Documentation:** See README.md and QUICKSTART.md
-- **Issues:** https://github.com/evanhourigan/podx/issues
-- **Changelog:** See CHANGELOG.md for full release notes
-
-## 🎯 Quick Reference
-
-### Most Common Commands
-
-```bash
-# Process an episode (interactive mode)
-podx run --interactive
-
-# Process with YouTube URL
-podx run --youtube-url "https://youtube.com/watch?v=..."
-
-# Process with RSS feed
-podx run --show "Podcast Name" --date 2025-01-15
-
-# Use a profile
-podx run --profile quick --show "Podcast Name"
-
-# Batch processing
-podx batch transcribe --auto-detect
-podx batch pipeline --show "Podcast Name" --since 2025-01-01
-
-# Search transcripts
-podx search index transcript.json
-podx search query "machine learning"
-podx search quotes
-
-# Cost estimation
-podx estimate audio.mp3
-podx estimate --duration 3600 --model large-v3
-```
-
----
-
-**Happy migrating! 🚀**
-
-If you encounter any issues not covered here, please open an issue on GitHub.
