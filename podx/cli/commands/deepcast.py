@@ -1,10 +1,6 @@
 """Deepcast command for AI-powered transcript analysis."""
 
-import sys
-
 import click
-
-from podx.cli.services import run_passthrough
 
 
 @click.command(
@@ -20,5 +16,9 @@ from podx.cli.services import run_passthrough
 @click.pass_context
 def deepcast_cmd(ctx):
     """AI-powered transcript analysis and summarization."""
-    code = run_passthrough(["podx-deepcast"] + ctx.args)
-    sys.exit(code)
+    # Import and invoke the actual deepcast command
+    from podx.cli.deepcast import main as actual_command
+
+    # Invoke the Click command with the current context's arguments
+    # This uses Click's invocation API to properly forward arguments
+    actual_command.main(args=ctx.args, standalone_mode=False)

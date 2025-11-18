@@ -1,17 +1,24 @@
 """Preprocess command shim."""
 
-import sys
-
 import click
-
-from podx.cli.services import run_passthrough
 
 
 @click.command(
-    "preprocess", help="Run preprocessing on transcripts (merge/normalize/restore)"
+    "preprocess",
+    help="Run preprocessing on transcripts (merge/normalize/restore)",
+    context_settings={
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+        "allow_interspersed_args": False,
+        "help_option_names": [],
+    },
 )
-@click.argument("args", nargs=-1)
-def preprocess_shim(args: tuple[str, ...]):
+@click.pass_context
+def preprocess_shim(ctx):
     """Run preprocessing on transcripts (merge/normalize/restore)."""
-    code = run_passthrough(["podx-preprocess", *args])
-    sys.exit(code)
+    # Import and invoke the actual preprocess command
+    from podx.cli.preprocess import main as actual_command
+
+    # Invoke the Click command with the current context's arguments
+    # This uses Click's invocation API to properly forward arguments
+    actual_command.main(args=ctx.args, standalone_mode=False)

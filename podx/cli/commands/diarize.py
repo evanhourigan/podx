@@ -1,10 +1,6 @@
 """Diarize command for speaker identification."""
 
-import sys
-
 import click
-
-from podx.cli.services import run_passthrough
 
 
 @click.command(
@@ -20,5 +16,9 @@ from podx.cli.services import run_passthrough
 @click.pass_context
 def diarize_cmd(ctx):
     """Add speaker identification to transcripts using WhisperX."""
-    code = run_passthrough(["podx-diarize"] + ctx.args)
-    sys.exit(code)
+    # Import and invoke the actual diarize command
+    from podx.cli.diarize import main as actual_command
+
+    # Invoke the Click command with the current context's arguments
+    # This uses Click's invocation API to properly forward arguments
+    actual_command.main(args=ctx.args, standalone_mode=False)
