@@ -34,13 +34,18 @@ podx-quick ...            →  podx run --profile quick ...
 
 PodX is a **composable podcast processing pipeline** that transforms raw audio into searchable, structured data with speaker attribution and AI-powered analysis. Built on the Unix philosophy of simple, composable tools that do one thing well.
 
-**Three ways to use PodX:**
+**Four ways to use PodX:**
 
-1. **CLI Pipeline** - Composable commands with UNIX pipes
-2. **Python API** - Import and use core engines programmatically
-3. **High-Level Client** - Simple Python API with progress callbacks for web apps
+1. **Web API Server** - Production REST API with real-time progress streaming (NEW in v3.0)
+2. **CLI Pipeline** - Composable commands with UNIX pipes
+3. **Python API** - Import and use core engines programmatically
+4. **High-Level Client** - Simple Python API with progress callbacks for web apps
 
 ```bash
+# Web API Server: Production-ready REST API
+podx server start
+# → http://localhost:8000/docs for interactive API documentation
+
 # CLI: From podcast URL to complete analysis
 podx run --show "Lex Fridman Podcast" --date 2024-10-15
 ```
@@ -133,6 +138,89 @@ podx models --status
 
 ---
 
+## 🌐 Web API Server (v3.0+)
+
+PodX now includes a production-grade REST API server for integrating podcast processing into web applications.
+
+### Quick Start
+
+```bash
+# Install with server dependencies
+pip install -e ".[server]"
+
+# Start the server
+podx server start
+
+# Server is now running at http://localhost:8000
+# Interactive API docs: http://localhost:8000/docs
+```
+
+### Features
+
+- **REST API** - FastAPI-powered HTTP endpoints for all operations
+- **Real-Time Progress** - Server-Sent Events (SSE) for live progress updates
+- **Job Management** - Persistent job queue with SQLite storage
+- **File Upload** - Support for large audio file uploads
+- **Authentication** - Optional API key protection
+- **Rate Limiting** - Built-in rate limiting and CORS support
+- **Health Checks** - Kubernetes-ready liveness and readiness probes
+- **Metrics** - Optional Prometheus metrics endpoint
+- **Auto-Documentation** - Interactive Swagger UI and ReDoc
+
+### API Example (Python)
+
+```python
+import requests
+
+# Upload file
+files = {"file": open("podcast.mp3", "rb")}
+response = requests.post("http://localhost:8000/upload", files=files)
+upload_id = response.json()["upload_id"]
+
+# Create job
+response = requests.post(
+    "http://localhost:8000/jobs",
+    json={"upload_id": upload_id, "profile": "quick"}
+)
+job_id = response.json()["job_id"]
+
+# Stream progress (SSE)
+with requests.get(f"http://localhost:8000/jobs/{job_id}/stream", stream=True) as r:
+    for line in r.iter_lines():
+        if line.startswith(b"data: "):
+            print(line.decode()[6:])  # Real-time progress updates
+```
+
+See [examples/](examples/) for complete client examples in Python, JavaScript, and curl.
+
+### Deployment Options
+
+**Docker:**
+```bash
+docker-compose up -d
+```
+
+**Kubernetes:**
+```bash
+kubectl apply -f k8s/
+```
+
+**VPS/Systemd:**
+```bash
+# Copy service file
+sudo cp examples/podx-server.service /etc/systemd/system/
+
+# Start service
+sudo systemctl enable --now podx-server
+```
+
+For detailed deployment guides, see:
+- [DOCKER.md](DOCKER.md) - Docker and docker-compose
+- [KUBERNETES.md](KUBERNETES.md) - Kubernetes manifests and helm
+- [VPS_DEPLOYMENT.md](VPS_DEPLOYMENT.md) - VPS deployment with Nginx
+
+---
+
 ## ✨ Features
 
 ### Core Capabilities
@@ -147,6 +235,7 @@ podx models --status
 
 ### Developer Features
 
+- **🌐 Web API Server** - Production REST API with real-time progress (v3.0+)
 - **🐍 Python API** - Use as a library in your own applications
 - **⚡ Async Support** - Real-time progress callbacks for web UIs
 - **📤 JSON Output** - All CLI commands support `--json` for automation
