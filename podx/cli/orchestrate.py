@@ -48,6 +48,17 @@ from podx.cli.commands import (
     transcode_cmd,
     transcribe_cmd,
 )
+
+# Import missing commands for v3.0 CLI restructure
+from podx.cli import (
+    analyze,
+    analyze_audio,
+    batch,
+    completion,
+    estimate,
+    init,
+    search,
+)
 from podx.logging import setup_logging
 
 # Initialize logging
@@ -106,6 +117,34 @@ register_deprecated_commands(main, run)
 
 # Register config subcommands group
 register_config_group(main)
+
+# ============================================================================
+# v3.0 CLI Restructure - Register missing commands
+# ============================================================================
+
+# Register standalone commands
+main.add_command(estimate.main, name="estimate")
+main.add_command(init.main, name="init")
+main.add_command(completion.main, name="completion")
+main.add_command(analyze_audio.main, name="analyze-audio")
+
+# Register command groups (search and analyze already have Click groups)
+main.add_command(search.search_group, name="search")
+main.add_command(analyze.analyze_group, name="analyze")
+
+# Create batch command group
+@click.group(name="batch")
+def batch_group():
+    """Batch processing commands for multiple episodes."""
+    pass
+
+# Add batch subcommands
+batch_group.add_command(batch.batch_transcribe, name="transcribe")
+batch_group.add_command(batch.batch_pipeline, name="pipeline")
+batch_group.add_command(batch.batch_status_cmd, name="status")
+
+# Register batch group to main CLI
+main.add_command(batch_group)
 
 
 # ============================================================================

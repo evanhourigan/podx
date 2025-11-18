@@ -25,7 +25,7 @@ from podx.cli.services.pipeline_steps import (
 from podx.config import get_config
 from podx.constants import DEFAULT_ENCODING, JSON_INDENT
 from podx.logging import get_logger
-from podx.progress import PodxProgress, print_podx_header
+from podx.progress import ConsoleProgressReporter, print_podx_header
 
 logger = get_logger(__name__)
 
@@ -327,7 +327,9 @@ def run(
     results = {}
 
     # Use progress tracking for the entire pipeline
-    with PodxProgress() as progress:
+    progress = ConsoleProgressReporter()
+    progress.start_task("Running pipeline")
+    try:
         # We'll determine the actual workdir after fetching metadata
         wd = None  # Will be set after fetch
 
@@ -518,6 +520,8 @@ def run(
             original_audio_path=original_audio_path,
             progress=progress,
         )
+    finally:
+        progress.complete_task("Pipeline complete")
 
     # Final summary
     print_results_summary(
