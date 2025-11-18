@@ -7,6 +7,7 @@ This module provides the main FastAPI application instance with:
 - OpenAPI documentation
 """
 
+import asyncio
 import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -27,6 +28,7 @@ logger = get_logger(__name__)
 
 # Global worker instance (started in lifespan)
 _worker = None
+_cleanup_task = None
 
 
 @asynccontextmanager
@@ -59,12 +61,30 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await _worker.start()
     logger.info("Background worker started")
 
+    # Start cleanup task
+    from podx.server.tasks import run_cleanup_task
+
+    global _cleanup_task
+    _cleanup_task = asyncio.create_task(run_cleanup_task())
+    logger.info("Cleanup task started")
+
     logger.info("Server ready to accept requests")
 
     yield
 
     # Shutdown
     logger.info("Shutting down PodX API Server...")
+
+    # Stop cleanup task
+    if _cleanup_task:
+        _cleanup_task.cancel()
+        try:
+            await _cleanup_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("Cleanup task stopped")
+
+    # Stop worker
     if _worker:
         await _worker.stop()
         logger.info("Background worker stopped")
@@ -105,6 +125,11 @@ def create_app() -> FastAPI:
     )
 
     logger.info(f"CORS configured with origins: {cors_origins}")
+
+    # Request ID middleware (must be first to ensure all requests have IDs)
+    from podx.server.middleware.request_id import RequestIDMiddleware
+
+    app.add_middleware(RequestIDMiddleware)
 
     # Request logging middleware
     from podx.server.middleware.request_logging import RequestLoggingMiddleware

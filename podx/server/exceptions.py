@@ -112,7 +112,14 @@ async def podx_exception_handler(request: Request, exc: PodXAPIException) -> JSO
     Returns:
         JSON error response
     """
-    logger.error(f"{exc.status_code} {request.method} {request.url.path}: {exc.message}", extra={"details": exc.details})
+    from podx.server.middleware.request_id import get_request_id
+
+    request_id = get_request_id(request)
+
+    logger.error(
+        f"{exc.status_code} {request.method} {request.url.path}: {exc.message}",
+        extra={"details": exc.details, "request_id": request_id},
+    )
 
     return JSONResponse(
         status_code=exc.status_code,
@@ -120,6 +127,7 @@ async def podx_exception_handler(request: Request, exc: PodXAPIException) -> JSO
             "error": exc.message,
             "status_code": exc.status_code,
             "details": exc.details,
+            "request_id": request_id,
         },
     )
 
@@ -134,13 +142,21 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
     Returns:
         JSON error response
     """
-    logger.error(f"{exc.status_code} {request.method} {request.url.path}: {exc.detail}")
+    from podx.server.middleware.request_id import get_request_id
+
+    request_id = get_request_id(request)
+
+    logger.error(
+        f"{exc.status_code} {request.method} {request.url.path}: {exc.detail}",
+        extra={"request_id": request_id},
+    )
 
     return JSONResponse(
         status_code=exc.status_code,
         content={
             "error": str(exc.detail),
             "status_code": exc.status_code,
+            "request_id": request_id,
         },
     )
 
@@ -155,7 +171,15 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
     Returns:
         JSON error response
     """
-    logger.error(f"500 {request.method} {request.url.path}: Unexpected error: {exc}", exc_info=True)
+    from podx.server.middleware.request_id import get_request_id
+
+    request_id = get_request_id(request)
+
+    logger.error(
+        f"500 {request.method} {request.url.path}: Unexpected error: {exc}",
+        exc_info=True,
+        extra={"request_id": request_id},
+    )
 
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -163,5 +187,6 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
             "error": "Internal server error",
             "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
             "message": "An unexpected error occurred. Please contact support if the problem persists.",
+            "request_id": request_id,
         },
     )
