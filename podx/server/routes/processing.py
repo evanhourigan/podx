@@ -6,15 +6,19 @@ Each endpoint creates a job and returns the job ID for tracking.
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from podx.server.database import get_session
+from podx.server.middleware.rate_limit import get_rate_limit_config, limiter
 from podx.server.services import JobManager
 from podx.server.storage import save_upload_file
 
 router = APIRouter()
+
+# Get rate limit configuration
+general_limit, upload_limit = get_rate_limit_config()
 
 
 class TranscribeRequest(BaseModel):
@@ -95,14 +99,17 @@ class ProcessingResponse(BaseModel):
 
 
 @router.post("/api/v1/transcribe", response_model=ProcessingResponse, status_code=202)
+@limiter.limit(general_limit)
 async def transcribe(
-    request: TranscribeRequest,
+    request: Request,
+    body: TranscribeRequest,
     session: AsyncSession = Depends(get_session),
 ) -> ProcessingResponse:
     """Start a transcription job.
 
     Args:
-        request: Transcription parameters
+        request: FastAPI request object (for rate limiting)
+        body: Transcription parameters
         session: Database session
 
     Returns:
@@ -112,8 +119,8 @@ async def transcribe(
     job = await job_manager.create_job(
         job_type="transcribe",
         input_params={
-            "audio_url": request.audio_url,
-            "model": request.model,
+            "audio_url": body.audio_url,
+            "model": body.model,
         },
     )
 
@@ -121,23 +128,26 @@ async def transcribe(
 
 
 @router.post("/api/v1/diarize", response_model=ProcessingResponse, status_code=202)
+@limiter.limit(general_limit)
 async def diarize(
-    request: DiarizeRequest,
+    request: Request,
+    body: DiarizeRequest,
     session: AsyncSession = Depends(get_session),
 ) -> ProcessingResponse:
     """Start a diarization job.
 
     Args:
-        request: Diarization parameters
+        request: FastAPI request object (for rate limiting)
+        body: Diarization parameters
         session: Database session
 
     Returns:
         Job ID and status
     """
     job_manager = JobManager(session)
-    params = {"audio_url": request.audio_url}
-    if request.num_speakers is not None:
-        params["num_speakers"] = request.num_speakers
+    params = {"audio_url": body.audio_url}
+    if body.num_speakers is not None:
+        params["num_speakers"] = body.num_speakers
 
     job = await job_manager.create_job(
         job_type="diarize",
@@ -148,14 +158,17 @@ async def diarize(
 
 
 @router.post("/api/v1/deepcast", response_model=ProcessingResponse, status_code=202)
+@limiter.limit(general_limit)
 async def deepcast(
-    request: DeepcastRequest,
+    request: Request,
+    body: DeepcastRequest,
     session: AsyncSession = Depends(get_session),
 ) -> ProcessingResponse:
     """Start a deepcast analysis job.
 
     Args:
-        request: Deepcast parameters
+        request: FastAPI request object (for rate limiting)
+        body: Deepcast parameters
         session: Database session
 
     Returns:
@@ -164,21 +177,24 @@ async def deepcast(
     job_manager = JobManager(session)
     job = await job_manager.create_job(
         job_type="deepcast",
-        input_params={"transcript_path": request.transcript_path},
+        input_params={"transcript_path": body.transcript_path},
     )
 
     return ProcessingResponse(job_id=job.id, status=job.status)
 
 
 @router.post("/api/v1/pipeline", response_model=ProcessingResponse, status_code=202)
+@limiter.limit(general_limit)
 async def pipeline(
-    request: PipelineRequest,
+    request: Request,
+    body: PipelineRequest,
     session: AsyncSession = Depends(get_session),
 ) -> ProcessingResponse:
     """Start a full pipeline job (transcribe + diarize + deepcast).
 
     Args:
-        request: Pipeline parameters
+        request: FastAPI request object (for rate limiting)
+        body: Pipeline parameters
         session: Database session
 
     Returns:
@@ -186,11 +202,11 @@ async def pipeline(
     """
     job_manager = JobManager(session)
     params = {
-        "audio_url": request.audio_url,
-        "model": request.model,
+        "audio_url": body.audio_url,
+        "model": body.model,
     }
-    if request.num_speakers is not None:
-        params["num_speakers"] = request.num_speakers
+    if body.num_speakers is not None:
+        params["num_speakers"] = body.num_speakers
 
     job = await job_manager.create_job(
         job_type="pipeline",
@@ -204,7 +220,9 @@ async def pipeline(
 
 
 @router.post("/api/v1/transcribe/upload", response_model=ProcessingResponse, status_code=202)
+@limiter.limit(upload_limit)
 async def transcribe_upload(
+    request: Request,
     file: UploadFile = File(...),
     model: str = Form("base"),
     session: AsyncSession = Depends(get_session),
@@ -236,7 +254,9 @@ async def transcribe_upload(
 
 
 @router.post("/api/v1/diarize/upload", response_model=ProcessingResponse, status_code=202)
+@limiter.limit(upload_limit)
 async def diarize_upload(
+    request: Request,
     file: UploadFile = File(...),
     num_speakers: Optional[int] = Form(None),
     session: AsyncSession = Depends(get_session),
@@ -269,7 +289,9 @@ async def diarize_upload(
 
 
 @router.post("/api/v1/pipeline/upload", response_model=ProcessingResponse, status_code=202)
+@limiter.limit(upload_limit)
 async def pipeline_upload(
+    request: Request,
     file: UploadFile = File(...),
     model: str = Form("base"),
     num_speakers: Optional[int] = Form(None),

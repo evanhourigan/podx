@@ -7,11 +7,13 @@ This module provides the main FastAPI application instance with:
 - OpenAPI documentation
 """
 
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
 
 from podx.logging import get_logger
 from podx.server.exceptions import (
@@ -84,14 +86,30 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json",
     )
 
-    # CORS middleware - allow all origins for now (can restrict later)
+    # CORS middleware - configurable via PODX_CORS_ORIGINS env var
+    # Format: comma-separated origins, e.g., "http://localhost:3000,https://app.example.com"
+    # Default: "*" (allow all origins for development)
+    cors_origins_str = os.getenv("PODX_CORS_ORIGINS", "*")
+    cors_origins = (
+        [origin.strip() for origin in cors_origins_str.split(",")]
+        if cors_origins_str != "*"
+        else ["*"]
+    )
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    logger.info(f"CORS configured with origins: {cors_origins}")
+
+    # Request logging middleware
+    from podx.server.middleware.request_logging import RequestLoggingMiddleware
+
+    app.add_middleware(RequestLoggingMiddleware)
 
     # Add authentication middleware (optional - enabled via PODX_API_KEY env var)
     from podx.server.middleware.auth import APIKeyAuthMiddleware
@@ -102,6 +120,14 @@ def create_app() -> FastAPI:
     app.add_exception_handler(PodXAPIException, podx_exception_handler)
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(Exception, general_exception_handler)
+
+    # Rate limiting exception handler
+    from podx.server.middleware.rate_limit import limiter, rate_limit_exceeded_handler
+
+    app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+    # Add limiter to app state for slowapi
+    app.state.limiter = limiter
 
     # Register routes
     from podx.server.routes import health, jobs, processing, streaming, upload
