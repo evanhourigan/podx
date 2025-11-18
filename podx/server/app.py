@@ -88,10 +88,11 @@ def create_app() -> FastAPI:
     )
 
     # Register routes
-    from podx.server.routes import health, jobs
+    from podx.server.routes import health, jobs, processing
 
     app.include_router(health.router, tags=["Health"])
     app.include_router(jobs.router, tags=["Jobs"])
+    app.include_router(processing.router, tags=["Processing"])
 
     return app
 
