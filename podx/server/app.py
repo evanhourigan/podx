@@ -32,6 +32,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     # Startup
     logger.info("Starting PodX API Server...")
+
+    # Initialize database
+    from podx.server.database import init_db
+
+    logger.info("Initializing database...")
+    await init_db()
+    logger.info("Database initialized")
+
     logger.info("Server ready to accept requests")
 
     yield
