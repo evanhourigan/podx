@@ -6,12 +6,13 @@ Each endpoint creates a job and returns the job ID for tracking.
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from podx.server.database import get_session
 from podx.server.services import JobManager
+from podx.server.storage import save_upload_file
 
 router = APIRouter()
 
@@ -148,6 +149,112 @@ async def pipeline(
     }
     if request.num_speakers is not None:
         params["num_speakers"] = request.num_speakers
+
+    job = await job_manager.create_job(
+        job_type="pipeline",
+        input_params=params,
+    )
+
+    return ProcessingResponse(job_id=job.id, status=job.status)
+
+
+# File upload endpoints
+
+
+@router.post("/api/v1/transcribe/upload", response_model=ProcessingResponse, status_code=202)
+async def transcribe_upload(
+    file: UploadFile = File(...),
+    model: str = Form("base"),
+    session: AsyncSession = Depends(get_session),
+) -> ProcessingResponse:
+    """Start a transcription job with file upload.
+
+    Args:
+        file: Audio file to transcribe
+        model: Whisper model to use
+        session: Database session
+
+    Returns:
+        Job ID and status
+    """
+    # Save uploaded file
+    file_path = save_upload_file(file.file, file.filename or "audio.mp3")
+
+    # Create job
+    job_manager = JobManager(session)
+    job = await job_manager.create_job(
+        job_type="transcribe",
+        input_params={
+            "audio_url": file_path,
+            "model": model,
+        },
+    )
+
+    return ProcessingResponse(job_id=job.id, status=job.status)
+
+
+@router.post("/api/v1/diarize/upload", response_model=ProcessingResponse, status_code=202)
+async def diarize_upload(
+    file: UploadFile = File(...),
+    num_speakers: Optional[int] = Form(None),
+    session: AsyncSession = Depends(get_session),
+) -> ProcessingResponse:
+    """Start a diarization job with file upload.
+
+    Args:
+        file: Audio file to diarize
+        num_speakers: Number of speakers (optional)
+        session: Database session
+
+    Returns:
+        Job ID and status
+    """
+    # Save uploaded file
+    file_path = save_upload_file(file.file, file.filename or "audio.mp3")
+
+    # Create job
+    job_manager = JobManager(session)
+    params = {"audio_url": file_path}
+    if num_speakers is not None:
+        params["num_speakers"] = num_speakers
+
+    job = await job_manager.create_job(
+        job_type="diarize",
+        input_params=params,
+    )
+
+    return ProcessingResponse(job_id=job.id, status=job.status)
+
+
+@router.post("/api/v1/pipeline/upload", response_model=ProcessingResponse, status_code=202)
+async def pipeline_upload(
+    file: UploadFile = File(...),
+    model: str = Form("base"),
+    num_speakers: Optional[int] = Form(None),
+    session: AsyncSession = Depends(get_session),
+) -> ProcessingResponse:
+    """Start a full pipeline job with file upload.
+
+    Args:
+        file: Audio file to process
+        model: Whisper model to use
+        num_speakers: Number of speakers (optional)
+        session: Database session
+
+    Returns:
+        Job ID and status
+    """
+    # Save uploaded file
+    file_path = save_upload_file(file.file, file.filename or "audio.mp3")
+
+    # Create job
+    job_manager = JobManager(session)
+    params = {
+        "audio_url": file_path,
+        "model": model,
+    }
+    if num_speakers is not None:
+        params["num_speakers"] = num_speakers
 
     job = await job_manager.create_job(
         job_type="pipeline",
