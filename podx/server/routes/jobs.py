@@ -4,11 +4,12 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from podx.server.database import get_session
+from podx.server.exceptions import InvalidInputException, JobNotFoundException
 from podx.server.models import Job, JobCreateResponse, JobListResponse, JobResponse
 
 router = APIRouter()
@@ -31,8 +32,15 @@ async def create_job(
         Created job information
 
     Raises:
-        HTTPException: If job creation fails
+        InvalidInputException: If job_type is invalid
     """
+    # Validate job type
+    valid_job_types = {"transcribe", "diarize", "deepcast", "pipeline"}
+    if job_type not in valid_job_types:
+        raise InvalidInputException(
+            f"Invalid job_type '{job_type}'. Must be one of: {', '.join(valid_job_types)}", field="job_type"
+        )
+
     # Generate job ID
     job_id = str(uuid.uuid4())
 
@@ -110,12 +118,12 @@ async def get_job(job_id: str, session: AsyncSession = Depends(get_session)) -> 
         Job details
 
     Raises:
-        HTTPException: If job not found
+        JobNotFoundException: If job not found
     """
     job = await session.get(Job, job_id)
 
     if not job:
-        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+        raise JobNotFoundException(job_id)
 
     return JobResponse.model_validate(job)
 
@@ -132,12 +140,12 @@ async def cancel_job(job_id: str, session: AsyncSession = Depends(get_session)) 
         session: Database session
 
     Raises:
-        HTTPException: If job not found
+        JobNotFoundException: If job not found
     """
     job = await session.get(Job, job_id)
 
     if not job:
-        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+        raise JobNotFoundException(job_id)
 
     # If job is queued or running, mark as cancelled
     if job.status in ("queued", "running"):

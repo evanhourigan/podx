@@ -7,12 +7,13 @@ import asyncio
 import json
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from podx.logging import get_logger
 from podx.server.database import get_session
+from podx.server.exceptions import JobNotFoundException
 from podx.server.services import JobManager
 
 logger = get_logger(__name__)
@@ -94,13 +95,13 @@ async def stream_job_progress(
         SSE streaming response
 
     Raises:
-        HTTPException: If job not found
+        JobNotFoundException: If job not found
     """
     # Verify job exists first
     job_manager = JobManager(session)
     job = await job_manager.get_job(job_id)
     if not job:
-        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+        raise JobNotFoundException(job_id)
 
     return StreamingResponse(
         generate_job_progress_events(job_id, session),

@@ -101,7 +101,7 @@ async def test_get_job_not_found(client: AsyncClient):
     """Test getting a non-existent job."""
     response = await client.get("/api/v1/jobs/nonexistent-id")
     assert response.status_code == 404
-    assert "not found" in response.json()["detail"].lower()
+    assert "not found" in response.json()["error"].lower()
 
 
 @pytest.mark.asyncio

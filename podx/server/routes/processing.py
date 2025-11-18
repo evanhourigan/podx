@@ -7,7 +7,7 @@ Each endpoint creates a job and returns the job ID for tracking.
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from podx.server.database import get_session
@@ -23,12 +23,37 @@ class TranscribeRequest(BaseModel):
     audio_url: str = Field(..., description="URL or path to audio file")
     model: str = Field("base", description="Whisper model to use (tiny, base, small, medium, large)")
 
+    @field_validator("model")
+    @classmethod
+    def validate_model(cls, v: str) -> str:
+        """Validate Whisper model name."""
+        valid_models = {"tiny", "base", "small", "medium", "large"}
+        if v not in valid_models:
+            raise ValueError(f"Invalid model '{v}'. Must be one of: {', '.join(valid_models)}")
+        return v
+
+    @field_validator("audio_url")
+    @classmethod
+    def validate_audio_url(cls, v: str) -> str:
+        """Validate audio URL is not empty."""
+        if not v or not v.strip():
+            raise ValueError("audio_url cannot be empty")
+        return v.strip()
+
 
 class DiarizeRequest(BaseModel):
     """Request body for diarization."""
 
     audio_url: str = Field(..., description="URL or path to audio file")
-    num_speakers: Optional[int] = Field(None, description="Number of speakers (optional)")
+    num_speakers: Optional[int] = Field(None, description="Number of speakers (optional)", ge=2, le=10)
+
+    @field_validator("audio_url")
+    @classmethod
+    def validate_audio_url(cls, v: str) -> str:
+        """Validate audio URL is not empty."""
+        if not v or not v.strip():
+            raise ValueError("audio_url cannot be empty")
+        return v.strip()
 
 
 class DeepcastRequest(BaseModel):
@@ -42,7 +67,24 @@ class PipelineRequest(BaseModel):
 
     audio_url: str = Field(..., description="URL or path to audio file")
     model: str = Field("base", description="Whisper model to use")
-    num_speakers: Optional[int] = Field(None, description="Number of speakers (optional)")
+    num_speakers: Optional[int] = Field(None, description="Number of speakers (optional)", ge=2, le=10)
+
+    @field_validator("model")
+    @classmethod
+    def validate_model(cls, v: str) -> str:
+        """Validate Whisper model name."""
+        valid_models = {"tiny", "base", "small", "medium", "large"}
+        if v not in valid_models:
+            raise ValueError(f"Invalid model '{v}'. Must be one of: {', '.join(valid_models)}")
+        return v
+
+    @field_validator("audio_url")
+    @classmethod
+    def validate_audio_url(cls, v: str) -> str:
+        """Validate audio URL is not empty."""
+        if not v or not v.strip():
+            raise ValueError("audio_url cannot be empty")
+        return v.strip()
 
 
 class ProcessingResponse(BaseModel):

@@ -10,10 +10,16 @@ This module provides the main FastAPI application instance with:
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from podx.logging import get_logger
+from podx.server.exceptions import (
+    PodXAPIException,
+    general_exception_handler,
+    http_exception_handler,
+    podx_exception_handler,
+)
 
 logger = get_logger(__name__)
 
@@ -86,6 +92,11 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Register exception handlers
+    app.add_exception_handler(PodXAPIException, podx_exception_handler)
+    app.add_exception_handler(HTTPException, http_exception_handler)
+    app.add_exception_handler(Exception, general_exception_handler)
 
     # Register routes
     from podx.server.routes import health, jobs, processing, streaming, upload
