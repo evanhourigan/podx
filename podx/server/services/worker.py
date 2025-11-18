@@ -114,6 +114,20 @@ class BackgroundWorker:
 
         except Exception as e:
             logger.error(f"Job {job_id} failed: {e}", exc_info=True)
+
+            # Broadcast failure event
+            from podx.server.services.events import ProgressEvent, get_broadcaster
+
+            broadcaster = get_broadcaster()
+            await broadcaster.publish(
+                ProgressEvent(
+                    job_id=job_id,
+                    status="failed",
+                    error=str(e),
+                )
+            )
+
+            # Update database
             async with async_session_factory() as session:
                 job_manager = JobManager(session)
                 await job_manager.update_job(
@@ -136,6 +150,20 @@ class BackgroundWorker:
             """Update job progress (sync callback)."""
             # Schedule async update with new session
             async def update():
+                from podx.server.services.events import ProgressEvent, get_broadcaster
+
+                # Broadcast progress event first (real-time)
+                broadcaster = get_broadcaster()
+                await broadcaster.publish(
+                    ProgressEvent(
+                        job_id=job_id,
+                        percentage=percentage,
+                        message=message,
+                        step="transcribe",
+                    )
+                )
+
+                # Also update database (for persistence)
                 async with async_session_factory() as session:
                     from podx.server.services.job_manager import JobManager
 
@@ -163,6 +191,19 @@ class BackgroundWorker:
                 result = await client.transcribe(audio_path=audio_url, model=model)
 
                 # Mark as completed with new session
+                from podx.server.services.events import ProgressEvent, get_broadcaster
+
+                # Broadcast completion event
+                broadcaster = get_broadcaster()
+                await broadcaster.publish(
+                    ProgressEvent(
+                        job_id=job_id,
+                        status="completed",
+                        result={"transcript_path": str(result)},
+                    )
+                )
+
+                # Update database
                 async with async_session_factory() as session:
                     from podx.server.services.job_manager import JobManager
 

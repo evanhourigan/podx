@@ -3,7 +3,6 @@
 Provides real-time progress updates for jobs via SSE.
 """
 
-import asyncio
 import json
 from typing import AsyncGenerator
 
@@ -15,6 +14,7 @@ from podx.logging import get_logger
 from podx.server.database import get_session
 from podx.server.exceptions import JobNotFoundException
 from podx.server.services import JobManager
+from podx.server.services.events import get_broadcaster
 
 logger = get_logger(__name__)
 
@@ -25,7 +25,7 @@ async def generate_job_progress_events(
     job_id: str,
     session: AsyncSession,
 ) -> AsyncGenerator[str, None]:
-    """Generate SSE events for job progress.
+    """Generate SSE events for job progress using event broadcaster.
 
     Args:
         job_id: Job ID to stream progress for
@@ -35,6 +35,7 @@ async def generate_job_progress_events(
         SSE formatted event strings
     """
     job_manager = JobManager(session)
+    broadcaster = get_broadcaster()
 
     # Get initial job state
     job = await job_manager.get_job(job_id)
@@ -43,41 +44,48 @@ async def generate_job_progress_events(
         return
 
     # Send initial job state
-    yield f"event: job_status\ndata: {json.dumps({'status': job.status, 'progress': job.progress})}\n\n"
+    initial_data = {"status": job.status, "progress": job.progress}
+    yield f"event: job_status\ndata: {json.dumps(initial_data)}\n\n"
 
-    # Poll for updates until job is complete
-    last_status = job.status
-    last_progress = job.progress
+    # If job is already complete, send completion and exit
+    if job.status not in ("queued", "running"):
+        yield f"event: complete\ndata: {json.dumps({'status': job.status})}\n\n"
+        return
 
-    while job.status in ("queued", "running"):
-        # Wait a bit before checking again
-        await asyncio.sleep(0.5)
+    # Subscribe to real-time events
+    try:
+        # Subscribe to progress events
+        async for event in broadcaster.subscribe(job_id):
+            # Format event data
+            event_data: dict = {}
 
-        # Get updated job state
-        await session.refresh(job)
+            if event.status:
+                event_data["status"] = event.status
 
-        # Send update if status or progress changed
-        if job.status != last_status or job.progress != last_progress:
-            event_data = {
-                "status": job.status,
-                "progress": job.progress,
-            }
+            if event.progress is not None or event.percentage is not None:
+                event_data["progress"] = {
+                    "percentage": event.percentage,
+                    "message": event.message,
+                    "step": event.step,
+                }
 
-            # Include result if completed
-            if job.status == "completed":
-                event_data["result"] = job.result
+            if event.result:
+                event_data["result"] = event.result
 
-            # Include error if failed
-            if job.status == "failed":
-                event_data["error"] = job.error
+            if event.error:
+                event_data["error"] = event.error
 
+            # Send event
             yield f"event: job_status\ndata: {json.dumps(event_data)}\n\n"
 
-            last_status = job.status
-            last_progress = job.progress
+            # Send completion event if job is done
+            if event.status in ("completed", "failed", "cancelled"):
+                yield f"event: complete\ndata: {json.dumps({'status': event.status})}\n\n"
+                break
 
-    # Send final completion event
-    yield f"event: complete\ndata: {json.dumps({'status': job.status})}\n\n"
+    except Exception as e:
+        logger.error(f"Error streaming job {job_id}: {e}", exc_info=True)
+        yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
 
 
 @router.get("/api/v1/jobs/{job_id}/stream")

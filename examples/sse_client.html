@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PodX SSE Client Example</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-top: 0;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #28a745;
+            width: 0%;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        .event-log {
+            margin-top: 20px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: "Courier New", monospace;
+            font-size: 12px;
+        }
+        .event-item {
+            padding: 5px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .event-item:last-child {
+            border-bottom: none;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #007bff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PodX SSE Client Example</h1>
+        <p>Real-time job progress monitoring using Server-Sent Events</p>
+
+        <div class="input-group">
+            <label for="apiUrl">API Base URL:</label>
+            <input type="text" id="apiUrl" value="http://localhost:8000" placeholder="http://localhost:8000">
+        </div>
+
+        <div class="input-group">
+            <label for="audioUrl">Audio URL:</label>
+            <input type="text" id="audioUrl" placeholder="https://example.com/audio.mp3">
+        </div>
+
+        <div class="input-group">
+            <label for="model">Whisper Model:</label>
+            <select id="model">
+                <option value="tiny">Tiny (fastest)</option>
+                <option value="base" selected>Base (recommended)</option>
+                <option value="small">Small</option>
+                <option value="medium">Medium</option>
+                <option value="large">Large (slowest)</option>
+            </select>
+        </div>
+
+        <button onclick="startTranscription()">Start Transcription</button>
+        <button onclick="clearLog()">Clear Log</button>
+
+        <div id="status" style="display: none;">
+            <div><strong>Job ID:</strong> <span id="jobId"></span></div>
+            <div><strong>Status:</strong> <span id="jobStatus"></span></div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressBar">0%</div>
+            </div>
+            <div id="progressMessage"></div>
+        </div>
+
+        <div class="event-log" id="eventLog"></div>
+    </div>
+
+    <script>
+        let eventSource = null;
+        let currentJobId = null;
+
+        function log(message, type = 'info') {
+            const logEl = document.getElementById('eventLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const item = document.createElement('div');
+            item.className = `event-item ${type}`;
+            item.textContent = `[${timestamp}] ${message}`;
+            logEl.appendChild(item);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('eventLog').innerHTML = '';
+        }
+
+        function updateProgress(percentage, message) {
+            const progressBar = document.getElementById('progressBar');
+            progressBar.style.width = `${percentage}%`;
+            progressBar.textContent = `${Math.round(percentage)}%`;
+
+            const progressMessage = document.getElementById('progressMessage');
+            if (message) {
+                progressMessage.textContent = message;
+            }
+        }
+
+        async function startTranscription() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const audioUrl = document.getElementById('audioUrl').value;
+            const model = document.getElementById('model').value;
+
+            if (!audioUrl) {
+                alert('Please enter an audio URL');
+                return;
+            }
+
+            // Close existing connection
+            if (eventSource) {
+                eventSource.close();
+                log('Closed previous SSE connection', 'info');
+            }
+
+            try {
+                // Create transcription job
+                log(`Creating transcription job (model: ${model})...`, 'info');
+                const response = await fetch(`${apiUrl}/api/v1/transcribe`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        audio_url: audioUrl,
+                        model: model,
+                    }),
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to create job');
+                }
+
+                const data = await response.json();
+                currentJobId = data.job_id;
+
+                // Show status panel
+                document.getElementById('status').style.display = 'block';
+                document.getElementById('jobId').textContent = currentJobId;
+                document.getElementById('jobStatus').textContent = data.status;
+
+                log(`Job created: ${currentJobId}`, 'success');
+
+                // Subscribe to SSE stream
+                const sseUrl = `${apiUrl}/api/v1/jobs/${currentJobId}/stream`;
+                log(`Connecting to SSE stream: ${sseUrl}`, 'info');
+
+                eventSource = new EventSource(sseUrl);
+
+                eventSource.addEventListener('job_status', (e) => {
+                    const event = JSON.parse(e.data);
+                    log(`Job status update: ${JSON.stringify(event)}`, 'info');
+
+                    if (event.status) {
+                        document.getElementById('jobStatus').textContent = event.status;
+                    }
+
+                    if (event.progress) {
+                        const percentage = event.progress.percentage || 0;
+                        const message = event.progress.message || '';
+                        updateProgress(percentage, message);
+                    }
+
+                    if (event.result) {
+                        log(`Job completed! Result: ${JSON.stringify(event.result)}`, 'success');
+                    }
+
+                    if (event.error) {
+                        log(`Job failed: ${event.error}`, 'error');
+                    }
+                });
+
+                eventSource.addEventListener('complete', (e) => {
+                    const event = JSON.parse(e.data);
+                    log(`Job complete with status: ${event.status}`, 'success');
+                    eventSource.close();
+                    log('SSE connection closed', 'info');
+                });
+
+                eventSource.addEventListener('error', (e) => {
+                    const event = JSON.parse(e.data);
+                    log(`Error: ${event.error}`, 'error');
+                    eventSource.close();
+                });
+
+                eventSource.onerror = (error) => {
+                    log('SSE connection error', 'error');
+                    console.error('SSE error:', error);
+                    eventSource.close();
+                };
+
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                console.error('Error:', error);
+            }
+        }
+
+        // Initial log message
+        log('PodX SSE Client ready. Enter an audio URL and click Start Transcription.', 'info');
+    </script>
+</body>
+</html>
