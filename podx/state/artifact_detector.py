@@ -80,6 +80,7 @@ class ArtifactDetector:
         ],
         PipelineStep.DEEPCAST: [
             "deepcast-*.json",
+            "deepcast.json",  # Base file without suffix
         ],
         PipelineStep.NOTION: [
             "notion.out.json",
@@ -146,7 +147,12 @@ class ArtifactDetector:
         )
 
         # Detect deepcast analyses
-        artifacts.deepcasts = self._find_files(["deepcast-*.json"])
+        artifacts.deepcasts = self._find_files(
+            [
+                "deepcast-*.json",
+                "deepcast.json",  # Base file without suffix
+            ]
+        )
 
         # Detect agreements
         artifacts.agreements = self._find_files(["agreement-*.json"])

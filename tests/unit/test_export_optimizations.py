@@ -9,11 +9,6 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
-pytestmark = pytest.mark.skip(
-    reason="Feature not implemented - see .ai-docs/unimplemented-features.md"
-)
 
 
 class TestEpisodeMetadataCache:
@@ -151,7 +146,7 @@ class TestSinglePassScanning:
 
         # Should only have ONE rglob call
         assert len(rglob_calls) == 1
-        assert rglob_calls[0] == "*cast-*.json"
+        assert rglob_calls[0] == "*cast*.json"
 
     def test_pattern_matches_deepcast_files(self, tmp_path):
         """Test that pattern correctly matches deepcast files."""
