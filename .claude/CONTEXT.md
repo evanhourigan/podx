@@ -1,42 +1,28 @@
 # PodX Development Context
 
-**Last Updated**: 2025-11-17 (after Codecov setup)
+**Last Updated**: 2025-11-17 (v3.0.0 planning complete)
 **Current Branch**: `main`
-**Current Phase**: Phase 8 Complete - Ready for v3.0.0 Planning ✅
-**Latest Commits**: 0d4f631 (docs timestamp), 9dd5d1c (CI fixed v2.1.0)
+**Current Phase**: Phase 11 - v3.0.0 Web API Server (Week 1, Day 1)
+**Latest Commits**: 5dc6cdc (Phase 8 complete), 0d4f631 (docs), 9dd5d1c (v2.1.0 CI fix)
 
 ---
 
 ## 🎯 Current State
 
-### ✅ All Major Phases Complete!
+### Phase 11: v3.0.0 - Web API Server & Production Ready - IN PROGRESS 🚧
 
-**v2.1.0 Released** - Feature Bonanza 🎉
-- Released: 2025-11-17
-- GitHub Release: https://github.com/evanhourigan/podx/releases/tag/v2.1.0
-- 8 major features delivered in Phase 10
-- CI: 693/693 tests passing (100% across all platforms)
+**Status:** Planning complete, starting Week 1, Day 1
 
-### Phase 8: CI/CD & Quality Automation - 100% COMPLETE ✅
+**Timeline:** 4 weeks total
+- Week 1 (Days 1-2): CLI Restructuring
+- Week 1-3 (Days 3-21): Web API Server
+- Week 4 (Days 22-26): Coverage Sprint
+- Week 4 (Days 27-28): Documentation & Release
 
-**Just Completed:**
-- ✅ Codecov token configured in GitHub Secrets (2025-11-17)
-- ✅ Coverage badge already in README.md
-- ✅ All CI workflows passing
-- ✅ Multi-platform testing (Linux, macOS, Windows)
-- ✅ Python 3.9-3.12 support
-
-### Phase 10: Feature Enhancements - 100% COMPLETE ✨
-
-**All 8 Features Delivered:**
-1. **Export Formats (B.1)**: PDF and HTML export via ReportLab
-2. **Batch Processing (B.2)**: Parallel processing of multiple episodes
-3. **Configuration Profiles (B.3)**: Named presets for common workflows
-4. **Transcript Search & Analysis (B.4)**: Full-text & semantic search, quotes, topics
-5. **Audio Quality Analysis (B.5)**: SNR, dynamic range, clipping detection
-6. **Cost Estimation (B.6)**: Token & cost estimation before API calls
-7. **CLI Improvements (B.7)**: Better help text, examples, command aliases
-8. **Interactive Setup Wizard (B.8)**: podx-init for first-time setup
+**Current Task:** Day 1 - CLI Restructuring
+- Register missing commands in orchestrate.py
+- Create command groups (batch, search, analyze)
+- Replace workflow aliases with --profile flag
 
 ---
 
@@ -45,58 +31,92 @@
 ### ✅ Completed Phases (v2.0.0 → v2.1.0)
 - ✅ Phase 0: Emergency Cleanup & Foundation
 - ✅ Phase 1: Merge Refactor Branch
-- ✅ Phase 2: Help Removal & Directory Naming (including 2.3: --keep-intermediates)
+- ✅ Phase 2: Help Removal & Directory Naming
 - ✅ Phase 3: TUI Improvements (core work, testing deferred)
 - ✅ Phase 4: Performance Benchmarking
 - ✅ Phase 5: SOLID Code Review
-- ✅ Phase 6: Critical Refactorings (LLM providers, progress reporting)
-- ✅ Phase 7: Documentation Excellence (100% complete)
-- ✅ Phase 8: CI/CD & Quality Automation (100% complete)
-- ✅ Phase 10: Feature Enhancements (100% complete - 8/8 features)
+- ✅ Phase 6: Critical Refactorings
+- ✅ Phase 7: Documentation Excellence
+- ✅ Phase 8: CI/CD & Quality Automation (100% - Codecov configured)
+- ✅ Phase 10: Feature Enhancements (100% - 8/8 features delivered)
 
-### 🎯 What's Next: v3.0.0 Planning
+### 🚧 Current Phase (v3.0.0)
+- 🚧 Phase 11: Web API Server & Production Ready (0% - planning complete)
 
-**Deferred Items:**
-- Phase 3.4: TUI Testing & Remaining Fixes (optional for v2.2.0)
+**Goals:**
+1. **CLI Restructuring** - All commands work as `podx verb` (breaking change)
+2. **Web API Server** - FastAPI + SSE for real-time progress
+3. **Test Coverage** - 30% → 70%+
+4. **Production Ready** - Docker deployment, comprehensive docs
 
-**Potential v3.0.0 Features:**
-- Web API Server (from POTENTIAL_ENHANCEMENTS.md)
-- Production deployment features
-- Additional quality improvements
-- User requests / community feedback
+---
+
+## 📝 Recent Releases
+
+**v2.1.0** - Feature Bonanza 🎉 (Released 2025-11-17)
+- Export formats (PDF, HTML)
+- Batch processing
+- Configuration profiles
+- Transcript search & analysis
+- Audio quality analysis
+- Cost estimation
+- CLI improvements
+- Interactive setup wizard
+- GitHub Release: https://github.com/evanhourigan/podx/releases/tag/v2.1.0
 
 ---
 
 ## 🔗 Tracking Documents
 
-**Strategic (Long-term):**
-- `.ai-docs/CURRENT_ROADMAP.md` - Complete phase history
-- `.ai-docs/RESUME_AFTER_RESTART.md` - Resume instructions (updated for Phase 8 completion)
+**Primary Reference (READ THIS!):**
+- `.ai-docs/V3_IMPLEMENTATION.md` - **THE MAIN PLAN** with week-by-week tasks
 
-**Tactical (Near-term):**
-- `.ai-docs/PHASE10_RESUME.md` - Phase 10 detailed tracking
-- `.ai-docs/ACTIVE_WORK.md` - Granular work steps
+**Strategic (High-level):**
+- `.ai-docs/CURRENT_ROADMAP.md` - Phase 11 overview
+- `.ai-docs/RESUME_AFTER_RESTART.md` - Resume instructions
+
+**Historical:**
+- `.ai-docs/PHASE10_RESUME.md` - Phase 10 detailed tracking (complete)
 
 ---
 
 ## 📝 Git Status
 
 **Branch:** main
-**Working Tree:** Clean
-**Latest Push:** v2.1.0 released
+**Working Tree:** Clean (planning docs in .ai-docs/ not tracked)
+**Latest Push:** 5dc6cdc
 
 **Recent Commits:**
+- 5dc6cdc - docs: mark Phase 8 as 100% complete with Codecov integration
 - 0d4f631 - docs: update CONTEXT.md timestamp after v2.1.0 release
 - 9dd5d1c - fix(ci): fix continuous integration failures (v2.1.0)
-- bbb0ebe - feat(search): add transcript search and analysis (Part B.4)
 
 **Current State:**
-- ✅ CI/CD: PASSING (693/693 tests, 100% across all platforms)
-- ✅ Phase 8: 100% complete (Codecov configured)
-- ✅ Phase 10: 100% complete (8/8 features delivered)
-- ✅ v2.1.0 released and published to GitHub
-- 🎯 Ready to plan v3.0.0
+- ✅ CI/CD: PASSING (693/693 tests, 30% coverage)
+- ✅ Phase 8: 100% complete
+- ✅ Phase 10: 100% complete
+- ✅ v2.1.0 released
+- 🚧 Phase 11: Planning complete, ready to start Day 1
 
 ---
 
-**For full historical context and phase details, see:** `.ai-docs/CURRENT_ROADMAP.md`
+## 🎯 What's Next
+
+**Immediate (Today):**
+Start CLI Restructuring (Week 1, Day 1)
+- Register missing commands in orchestrate.py
+- Create batch command group
+- Replace quick/full/hq aliases with --profile
+
+**This Week:**
+Complete CLI restructuring, all commands work as `podx verb`
+
+**Next 3 Weeks:**
+Build Web API Server with FastAPI + SSE
+
+**Week 4:**
+Coverage sprint (30% → 70%) + documentation + v3.0.0 release
+
+---
+
+**For complete implementation details, see:** `.ai-docs/V3_IMPLEMENTATION.md`
