@@ -46,6 +46,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup
     logger.info("Starting PodX API Server...")
 
+    # Set server start time for uptime tracking
+    from podx.server.routes.health import set_server_start_time
+
+    set_server_start_time()
+
     # Initialize database
     from podx.server.database import init_db
 
@@ -162,6 +167,18 @@ def create_app() -> FastAPI:
     app.include_router(processing.router, tags=["Processing"])
     app.include_router(streaming.router, tags=["Streaming"])
     app.include_router(upload.router, tags=["Upload"])
+
+    # Optionally include metrics endpoint (if PODX_METRICS_ENABLED=true)
+    metrics_enabled = os.getenv("PODX_METRICS_ENABLED", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    if metrics_enabled:
+        from podx.server.routes import metrics
+
+        app.include_router(metrics.router, tags=["Metrics"])
+        logger.info("Metrics endpoint enabled at /metrics")
 
     return app
 

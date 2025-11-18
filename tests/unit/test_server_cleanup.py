@@ -90,10 +90,10 @@ async def test_cleanup_old_jobs_with_local_files():
         with patch("podx.server.tasks.cleanup.delete_upload_file") as mock_delete:
             cleaned = await cleanup_old_jobs(session, max_age_days=7)
 
-    assert cleaned == 1
-    mock_delete.assert_called_once_with(f"{upload_dir}/test.mp3")
-    session.delete.assert_called_once()
-    session.commit.assert_called_once()
+            assert cleaned == 1
+            mock_delete.assert_called_once_with(f"{upload_dir}/test.mp3")
+            session.delete.assert_called_once()
+            session.commit.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -140,7 +140,7 @@ async def test_cleanup_orphaned_files_no_files():
 
         deleted = await cleanup_orphaned_files()
 
-    assert deleted == 0
+        assert deleted == 0
 
 
 @pytest.mark.asyncio
@@ -200,8 +200,8 @@ async def test_cleanup_orphaned_files_with_orphans():
 
             deleted = await cleanup_orphaned_files()
 
-    # file2 should be deleted as it's orphaned
-    assert deleted == 1
-    file2.unlink.assert_called_once()
-    # file1 should not be deleted
-    file1.unlink.assert_not_called()
+            # file2 should be deleted as it's orphaned
+            assert deleted == 1
+            file2.unlink.assert_called_once()
+            # file1 should not be deleted
+            file1.unlink.assert_not_called()
