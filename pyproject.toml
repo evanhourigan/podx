@@ -105,6 +105,26 @@ columns = "min, max, mean, stddev, median, iqr, outliers, rounds, iterations"
 profile = "black"
 line_length = 100
 
+[tool.coverage.run]
+source = ["podx"]
+omit = [
+  "podx/ui/*",
+  "podx/ui_styles.py",
+  "*/tests/*",
+  "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "def __repr__",
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+  "@abstractmethod",
+]
+
 [tool.mypy]
 python_version = "3.9"
 warn_unused_ignores = true
