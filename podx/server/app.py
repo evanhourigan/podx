@@ -17,6 +17,9 @@ from podx.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Global worker instance (started in lifespan)
+_worker = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -40,12 +43,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_db()
     logger.info("Database initialized")
 
+    # Start background worker
+    from podx.server.services import BackgroundWorker
+
+    global _worker
+    _worker = BackgroundWorker()
+    await _worker.start()
+    logger.info("Background worker started")
+
     logger.info("Server ready to accept requests")
 
     yield
 
     # Shutdown
     logger.info("Shutting down PodX API Server...")
+    if _worker:
+        await _worker.stop()
+        logger.info("Background worker stopped")
 
 
 def create_app() -> FastAPI:
