@@ -93,6 +93,11 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Add authentication middleware (optional - enabled via PODX_API_KEY env var)
+    from podx.server.middleware.auth import APIKeyAuthMiddleware
+
+    app.add_middleware(APIKeyAuthMiddleware)
+
     # Register exception handlers
     app.add_exception_handler(PodXAPIException, podx_exception_handler)
     app.add_exception_handler(HTTPException, http_exception_handler)
