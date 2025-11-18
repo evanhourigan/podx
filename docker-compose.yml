@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  podx-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: podx-server:latest
+    container_name: podx-server
+    restart: unless-stopped
+
+    ports:
+      - "8000:8000"
+
+    volumes:
+      # Persist database and uploads
+      - podx-data:/data
+
+    environment:
+      # Server Configuration
+      - PODX_DB_PATH=/data/server.db
+      - PODX_UPLOAD_DIR=/data/uploads
+
+      # CORS Configuration
+      # For development: allow all origins
+      # For production: set to specific domains (comma-separated)
+      # Example: PODX_CORS_ORIGINS=https://app.example.com,https://admin.example.com
+      - PODX_CORS_ORIGINS=*
+
+      # API Authentication (optional)
+      # Set PODX_API_KEY to enable API key authentication
+      # - PODX_API_KEY=your-secret-api-key-here
+
+      # Cleanup Configuration
+      - PODX_CLEANUP_MAX_AGE_DAYS=7
+      - PODX_CLEANUP_INTERVAL_HOURS=24
+
+      # Metrics (optional)
+      # Enable Prometheus metrics endpoint at /metrics
+      # - PODX_METRICS_ENABLED=true
+
+      # Logging
+      - PYTHONUNBUFFERED=1
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    # Resource limits (adjust based on your needs)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  podx-data:
+    driver: local

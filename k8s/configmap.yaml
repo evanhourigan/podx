@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: podx-config
+data:
+  # CORS Origins - comma-separated list of allowed origins
+  # Use "*" for development, specific domains for production
+  cors-origins: "*"
+
+  # Cleanup Configuration
+  cleanup-max-age-days: "7"
+  cleanup-interval-hours: "24"

@@ -1,0 +1,74 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual environments
+.venv
+venv/
+ENV/
+env/
+
+# Testing
+.pytest_cache
+.coverage
+.benchmarks
+htmlcov/
+.tox/
+.hypothesis/
+
+# Type checking
+.mypy_cache
+.dmypy.json
+dmypy.json
+
+# Linting
+.ruff_cache
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# CI/CD
+.github/
+
+# Documentation (not needed in container)
+*.md
+docs/
+.ai-docs/
+
+# Development files
+.env
+.env.*
+!.env.example
+.envrc
+
+# Claude Code
+.claude/
+
+# Editor
+.editorconfig
+.pre-commit-config.yaml
+
+# Tests (not needed in production container)
+tests/
+
+# Examples and demos
+examples/
+demos/
