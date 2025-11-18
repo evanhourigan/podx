@@ -63,29 +63,9 @@ dev = [
 ]
 
 [project.scripts]
-podx-fetch = "podx.cli.fetch:main"
-podx-transcode = "podx.cli.transcode:main"
-podx-transcribe = "podx.cli.transcribe:main"
-podx-diarize = "podx.cli.diarize:main"
-podx-export = "podx.cli.export:main"
-podx-deepcast = "podx.cli.deepcast:main"
-podx-notion = "podx.cli.notion:main"
-podx-preprocess = "podx.cli.preprocess:main"
-podx-models = "podx.cli.models:main"
-podx-estimate = "podx.cli.estimate:main"
-podx-config = "podx.cli.config:main"
-podx-completion = "podx.cli.completion:main"
-podx-quick = "podx.cli.aliases:quick"
-podx-full = "podx.cli.aliases:full"
-podx-hq = "podx.cli.aliases:hq"
-podx-batch-transcribe = "podx.cli.batch:batch_transcribe"
-podx-batch-pipeline = "podx.cli.batch:batch_pipeline"
-podx-batch-status = "podx.cli.batch:batch_status_cmd"
-podx-analyze-audio = "podx.cli.analyze_audio:main"
-podx-init = "podx.cli.init:main"
-podx-search = "podx.cli.search:main"
-podx-analyze = "podx.cli.analyze:main"
-podx-run = "podx.cli.orchestrate:run_main"
+# v3.0.0: Unified CLI - all commands available via 'podx <command>'
+# BREAKING CHANGE: Removed all podx-verb entry points
+# Migration: podx-transcribe → podx transcribe, podx-run → podx run, etc.
 podx = "podx.cli.orchestrate:main"
 
 [tool.setuptools.packages.find]

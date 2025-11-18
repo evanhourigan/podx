@@ -15,6 +15,21 @@ Transform podcast audio into structured insights with AI-powered transcription, 
 
 ---
 
+## 🆕 v3.0.0 - Unified CLI
+
+**Breaking Change:** All `podx-verb` commands are now `podx verb` subcommands.
+
+```bash
+# OLD (v2.x)                 # NEW (v3.0)
+podx-run ...              →  podx run ...
+podx transcribe ...       →  podx transcribe ...
+podx-quick ...            →  podx run --profile quick ...
+```
+
+**[See MIGRATION_V3.md for full migration guide →](MIGRATION_V3.md)**
+
+---
+
 ## 🌟 What is PodX?
 
 PodX is a **composable podcast processing pipeline** that transforms raw audio into searchable, structured data with speaker attribution and AI-powered analysis. Built on the Unix philosophy of simple, composable tools that do one thing well.
@@ -89,7 +104,7 @@ podx run --show "Lex Fridman Podcast" --date 2024-10-15
 **Quick Start (Recommended):**
 ```bash
 # Interactive setup wizard - configures everything in one go
-podx-init
+podx init
 
 # Follow the prompts to configure:
 # - API keys (OpenAI, Anthropic, etc.)
@@ -100,14 +115,14 @@ podx-init
 **Manual Configuration:**
 ```bash
 # Configure API keys interactively
-podx-models --configure
+podx models --configure
 
 # Or set environment variables
 export OPENAI_API_KEY="sk-..."
 export ANTHROPIC_API_KEY="sk-ant-..."
 
 # Check configuration status
-podx-models --status
+podx models --status
 ```
 
 **Supported Providers:**
@@ -123,11 +138,12 @@ podx-models --status
 ### Core Capabilities
 
 - **🎯 Smart Episode Discovery** - Search by show name, date, or RSS feed
-- **⚡ Multi-Provider Transcription** - Local (faster-whisper), OpenAI, or HuggingFace
+- **⚡ Multi-Provider Transcription** - Local (faster-whisper), OpenAI, or HuggingFace models
 - **🎭 Speaker Diarization** - PyAnnote-powered speaker identification
 - **🧠 AI-Powered Analysis** - GPT-4/Claude integration for summaries and insights
 - **📊 Multiple Export Formats** - SRT, VTT, TXT, Markdown
 - **📝 Notion Publishing** - Direct integration with Notion databases
+- **🎨 Interactive UI** - TUI browser for episode selection
 
 ### Developer Features
 
@@ -136,7 +152,6 @@ podx-models --status
 - **📤 JSON Output** - All CLI commands support `--json` for automation
 - **🔄 UNIX Composability** - Pipe commands together
 - **📋 Manifest Tracking** - Track processing state across pipeline
-- **🎨 Interactive UI** - TUI browser for episode selection
 
 ### Production Ready
 
@@ -334,13 +349,13 @@ All commands support JSON I/O for composability:
 
 | Command | Purpose | JSON Input | JSON Output |
 |---------|---------|------------|-------------|
-| `podx-fetch` | Download episodes | - | `AudioMeta` |
-| `podx-transcode` | Normalize audio | `AudioMeta` | `AudioMeta` |
-| `podx-transcribe` | Speech-to-text | `AudioMeta` | `Transcript` |
-| `podx-diarize` | Add speakers | `Transcript` | `DiarizedTranscript` |
-| `podx-deepcast` | AI analysis | `Transcript` | `Deepcast` |
-| `podx-export` | Format conversion | `Transcript` | `ExportPaths` |
-| `podx-notion` | Publish to Notion | `Deepcast + Meta` | `NotionURL` |
+| `podx fetch` | Download episodes | - | `AudioMeta` |
+| `podx transcode` | Normalize audio | `AudioMeta` | `AudioMeta` |
+| `podx transcribe` | Speech-to-text | `AudioMeta` | `Transcript` |
+| `podx diarize` | Add speakers | `Transcript` | `DiarizedTranscript` |
+| `podx deepcast` | AI analysis | `Transcript` | `Deepcast` |
+| `podx export` | Format conversion | `Transcript` | `ExportPaths` |
+| `podx notion` | Publish to Notion | `Deepcast + Meta` | `NotionURL` |
 | `podx run` | Full pipeline | - | All outputs |
 
 ### JSON Output Mode
@@ -349,7 +364,7 @@ All commands support `--json` for machine-readable output:
 
 ```bash
 # Structured JSON output
-podx-transcribe --json < audio.json
+podx transcribe --json < audio.json
 {
   "success": true,
   "transcript": {...},
@@ -370,7 +385,7 @@ Long-running commands support `--progress-json`:
 
 ```bash
 # Newline-delimited JSON progress
-podx-transcribe --progress-json < audio.json
+podx transcribe --progress-json < audio.json
 {"type": "progress", "stage": "loading", "message": "Loading model..."}
 {"type": "progress", "stage": "transcribing", "message": "Processing...", "percent": 25}
 {"type": "progress", "stage": "transcribing", "message": "Processing...", "percent": 50}
@@ -384,19 +399,19 @@ Use UNIX pipes for custom workflows:
 
 ```bash
 # Full pipeline
-podx-fetch --show "My Podcast" --date 2024-10-15 \
-  | podx-transcode \
-  | podx-transcribe --model large-v3-turbo \
-  | podx-diarize \
-  | podx-deepcast --type outline \
-  | podx-notion
+podx fetch --show "My Podcast" --date 2024-10-15 \
+  | podx transcode \
+  | podx transcribe --model large-v3-turbo \
+  | podx diarize \
+  | podx deepcast --type outline \
+  | podx notion
 
 # Save intermediate results
-podx-fetch --show "My Podcast" --date 2024-10-15 \
+podx fetch --show "My Podcast" --date 2024-10-15 \
   | tee fetch.json \
-  | podx-transcribe --model large-v3-turbo \
+  | podx transcribe --model large-v3-turbo \
   | tee transcript.json \
-  | podx-export --formats srt,txt
+  | podx export --formats srt,txt
 ```
 
 ### Search & Analysis
@@ -432,10 +447,10 @@ Browse and select episodes visually:
 
 ```bash
 # Interactive episode browser
-podx-fetch --show "Huberman Lab" --interactive
+podx fetch --show "Huberman Lab" --interactive
 
 # Interactive transcription with model selection
-podx-transcribe --interactive --scan-dir ./episodes
+podx transcribe --interactive --scan-dir ./episodes
 ```
 
 ### Common Workflows
@@ -448,12 +463,12 @@ podx run --show "My Show" --date 2024-10-15 --no-deepcast --no-notion
 podx run --show "Lex Fridman" --date 2024-10-15 --model large-v3
 
 # Skip diarization (faster)
-podx-fetch --show "Reply All" --date 2024-10-15 \
-  | podx-transcribe \
-  | podx-export --formats txt,srt
+podx fetch --show "Reply All" --date 2024-10-15 \
+  | podx transcribe \
+  | podx export --formats txt,srt
 
 # Export existing transcript
-podx-export --input transcript.json --formats srt,vtt,md
+podx export --input transcript.json --formats srt,vtt,md
 ```
 
 ---
@@ -464,7 +479,7 @@ podx-export --input transcript.json --formats srt,vtt,md
 
 ```bash
 # Fetch and transcribe a podcast episode
-podx-fetch --show 'This American Life' --date 2024-01-15 | podx-transcribe
+podx fetch --show 'This American Life' --date 2024-01-15 | podx transcribe
 
 # Complete pipeline with smart directory
 podx run --show 'Radio Lab' --date 2024-01-15
@@ -484,17 +499,17 @@ podx run --show 'The Podcast' --date 2024-01-15 --deepcast --notion
 
 ```bash
 # Chain commands manually
-podx-fetch --show 'Radiolab' --date 2024-01-15 \
-| podx-transcode --to wav16 \
-| podx-transcribe \
-| podx-export --formats txt,srt
+podx fetch --show 'Radiolab' --date 2024-01-15 \
+| podx transcode --to wav16 \
+| podx transcribe \
+| podx export --formats txt,srt
 ```
 
 ### RSS Feeds
 
 ```bash
 # Use direct RSS URL
-podx-fetch --rss-url 'https://feeds.example.com/podcast.xml' --date 2024-01-15
+podx fetch --rss-url 'https://feeds.example.com/podcast.xml' --date 2024-01-15
 
 # Private podcast with full pipeline
 podx run --rss-url 'https://private-feed.com/feed.xml' --date 2024-01-15 --deepcast
@@ -532,8 +547,8 @@ cat episode_dates.txt | parallel -j 4 podx run --show "My Podcast" --date {}
 
 # Batch process all MP3 files in a directory
 for file in *.mp3; do
-  podx-transcribe --input "$file"
-  podx-export --input "${file%.mp3}-transcript.json" --formats txt,srt
+  podx transcribe --input "$file"
+  podx export --input "${file%.mp3}-transcript.json" --formats txt,srt
 done
 
 # Process multiple shows from a list
@@ -547,18 +562,18 @@ wait
 
 ```bash
 # Export to all formats
-podx-export --input transcript.json --formats txt,srt,vtt,md,json
+podx export --input transcript.json --formats txt,srt,vtt,md,json
 
 # Export with custom output directory
-podx-export --input transcript.json --formats txt,srt --output-dir exports/
+podx export --input transcript.json --formats txt,srt --output-dir exports/
 
 # Generate subtitles only
 podx run --show "Video Podcast" --date 2024-10-15 --no-deepcast --no-notion
-podx-export --input transcript.json --formats srt,vtt
+podx export --input transcript.json --formats srt,vtt
 
 # Create searchable text archive
 for transcript in **/*-diarized.json; do
-  podx-export --input "$transcript" --formats txt --output-dir archive/
+  podx export --input "$transcript" --formats txt --output-dir archive/
 done
 ```
 
@@ -566,36 +581,36 @@ done
 
 ```bash
 # Fast transcription with base model
-podx-transcribe --model base --input audio.mp3  # ~0.3x real-time on GPU
+podx transcribe --model base --input audio.mp3  # ~0.3x real-time on GPU
 
 # Balanced: large-v3-turbo (recommended)
-podx-transcribe --model large-v3-turbo --input audio.mp3  # ~0.5x real-time on GPU
+podx transcribe --model large-v3-turbo --input audio.mp3  # ~0.5x real-time on GPU
 
 # Maximum accuracy with large-v3
-podx-transcribe --model large-v3 --input audio.mp3  # ~1x real-time on GPU
+podx transcribe --model large-v3 --input audio.mp3  # ~1x real-time on GPU
 
 # Force CPU mode (no GPU required)
-podx-transcribe --device cpu --compute-type int8 --input audio.mp3
+podx transcribe --device cpu --compute-type int8 --input audio.mp3
 
 # Use OpenAI Whisper API (fastest, paid)
 export OPENAI_API_KEY="sk-..."
-podx-transcribe --asr-provider openai --input audio.mp3
+podx transcribe --asr-provider openai --input audio.mp3
 ```
 
 ### Diarization Examples
 
 ```bash
 # Auto-detect speakers
-podx-diarize --input transcript.json
+podx diarize --input transcript.json
 
 # Specify exact number of speakers
-podx-diarize --num-speakers 2 --input transcript.json
+podx diarize --num-speakers 2 --input transcript.json
 
 # Specify speaker range
-podx-diarize --min-speakers 2 --max-speakers 4 --input transcript.json
+podx diarize --min-speakers 2 --max-speakers 4 --input transcript.json
 
 # Use WhisperX for better diarization
-podx-diarize --engine whisperx --input transcript.json
+podx diarize --engine whisperx --input transcript.json
 
 # Skip diarization (faster processing)
 podx run --show "Solo Podcast" --date 2024-10-15 --no-diarize
@@ -681,7 +696,7 @@ def get_progress(task_id):
 
 ```bash
 # Preprocess transcript (merge + normalize)
-podx-preprocess --merge --normalize -i transcript.json -o transcript-preprocessed.json
+podx preprocess --merge --normalize -i transcript.json -o transcript-preprocessed.json
 
 # Run with orchestrator (with semantic restore)
 podx run --rss-url '...' --date 2024-01-15 --preprocess --restore --deepcast
@@ -704,7 +719,7 @@ podx run --show "$SHOW" --date "$DATE" \
 
 # Archive transcripts
 find . -name "transcript-diarized.json" -mtime 0 \
-  -exec podx-export --input {} --formats txt \;
+  -exec podx export --input {} --formats txt \;
 
 # Notify on completion
 echo "Processed $SHOW episode for $DATE" | mail -s "PodX Complete" admin@example.com
@@ -770,10 +785,10 @@ PodX automatically detects and uses the best available hardware:
 
 ```bash
 # Auto-detect best device (default)
-podx-transcribe --compute auto
+podx transcribe --compute auto
 
 # Or specify manually
-podx-transcribe --compute int8_float16
+podx transcribe --compute int8_float16
 ```
 
 ### ASR Provider Options
@@ -782,13 +797,13 @@ Choose the best transcription provider for your needs:
 
 ```bash
 # Local (faster-whisper) - Best for privacy, no API costs
-podx-transcribe --model large-v3-turbo --asr-provider local
+podx transcribe --model large-v3-turbo --asr-provider local
 
 # OpenAI API - Fastest, requires API key
-podx-transcribe --model whisper-1 --asr-provider openai
+podx transcribe --model whisper-1 --asr-provider openai
 
 # HuggingFace - Alternative cloud option
-podx-transcribe --model large-v3 --asr-provider hf
+podx transcribe --model large-v3 --asr-provider hf
 ```
 
 ### Performance Tips
@@ -885,9 +900,9 @@ podx/
 │   │   ├── export.py         # ExportEngine
 │   │   └── notion.py         # NotionEngine
 │   ├── cli/                  # CLI commands
-│   │   ├── transcribe.py     # podx-transcribe command
-│   │   ├── diarize.py        # podx-diarize command
-│   │   ├── deepcast.py       # podx-deepcast command
+│   │   ├── transcribe.py     # podx transcribe command
+│   │   ├── diarize.py        # podx diarize command
+│   │   ├── deepcast.py       # podx deepcast command
 │   │   └── orchestrate.py    # podx run command
 │   ├── api/                  # Python API
 │   │   ├── client.py         # PodxClient, AsyncPodxClient

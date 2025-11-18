@@ -172,6 +172,11 @@ logger = get_logger(__name__)
     is_flag=True,
     help="Enable full pipeline: --deepcast --extract-markdown --notion (convenience flag)",
 )
+@click.option(
+    "--profile",
+    type=click.Choice(["quick", "standard", "high-quality"]),
+    help="Use a configuration profile (quick/standard/high-quality)",
+)
 @click.option("-v", "--verbose", is_flag=True, help="Print interstitial outputs")
 @click.option(
     "--keep-intermediates/--no-keep-intermediates",
@@ -214,6 +219,7 @@ def run(
     asr_prop: str,
     append_content: bool,
     full: bool,
+    profile: Optional[str],
     verbose: bool,
     keep_intermediates: bool,
     keep_audio: bool,
@@ -273,6 +279,7 @@ def run(
         asr_prop: Notion property name for ASR provider
         append_content: Append to existing Notion page instead of replacing
         full: Convenience flag to enable align + deepcast + markdown + notion
+        profile: Configuration profile name (quick/standard/high-quality)
         verbose: Enable verbose logging
         keep_intermediates: Keep intermediate files after completion (default: cleanup)
         keep_audio: Keep audio files when cleaning intermediates (default: keep)
@@ -284,6 +291,37 @@ def run(
     Returns:
         Exits with status code 0 on success, non-zero on failure
     """
+    # 0. Apply profile settings if specified
+    if profile:
+        from podx.config import get_builtin_profiles
+
+        # Find the matching profile
+        profiles = {p.name: p for p in get_builtin_profiles()}
+        if profile in profiles:
+            profile_config = profiles[profile]
+
+            # Apply profile settings (only if not explicitly set by user)
+            # Profile settings act as defaults, CLI args override them
+            ctx = click.get_current_context()
+
+            # Check which params were explicitly set by user
+            # If a param wasn't set, apply the profile default
+            if "model" not in ctx.params or ctx.get_parameter_source("model") == click.core.ParameterSource.DEFAULT:
+                model = profile_config.settings.get("asr_model", model)
+            if "asr_provider" not in ctx.params or ctx.get_parameter_source("asr_provider") == click.core.ParameterSource.DEFAULT:
+                asr_provider = profile_config.settings.get("asr_provider", asr_provider)
+            if "diarize" not in ctx.params or ctx.get_parameter_source("diarize") == click.core.ParameterSource.DEFAULT:
+                diarize = profile_config.settings.get("diarize", diarize)
+            if "preprocess" not in ctx.params or ctx.get_parameter_source("preprocess") == click.core.ParameterSource.DEFAULT:
+                preprocess = profile_config.settings.get("preprocess", preprocess)
+            if "deepcast" not in ctx.params or ctx.get_parameter_source("deepcast") == click.core.ParameterSource.DEFAULT:
+                deepcast = profile_config.settings.get("deepcast", deepcast)
+            if "deepcast_model" not in ctx.params or ctx.get_parameter_source("deepcast_model") == click.core.ParameterSource.DEFAULT:
+                deepcast_model = profile_config.settings.get("llm_model", deepcast_model)
+
+            if verbose:
+                click.echo(f"📋 Using profile: {profile} ({profile_config.description})")
+
     # 1. Build pipeline configuration from CLI args with preset transformations
     config = build_pipeline_config(
         show=show,
