@@ -36,7 +36,9 @@ class EventBroadcaster:
     def __init__(self):
         """Initialize the event broadcaster."""
         # Map of job_id -> list of queues for subscribers
-        self._subscribers: Dict[str, list[asyncio.Queue[ProgressEvent]]] = defaultdict(list)
+        self._subscribers: Dict[str, list[asyncio.Queue[ProgressEvent]]] = defaultdict(
+            list
+        )
         self._lock = asyncio.Lock()
 
     async def subscribe(self, job_id: str) -> AsyncIterator[ProgressEvent]:
@@ -53,7 +55,9 @@ class EventBroadcaster:
         # Add subscriber
         async with self._lock:
             self._subscribers[job_id].append(queue)
-            logger.debug(f"Client subscribed to job {job_id} ({len(self._subscribers[job_id])} total subscribers)")
+            logger.debug(
+                f"Client subscribed to job {job_id} ({len(self._subscribers[job_id])} total subscribers)"
+            )
 
         try:
             while True:
@@ -89,17 +93,23 @@ class EventBroadcaster:
             subscribers = self._subscribers.get(event.job_id, [])
 
             if not subscribers:
-                logger.debug(f"No subscribers for job {event.job_id}, event not broadcasted")
+                logger.debug(
+                    f"No subscribers for job {event.job_id}, event not broadcasted"
+                )
                 return
 
-            logger.debug(f"Broadcasting event to {len(subscribers)} subscribers for job {event.job_id}")
+            logger.debug(
+                f"Broadcasting event to {len(subscribers)} subscribers for job {event.job_id}"
+            )
 
             # Send event to all subscribers
             for queue in subscribers:
                 try:
                     queue.put_nowait(event)
                 except asyncio.QueueFull:
-                    logger.warning(f"Subscriber queue full for job {event.job_id}, dropping event")
+                    logger.warning(
+                        f"Subscriber queue full for job {event.job_id}, dropping event"
+                    )
 
     def has_subscribers(self, job_id: str) -> bool:
         """Check if a job has any active subscribers.

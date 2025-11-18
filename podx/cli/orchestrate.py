@@ -133,11 +133,13 @@ main.add_command(analyze_audio.main, name="analyze-audio")
 main.add_command(search.search_group, name="search")
 main.add_command(analyze.analyze_group, name="analyze")
 
+
 # Create batch command group
 @click.group(name="batch")
 def batch_group():
     """Batch processing commands for multiple episodes."""
     pass
+
 
 # Add batch subcommands
 batch_group.add_command(batch.batch_transcribe, name="transcribe")

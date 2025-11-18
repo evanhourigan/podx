@@ -306,21 +306,49 @@ def run(
 
             # Check which params were explicitly set by user
             # If a param wasn't set, apply the profile default
-            if "model" not in ctx.params or ctx.get_parameter_source("model") == click.core.ParameterSource.DEFAULT:
+            if (
+                "model" not in ctx.params
+                or ctx.get_parameter_source("model")
+                == click.core.ParameterSource.DEFAULT
+            ):
                 model = profile_config.settings.get("asr_model", model)
-            if "asr_provider" not in ctx.params or ctx.get_parameter_source("asr_provider") == click.core.ParameterSource.DEFAULT:
+            if (
+                "asr_provider" not in ctx.params
+                or ctx.get_parameter_source("asr_provider")
+                == click.core.ParameterSource.DEFAULT
+            ):
                 asr_provider = profile_config.settings.get("asr_provider", asr_provider)
-            if "diarize" not in ctx.params or ctx.get_parameter_source("diarize") == click.core.ParameterSource.DEFAULT:
+            if (
+                "diarize" not in ctx.params
+                or ctx.get_parameter_source("diarize")
+                == click.core.ParameterSource.DEFAULT
+            ):
                 diarize = profile_config.settings.get("diarize", diarize)
-            if "preprocess" not in ctx.params or ctx.get_parameter_source("preprocess") == click.core.ParameterSource.DEFAULT:
+            if (
+                "preprocess" not in ctx.params
+                or ctx.get_parameter_source("preprocess")
+                == click.core.ParameterSource.DEFAULT
+            ):
                 preprocess = profile_config.settings.get("preprocess", preprocess)
-            if "deepcast" not in ctx.params or ctx.get_parameter_source("deepcast") == click.core.ParameterSource.DEFAULT:
+            if (
+                "deepcast" not in ctx.params
+                or ctx.get_parameter_source("deepcast")
+                == click.core.ParameterSource.DEFAULT
+            ):
                 deepcast = profile_config.settings.get("deepcast", deepcast)
-            if "deepcast_model" not in ctx.params or ctx.get_parameter_source("deepcast_model") == click.core.ParameterSource.DEFAULT:
-                deepcast_model = profile_config.settings.get("llm_model", deepcast_model)
+            if (
+                "deepcast_model" not in ctx.params
+                or ctx.get_parameter_source("deepcast_model")
+                == click.core.ParameterSource.DEFAULT
+            ):
+                deepcast_model = profile_config.settings.get(
+                    "llm_model", deepcast_model
+                )
 
             if verbose:
-                click.echo(f"📋 Using profile: {profile} ({profile_config.description})")
+                click.echo(
+                    f"📋 Using profile: {profile} ({profile_config.description})"
+                )
 
     # 1. Build pipeline configuration from CLI args with preset transformations
     config = build_pipeline_config(

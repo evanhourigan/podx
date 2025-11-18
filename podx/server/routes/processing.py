@@ -25,7 +25,9 @@ class TranscribeRequest(BaseModel):
     """Request body for transcription."""
 
     audio_url: str = Field(..., description="URL or path to audio file")
-    model: str = Field("base", description="Whisper model to use (tiny, base, small, medium, large)")
+    model: str = Field(
+        "base", description="Whisper model to use (tiny, base, small, medium, large)"
+    )
 
     @field_validator("model")
     @classmethod
@@ -33,7 +35,9 @@ class TranscribeRequest(BaseModel):
         """Validate Whisper model name."""
         valid_models = {"tiny", "base", "small", "medium", "large"}
         if v not in valid_models:
-            raise ValueError(f"Invalid model '{v}'. Must be one of: {', '.join(valid_models)}")
+            raise ValueError(
+                f"Invalid model '{v}'. Must be one of: {', '.join(valid_models)}"
+            )
         return v
 
     @field_validator("audio_url")
@@ -49,7 +53,9 @@ class DiarizeRequest(BaseModel):
     """Request body for diarization."""
 
     audio_url: str = Field(..., description="URL or path to audio file")
-    num_speakers: Optional[int] = Field(None, description="Number of speakers (optional)", ge=2, le=10)
+    num_speakers: Optional[int] = Field(
+        None, description="Number of speakers (optional)", ge=2, le=10
+    )
 
     @field_validator("audio_url")
     @classmethod
@@ -71,7 +77,9 @@ class PipelineRequest(BaseModel):
 
     audio_url: str = Field(..., description="URL or path to audio file")
     model: str = Field("base", description="Whisper model to use")
-    num_speakers: Optional[int] = Field(None, description="Number of speakers (optional)", ge=2, le=10)
+    num_speakers: Optional[int] = Field(
+        None, description="Number of speakers (optional)", ge=2, le=10
+    )
 
     @field_validator("model")
     @classmethod
@@ -79,7 +87,9 @@ class PipelineRequest(BaseModel):
         """Validate Whisper model name."""
         valid_models = {"tiny", "base", "small", "medium", "large"}
         if v not in valid_models:
-            raise ValueError(f"Invalid model '{v}'. Must be one of: {', '.join(valid_models)}")
+            raise ValueError(
+                f"Invalid model '{v}'. Must be one of: {', '.join(valid_models)}"
+            )
         return v
 
     @field_validator("audio_url")
@@ -219,7 +229,9 @@ async def pipeline(
 # File upload endpoints
 
 
-@router.post("/api/v1/transcribe/upload", response_model=ProcessingResponse, status_code=202)
+@router.post(
+    "/api/v1/transcribe/upload", response_model=ProcessingResponse, status_code=202
+)
 @limiter.limit(upload_limit)
 async def transcribe_upload(
     request: Request,
@@ -253,7 +265,9 @@ async def transcribe_upload(
     return ProcessingResponse(job_id=job.id, status=job.status)
 
 
-@router.post("/api/v1/diarize/upload", response_model=ProcessingResponse, status_code=202)
+@router.post(
+    "/api/v1/diarize/upload", response_model=ProcessingResponse, status_code=202
+)
 @limiter.limit(upload_limit)
 async def diarize_upload(
     request: Request,
@@ -288,7 +302,9 @@ async def diarize_upload(
     return ProcessingResponse(job_id=job.id, status=job.status)
 
 
-@router.post("/api/v1/pipeline/upload", response_model=ProcessingResponse, status_code=202)
+@router.post(
+    "/api/v1/pipeline/upload", response_model=ProcessingResponse, status_code=202
+)
 @limiter.limit(upload_limit)
 async def pipeline_upload(
     request: Request,

@@ -79,7 +79,9 @@ async def liveness_probe() -> BasicHealthResponse:
 
 
 @router.get("/health/ready", response_model=ReadinessResponse)
-async def readiness_probe(session: AsyncSession = Depends(get_session)) -> ReadinessResponse:
+async def readiness_probe(
+    session: AsyncSession = Depends(get_session),
+) -> ReadinessResponse:
     """Readiness probe endpoint.
 
     Checks if the server is ready to accept traffic by verifying
@@ -110,7 +112,9 @@ async def readiness_probe(session: AsyncSession = Depends(get_session)) -> Readi
 
 
 @router.get("/health", response_model=DetailedHealthResponse)
-async def health_check(session: AsyncSession = Depends(get_session)) -> DetailedHealthResponse:
+async def health_check(
+    session: AsyncSession = Depends(get_session),
+) -> DetailedHealthResponse:
     """Detailed health check endpoint.
 
     Returns comprehensive server health and version information,

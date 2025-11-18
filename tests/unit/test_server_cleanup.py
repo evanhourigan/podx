@@ -86,7 +86,9 @@ async def test_cleanup_old_jobs_with_local_files():
     session.delete = AsyncMock()
     session.commit = AsyncMock()
 
-    with patch("podx.server.tasks.cleanup.get_upload_dir", return_value=Path(upload_dir)):
+    with patch(
+        "podx.server.tasks.cleanup.get_upload_dir", return_value=Path(upload_dir)
+    ):
         with patch("podx.server.tasks.cleanup.delete_upload_file") as mock_delete:
             cleaned = await cleanup_old_jobs(session, max_age_days=7)
 
@@ -118,7 +120,10 @@ async def test_cleanup_old_jobs_with_external_urls():
     session.delete = AsyncMock()
     session.commit = AsyncMock()
 
-    with patch("podx.server.tasks.cleanup.get_upload_dir", return_value=Path("/Users/test/.podx/uploads")):
+    with patch(
+        "podx.server.tasks.cleanup.get_upload_dir",
+        return_value=Path("/Users/test/.podx/uploads"),
+    ):
         with patch("podx.server.tasks.cleanup.delete_upload_file") as mock_delete:
             cleaned = await cleanup_old_jobs(session, max_age_days=7)
 
@@ -155,7 +160,9 @@ async def test_cleanup_orphaned_files_all_referenced():
         with patch.object(Path, "glob", return_value=[file1, file2]):
             with patch.object(Path, "is_file", return_value=True):
                 # Mock database query returning jobs that reference these files
-                with patch("podx.server.tasks.cleanup.async_session_factory") as mock_factory:
+                with patch(
+                    "podx.server.tasks.cleanup.async_session_factory"
+                ) as mock_factory:
                     mock_session = MagicMock()
                     mock_result = MagicMock()
                     mock_result.scalars.return_value.all.return_value = [
@@ -186,7 +193,9 @@ async def test_cleanup_orphaned_files_with_orphans():
     mock_upload_dir.exists.return_value = True
     mock_upload_dir.glob.return_value = [file1, file2]
 
-    with patch("podx.server.tasks.cleanup.get_upload_dir", return_value=mock_upload_dir):
+    with patch(
+        "podx.server.tasks.cleanup.get_upload_dir", return_value=mock_upload_dir
+    ):
         # Mock database query returning only one referenced file
         with patch("podx.server.tasks.cleanup.async_session_factory") as mock_factory:
             mock_session = MagicMock()

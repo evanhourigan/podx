@@ -148,6 +148,7 @@ class BackgroundWorker:
 
         def progress_callback(percentage: float, message: str) -> None:
             """Update job progress (sync callback)."""
+
             # Schedule async update with new session
             async def update():
                 from podx.server.services.events import ProgressEvent, get_broadcaster

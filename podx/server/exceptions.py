@@ -3,9 +3,10 @@
 This module defines custom exception types and FastAPI exception handlers.
 """
 
+from typing import Any, Dict
+
 from fastapi import HTTPException, Request, status
 from fastapi.responses import JSONResponse
-from typing import Any, Dict
 
 from podx.logging import get_logger
 
@@ -15,7 +16,12 @@ logger = get_logger(__name__)
 class PodXAPIException(Exception):
     """Base exception for all PodX API errors."""
 
-    def __init__(self, message: str, status_code: int = 500, details: Dict[str, Any] | None = None):
+    def __init__(
+        self,
+        message: str,
+        status_code: int = 500,
+        details: Dict[str, Any] | None = None,
+    ):
         """Initialize exception.
 
         Args:
@@ -102,7 +108,9 @@ class JobProcessingException(PodXAPIException):
 # Exception handlers for FastAPI
 
 
-async def podx_exception_handler(request: Request, exc: PodXAPIException) -> JSONResponse:
+async def podx_exception_handler(
+    request: Request, exc: PodXAPIException
+) -> JSONResponse:
     """Handle PodX custom exceptions.
 
     Args:
