@@ -1,5 +1,5 @@
 """API routes for PodX server."""
 
-from podx.server.routes import health
+from podx.server.routes import health, jobs
 
-__all__ = ["health"]
+__all__ = ["health", "jobs"]

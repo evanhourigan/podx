@@ -12,16 +12,21 @@ from podx.server.models.database import Base
 DEFAULT_DB_PATH = Path.home() / ".podx" / "server.db"
 
 
-def get_database_url(db_path: Path = DEFAULT_DB_PATH) -> str:
+def get_database_url(db_path: Path | str = DEFAULT_DB_PATH) -> str:
     """Get SQLAlchemy database URL.
 
     Args:
-        db_path: Path to SQLite database file
+        db_path: Path to SQLite database file or ":memory:" for in-memory DB
 
     Returns:
         SQLAlchemy database URL
     """
-    # Ensure directory exists
+    # Handle in-memory database
+    if str(db_path) == ":memory:":
+        return "sqlite+aiosqlite:///:memory:"
+
+    # Ensure directory exists for file-based DB
+    db_path = Path(db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     # SQLite URL for async SQLAlchemy (using aiosqlite)
