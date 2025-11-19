@@ -62,6 +62,8 @@ dev = [
   "types-requests~=2.32.4",
   "types-python-dateutil~=2.9.0",
   "black~=25.1.0",
+  "isort~=5.13.0",
+  "tox~=4.0.0",
   # Include optional dependencies for testing
   "librosa~=0.10.0",
   "sentence-transformers~=2.2.0",

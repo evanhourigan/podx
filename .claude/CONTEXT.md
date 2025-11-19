@@ -1,129 +1,120 @@
 # PodX Development Context
 
-**Last Updated**: 2025-11-19 20:52:47 UTC
+**Last Updated**: 2025-11-19 23:01:17 UTC
 **Current Branch**: `main`
-**Current Phase**: Phase 11 - COMPLETE ✅
-**Latest Commits**: de1ecb4 (v3.0.0), 19048e7 (CLI fixes), 1065b88 (docs)
+**Current Phase**: v2.1.0 Release Ready - CI Fixed ✅
+**Latest Commits**: efd5836 (CI deps), 4125cdf (Py3.9), 4a3f4db (formatting)
 
 ---
 
 ## 🎯 Current State
 
-### Phase 11: v3.0.0 - Web API Server & Production Ready - COMPLETE ✅
+### Phase 10: Feature Enhancements - 80% COMPLETE ✨
 
-**Status:** Released! 🎉
+**Status:** 8/10 features complete
 
-**Completed:**
-- ✅ CLI Restructuring (Days 1-2)
-- ✅ Web API Server (Days 3-21)
-- ✅ Coverage Sprint (Days 22-26)
-- ✅ Documentation & Release (Days 27-28)
+**Recently Completed:**
+- ✅ Part A: Git & Tracking Cleanup (100% - c93e311)
+- ✅ Part B.1: Export Formats - PDF & HTML (100% - 65bd725)
+- ✅ Part B.6: Cost Estimation (100% - ac47020)
+- ✅ Part B.3: Configuration Profiles (100% - b3cd2aa)
+- ✅ Part B.7: CLI Improvements (100% - 48158ae)
+- ✅ Part B.2: Batch Processing (100% - cbfc6c0)
+- ✅ Part B.5: Audio Quality Analysis (100% - 7212df7)
+- ✅ Part B.8: Interactive Setup Wizard (100% - 65089ad)
+- ✅ Part B.4: Transcript Search & Analysis (100% - bbb0ebe)
 
-**Release:** https://github.com/evanhourigan/podx/releases/tag/v3.0.0
+### Phase 6.1: LLM Provider Abstraction - 100% COMPLETE ✨
+
+**Just Completed (2025-11-16):**
+- ✅ `podx-models --status` - API key configuration status display
+- ✅ `podx-models --configure` - Interactive API key setup wizard
+- ✅ Updated README.md with API Key Configuration section
+- ✅ Commit ccb1f3b
+
+**Remaining Items:**
+- Phase 3.4: TUI Testing & Remaining Fixes (1-2 hours, deferred)
 
 ---
 
 ## 📊 Progress Summary
 
-### ✅ Completed Phases (v2.0.0 → v3.0.0)
+### Completed Phases (v2.0.0)
 - ✅ Phase 0: Emergency Cleanup & Foundation
 - ✅ Phase 1: Merge Refactor Branch
-- ✅ Phase 2: Help Removal & Directory Naming
+- ✅ Phase 2: Help Removal & Directory Naming (including 2.3: --keep-intermediates)
 - ✅ Phase 3: TUI Improvements (core work, testing deferred)
 - ✅ Phase 4: Performance Benchmarking
 - ✅ Phase 5: SOLID Code Review
-- ✅ Phase 6: Critical Refactorings
-- ✅ Phase 7: Documentation Excellence
-- ✅ Phase 8: CI/CD & Quality Automation (100% - Codecov configured)
-- ✅ Phase 10: Feature Enhancements (100% - 8/8 features delivered)
-- ✅ Phase 11: Web API Server & Production Ready (100% - v3.0.0 released)
+- ✅ Phase 6: Critical Refactorings (LLM providers, progress reporting)
+- ✅ Phase 7: Documentation Excellence (100% complete)
+- ✅ Phase 8: CI/CD & Quality Automation (80% complete - verification pending)
 
-### 🎉 v3.0.0 Released
+### Current Phase (v2.1.0 - v2.2.0)
+- 🚧 Phase 10: Feature Enhancements (80% complete - 8/10 features)
 
-**Achievements:**
-1. ✅ **CLI Restructuring** - All commands work as `podx verb` (breaking change)
-2. ✅ **Web API Server** - FastAPI + SSE for real-time progress
-3. ✅ **Test Coverage** - 33% → 40% (excluding UI, realistic targets)
-4. ✅ **Production Ready** - Docker deployment, comprehensive docs
+**Delivered Features:**
+1. **Export Formats (B.1)**: PDF and HTML export via ReportLab
+2. **Cost Estimation (B.6)**: Token & cost estimation before API calls
+3. **Configuration Profiles (B.3)**: Named presets for common workflows
+4. **CLI Improvements (B.7)**: Better help text, examples, command aliases
+5. **Batch Processing (B.2)**: Parallel processing of multiple episodes
+6. **Audio Quality Analysis (B.5)**: SNR, dynamic range, clipping detection
+7. **Interactive Setup Wizard (B.8)**: podx-init for first-time setup
+8. **Transcript Search & Analysis (B.4)**: Full-text & semantic search, quotes, topics
 
----
+**Deferred to Future:**
+- Phase 3.4: TUI Testing & Remaining Fixes
 
-## 📝 Recent Releases
-
-**v3.0.0** - Web API Server & CLI Restructure 🚀 (Released 2025-11-18)
-- Production-grade REST API with FastAPI
-- SSE streaming for real-time progress
-- Background job management with SQLite
-- Docker support with docker-compose
-- CLI restructure: podx-verb → podx verb
-- Test coverage: 33% → 40%
-- 689 tests passing, 19 skipped
-- GitHub Release: https://github.com/evanhourigan/podx/releases/tag/v3.0.0
-
-**v2.1.0** - Feature Bonanza 🎉 (Released 2025-11-17)
-- Export formats (PDF, HTML)
-- Batch processing
-- Configuration profiles
-- Transcript search & analysis
-- Audio quality analysis
-- Cost estimation
-- CLI improvements
-- Interactive setup wizard
-- GitHub Release: https://github.com/evanhourigan/podx/releases/tag/v2.1.0
+**Versioning Plan:**
+- **v2.1.0**: 8 major features complete ✨ (ready to tag!)
+  - Export formats (PDF/HTML)
+  - Configuration profiles
+  - Cost estimation
+  - CLI improvements
+  - Batch processing
+  - Audio quality analysis
+  - Interactive setup wizard
+  - Transcript search & analysis
+- **v3.0.0**: Web API Server + Phase 8 verification (future)
 
 ---
 
 ## 🔗 Tracking Documents
 
-**Primary Reference (READ THIS!):**
-- `.ai-docs/V3_IMPLEMENTATION.md` - **THE MAIN PLAN** with week-by-week tasks
+**Strategic (Long-term):**
+- `.ai-docs/CURRENT_ROADMAP.md` - Complete phase history, Phase 10 structure
 
-**Strategic (High-level):**
-- `.ai-docs/CURRENT_ROADMAP.md` - Phase 11 overview
-- `.ai-docs/RESUME_AFTER_RESTART.md` - Resume instructions
+**Tactical (Near-term):**
+- `.ai-docs/ACTIVE_WORK.md` - Granular steps for current work (to be created)
+- `.ai-docs/PHASE10_RESUME.md` - Resume doc for context compaction (to be created)
 
 **Historical:**
-- `.ai-docs/PHASE10_RESUME.md` - Phase 10 detailed tracking (complete)
+- All Phase 6, 7, 8 details now in CURRENT_ROADMAP.md (not here)
 
 ---
 
 ## 📝 Git Status
 
 **Branch:** main
-**Working Tree:** Clean (planning docs in .ai-docs/ not tracked)
-**Latest Push:** 5dc6cdc
+**Uncommitted Changes:**
+- `.ai-docs/CURRENT_ROADMAP.md` (modified - Phase 6.1 marked complete)
+- `.claude/CONTEXT.md` (this file - updated for Phase 6.1 + B.5 completion)
 
 **Recent Commits:**
-- 5dc6cdc - docs: mark Phase 8 as 100% complete with Codecov integration
-- 0d4f631 - docs: update CONTEXT.md timestamp after v2.1.0 release
-- 9dd5d1c - fix(ci): fix continuous integration failures (v2.1.0)
+- efd5836 - fix(ci): add LLM and Notion dependencies to dev extras
+- 4125cdf - fix(ci): fix Python 3.9 compatibility and import sorting
+- 4a3f4db - fix(ci): fix continuous integration failures
+- d79d0d1 - docs(api): add comprehensive search module documentation
+- bbb0ebe - feat(search): add transcript search and analysis (Part B.4)
 
 **Current State:**
-- ✅ CI/CD: PASSING (693/693 tests, 30% coverage)
-- ✅ Phase 8: 100% complete
-- ✅ Phase 10: 100% complete
-- ✅ v2.1.0 released
-- 🚧 Phase 11: Planning complete, ready to start Day 1
+- ✅ CI/CD: PASSING (688/693 tests, 98.3% pass rate)
+- ✅ Phase 10: 100% complete (8/8 features delivered)
+- ✅ v2.1.0 tagged and ready to push
+- 🐛 5 pre-existing test failures (OpenAI model normalization)
+- Phase 3.4: TUI Testing (deferred to v2.2.0)
 
 ---
 
-## 🎯 What's Next
-
-**Immediate (Today):**
-Start CLI Restructuring (Week 1, Day 1)
-- Register missing commands in orchestrate.py
-- Create batch command group
-- Replace quick/full/hq aliases with --profile
-
-**This Week:**
-Complete CLI restructuring, all commands work as `podx verb`
-
-**Next 3 Weeks:**
-Build Web API Server with FastAPI + SSE
-
-**Week 4:**
-Coverage sprint (30% → 70%) + documentation + v3.0.0 release
-
----
-
-**For complete implementation details, see:** `.ai-docs/V3_IMPLEMENTATION.md`
+**For full historical context and phase details, see:** `.ai-docs/CURRENT_ROADMAP.md`
