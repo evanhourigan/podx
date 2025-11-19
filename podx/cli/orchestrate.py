@@ -32,6 +32,17 @@ except Exception:  # pragma: no cover
 
     BaseGroup = click.Group
 
+# Import missing commands for v3.0 CLI restructure
+from podx.cli import (
+    analyze,
+    analyze_audio,
+    batch,
+    completion,
+    estimate,
+    init,
+    search,
+)
+
 # Import all command modules
 from podx.cli.commands import (
     config_command,
@@ -45,21 +56,10 @@ from podx.cli.commands import (
     register_config_group,
     register_deprecated_commands,
     run,
+    server,
     transcode_cmd,
     transcribe_cmd,
 )
-
-# Import missing commands for v3.0 CLI restructure
-from podx.cli import (
-    analyze,
-    analyze_audio,
-    batch,
-    completion,
-    estimate,
-    init,
-    search,
-)
-from podx.cli.commands import server
 from podx.logging import setup_logging
 
 # Initialize logging

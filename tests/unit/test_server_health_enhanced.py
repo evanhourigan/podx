@@ -1,15 +1,16 @@
 """Unit tests for enhanced health check endpoints."""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from unittest.mock import AsyncMock, MagicMock
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from podx.server.routes.health import (
+    get_uptime_seconds,
     router,
     set_server_start_time,
-    get_uptime_seconds,
 )
 
 

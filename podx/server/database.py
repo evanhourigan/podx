@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Union
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -12,7 +12,7 @@ from podx.server.models.database import Base
 DEFAULT_DB_PATH = Path.home() / ".podx" / "server.db"
 
 
-def get_database_url(db_path: Path | str = DEFAULT_DB_PATH) -> str:
+def get_database_url(db_path: Union[Path, str] = DEFAULT_DB_PATH) -> str:
     """Get SQLAlchemy database URL.
 
     Args:

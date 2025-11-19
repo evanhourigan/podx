@@ -2,7 +2,7 @@
 
 import platform
 from datetime import datetime, timezone
-from typing import Dict, Any
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -14,7 +14,7 @@ from podx.server.database import get_session
 router = APIRouter()
 
 # Server start time for uptime calculation
-_SERVER_START_TIME: datetime | None = None
+_SERVER_START_TIME: Optional[datetime] = None
 
 
 def set_server_start_time() -> None:
