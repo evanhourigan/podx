@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "podx"
-version = "2.0.0"
+version = "3.0.0"
 description = "Composable podcast pipeline: fetch → transcode → transcribe → diarize → preprocess → deepcast"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -48,6 +48,8 @@ server = [
   "aiosqlite~=0.20.0",
   "sse-starlette~=2.2.1",
   "prometheus-client~=0.21.0",  # Optional: for metrics endpoint
+  "slowapi~=0.1.9",
+  "python-multipart~=0.0.20",  # Required for form data handling
 ]
 dev = [
   "pytest~=8.4.2",

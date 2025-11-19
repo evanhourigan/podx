@@ -8,7 +8,9 @@ from pydantic import BaseModel, Field
 class JobCreate(BaseModel):
     """Base model for creating a job."""
 
-    job_type: str = Field(..., description="Type of job (transcribe, diarize, deepcast, pipeline)")
+    job_type: str = Field(
+        ..., description="Type of job (transcribe, diarize, deepcast, pipeline)"
+    )
     input_params: Dict[str, Any] = Field(
         default_factory=dict, description="Job-specific input parameters"
     )
@@ -44,7 +46,8 @@ class DeepcastRequest(BaseModel):
     prompt: Optional[str] = Field(None, description="Custom LLM prompt")
     model: str = Field(default="gpt-4", description="LLM model to use")
     api_keys: Dict[str, str] = Field(
-        default_factory=dict, description="User-provided API keys (openai, anthropic, etc.)"
+        default_factory=dict,
+        description="User-provided API keys (openai, anthropic, etc.)",
     )
 
 
@@ -53,11 +56,14 @@ class PipelineRequest(BaseModel):
 
     audio_url: Optional[str] = Field(None, description="URL to audio file")
     upload_id: Optional[str] = Field(None, description="ID of uploaded file")
-    transcribe_model: str = Field(default="base", description="Whisper model for transcription")
+    transcribe_model: str = Field(
+        default="base", description="Whisper model for transcription"
+    )
     diarize: bool = Field(default=True, description="Enable diarization")
     deepcast: bool = Field(default=True, description="Enable deepcast analysis")
     export_formats: list[str] = Field(
-        default_factory=lambda: ["json"], description="Export formats (json, pdf, notion, etc.)"
+        default_factory=lambda: ["json"],
+        description="Export formats (json, pdf, notion, etc.)",
     )
     api_keys: Dict[str, str] = Field(
         default_factory=dict, description="User-provided API keys"

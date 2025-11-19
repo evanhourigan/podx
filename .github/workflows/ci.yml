@@ -3,8 +3,8 @@ name: CI
 on:
   push:
     branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
+  pull_request:  # Run on all PRs regardless of target branch
+  workflow_dispatch:  # Allow manual triggering from GitHub UI
 
 jobs:
   lint:
@@ -91,7 +91,7 @@ jobs:
       - name: Install package
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev,server]"
 
       - name: Run tests
         run: pytest tests/ --cov=podx --cov-report=term-missing --cov-report=xml --junitxml=junit/test-results-${{ matrix.os }}-${{ matrix.python-version }}.xml --timeout=30 -v

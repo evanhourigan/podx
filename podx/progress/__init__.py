@@ -22,14 +22,15 @@ Usage:
     progress = SilentProgressReporter()
 """
 
+# Import legacy functions from old progress.py (TODO: migrate these)
+import importlib.util
+import os
+
 from .api import APIProgressReporter, ProgressEvent
 from .base import ProgressReporter, ProgressStep
 from .console import ConsoleProgressReporter
 from .silent import SilentProgressReporter
 
-# Import legacy functions from old progress.py (TODO: migrate these)
-import importlib.util
-import os
 _legacy_path = os.path.join(os.path.dirname(__file__), "..", "progress.py")
 _spec = importlib.util.spec_from_file_location("legacy_progress", _legacy_path)
 _legacy = importlib.util.module_from_spec(_spec)

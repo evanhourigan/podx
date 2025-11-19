@@ -26,7 +26,9 @@ async def async_session():
         await conn.run_sync(Base.metadata.create_all)
 
     # Create session factory
-    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    session_factory = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
 
     # Yield session
     async with session_factory() as session:
@@ -57,7 +59,10 @@ async def test_job_create(async_session: AsyncSession):
     assert result.id == job_id
     assert result.status == "queued"
     assert result.job_type == "transcribe"
-    assert result.input_params == {"audio_url": "https://example.com/audio.mp3", "model": "base"}
+    assert result.input_params == {
+        "audio_url": "https://example.com/audio.mp3",
+        "model": "base",
+    }
     assert result.progress is None
     assert result.result is None
     assert result.error is None
@@ -118,7 +123,10 @@ async def test_job_complete(async_session: AsyncSession):
     result = await async_session.get(Job, job_id)
     assert result.status == "completed"
     assert result.completed_at is not None
-    assert result.result == {"output_path": "/path/to/result.json", "duration_seconds": 120}
+    assert result.result == {
+        "output_path": "/path/to/result.json",
+        "duration_seconds": 120,
+    }
 
 
 @pytest.mark.asyncio

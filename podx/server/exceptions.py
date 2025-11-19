@@ -3,9 +3,10 @@
 This module defines custom exception types and FastAPI exception handlers.
 """
 
+from typing import Any, Dict, Optional
+
 from fastapi import HTTPException, Request, status
 from fastapi.responses import JSONResponse
-from typing import Any, Dict
 
 from podx.logging import get_logger
 
@@ -15,7 +16,12 @@ logger = get_logger(__name__)
 class PodXAPIException(Exception):
     """Base exception for all PodX API errors."""
 
-    def __init__(self, message: str, status_code: int = 500, details: Dict[str, Any] | None = None):
+    def __init__(
+        self,
+        message: str,
+        status_code: int = 500,
+        details: Optional[Dict[str, Any]] = None,
+    ):
         """Initialize exception.
 
         Args:
@@ -48,7 +54,7 @@ class JobNotFoundException(PodXAPIException):
 class InvalidInputException(PodXAPIException):
     """Raised when input validation fails."""
 
-    def __init__(self, message: str, field: str | None = None):
+    def __init__(self, message: str, field: Optional[str] = None):
         """Initialize exception.
 
         Args:
@@ -66,7 +72,7 @@ class InvalidInputException(PodXAPIException):
 class FileUploadException(PodXAPIException):
     """Raised when file upload fails."""
 
-    def __init__(self, message: str, filename: str | None = None):
+    def __init__(self, message: str, filename: Optional[str] = None):
         """Initialize exception.
 
         Args:
@@ -84,7 +90,7 @@ class FileUploadException(PodXAPIException):
 class JobProcessingException(PodXAPIException):
     """Raised when job processing fails."""
 
-    def __init__(self, message: str, job_id: str | None = None):
+    def __init__(self, message: str, job_id: Optional[str] = None):
         """Initialize exception.
 
         Args:
@@ -102,7 +108,9 @@ class JobProcessingException(PodXAPIException):
 # Exception handlers for FastAPI
 
 
-async def podx_exception_handler(request: Request, exc: PodXAPIException) -> JSONResponse:
+async def podx_exception_handler(
+    request: Request, exc: PodXAPIException
+) -> JSONResponse:
     """Handle PodX custom exceptions.
 
     Args:

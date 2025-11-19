@@ -32,6 +32,17 @@ except Exception:  # pragma: no cover
 
     BaseGroup = click.Group
 
+# Import missing commands for v3.0 CLI restructure
+from podx.cli import (
+    analyze,
+    analyze_audio,
+    batch,
+    completion,
+    estimate,
+    init,
+    search,
+)
+
 # Import all command modules
 from podx.cli.commands import (
     config_command,
@@ -45,21 +56,10 @@ from podx.cli.commands import (
     register_config_group,
     register_deprecated_commands,
     run,
+    server,
     transcode_cmd,
     transcribe_cmd,
 )
-
-# Import missing commands for v3.0 CLI restructure
-from podx.cli import (
-    analyze,
-    analyze_audio,
-    batch,
-    completion,
-    estimate,
-    init,
-    search,
-)
-from podx.cli.commands import server
 from podx.logging import setup_logging
 
 # Initialize logging
@@ -133,11 +133,13 @@ main.add_command(analyze_audio.main, name="analyze-audio")
 main.add_command(search.search_group, name="search")
 main.add_command(analyze.analyze_group, name="analyze")
 
+
 # Create batch command group
 @click.group(name="batch")
 def batch_group():
     """Batch processing commands for multiple episodes."""
     pass
+
 
 # Add batch subcommands
 batch_group.add_command(batch.batch_transcribe, name="transcribe")

@@ -138,7 +138,8 @@ async def test_cors_restricted_allows_listed_origin(app_with_restricted_cors):
         assert response.status_code == 200
         # Should echo back the origin
         assert (
-            response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+            response.headers.get("access-control-allow-origin")
+            == "http://localhost:3000"
         )
 
 
@@ -204,7 +205,9 @@ async def test_cors_allows_custom_headers(app_with_wildcard_cors):
 
 def test_cors_origins_parsing_single():
     """Test parsing single CORS origin from env var."""
-    with patch.dict(os.environ, {"PODX_CORS_ORIGINS": "http://localhost:3000"}, clear=False):
+    with patch.dict(
+        os.environ, {"PODX_CORS_ORIGINS": "http://localhost:3000"}, clear=False
+    ):
         cors_origins_str = os.getenv("PODX_CORS_ORIGINS", "*")
         cors_origins = (
             [origin.strip() for origin in cors_origins_str.split(",")]
@@ -219,7 +222,9 @@ def test_cors_origins_parsing_multiple():
     """Test parsing multiple CORS origins from env var."""
     with patch.dict(
         os.environ,
-        {"PODX_CORS_ORIGINS": "http://localhost:3000, https://app.example.com, https://api.example.com"},
+        {
+            "PODX_CORS_ORIGINS": "http://localhost:3000, https://app.example.com, https://api.example.com"
+        },
         clear=False,
     ):
         cors_origins_str = os.getenv("PODX_CORS_ORIGINS", "*")

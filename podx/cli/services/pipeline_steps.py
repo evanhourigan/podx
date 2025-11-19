@@ -52,7 +52,7 @@ __all__ = [
 
 def execute_fetch(
     config: dict,
-    interactive_mode_meta: dict | None,
+    interactive_mode_meta: Optional[dict],
     interactive_mode_wd: Optional[Path],
     progress,
     verbose: bool,
@@ -326,7 +326,7 @@ def execute_export_formats(
 
 
 def execute_export_final(
-    preset: str | None,
+    preset: Optional[str],
     deepcast_pdf: bool,
     wd: Path,
     results: dict,

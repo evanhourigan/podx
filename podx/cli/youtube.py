@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -23,7 +23,7 @@ console = Console()
 
 
 def download_youtube_audio(
-    url: str, output_dir: Path, filename: str | None = None
+    url: str, output_dir: Path, filename: Optional[str] = None
 ) -> Dict[str, Any]:
     """Download audio from YouTube video with Rich progress display.
 

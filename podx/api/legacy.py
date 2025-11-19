@@ -122,8 +122,8 @@ def deepcast(
     transcript_path: str,
     llm_model: str,
     out_dir: str,
-    provider_keys: Dict[str, str] | None = None,
-    prompt: str | None = None,
+    provider_keys: Optional[Dict[str, str]] = None,
+    prompt: Optional[str] = None,
     prompt_name: str = "default",
 ) -> Dict[str, Any]:
     """
@@ -134,8 +134,8 @@ def deepcast(
 
     Returns: {
       "markdown_path": str,
-      "usage": Dict[str, int] | None,
-      "prompt_used": str | None,
+      "usage": Optional[Dict[str, int]],
+      "prompt_used": Optional[str],
     }
     """
     out_path = Path(out_dir)
@@ -193,7 +193,7 @@ def deepcast(
     except Exception:
         pass
 
-    usage: Dict[str, int] | None = None
+    usage: Optional[Dict[str, int]] = None
     prompt_used: Optional[str] = None
 
     # Reserve keys for future when CLI outputs usage/prompt fields

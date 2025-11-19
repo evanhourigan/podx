@@ -6,7 +6,7 @@ import json
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from podx.constants import DEFAULT_ENCODING, JSON_INDENT, OPENAI_MODEL_PREFIX
 from podx.logging import get_logger
@@ -19,9 +19,9 @@ def display_pipeline_config(
     diarize: bool,
     deepcast: bool,
     notion: bool,
-    show: str | None,
-    rss_url: str | None,
-    date: str | None,
+    show: Optional[str],
+    rss_url: Optional[str],
+    date: Optional[str],
     model: str,
     compute: str,
 ) -> list[str]:

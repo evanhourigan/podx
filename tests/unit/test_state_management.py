@@ -3,7 +3,6 @@
 import json
 from datetime import datetime
 
-
 from podx.domain import PipelineStep
 from podx.state.artifact_detector import ArtifactDetector, EpisodeArtifacts
 from podx.state.run_state import RunState

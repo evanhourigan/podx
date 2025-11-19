@@ -200,7 +200,7 @@ def build_deepcast_command(
     model: str,
     temperature: float,
     meta_path: Optional[Path] = None,
-    analysis_type: str | None = None,
+    analysis_type: Optional[str] = None,
     extract_markdown: bool = False,
     generate_pdf: bool = False,
 ) -> List[str]:

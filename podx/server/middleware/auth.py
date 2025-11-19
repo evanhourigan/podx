@@ -5,7 +5,7 @@ Authentication is only enabled if PODX_API_KEY environment variable is set.
 """
 
 import os
-from typing import Callable
+from typing import Callable, Optional
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -24,7 +24,7 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
     Excludes /health, /docs, /redoc, /openapi.json from authentication.
     """
 
-    def __init__(self, app, api_key: str | None = None):
+    def __init__(self, app, api_key: Optional[str] = None):
         """Initialize auth middleware.
 
         Args:
@@ -113,7 +113,7 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
         return False
 
 
-def get_api_key() -> str | None:
+def get_api_key() -> Optional[str]:
     """Get configured API key from environment.
 
     Returns:

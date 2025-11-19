@@ -1,15 +1,16 @@
 """Unit tests for enhanced health check endpoints."""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from unittest.mock import AsyncMock, MagicMock
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from podx.server.routes.health import (
+    get_uptime_seconds,
     router,
     set_server_start_time,
-    get_uptime_seconds,
 )
 
 
@@ -37,6 +38,7 @@ async def test_liveness_probe(app_with_health):
 @pytest.mark.asyncio
 async def test_readiness_probe_healthy(app_with_health):
     """Test /health/ready endpoint when database is healthy."""
+
     # Mock database session that succeeds
     async def mock_get_session():
         session = MagicMock(spec=AsyncSession)
@@ -64,6 +66,7 @@ async def test_readiness_probe_healthy(app_with_health):
 @pytest.mark.asyncio
 async def test_readiness_probe_unhealthy(app_with_health):
     """Test /health/ready endpoint when database is down."""
+
     # Mock database session that fails
     async def mock_get_session():
         session = MagicMock(spec=AsyncSession)
@@ -121,6 +124,7 @@ async def test_detailed_health_check_healthy(app_with_health):
 @pytest.mark.asyncio
 async def test_detailed_health_check_degraded(app_with_health):
     """Test /health endpoint when database is down."""
+
     # Mock database session that fails
     async def mock_get_session():
         session = MagicMock(spec=AsyncSession)

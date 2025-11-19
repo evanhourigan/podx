@@ -13,7 +13,9 @@ from podx.server.middleware.rate_limit import create_limiter, get_rate_limit_con
 @pytest.fixture
 def app_with_rate_limit():
     """Create minimal app with rate limiting."""
-    with patch.dict(os.environ, {"PODX_RATE_LIMIT_PER_MINUTE": "5/minute"}, clear=False):
+    with patch.dict(
+        os.environ, {"PODX_RATE_LIMIT_PER_MINUTE": "5/minute"}, clear=False
+    ):
         # Create minimal FastAPI app for testing rate limiting
         app = FastAPI()
 
@@ -33,7 +35,9 @@ def app_with_rate_limit():
 @pytest.fixture
 def app_with_strict_rate_limit():
     """Create minimal app with very strict rate limiting for testing."""
-    with patch.dict(os.environ, {"PODX_RATE_LIMIT_PER_MINUTE": "2/minute"}, clear=False):
+    with patch.dict(
+        os.environ, {"PODX_RATE_LIMIT_PER_MINUTE": "2/minute"}, clear=False
+    ):
         # Create minimal FastAPI app for testing rate limiting
         app = FastAPI()
 

@@ -3,8 +3,14 @@
 import os
 
 from fastapi import APIRouter, Response
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
-from sqlalchemy import select, func
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    Counter,
+    Gauge,
+    Histogram,
+    generate_latest,
+)
+from sqlalchemy import func, select
 
 from podx.server.database import async_session_factory
 from podx.server.models.database import Job

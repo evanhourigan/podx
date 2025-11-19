@@ -6,7 +6,7 @@ Provides an in-memory pub/sub system for streaming job progress events via SSE.
 import asyncio
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, AsyncIterator, Dict
+from typing import Any, AsyncIterator, Dict, Optional
 
 from podx.logging import get_logger
 
@@ -18,12 +18,12 @@ class ProgressEvent:
     """Progress event for a job."""
 
     job_id: str
-    percentage: float | None = None
-    message: str | None = None
-    step: str | None = None
-    status: str | None = None
-    result: Dict[str, Any] | None = None
-    error: str | None = None
+    percentage: Optional[float] = None
+    message: Optional[str] = None
+    step: Optional[str] = None
+    status: Optional[str] = None
+    result: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
 
 
 class EventBroadcaster:
@@ -36,7 +36,9 @@ class EventBroadcaster:
     def __init__(self):
         """Initialize the event broadcaster."""
         # Map of job_id -> list of queues for subscribers
-        self._subscribers: Dict[str, list[asyncio.Queue[ProgressEvent]]] = defaultdict(list)
+        self._subscribers: Dict[str, list[asyncio.Queue[ProgressEvent]]] = defaultdict(
+            list
+        )
         self._lock = asyncio.Lock()
 
     async def subscribe(self, job_id: str) -> AsyncIterator[ProgressEvent]:
@@ -53,7 +55,9 @@ class EventBroadcaster:
         # Add subscriber
         async with self._lock:
             self._subscribers[job_id].append(queue)
-            logger.debug(f"Client subscribed to job {job_id} ({len(self._subscribers[job_id])} total subscribers)")
+            logger.debug(
+                f"Client subscribed to job {job_id} ({len(self._subscribers[job_id])} total subscribers)"
+            )
 
         try:
             while True:
@@ -89,17 +93,23 @@ class EventBroadcaster:
             subscribers = self._subscribers.get(event.job_id, [])
 
             if not subscribers:
-                logger.debug(f"No subscribers for job {event.job_id}, event not broadcasted")
+                logger.debug(
+                    f"No subscribers for job {event.job_id}, event not broadcasted"
+                )
                 return
 
-            logger.debug(f"Broadcasting event to {len(subscribers)} subscribers for job {event.job_id}")
+            logger.debug(
+                f"Broadcasting event to {len(subscribers)} subscribers for job {event.job_id}"
+            )
 
             # Send event to all subscribers
             for queue in subscribers:
                 try:
                     queue.put_nowait(event)
                 except asyncio.QueueFull:
-                    logger.warning(f"Subscriber queue full for job {event.job_id}, dropping event")
+                    logger.warning(
+                        f"Subscriber queue full for job {event.job_id}, dropping event"
+                    )
 
     def has_subscribers(self, job_id: str) -> bool:
         """Check if a job has any active subscribers.
@@ -125,7 +135,7 @@ class EventBroadcaster:
 
 
 # Global broadcaster instance
-_broadcaster: EventBroadcaster | None = None
+_broadcaster: Optional[EventBroadcaster] = None
 
 
 def get_broadcaster() -> EventBroadcaster:
