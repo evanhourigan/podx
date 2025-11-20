@@ -1,7 +1,6 @@
 """Shared fixtures for integration tests."""
 
 import os
-import tempfile
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -11,15 +10,20 @@ from httpx import ASGITransport, AsyncClient
 def setup_test_db():
     """Set up a unique test database for each integration test.
 
+    Uses in-memory SQLite database for all platforms to ensure:
+    - Fast test execution
+    - No file locking issues (especially on Windows)
+    - Clean isolation between tests
+    - No cleanup required
+
     Note: Not autouse to avoid interfering with unit tests that mock the database.
     Integration tests should explicitly use this fixture.
     """
-    # Create unique temp database
-    db_fd, db_path = tempfile.mkstemp(suffix=".db")
+    # Use in-memory database for all tests
     original_db_path = os.environ.get("PODX_DB_PATH")
 
-    # Set env var
-    os.environ["PODX_DB_PATH"] = db_path
+    # Set to in-memory database
+    os.environ["PODX_DB_PATH"] = ":memory:"
 
     # Force reload of database module to pick up new path
     import sys
@@ -30,11 +34,6 @@ def setup_test_db():
         del sys.modules[module]
 
     yield
-
-    # Cleanup
-    os.close(db_fd)
-    if os.path.exists(db_path):
-        os.unlink(db_path)
 
     # Restore original env var
     if original_db_path:
