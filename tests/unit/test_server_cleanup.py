@@ -65,15 +65,15 @@ async def test_cleanup_old_jobs_no_old_jobs():
 
 @pytest.mark.asyncio
 @pytest.mark.skip(
-    reason="Flaky test - fails in CI due to test isolation issue. TODO: Fix test fixtures"
+    reason="Flaky: passes when run alone or with unit tests, fails when run with integration tests due to module reload interference"
 )
 async def test_cleanup_old_jobs_with_local_files():
     """Test cleanup of old jobs with uploaded files."""
     # Create mock session
     session = MagicMock(spec=AsyncSession)
 
-    # Create old jobs with local file paths
-    upload_dir = "/Users/test/.podx/uploads"
+    # Use a unique test upload directory to avoid conflicts
+    upload_dir = "/tmp/test_cleanup_uploads_unique_123"
     old_job = Job(
         id="job-1",
         status="completed",
@@ -89,10 +89,12 @@ async def test_cleanup_old_jobs_with_local_files():
     session.delete = AsyncMock()
     session.commit = AsyncMock()
 
+    # Mock both get_upload_dir and delete_upload_file
+    mock_delete = MagicMock()
     with patch(
         "podx.server.tasks.cleanup.get_upload_dir", return_value=Path(upload_dir)
     ):
-        with patch("podx.server.tasks.cleanup.delete_upload_file") as mock_delete:
+        with patch("podx.server.tasks.cleanup.delete_upload_file", mock_delete):
             cleaned = await cleanup_old_jobs(session, max_age_days=7)
 
             assert cleaned == 1
@@ -139,16 +141,16 @@ async def test_cleanup_old_jobs_with_external_urls():
 
 @pytest.mark.asyncio
 @pytest.mark.skip(
-    reason="Flaky test - fails in CI due to test isolation issue. TODO: Fix test fixtures"
+    reason="Flaky: passes when run alone or with unit tests, fails when run with integration tests due to module reload interference"
 )
 async def test_cleanup_orphaned_files_no_files():
     """Test cleanup when upload directory is empty."""
-    with patch("podx.server.tasks.cleanup.get_upload_dir") as mock_get_dir:
-        mock_dir = MagicMock()
-        mock_dir.exists.return_value = True
-        mock_dir.glob.return_value = []
-        mock_get_dir.return_value = mock_dir
+    # Create a mock Path object that behaves correctly
+    mock_dir = MagicMock(spec=Path)
+    mock_dir.exists.return_value = True
+    mock_dir.glob.return_value = []  # Empty list of files
 
+    with patch("podx.server.tasks.cleanup.get_upload_dir", return_value=mock_dir):
         deleted = await cleanup_orphaned_files()
 
         assert deleted == 0
@@ -156,51 +158,63 @@ async def test_cleanup_orphaned_files_no_files():
 
 @pytest.mark.asyncio
 @pytest.mark.skip(
-    reason="Flaky test - fails in CI due to test isolation issue. TODO: Fix test fixtures"
+    reason="Flaky: passes when run alone or with unit tests, fails when run with integration tests due to module reload interference"
 )
 async def test_cleanup_orphaned_files_all_referenced():
     """Test cleanup when all files are referenced by jobs."""
-    upload_dir = Path("/Users/test/.podx/uploads")
-    file1 = upload_dir / "file1.mp3"
-    file2 = upload_dir / "file2.mp3"
+    # Create mock file objects
+    file1 = MagicMock(spec=Path)
+    file1.is_file.return_value = True
+    file1.__str__.return_value = "/tmp/test_uploads/file1.mp3"
 
-    with patch("podx.server.tasks.cleanup.get_upload_dir", return_value=upload_dir):
-        # Mock files in directory
-        with patch.object(Path, "glob", return_value=[file1, file2]):
-            with patch.object(Path, "is_file", return_value=True):
-                # Mock database query returning jobs that reference these files
-                with patch(
-                    "podx.server.tasks.cleanup.async_session_factory"
-                ) as mock_factory:
-                    mock_session = MagicMock()
-                    mock_result = MagicMock()
-                    mock_result.scalars.return_value.all.return_value = [
-                        {"audio_url": str(file1)},
-                        {"audio_url": str(file2)},
-                    ]
-                    mock_session.execute = AsyncMock(return_value=mock_result)
-                    mock_factory.return_value.__aenter__.return_value = mock_session
+    file2 = MagicMock(spec=Path)
+    file2.is_file.return_value = True
+    file2.__str__.return_value = "/tmp/test_uploads/file2.mp3"
 
-                    deleted = await cleanup_orphaned_files()
+    # Create mock upload directory
+    mock_upload_dir = MagicMock(spec=Path)
+    mock_upload_dir.exists.return_value = True
+    mock_upload_dir.glob.return_value = [file1, file2]
+
+    with patch(
+        "podx.server.tasks.cleanup.get_upload_dir", return_value=mock_upload_dir
+    ):
+        # Mock database query returning jobs that reference these files
+        with patch("podx.server.tasks.cleanup.async_session_factory") as mock_factory:
+            mock_session = MagicMock()
+            mock_result = MagicMock()
+            # Return both files as referenced
+            mock_result.scalars.return_value.all.return_value = [
+                {"audio_url": "/tmp/test_uploads/file1.mp3"},
+                {"audio_url": "/tmp/test_uploads/file2.mp3"},
+            ]
+            mock_session.execute = AsyncMock(return_value=mock_result)
+            mock_factory.return_value.__aenter__.return_value = mock_session
+
+            deleted = await cleanup_orphaned_files()
 
     assert deleted == 0
+    # Verify neither file was deleted
+    file1.unlink.assert_not_called()
+    file2.unlink.assert_not_called()
 
 
 @pytest.mark.asyncio
 @pytest.mark.skip(
-    reason="Flaky test - fails in CI due to test isolation issue. TODO: Fix test fixtures"
+    reason="Flaky: passes when run alone or with unit tests, fails when run with integration tests due to module reload interference"
 )
 async def test_cleanup_orphaned_files_with_orphans():
     """Test cleanup deletes orphaned files."""
-    upload_dir = Path("/Users/test/.podx/uploads")
+    # Create mock file objects
     file1 = MagicMock(spec=Path)
     file1.is_file.return_value = True
-    file1.__str__.return_value = str(upload_dir / "file1.mp3")
+    file1.__str__.return_value = "/tmp/test_uploads/file1.mp3"
 
     file2 = MagicMock(spec=Path)
     file2.is_file.return_value = True
-    file2.__str__.return_value = str(upload_dir / "file2.mp3")
+    file2.__str__.return_value = "/tmp/test_uploads/file2.mp3"
 
+    # Create mock upload directory
     mock_upload_dir = MagicMock(spec=Path)
     mock_upload_dir.exists.return_value = True
     mock_upload_dir.glob.return_value = [file1, file2]
@@ -212,17 +226,17 @@ async def test_cleanup_orphaned_files_with_orphans():
         with patch("podx.server.tasks.cleanup.async_session_factory") as mock_factory:
             mock_session = MagicMock()
             mock_result = MagicMock()
-            # Only file1 is referenced
+            # Only file1 is referenced, file2 is orphaned
             mock_result.scalars.return_value.all.return_value = [
-                {"audio_url": str(upload_dir / "file1.mp3")},
+                {"audio_url": "/tmp/test_uploads/file1.mp3"},
             ]
             mock_session.execute = AsyncMock(return_value=mock_result)
             mock_factory.return_value.__aenter__.return_value = mock_session
 
             deleted = await cleanup_orphaned_files()
 
-            # file2 should be deleted as it's orphaned
-            assert deleted == 1
-            file2.unlink.assert_called_once()
-            # file1 should not be deleted
-            file1.unlink.assert_not_called()
+    # file2 should be deleted as it's orphaned
+    assert deleted == 1
+    file2.unlink.assert_called_once()
+    # file1 should not be deleted
+    file1.unlink.assert_not_called()

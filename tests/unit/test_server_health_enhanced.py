@@ -65,10 +65,11 @@ async def test_readiness_probe_healthy(app_with_health):
 
 @pytest.mark.asyncio
 @pytest.mark.skip(
-    reason="Flaky test - fails in CI due to test isolation issue. TODO: Fix test fixtures"
+    reason="Flaky: passes when run alone or with unit tests, fails when run with integration tests due to module reload interference"
 )
 async def test_readiness_probe_unhealthy(app_with_health):
     """Test /health/ready endpoint when database is down."""
+    from podx.server.database import get_session
 
     # Mock database session that fails
     async def mock_get_session():
@@ -76,10 +77,8 @@ async def test_readiness_probe_unhealthy(app_with_health):
         session.execute = AsyncMock(side_effect=Exception("Database connection failed"))
         yield session
 
-    # Override dependency
-    app_with_health.dependency_overrides[
-        __import__("podx.server.database", fromlist=["get_session"]).get_session
-    ] = mock_get_session
+    # Override dependency - must use the imported get_session
+    app_with_health.dependency_overrides[get_session] = mock_get_session
 
     transport = ASGITransport(app=app_with_health)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -90,6 +89,9 @@ async def test_readiness_probe_unhealthy(app_with_health):
         assert data["status"] == "not_ready"
         assert data["checks"]["database"]["status"] == "disconnected"
         assert "Database connection failed" in data["checks"]["database"]["error"]
+
+    # Clean up dependency override
+    app_with_health.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
@@ -126,10 +128,11 @@ async def test_detailed_health_check_healthy(app_with_health):
 
 @pytest.mark.asyncio
 @pytest.mark.skip(
-    reason="Flaky test - fails in CI due to test isolation issue. TODO: Fix test fixtures"
+    reason="Flaky: passes when run alone or with unit tests, fails when run with integration tests due to module reload interference"
 )
 async def test_detailed_health_check_degraded(app_with_health):
     """Test /health endpoint when database is down."""
+    from podx.server.database import get_session
 
     # Mock database session that fails
     async def mock_get_session():
@@ -137,10 +140,8 @@ async def test_detailed_health_check_degraded(app_with_health):
         session.execute = AsyncMock(side_effect=Exception("DB error"))
         yield session
 
-    # Override dependency
-    app_with_health.dependency_overrides[
-        __import__("podx.server.database", fromlist=["get_session"]).get_session
-    ] = mock_get_session
+    # Override dependency - must use the imported get_session
+    app_with_health.dependency_overrides[get_session] = mock_get_session
 
     transport = ASGITransport(app=app_with_health)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -150,6 +151,9 @@ async def test_detailed_health_check_degraded(app_with_health):
         data = response.json()
         assert data["status"] == "degraded"
         assert data["database"] == "disconnected"
+
+    # Clean up dependency override
+    app_with_health.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
@@ -184,14 +188,21 @@ def test_uptime_tracking():
 
 
 @pytest.mark.skip(
-    reason="Flaky test - fails in CI due to test isolation issue. TODO: Fix test fixtures"
+    reason="Flaky: passes when run alone or with unit tests, fails when run with integration tests due to module reload interference"
 )
 def test_get_uptime_when_not_set():
     """Test get_uptime_seconds when start time not set."""
     import podx.server.routes.health as health_module
 
-    # Clear start time
-    health_module._SERVER_START_TIME = None
+    # Save original start time
+    original_start_time = health_module._SERVER_START_TIME
 
-    # Should return 0
-    assert get_uptime_seconds() == 0.0
+    try:
+        # Clear start time
+        health_module._SERVER_START_TIME = None
+
+        # Should return 0
+        assert get_uptime_seconds() == 0.0
+    finally:
+        # Restore original start time to avoid affecting other tests
+        health_module._SERVER_START_TIME = original_start_time

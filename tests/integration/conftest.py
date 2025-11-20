@@ -7,9 +7,13 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 
-@pytest.fixture(scope="function", autouse=True)
+@pytest.fixture(scope="function")
 def setup_test_db():
-    """Set up a unique test database for each test."""
+    """Set up a unique test database for each integration test.
+
+    Note: Not autouse to avoid interfering with unit tests that mock the database.
+    Integration tests should explicitly use this fixture.
+    """
     # Create unique temp database
     db_fd, db_path = tempfile.mkstemp(suffix=".db")
     original_db_path = os.environ.get("PODX_DB_PATH")
