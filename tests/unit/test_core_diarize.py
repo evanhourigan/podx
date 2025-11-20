@@ -111,14 +111,12 @@ def sample_diarized_result():
 class TestDiarizationEngineInit:
     """Test DiarizationEngine initialization."""
 
-    @pytest.mark.skip(
-        reason="Feature not implemented - see .ai-docs/unimplemented-features.md"
-    )
     def test_init_defaults(self):
         """Test default initialization."""
         engine = DiarizationEngine()
         assert engine.language == "en"
-        assert engine.device == "cpu"
+        # Device is auto-detected (mps/cuda/cpu), so just verify it's set
+        assert engine.device in ["mps", "cuda", "cpu"]
         assert engine.progress_callback is None
 
     def test_init_custom_params(self):
@@ -385,9 +383,6 @@ class TestDiarizationEngineDiarize:
         call_kwargs = mock_whisperx.align.call_args[1]
         assert call_kwargs["device"] == "cuda"
 
-    @pytest.mark.skip(
-        reason="Feature not implemented - see .ai-docs/unimplemented-features.md"
-    )
     def test_diarize_with_different_language(
         self,
         mock_whisperx,
@@ -414,8 +409,9 @@ class TestDiarizationEngineDiarize:
         engine.diarize(audio_file, sample_transcript_segments)
 
         # Verify language was used correctly
+        # Device is auto-detected, so check with the actual device
         mock_whisperx.load_align_model.assert_called_once_with(
-            language_code="es", device="cpu"
+            language_code="es", device=engine.device
         )
 
 

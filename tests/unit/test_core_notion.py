@@ -308,11 +308,10 @@ class TestNotionEngineGetClient:
             ):
                 engine._get_client()
 
-    @pytest.mark.skip(
-        reason="Feature not implemented - see .ai-docs/unimplemented-features.md"
-    )
-    def test_get_client_missing_token(self):
+    def test_get_client_missing_token(self, monkeypatch):
         """Test that missing token raises error."""
+        # Clear environment variable to ensure no fallback
+        monkeypatch.delenv("NOTION_TOKEN", raising=False)
         engine = NotionEngine(api_token=None)
         with pytest.raises(NotionError, match="Notion token not found"):
             engine._get_client()
