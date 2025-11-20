@@ -45,6 +45,7 @@ server = [
   "fastapi~=0.115.0",
   "uvicorn[standard]~=0.34.0",
   "sqlalchemy~=2.0.36",
+  "greenlet~=3.0.0",  # Required for SQLAlchemy async on macOS/Windows
   "aiosqlite~=0.20.0",
   "sse-starlette~=2.2.1",
   "prometheus-client~=0.21.0",  # Optional: for metrics endpoint
