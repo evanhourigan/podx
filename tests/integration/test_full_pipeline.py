@@ -151,13 +151,13 @@ class TestFullPipelineExecution:
         assert len(transcript.segments) == 1
         assert transcript.audio_path == str(audio_file)
 
-    @patch("podx.core.deepcast.chat_once")
-    @pytest.mark.skip(
-        reason="Feature not implemented - see .ai-docs/unimplemented-features.md"
-    )
-    def test_deepcast_stage_with_transcript_input(self, mock_chat, tmp_path):
+    @patch("podx.core.deepcast.DeepcastEngine._chat_once")
+    @patch("podx.core.deepcast.DeepcastEngine._chat_once_async")
+    def test_deepcast_stage_with_transcript_input(
+        self, mock_chat_async, mock_chat_sync, tmp_path
+    ):
         """Test deepcast stage accepts transcript and produces markdown."""
-        from podx.core.deepcast import deepcast
+        from podx.cli.deepcast import deepcast
 
         # Create transcript
         transcript_data = {
@@ -171,10 +171,13 @@ class TestFullPipelineExecution:
         }
 
         # Mock LLM responses
-        mock_chat.side_effect = [
-            "Summary of chunk 1",  # Map phase
-            "Final summary",  # Reduce phase
-        ]
+        # Map phase is async and processes chunks in parallel
+        async def mock_async_response(system, user):
+            return "Summary of this chunk"
+
+        mock_chat_async.side_effect = mock_async_response
+        # Reduce phase is sync
+        mock_chat_sync.return_value = "Final summary of the transcript"
 
         # Run deepcast
         result, json_data = deepcast(
@@ -188,7 +191,8 @@ class TestFullPipelineExecution:
         # Verify output
         assert isinstance(result, str)
         assert len(result) > 0
-        assert "Summary" in result or "summary" in result
+        # Should contain the reduce phase output
+        assert "Final summary" in result or "summary" in result
 
 
 class TestPipelineResumeAndRecovery:
