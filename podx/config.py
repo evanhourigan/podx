@@ -75,7 +75,7 @@ class PodxConfig(BaseSettings):
     )
 
     # Logging Configuration
-    log_level: str = Field(default="INFO", validation_alias="PODX_LOG_LEVEL")
+    log_level: str = Field(default="WARNING", validation_alias="PODX_LOG_LEVEL")
     log_format: str = Field(default="console", validation_alias="PODX_LOG_FORMAT")
 
     @field_validator("openai_temperature")

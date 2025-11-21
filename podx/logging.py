@@ -4,13 +4,37 @@ Structured logging configuration for podx.
 """
 
 import logging
+import os
 import sys
 from typing import Any
 
 import structlog
 from structlog.typing import EventDict, Processor
 
-from .config import get_config
+# Initialize logging IMMEDIATELY with WARNING level default
+# This ensures early log messages (during imports) respect the default level
+# Will be reconfigured in setup_logging() with actual config value
+_default_level = os.getenv("PODX_LOG_LEVEL", "WARNING").upper()
+logging.basicConfig(
+    format="%(message)s",
+    stream=sys.stderr,
+    level=getattr(logging, _default_level, logging.WARNING),
+)
+
+# Also configure structlog immediately to filter early messages
+structlog.configure(
+    processors=[
+        structlog.stdlib.filter_by_level,
+        structlog.stdlib.add_logger_name,
+        structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S"),
+        structlog.dev.ConsoleRenderer(colors=True),
+    ],
+    wrapper_class=structlog.stdlib.BoundLogger,
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    cache_logger_on_first_use=False,
+)
+
+from .config import get_config  # noqa: E402 - Must import after logging setup
 
 
 def add_log_level(logger: Any, method_name: str, event_dict: EventDict) -> EventDict:
@@ -68,7 +92,7 @@ def setup_logging() -> None:
         processors=processors,
         wrapper_class=structlog.stdlib.BoundLogger,
         logger_factory=structlog.stdlib.LoggerFactory(),
-        cache_logger_on_first_use=True,
+        cache_logger_on_first_use=False,  # Don't cache to allow log level changes
     )
 
 

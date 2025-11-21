@@ -32,8 +32,13 @@ except Exception:  # pragma: no cover
 
     BaseGroup = click.Group
 
+# Initialize logging BEFORE any imports that might log
+from podx.logging import setup_logging
+
+setup_logging()
+
 # Import missing commands for v3.0 CLI restructure
-from podx.cli import (
+from podx.cli import (  # noqa: E402 - Must import after logging setup
     analyze,
     analyze_audio,
     batch,
@@ -44,7 +49,7 @@ from podx.cli import (
 )
 
 # Import all command modules
-from podx.cli.commands import (
+from podx.cli.commands import (  # noqa: E402 - Must import after logging setup
     config_command,
     deepcast_cmd,
     diarize_cmd,
@@ -60,10 +65,6 @@ from podx.cli.commands import (
     transcode_cmd,
     transcribe_cmd,
 )
-from podx.logging import setup_logging
-
-# Initialize logging
-setup_logging()
 
 
 class PodxGroup(BaseGroup):
