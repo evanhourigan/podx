@@ -1,9 +1,9 @@
 # PodX Development Context
 
-**Last Updated**: 2025-11-22 00:43:09 UTC
+**Last Updated**: 2025-11-21 (auto-generated from session)
 **Current Branch**: `main`
-**Current Phase**: v3.1.0 Development Complete ✅
-**Latest Commits**: 785f6de (cloud storage), 9713737 (templates), e84ab38 (webhooks)
+**Current Phase**: v3.1.0 Development Complete ✅ + Bug Fixes
+**Latest Commits**: 078978c (completion refactor), d10ad3d (init fixes), 785f6de (cloud storage)
 
 ---
 
@@ -11,13 +11,21 @@
 
 ### Phase 11: v3.1.0 Development - 100% COMPLETE ✨
 
-**Status:** 4/4 features complete
+**Status:** 4/4 features complete + bug fixes
 
 **Recently Completed:**
 - ✅ YouTube URL Processing Documentation (100% - e594020)
 - ✅ Webhook Notifications (100% - e84ab38)
 - ✅ Custom Deepcast Templates (100% - 9713737)
 - ✅ Cloud Storage Integration (100% - 785f6de)
+
+**Bug Fixes (Post-Release):**
+- ✅ Fixed ProfileManager.install_builtin_profiles() missing method (d10ad3d)
+- ✅ Fixed podx-completion entry point registration (d10ad3d)
+- ✅ Refactored to Click's native shell completion (078978c)
+  - Removed 287 lines of custom completion code
+  - Now uses Click's built-in _PODX_COMPLETE mechanism
+  - Auto-updates with CLI structure changes
 
 ### Phase 10: Feature Enhancements - 100% COMPLETE ✨
 
@@ -111,21 +119,22 @@
 
 **Branch:** main
 **Uncommitted Changes:**
-- `podx/__init__.py` (modified - version bump to 3.1.0)
-- `.claude/CONTEXT.md` (this file - updated for v3.1.0 completion)
+- `.claude/CONTEXT.md` (this file - updated for bug fixes)
 
 **Recent Commits:**
+- 078978c - refactor(completion): replace custom completion with Click native
+- a96d779 - fix(completion): update instructions to use podx-completion
+- d10ad3d - fix(init): fix setup wizard bugs
+- 917c490 - chore(release): bump version to 3.1.0
 - 785f6de - feat(storage): add cloud storage integration
 - 9713737 - feat(templates): add custom deepcast template system
-- e84ab38 - feat(webhooks): add webhook notification system
-- e594020 - docs(youtube): add comprehensive YouTube URL documentation
-- 9dd5d1c - fix(ci): fix continuous integration failures
 
 **Current State:**
 - ✅ Phase 11: 100% complete (4/4 features delivered)
-- ✅ All tests passing (23 new tests for templates + storage)
-- ✅ v3.1.0 ready to tag and release
-- 📦 Version bumped to 3.1.0 in podx/__init__.py
+- ✅ All bugs from initial testing fixed
+- ✅ Shell completion refactored to Click's native system (-287 lines)
+- ✅ v3.1.0 ready for final testing and release
+- 📦 Version bumped to 3.1.0 in podx/__init__.py (commit 917c490)
 
 ---
 
