@@ -226,6 +226,7 @@ For detailed deployment guides, see:
 ### Core Capabilities
 
 - **🎯 Smart Episode Discovery** - Search by show name, date, or RSS feed
+- **📺 YouTube Integration** - Direct processing of YouTube videos via URL
 - **⚡ Multi-Provider Transcription** - Local (faster-whisper), OpenAI, or HuggingFace models
 - **🎭 Speaker Diarization** - PyAnnote-powered speaker identification
 - **🧠 AI-Powered Analysis** - GPT-4/Claude integration for summaries and insights
@@ -602,6 +603,22 @@ podx fetch --rss-url 'https://feeds.example.com/podcast.xml' --date 2024-01-15
 
 # Private podcast with full pipeline
 podx run --rss-url 'https://private-feed.com/feed.xml' --date 2024-01-15 --deepcast
+```
+
+### YouTube Videos
+
+```bash
+# Process a YouTube video
+podx run --youtube-url 'https://www.youtube.com/watch?v=VIDEO_ID'
+
+# Full pipeline with diarization and AI analysis
+podx run --youtube-url 'https://youtu.be/VIDEO_ID' --diarize --deepcast
+
+# Use with configuration profiles
+podx run --youtube-url 'https://www.youtube.com/watch?v=VIDEO_ID' --profile high-quality
+
+# Export to multiple formats
+podx run --youtube-url 'https://youtu.be/VIDEO_ID' --export-formats txt,srt,vtt,md
 ```
 
 ### Multi-Provider LLM Examples
