@@ -80,6 +80,7 @@ dev = [
 # BREAKING CHANGE: Removed all podx-verb entry points
 # Migration: podx-transcribe → podx transcribe, podx-run → podx run, etc.
 podx = "podx.cli.orchestrate:main"
+podx-completion = "podx.cli.completion:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

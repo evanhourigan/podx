@@ -288,6 +288,17 @@ class ProfileManager:
         except Exception as e:
             raise ValueError(f"Failed to import profile: {e}") from e
 
+    def install_builtin_profiles(self) -> int:
+        """Install built-in profiles to disk.
+
+        Returns:
+            Number of profiles installed
+        """
+        profiles = get_builtin_profiles()
+        for profile in profiles:
+            self.save(profile)
+        return len(profiles)
+
 
 def get_builtin_profiles() -> List[ConfigProfile]:
     """Get built-in configuration profiles.
