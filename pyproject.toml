@@ -79,8 +79,8 @@ dev = [
 # v3.0.0: Unified CLI - all commands available via 'podx <command>'
 # BREAKING CHANGE: Removed all podx-verb entry points
 # Migration: podx-transcribe → podx transcribe, podx-run → podx run, etc.
+# Shell completion: Use Click's native completion (_PODX_COMPLETE=<shell>_source podx)
 podx = "podx.cli.orchestrate:main"
-podx-completion = "podx.cli.completion:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

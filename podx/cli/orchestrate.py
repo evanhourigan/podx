@@ -42,7 +42,6 @@ from podx.cli import (  # noqa: E402 - Must import after logging setup
     analyze,
     analyze_audio,
     batch,
-    completion,
     estimate,
     init,
     search,
@@ -127,7 +126,6 @@ register_config_group(main)
 # Register standalone commands
 main.add_command(estimate.main, name="estimate")
 main.add_command(init.main, name="init")
-main.add_command(completion.main, name="completion")
 main.add_command(analyze_audio.main, name="analyze-audio")
 
 # Register command groups (search and analyze already have Click groups)

@@ -231,10 +231,7 @@ class SetupWizard:
         if Confirm.ask("Install shell completion for podx commands?", default=True):
             self.config["install_completion"] = "true"
             console.print(
-                "[dim]You'll need to add the completion script to your shell config.[/dim]"
-            )
-            console.print(
-                "[dim]Run 'podx-completion' after setup for instructions.[/dim]"
+                "[dim]Instructions will be shown after setup completes.[/dim]"
             )
 
         # Built-in profiles
@@ -309,10 +306,29 @@ class SetupWizard:
         console.print("   [dim]Or restart your shell to load automatically[/dim]\n")
 
         if self.config.get("install_completion") == "true":
+            # Detect shell
+            import os
+
+            shell = os.environ.get("SHELL", "")
+            shell_name = "bash"
+            if "zsh" in shell:
+                shell_name = "zsh"
+                shell_file = "~/.zshrc"
+                setup_cmd = "mkdir -p ~/.zsh/completion && _PODX_COMPLETE=zsh_source podx > ~/.zsh/completion/_podx"
+            elif "fish" in shell:
+                shell_name = "fish"
+                shell_file = "~/.config/fish/config.fish"
+                setup_cmd = "mkdir -p ~/.config/fish/completions && _PODX_COMPLETE=fish_source podx > ~/.config/fish/completions/podx.fish"
+            else:  # bash
+                shell_file = "~/.bashrc"
+                setup_cmd = "mkdir -p ~/.bash_completion.d && _PODX_COMPLETE=bash_source podx > ~/.bash_completion.d/podx.sh"
+
             console.print("[bold]2. Set up shell completion:[/bold]")
-            console.print("   [cyan]podx-completion[/cyan]")
+            console.print(f"   [cyan]{setup_cmd}[/cyan]")
+            if shell_name != "fish":
+                console.print(f"   [cyan]source {shell_file}[/cyan]")
             console.print(
-                "   [dim]Follow the instructions to add to your shell[/dim]\n"
+                f"   [dim]Then restart your shell or run: source {shell_file}[/dim]\n"
             )
 
         console.print("[bold]3. Try processing your first episode:[/bold]")
