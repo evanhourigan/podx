@@ -78,6 +78,12 @@ class PodxConfig(BaseSettings):
     log_level: str = Field(default="WARNING", validation_alias="PODX_LOG_LEVEL")
     log_format: str = Field(default="console", validation_alias="PODX_LOG_FORMAT")
 
+    # Webhook Configuration
+    webhook_url: Optional[str] = Field(default=None, validation_alias="PODX_WEBHOOK_URL")
+    webhook_secret: Optional[str] = Field(
+        default=None, validation_alias="PODX_WEBHOOK_SECRET"
+    )
+
     @field_validator("openai_temperature")
     @classmethod
     def validate_temperature(cls, v: float) -> float:
