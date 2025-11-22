@@ -172,7 +172,7 @@ def install_completion(shell: str) -> str:
    [cyan]mkdir -p ~/.bash_completion.d[/cyan]
 
 2. Save the completion script:
-   [cyan]podx --install-completion bash > {completion_file}[/cyan]
+   [cyan]podx-completion bash --show-script > {completion_file}[/cyan]
 
 3. Add to your {rc_file}:
    [cyan]echo '{source_line}' >> {rc_file}[/cyan]
@@ -194,7 +194,7 @@ Now you can use TAB completion with podx commands!
    [cyan]mkdir -p ~/.zsh/completion[/cyan]
 
 2. Save the completion script:
-   [cyan]podx --install-completion zsh > {completion_file}[/cyan]
+   [cyan]podx-completion zsh --show-script > {completion_file}[/cyan]
 
 3. Add to your {rc_file} (before compinit):
    [cyan]fpath=(~/.zsh/completion $fpath)[/cyan]
@@ -216,7 +216,7 @@ Now you can use TAB completion with podx commands!
    [cyan]mkdir -p ~/.config/fish/completions[/cyan]
 
 2. Save the completion script:
-   [cyan]podx --install-completion fish > {completion_file}[/cyan]
+   [cyan]podx-completion fish --show-script > {completion_file}[/cyan]
 
 3. Reload fish:
    [cyan]exec fish[/cyan]
