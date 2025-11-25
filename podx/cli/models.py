@@ -22,46 +22,14 @@ except Exception:  # pragma: no cover
     RICH_AVAILABLE = False
 
 
-# Canonical family names to display by default (ordered)
-# Updated January 2025 to match pricing catalog
-CURATED_OPENAI = [
-    # GPT-5.x family (Latest - 2025)
-    "gpt-5.1",
-    "gpt-5",
-    "gpt-5-mini",
-    "gpt-5-nano",
-    # GPT-4.1 family
-    "gpt-4.1",
-    "gpt-4.1-mini",
-    "gpt-4.1-nano",
-    # GPT-4o family
-    "gpt-4o",
-    "gpt-4o-mini",
-    # O-series (reasoning models)
-    "o1",
-    "o1-mini",
-    "o3",
-    "o3-mini",
-    "o4-mini",
-]
-CURATED_ANTHROPIC = [
-    # Claude 4.5 family (Latest - Nov 2025)
-    "claude-opus-4.5",
-    "claude-sonnet-4.5",
-    "claude-haiku-4.5",
-    # Claude 4.x family
-    "claude-opus-4.1",
-    "claude-opus-4",
-    "claude-sonnet-4",
-    "claude-sonnet-3.7",
-    # Claude 3.x family
-    "claude-3-5-sonnet",
-    "claude-3-5-haiku",
-    "claude-3-opus",
-    "claude-3-haiku",
-]
+# NOTE: Curated model lists are now loaded from the centralized catalog.
+# Models are filtered by the default_in_cli flag in models.json.
+# This eliminates duplication and makes it easy to add/update models.
 
-# API key environment variables for each provider
+# NOTE: Provider information is now loaded from the centralized catalog.
+# Import the new functions we'll use
+
+# Legacy mapping for backward compatibility with existing code
 PROVIDER_API_KEYS = {
     "openai": "OPENAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
@@ -69,7 +37,8 @@ PROVIDER_API_KEYS = {
     "ollama": None,  # No API key required
 }
 
-# Provider descriptions for configuration
+# Provider descriptions for configuration (used for UI display)
+# NOTE: Could be loaded from catalog, but keeping for now to minimize changes
 PROVIDER_INFO = {
     "openai": {
         "name": "OpenAI",
@@ -331,6 +300,9 @@ def main(
     if configure:
         _configure_api_keys()
         return
+    # Use centralized catalog
+    from podx.models import list_models as catalog_list_models
+
     catalog = load_model_catalog(refresh=refresh)
     if estimate_input:
         transcript = json.loads(estimate_input.read_text())
@@ -339,47 +311,33 @@ def main(
         transcript = _auto_find_transcript()
 
     rows = []
-    providers = [provider] if provider != "all" else ["openai", "anthropic"]
-    for prov in providers:
-        entry = catalog.get(prov) or {}
-        models = entry.get("models") or []
-        pricing = entry.get("pricing") or {}
-        curated = CURATED_OPENAI if prov == "openai" else CURATED_ANTHROPIC
+    providers_to_show = [provider] if provider != "all" else ["openai", "anthropic"]
+
+    for prov in providers_to_show:
+        # Get models from centralized catalog
         if show_all or variants:
-            names = sorted(set(list(models) + list(pricing.keys())))
+            # Show all models for this provider
+            models = catalog_list_models(provider=prov)
         else:
-            # Family-only view: show one canonical entry per curated family.
-            names = []
-            for fam in curated:
-                # Prefer exact family id; otherwise pick the newest provider model starting with the family
-                if fam in models or fam in pricing:
-                    names.append(fam)
-                else:
-                    candidates = [m for m in models if m.startswith(fam)]
-                    if candidates:
-                        # Heuristic: pick lexicographically max as newest
-                        names.append(sorted(candidates)[-1])
-        for name in sorted(set(names)):
-            if filter_str and filter_str.lower() not in name.lower():
+            # Show only default models
+            models = catalog_list_models(provider=prov, default_only=True)
+
+        for model in models:
+            # Apply filter if specified
+            if filter_str and filter_str.lower() not in model.id.lower():
                 continue
-            # Inherit pricing/desc from family key if exact price not available
-            price = pricing.get(name, {})
-            if not price:
-                base_keys = list(pricing.keys())
-                for k in base_keys:
-                    if name.startswith(k):
-                        price = pricing.get(k, {})
-                        break
-            desc = price.get("desc", "")
+
             row = {
-                "provider": prov,
-                "model": name,  # Always use the actual model name
-                "price_in": price.get("in"),
-                "price_out": price.get("out"),
-                "desc": desc,
+                "provider": model.provider,
+                "model": model.id,
+                "price_in": model.pricing.input_per_1m,
+                "price_out": model.pricing.output_per_1m,
+                "desc": model.description,
             }
-            if transcript and price:
-                est = estimate_deepcast_cost(transcript, prov, name, catalog)
+
+            # Add cost estimate if transcript is available
+            if transcript:
+                est = estimate_deepcast_cost(transcript, model.provider, model.id, catalog)
                 row.update(
                     {
                         "est_usd": est.total_usd,

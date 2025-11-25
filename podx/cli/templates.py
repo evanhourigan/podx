@@ -249,82 +249,26 @@ def preview_template(
         # Token counting and cost estimation
         if cost:
             try:
-                # Model pricing (per 1M tokens) - Updated January 2025 (Standard tier)
-                MODEL_PRICING = {
-                    # OpenAI GPT-5.x family (Latest - 2025)
-                    "gpt-5.1": {"input": 1.25, "output": 10.00, "name": "GPT-5.1"},
-                    "gpt-5": {"input": 1.25, "output": 10.00, "name": "GPT-5"},
-                    "gpt-5-mini": {"input": 0.25, "output": 2.00, "name": "GPT-5 mini"},
-                    "gpt-5-nano": {"input": 0.05, "output": 0.40, "name": "GPT-5 nano"},
-                    "gpt-5-pro": {"input": 15.00, "output": 120.00, "name": "GPT-5 Pro"},
-                    # OpenAI GPT-4.1 family
-                    "gpt-4.1": {"input": 2.00, "output": 8.00, "name": "GPT-4.1"},
-                    "gpt-4.1-mini": {"input": 0.40, "output": 1.60, "name": "GPT-4.1 mini"},
-                    "gpt-4.1-nano": {"input": 0.10, "output": 0.40, "name": "GPT-4.1 nano"},
-                    # OpenAI GPT-4o family
-                    "gpt-4o": {"input": 2.50, "output": 10.00, "name": "GPT-4o"},
-                    "gpt-4o-mini": {"input": 0.15, "output": 0.60, "name": "GPT-4o mini"},
-                    "chatgpt-4o-latest": {"input": 5.00, "output": 15.00, "name": "ChatGPT-4o Latest"},
-                    # OpenAI O-series (reasoning models)
-                    "o1": {"input": 15.00, "output": 60.00, "name": "O1"},
-                    "o1-mini": {"input": 1.10, "output": 4.40, "name": "O1 mini"},
-                    "o1-pro": {"input": 150.00, "output": 600.00, "name": "O1 Pro"},
-                    "o3": {"input": 2.00, "output": 8.00, "name": "O3"},
-                    "o3-mini": {"input": 1.10, "output": 4.40, "name": "O3 mini"},
-                    "o3-pro": {"input": 20.00, "output": 80.00, "name": "O3 Pro"},
-                    "o4-mini": {"input": 1.10, "output": 4.40, "name": "O4 mini"},
-                    # OpenAI legacy
-                    "gpt-4-turbo": {"input": 10.00, "output": 30.00, "name": "GPT-4 Turbo"},
-                    "gpt-4": {"input": 30.00, "output": 60.00, "name": "GPT-4"},
-                    "gpt-3.5-turbo": {"input": 0.50, "output": 1.50, "name": "GPT-3.5 Turbo"},
-                    # Anthropic Claude family (2025 updates)
-                    "claude-opus-4.5": {"input": 5.00, "output": 25.00, "name": "Claude Opus 4.5"},
-                    "claude-4-5-opus": {"input": 5.00, "output": 25.00, "name": "Claude Opus 4.5"},
-                    "claude-sonnet-4.5": {"input": 3.00, "output": 15.00, "name": "Claude Sonnet 4.5"},
-                    "claude-4-5-sonnet": {"input": 3.00, "output": 15.00, "name": "Claude Sonnet 4.5"},
-                    "claude-haiku-4.5": {"input": 1.00, "output": 5.00, "name": "Claude Haiku 4.5"},
-                    "claude-4-5-haiku": {"input": 1.00, "output": 5.00, "name": "Claude Haiku 4.5"},
-                    "claude-opus-4.1": {"input": 15.00, "output": 75.00, "name": "Claude Opus 4.1"},
-                    "claude-opus-4": {"input": 15.00, "output": 75.00, "name": "Claude Opus 4"},
-                    "claude-4-0-opus": {"input": 15.00, "output": 75.00, "name": "Claude Opus 4.0"},
-                    "claude-sonnet-4": {"input": 3.00, "output": 15.00, "name": "Claude Sonnet 4"},
-                    "claude-sonnet-3.7": {"input": 3.00, "output": 15.00, "name": "Claude Sonnet 3.7"},
-                    "claude-3-7-sonnet": {"input": 3.00, "output": 15.00, "name": "Claude 3.7 Sonnet"},
-                    "claude-3-5-sonnet": {"input": 3.00, "output": 15.00, "name": "Claude 3.5 Sonnet"},
-                    "claude-3-5-haiku": {"input": 0.80, "output": 4.00, "name": "Claude 3.5 Haiku"},
-                    "claude-3-opus": {"input": 15.00, "output": 75.00, "name": "Claude 3 Opus"},
-                    "claude-3-haiku": {"input": 0.25, "output": 1.25, "name": "Claude 3 Haiku"},
-                    # Google Gemini family (2025 updates)
-                    "gemini-2.5-flash": {"input": 0.10, "output": 0.40, "name": "Gemini 2.5 Flash"},
-                    "gemini-2.5-flash-lite": {"input": 0.10, "output": 0.40, "name": "Gemini 2.5 Flash Lite"},
-                    "gemini-2.0-flash": {"input": 0.10, "output": 0.40, "name": "Gemini 2.0 Flash"},
-                    "gemini-1.5-pro": {"input": 1.25, "output": 5.00, "name": "Gemini 1.5 Pro"},
-                    "gemini-1.5-flash": {"input": 0.075, "output": 0.30, "name": "Gemini 1.5 Flash"},
-                    "gemini-1.5-flash-8b": {"input": 0.0375, "output": 0.15, "name": "Gemini 1.5 Flash-8B"},
-                    # Meta Llama (via various providers, using typical pricing)
-                    "llama-3.3-70b": {"input": 0.60, "output": 0.60, "name": "Llama 3.3 70B"},
-                    "llama-3.1-405b": {"input": 3.00, "output": 3.00, "name": "Llama 3.1 405B"},
-                    "llama-3.1-70b": {"input": 0.60, "output": 0.60, "name": "Llama 3.1 70B"},
-                    "llama-3.1-8b": {"input": 0.20, "output": 0.20, "name": "Llama 3.1 8B"},
-                    # DeepSeek
-                    "deepseek-chat": {"input": 0.27, "output": 1.10, "name": "DeepSeek Chat"},
-                    "deepseek-reasoner": {"input": 0.55, "output": 2.19, "name": "DeepSeek Reasoner"},
-                    # Mistral AI
-                    "mistral-large": {"input": 2.00, "output": 6.00, "name": "Mistral Large"},
-                    "mistral-small": {"input": 0.20, "output": 0.60, "name": "Mistral Small"},
-                    "mistral-nemo": {"input": 0.15, "output": 0.15, "name": "Mistral Nemo"},
-                    # Cohere
-                    "command-r-plus": {"input": 2.50, "output": 10.00, "name": "Command R+"},
-                    "command-r": {"input": 0.15, "output": 0.60, "name": "Command R"},
-                }
+                # Load pricing from centralized catalog (supports aliases!)
+                from podx.models import get_model as catalog_get_model
 
-                # Normalize model name
-                model_key = model.lower()
-                if model_key not in MODEL_PRICING:
+                # Try to get the model from the centralized catalog (case-insensitive, supports aliases)
+                try:
+                    model_obj = catalog_get_model(model)
+                    pricing = {
+                        "input": model_obj.pricing.input_per_1m,
+                        "output": model_obj.pricing.output_per_1m,
+                        "name": model_obj.name,
+                    }
+                except KeyError:
+                    # Model not found - use gpt-5 as fallback
                     console.print(f"[yellow]Warning: Unknown model '{model}', using gpt-5 rates[/yellow]")
-                    model_key = "gpt-5"
-
-                pricing = MODEL_PRICING[model_key]
+                    fallback_model = catalog_get_model("gpt-5")
+                    pricing = {
+                        "input": fallback_model.pricing.input_per_1m,
+                        "output": fallback_model.pricing.output_per_1m,
+                        "name": fallback_model.name,
+                    }
 
                 enc = tiktoken.get_encoding("cl100k_base")  # Works for GPT-4, Claude, Gemini
 

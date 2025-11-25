@@ -35,160 +35,42 @@ def _default_pricing_catalog() -> Dict[str, Any]:
     """Curated pricing and descriptions. USD per 1M tokens (Standard tier).
 
     Updated January 2025 with latest models from OpenAI and Anthropic.
+
+    NOTE: This function now loads data from the centralized model catalog
+    (podx/data/models.json) to maintain backward compatibility with existing code.
+    The catalog includes models from OpenAI, Anthropic, Google, Meta, DeepSeek,
+    Mistral, Cohere, and Ollama.
     """
-    return {
-        "openai": {
-            # GPT-5.x family (Latest - 2025)
-            "gpt-5.1": {
-                "in": 1.25,
-                "out": 10.00,
-                "desc": "Latest GPT-5.1; best quality/performance (2025).",
-            },
-            "gpt-5": {
-                "in": 1.25,
-                "out": 10.00,
-                "desc": "GPT-5; flagship model (2025).",
-            },
-            "gpt-5-mini": {
-                "in": 0.25,
-                "out": 2.00,
-                "desc": "GPT-5 mini; fast and affordable.",
-            },
-            "gpt-5-nano": {
-                "in": 0.05,
-                "out": 0.40,
-                "desc": "GPT-5 nano; smallest and cheapest.",
-            },
-            # GPT-4.1 family
-            "gpt-4.1": {
-                "in": 2.00,
-                "out": 8.00,
-                "desc": "GPT-4.1; excellent coding and reasoning.",
-            },
-            "gpt-4.1-mini": {
-                "in": 0.40,
-                "out": 1.60,
-                "desc": "GPT-4.1 mini; good balance of cost/quality.",
-            },
-            "gpt-4.1-nano": {
-                "in": 0.10,
-                "out": 0.40,
-                "desc": "GPT-4.1 nano; fastest and cheapest 4.1.",
-            },
-            # GPT-4o family
-            "gpt-4o": {
-                "in": 2.50,
-                "out": 10.00,
-                "desc": "Multimodal GPT-4o; balanced quality/speed.",
-            },
-            "gpt-4o-mini": {
-                "in": 0.15,
-                "out": 0.60,
-                "desc": "GPT-4o mini; cheapest for utility tasks.",
-            },
-            # O-series (reasoning models)
-            "o1": {
-                "in": 15.00,
-                "out": 60.00,
-                "desc": "O1; advanced reasoning model.",
-            },
-            "o1-mini": {
-                "in": 1.10,
-                "out": 4.40,
-                "desc": "O1 mini; efficient reasoning.",
-            },
-            "o3": {
-                "in": 2.00,
-                "out": 8.00,
-                "desc": "O3; next-gen reasoning.",
-            },
-            "o3-mini": {
-                "in": 1.10,
-                "out": 4.40,
-                "desc": "O3 mini; compact reasoning.",
-            },
-            "o4-mini": {
-                "in": 1.10,
-                "out": 4.40,
-                "desc": "O4 mini; latest compact reasoning.",
-            },
-        },
-        "anthropic": {
-            # Claude 4.5 family (Latest - November 2025)
-            "claude-opus-4.5": {
-                "in": 5.00,
-                "out": 25.00,
-                "desc": "Claude Opus 4.5; best coding & agents (Nov 2025).",
-            },
-            "claude-4-5-opus": {
-                "in": 5.00,
-                "out": 25.00,
-                "desc": "Alias for Claude Opus 4.5.",
-            },
-            "claude-sonnet-4.5": {
-                "in": 3.00,
-                "out": 15.00,
-                "desc": "Claude Sonnet 4.5; balanced intelligence/cost/speed (≤200K: $3/$15, >200K: $6/$22.50).",
-            },
-            "claude-4-5-sonnet": {
-                "in": 3.00,
-                "out": 15.00,
-                "desc": "Alias for Claude Sonnet 4.5.",
-            },
-            "claude-haiku-4.5": {
-                "in": 1.00,
-                "out": 5.00,
-                "desc": "Claude Haiku 4.5; fastest, most cost-efficient (Oct 2025).",
-            },
-            "claude-4-5-haiku": {
-                "in": 1.00,
-                "out": 5.00,
-                "desc": "Alias for Claude Haiku 4.5.",
-            },
-            # Claude 4.x family
-            "claude-opus-4": {
-                "in": 15.00,
-                "out": 75.00,
-                "desc": "Claude Opus 4; premium quality.",
-            },
-            "claude-opus-4.1": {
-                "in": 15.00,
-                "out": 75.00,
-                "desc": "Claude Opus 4.1; agentic tasks & reasoning.",
-            },
-            "claude-sonnet-4": {
-                "in": 3.00,
-                "out": 15.00,
-                "desc": "Claude Sonnet 4; balanced performance.",
-            },
-            "claude-sonnet-3.7": {
-                "in": 3.00,
-                "out": 15.00,
-                "desc": "Claude Sonnet 3.7; strong reasoning.",
-            },
-            # Claude 3.x family
-            "claude-3-5-sonnet": {
-                "in": 3.00,
-                "out": 15.00,
-                "desc": "Claude 3.5 Sonnet; great all-round.",
-            },
-            "claude-3-5-haiku": {
-                "in": 0.80,
-                "out": 4.00,
-                "desc": "Claude 3.5 Haiku; fast daily use.",
-            },
-            "claude-3-opus": {
-                "in": 15.00,
-                "out": 75.00,
-                "desc": "Claude 3 Opus; highest quality.",
-            },
-            "claude-3-haiku": {
-                "in": 0.25,
-                "out": 1.25,
-                "desc": "Claude 3 Haiku; legacy fast model.",
-            },
-        },
-    }
+    from podx.models import list_models
+
+    # Build the legacy format from the centralized catalog
+    result: Dict[str, Any] = {}
+
+    # Get all models from the catalog
+    all_models = list_models()
+
+    # Group by provider
+    for model in all_models:
+        provider = model.provider
+        if provider not in result:
+            result[provider] = {}
+
+        # Add model in legacy format
+        result[provider][model.id] = {
+            "in": model.pricing.input_per_1m,
+            "out": model.pricing.output_per_1m,
+            "desc": model.description,
+        }
+
+        # Also add aliases as separate entries for backward compatibility
+        for alias in model.aliases:
+            result[provider][alias] = {
+                "in": model.pricing.input_per_1m,
+                "out": model.pricing.output_per_1m,
+                "desc": f"Alias for {model.name}",
+            }
+
+    return result
 
 
 def _read_cache() -> Dict[str, Any]:
