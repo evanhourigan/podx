@@ -1,9 +1,10 @@
 # PodX Development Context
 
-**Last Updated**: 2025-11-21 (auto-generated from session)
+**Last Updated**: 2025-11-25 04:20:24 UTC
 **Current Branch**: `main`
-**Current Phase**: v3.1.0 Development Complete ✅ + Bug Fixes
-**Latest Commits**: 078978c (completion refactor), d10ad3d (init fixes), 785f6de (cloud storage)
+**Current Phase**: v3.2.0 Development - Phase 1 (Template Design) ⏳
+**Latest Commits**: daa385b (context updates), 078978c (completion refactor), d10ad3d (init fixes)
+**Active Work**: `.ai-docs/V3.2.0_PROGRESS.md` - Complete progress tracker
 
 ---
 
@@ -92,12 +93,17 @@
 - Phase 3.4: TUI Testing & Remaining Fixes
 
 **Versioning Plan:**
-- **v3.1.0**: 4 new features complete ✨ (ready to tag!)
+- **v3.1.0**: 4 new features complete ✨ (RELEASED)
   - YouTube URL processing docs
   - Webhook notifications
-  - Custom deepcast templates
+  - Custom deepcast templates (5 built-ins)
   - Cloud storage integration
-- **v3.2.0**: Future enhancements (TBD)
+- **v3.2.0**: Enhanced Template System (IN PROGRESS)
+  - 10 format-based templates (replacing 5 built-ins)
+  - Preview/dry-run mode
+  - Export/import with URL support
+  - Comprehensive documentation
+  - See `.ai-docs/V3.2.0_PROGRESS.md` for details
 
 ---
 

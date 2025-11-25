@@ -88,23 +88,35 @@ class TestTemplateManager:
         """Test getting built-in templates."""
         builtins = manager.get_builtin_templates()
 
-        assert "default" in builtins
-        assert "interview" in builtins
-        assert "tech-talk" in builtins
-        assert "storytelling" in builtins
-        assert "minimal" in builtins
+        # Verify all 10 new format-based templates exist
+        expected_templates = [
+            "solo-commentary",
+            "interview-1on1",
+            "panel-discussion",
+            "lecture-presentation",
+            "debate-roundtable",
+            "news-analysis",
+            "case-study",
+            "technical-deep-dive",
+            "business-strategy",
+            "research-review",
+        ]
+
+        for template_name in expected_templates:
+            assert template_name in builtins, f"Template {template_name} not found"
 
         # Verify structure
-        assert builtins["default"].name == "default"
-        assert len(builtins["default"].variables) > 0
+        assert builtins["interview-1on1"].name == "interview-1on1"
+        assert len(builtins["interview-1on1"].variables) > 0
 
     def test_load_builtin_template(self, manager):
         """Test loading built-in template."""
-        template = manager.load("default")
+        template = manager.load("interview-1on1")
 
-        assert template.name == "default"
+        assert template.name == "interview-1on1"
         assert "title" in template.variables
         assert "transcript" in template.variables
+        assert "speakers" in template.variables
 
     def test_load_nonexistent_template(self, manager):
         """Test loading nonexistent template."""
@@ -142,8 +154,9 @@ class TestTemplateManager:
         """Test listing templates."""
         # Initially only built-ins
         templates = manager.list_templates()
-        assert "default" in templates
-        assert "interview" in templates
+        assert "interview-1on1" in templates
+        assert "solo-commentary" in templates
+        assert "panel-discussion" in templates
 
         # Add user template
         custom = DeepcastTemplate(
@@ -182,7 +195,7 @@ class TestTemplateManager:
     def test_delete_builtin_template_fails(self, manager):
         """Test that deleting built-in template raises error."""
         with pytest.raises(TemplateError) as exc:
-            manager.delete("default")
+            manager.delete("interview-1on1")
 
         assert "Cannot delete built-in" in str(exc.value)
 
@@ -193,12 +206,13 @@ class TestTemplateManager:
 
     def test_export_template(self, manager):
         """Test exporting template as YAML."""
-        yaml_str = manager.export("default")
+        yaml_str = manager.export("interview-1on1")
 
-        assert "name: default" in yaml_str
+        assert "name: interview-1on1" in yaml_str
         assert "description:" in yaml_str
         assert "system_prompt:" in yaml_str
         assert "user_prompt:" in yaml_str
+        assert "format:" in yaml_str
 
     def test_import_template(self, manager):
         """Test importing template from YAML."""
@@ -233,19 +247,67 @@ output_format: markdown
     def test_cache_functionality(self, manager):
         """Test that templates are cached."""
         # Load template twice
-        template1 = manager.load("default")
-        template2 = manager.load("default")
+        template1 = manager.load("interview-1on1")
+        template2 = manager.load("interview-1on1")
 
         # Should be same object (from cache)
         assert template1 is template2
 
     def test_builtin_template_variables(self, manager):
         """Test that built-in templates have correct variables."""
-        default = manager.load("default")
-        assert set(default.variables) == {"title", "show", "duration", "transcript"}
+        # Test solo-commentary variables
+        solo = manager.load("solo-commentary")
+        assert set(solo.variables) == {"title", "show", "duration", "transcript"}
 
-        interview = manager.load("interview")
+        # Test interview-1on1 variables
+        interview = manager.load("interview-1on1")
         assert "speakers" in interview.variables
+        assert "title" in interview.variables
+        assert "transcript" in interview.variables
 
-        minimal = manager.load("minimal")
-        assert set(minimal.variables) == {"title", "transcript"}
+        # Test panel-discussion variables
+        panel = manager.load("panel-discussion")
+        assert "speaker_count" in panel.variables
+
+    def test_builtin_template_format_field(self, manager):
+        """Test that built-in templates have format field."""
+        interview = manager.load("interview-1on1")
+        assert interview.format == "interview"
+
+        panel = manager.load("panel-discussion")
+        assert panel.format == "panel"
+
+        solo = manager.load("solo-commentary")
+        assert solo.format == "solo"
+
+    def test_all_templates_have_scaling_guidance(self, manager):
+        """Test that all templates include length-adaptive scaling guidance."""
+        builtins = manager.get_builtin_templates()
+
+        for name, template in builtins.items():
+            # Check that system prompt contains scaling guidance
+            assert "Adapt your analysis depth based on episode length" in template.system_prompt, \
+                f"Template {name} missing scaling guidance"
+            assert "<30 minutes" in template.system_prompt, \
+                f"Template {name} missing tier definitions"
+
+    def test_template_rendering_with_duration(self, manager):
+        """Test that templates render correctly with duration variable."""
+        template = manager.load("interview-1on1")
+
+        context = {
+            "title": "Test Episode",
+            "show": "Test Podcast",
+            "duration": 45,
+            "transcript": "Sample transcript content",
+            "speakers": "Host, Guest",
+        }
+
+        system, user = template.render(context)
+
+        # Verify variables are substituted
+        assert "Test Episode" in user
+        assert "Test Podcast" in user
+        assert "45" in user
+        assert "Sample transcript content" in user
+        assert "Host, Guest" in user

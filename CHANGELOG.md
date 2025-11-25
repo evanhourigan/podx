@@ -7,6 +7,110 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.0] - 2025-11-24
+
+### 🎯 Enhanced Template System
+
+A feature release introducing **10 new format-based analysis templates** with length-adaptive scaling, preview mode, and comprehensive template management.
+
+---
+
+### ✨ Added
+
+#### 📝 Format-Based Templates (NEW!)
+- **10 specialized templates** optimized for different podcast formats:
+  - `solo-commentary` - Single host sharing thoughts, analysis, or storytelling
+  - `interview-1on1` - Host interviewing a single guest
+  - `panel-discussion` - Multiple co-hosts or guests discussing topics
+  - `lecture-presentation` - Educational content with structured teaching
+  - `debate-roundtable` - Structured debates with opposing viewpoints
+  - `news-analysis` - Analysis and discussion of current events
+  - `case-study` - Deep analysis of specific companies, events, or cases
+  - `technical-deep-dive` - In-depth technical discussions of technology/science
+  - `business-strategy` - Discussion of business strategy and market analysis
+  - `research-review` - Discussion and analysis of academic research papers
+
+**Key Features:**
+- **Length-adaptive scaling** - Output automatically adjusts to episode duration (<30min, 30-60min, 60-90min, 90+min)
+- **Format field** - Templates organized by podcast structure (not content category)
+- **Example podcasts** - Each template includes well-known podcast examples
+- **DRY-compliant design** - Scaling guidance defined once in system prompt
+
+#### 🔧 Template Management CLI
+**New `podx templates` command group:**
+- `podx templates list` - List all available templates (table or JSON format)
+- `podx templates show <name>` - Show detailed template information
+- `podx templates preview <name>` - Preview template output without LLM calls (dry-run mode)
+- `podx templates export <name>` - Export template to YAML file
+- `podx templates import <source>` - Import template from file or URL
+- `podx templates delete <name>` - Delete user templates (built-ins protected)
+
+**Preview Mode Features:**
+- Sample data generation for testing
+- Multiple input methods (CLI flags, JSON file, sample data)
+- Cost estimation with token counting (using tiktoken)
+- GPT-4o pricing estimates ($2.50/1M input, $10/1M output)
+
+#### 📚 Documentation
+- **`docs/TEMPLATES.md`** - Comprehensive 575-line guide covering:
+  - Overview of all 10 templates with example podcasts
+  - Length-adaptive scaling explanation
+  - Complete CLI usage examples
+  - Custom template creation guide
+  - Cost estimation guide
+  - Template selection decision tree
+  - Format vs Category explanation
+  - Python API reference
+  - Troubleshooting section
+  - Migration guide from v3.1.0
+
+#### ✅ Testing
+- **40 new tests** for template system (19 unit + 21 CLI tests)
+- Tests for all 10 template formats
+- CLI command tests (list, show, preview, export, import, delete)
+- Template rendering and variable substitution tests
+- Scaling guidance validation
+- Export/import roundtrip tests
+
+---
+
+### 🔄 Changed
+
+#### Template System
+- **Replaced 5 basic templates** with 10 format-based templates
+  - Old: `default`, `interview`, `tech-talk`, `storytelling`, `minimal`
+  - New: See "Format-Based Templates" above
+- **Added `format` field** to `DeepcastTemplate` model
+- **Improved template prompts** - More comprehensive and structured output
+
+#### Migration from v3.1.0
+| Old Template | New Template(s) |
+|-------------|-----------------|
+| `default` | Use `interview-1on1` or `solo-commentary` |
+| `interview` | `interview-1on1` |
+| `tech-talk` | `technical-deep-dive` |
+| `storytelling` | `solo-commentary` or `case-study` |
+| `minimal` | Use any template with short episodes (<30 min) |
+
+---
+
+### 📦 Dependencies
+
+**Optional dependencies** (for cost estimation in preview mode):
+- `tiktoken` - Token counting for cost estimates (included in `llm` extras)
+
+Install with: `pip install 'podx[llm]'`
+
+---
+
+### 🎓 Learn More
+
+- **Templates Guide**: `docs/TEMPLATES.md`
+- **Quick Start**: `podx templates list` to see all available templates
+- **Try Preview**: `podx templates preview interview-1on1 --sample --cost`
+
+---
+
 ## [3.0.0] - 2025-11-18
 
 ### 🚀 Major Release - Web API Server & CLI Restructure

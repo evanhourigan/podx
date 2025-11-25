@@ -229,7 +229,7 @@ For detailed deployment guides, see:
 - **📺 YouTube Integration** - Direct processing of YouTube videos via URL
 - **⚡ Multi-Provider Transcription** - Local (faster-whisper), OpenAI, or HuggingFace models
 - **🎭 Speaker Diarization** - PyAnnote-powered speaker identification
-- **🧠 AI-Powered Analysis** - GPT-4/Claude integration for summaries and insights
+- **🧠 AI-Powered Analysis** - GPT-4/Claude with 10 format-based templates (interview, panel, debate, etc.)
 - **📊 Multiple Export Formats** - SRT, VTT, TXT, Markdown
 - **📝 Notion Publishing** - Direct integration with Notion databases
 - **🎨 Interactive UI** - TUI browser for episode selection
@@ -530,6 +530,39 @@ podx analyze topics ep001 --clusters 10
 # Speaker statistics
 podx analyze speakers transcript.json
 ```
+
+### Analysis Templates
+
+**NEW in v3.2:** Format-based analysis templates with length-adaptive scaling!
+
+```bash
+# List all available templates
+podx templates list
+
+# Preview template with sample data (no LLM calls)
+podx templates preview interview-1on1 --sample --cost
+
+# Use specific template for analysis
+podx run --show "Lex Fridman" --date 2024-11-24 --template interview-1on1
+
+# Create and share custom templates
+podx templates export my-template --output template.yaml
+podx templates import https://example.com/custom-template.yaml
+```
+
+**Available Templates:**
+- `interview-1on1` - One host + one guest (Lex Fridman, Joe Rogan, Tim Ferriss)
+- `panel-discussion` - Multiple hosts discussing (All-In, Hard Fork)
+- `solo-commentary` - Single host (Dan Carlin, Sam Harris)
+- `debate-roundtable` - Opposing viewpoints (Intelligence Squared)
+- `case-study` - Deep dives into companies/events (Acquired, How I Built This)
+- `technical-deep-dive` - Engineering/tech content (Software Engineering Daily)
+- `business-strategy` - Business analysis (Invest Like the Best)
+- `lecture-presentation` - Educational content (MIT OCW, TED Talks)
+- `news-analysis` - Current events (The Daily, Up First)
+- `research-review` - Academic research (TWIML AI, Nature Podcast)
+
+See [docs/TEMPLATES.md](docs/TEMPLATES.md) for complete guide.
 
 ### Interactive Mode
 

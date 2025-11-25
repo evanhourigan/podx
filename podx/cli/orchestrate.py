@@ -45,6 +45,7 @@ from podx.cli import (  # noqa: E402 - Must import after logging setup
     estimate,
     init,
     search,
+    templates,
 )
 
 # Import all command modules
@@ -131,6 +132,7 @@ main.add_command(analyze_audio.main, name="analyze-audio")
 # Register command groups (search and analyze already have Click groups)
 main.add_command(search.search_group, name="search")
 main.add_command(analyze.analyze_group, name="analyze")
+main.add_command(templates.main, name="templates")
 
 
 # Create batch command group
