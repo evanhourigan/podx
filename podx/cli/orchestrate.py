@@ -8,32 +8,13 @@ from __future__ import annotations
 
 import sys
 
-# Use rich-click for colorized --help when available
-try:  # pragma: no cover
-    import click  # type: ignore
-    import rich_click  # type: ignore
+# Use plain click for UNIX-style errors without fancy formatting
+import click  # type: ignore
 
-    # Style configuration (approximate the standard color convention)
-    rc = rich_click.rich_click
-    rc.STYLE_HEADING = "bold bright_green"
-    rc.STYLE_USAGE = "bold white"
-    rc.STYLE_COMMAND = "bold white"
-    rc.STYLE_METAVAR = "yellow"
-    rc.STYLE_SWITCH = "bright_black"  # flags
-    rc.STYLE_OPTION = "bright_black"  # flags
-    rc.STYLE_ARGUMENT = "yellow"  # flag arguments
-    rc.STYLE_HELP = "white"
-    rc.GROUP_ARGUMENTS_OPTIONS = True
-    rc.MAX_WIDTH = 100
-
-    BaseGroup = rich_click.RichGroup
-except Exception:  # pragma: no cover
-    import click  # type: ignore
-
-    BaseGroup = click.Group
+BaseGroup = click.Group
 
 # Initialize logging BEFORE any imports that might log
-from podx.logging import setup_logging
+from podx.logging import setup_logging  # noqa: E402
 
 setup_logging()
 
