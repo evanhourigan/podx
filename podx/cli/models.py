@@ -23,32 +23,42 @@ except Exception:  # pragma: no cover
 
 
 # Canonical family names to display by default (ordered)
+# Updated January 2025 to match pricing catalog
 CURATED_OPENAI = [
-    # Flagship and common families
+    # GPT-5.x family (Latest - 2025)
+    "gpt-5.1",
     "gpt-5",
     "gpt-5-mini",
     "gpt-5-nano",
-    "gpt-5-pro",
+    # GPT-4.1 family
     "gpt-4.1",
     "gpt-4.1-mini",
     "gpt-4.1-nano",
+    # GPT-4o family
     "gpt-4o",
     "gpt-4o-mini",
-    # Popular/legacy families users still ask for
+    # O-series (reasoning models)
+    "o1",
+    "o1-mini",
     "o3",
     "o3-mini",
-    "o4",
     "o4-mini",
-    "gpt-3.5",
-    "gpt-3.5-turbo",
 ]
 CURATED_ANTHROPIC = [
-    "claude-4.1-opus",
-    "claude-4.5-sonnet",
-    "claude-4-sonnet",
+    # Claude 4.5 family (Latest - Nov 2025)
+    "claude-opus-4.5",
+    "claude-sonnet-4.5",
+    "claude-haiku-4.5",
+    # Claude 4.x family
+    "claude-opus-4.1",
+    "claude-opus-4",
+    "claude-sonnet-4",
+    "claude-sonnet-3.7",
+    # Claude 3.x family
     "claude-3-5-sonnet",
     "claude-3-5-haiku",
     "claude-3-opus",
+    "claude-3-haiku",
 ]
 
 # API key environment variables for each provider
@@ -363,11 +373,7 @@ def main(
             desc = price.get("desc", "")
             row = {
                 "provider": prov,
-                "model": (
-                    name
-                    if (show_all or variants)
-                    else (next((fam for fam in curated if name.startswith(fam)), name))
-                ),
+                "model": name,  # Always use the actual model name
                 "price_in": price.get("in"),
                 "price_out": price.get("out"),
                 "desc": desc,
@@ -389,29 +395,63 @@ def main(
 
     if RICH_AVAILABLE:
         console = make_console()
+
+        # Determine if we should show the Est USD column (only if we have estimates)
+        has_estimates = any("est_usd" in r for r in rows)
+
+        title = "🤖 Models (USD per 1M tokens"
+        if has_estimates:
+            title += "; with cost estimates for current transcript"
+        title += ")"
+
         table = Table(
             show_header=True,
             header_style=TABLE_HEADER_STYLE,
             border_style=TABLE_BORDER_STYLE,
-            title="🤖 Models (USD per 1M tokens; estimates use current transcript if found)",
+            title=title,
             expand=False,
         )
         table.add_column("Provider", width=9)
         table.add_column("Model", width=18)
-        table.add_column("$In/M", justify="right", width=7)
-        table.add_column("$Out/M", justify="right", width=7)
-        table.add_column("Est USD", justify="right", width=9)
+        table.add_column("$In/M", justify="right", width=9)
+        table.add_column("$Out/M", justify="right", width=9)
+        if has_estimates:
+            table.add_column("Est USD", justify="right", width=9)
         table.add_column("Description", justify="left")
+
         for r in rows:
-            est = f"${r['est_usd']:.2f}" if "est_usd" in r else "-"
-            table.add_row(
+            # Format prices with proper decimal places
+            price_in = r.get("price_in")
+            price_out = r.get("price_out")
+
+            # Format with 2 decimal places, but show more if needed
+            def format_price(price):
+                if price is None:
+                    return "None"
+                # Check if we need more than 2 decimal places
+                if price != round(price, 2):
+                    # Has more than 2 decimal places
+                    if price != round(price, 3):
+                        return f"{price:.4f}"  # 4 decimal places
+                    return f"{price:.3f}"  # 3 decimal places
+                return f"{price:.2f}"  # 2 decimal places
+
+            in_str = format_price(price_in)
+            out_str = format_price(price_out)
+
+            row_data = [
                 r["provider"],
                 r["model"],
-                str(r.get("price_in", "-")),
-                str(r.get("price_out", "-")),
-                est,
-                r.get("desc", ""),
-            )
+                in_str,
+                out_str,
+            ]
+
+            if has_estimates:
+                est = f"${r['est_usd']:.2f}" if "est_usd" in r else "-"
+                row_data.append(est)
+
+            row_data.append(r.get("desc", ""))
+            table.add_row(*row_data)
         console.print(table)
         if not transcript:
             console.print(
