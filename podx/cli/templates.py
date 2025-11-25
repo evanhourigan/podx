@@ -9,7 +9,6 @@ Handles:
 """
 
 import json
-import sys
 from pathlib import Path
 from typing import Optional
 
@@ -19,7 +18,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from podx.domain.exit_codes import ExitCode
 from podx.logging import get_logger
 from podx.templates.manager import TemplateError, TemplateManager
 
@@ -94,8 +92,7 @@ def list_templates(format: str):
         console.print(table)
 
     except Exception as e:
-        console.print(f"[red]Error listing templates: {e}[/red]")
-        sys.exit(ExitCode.GENERAL_ERROR.value)
+        raise click.ClickException(f"Error listing templates: {e}")
 
 
 @main.command(name="show", help="Show detailed information about a template")
@@ -116,8 +113,7 @@ def show_template(template_name: str):
                           title="User Prompt (preview)", border_style="green"))
 
     except TemplateError as e:
-        console.print(f"[red]Error: {e}[/red]")
-        sys.exit(ExitCode.GENERAL_ERROR.value)
+        raise click.ClickException(str(e))
 
 
 # ============================================================================
@@ -179,8 +175,7 @@ def preview_template(
             # Load variables from JSON file
             vars_path = Path(vars_json)
             if not vars_path.exists():
-                console.print(f"[red]Error: JSON file not found: {vars_json}[/red]")
-                sys.exit(ExitCode.GENERAL_ERROR.value)
+                raise click.ClickException(f"JSON file not found: {vars_json}")
 
             with open(vars_path, "r") as f:
                 context = json.load(f)
@@ -361,12 +356,10 @@ def preview_template(
                 console.print(f"[yellow]Warning: Could not estimate cost: {e}[/yellow]")
 
     except TemplateError as e:
-        console.print(f"[red]Error: {e}[/red]")
-        sys.exit(ExitCode.GENERAL_ERROR.value)
+        raise click.ClickException(str(e))
     except Exception as e:
-        console.print(f"[red]Unexpected error: {e}[/red]")
         logger.exception("Preview failed")
-        sys.exit(ExitCode.GENERAL_ERROR.value)
+        raise click.ClickException(f"Unexpected error: {e}")
 
 
 # ============================================================================
@@ -391,8 +384,7 @@ def export_template(template_name: str, output: Optional[str]):
             console.print(yaml_content)
 
     except TemplateError as e:
-        console.print(f"[red]Error: {e}[/red]")
-        sys.exit(ExitCode.GENERAL_ERROR.value)
+        raise click.ClickException(str(e))
 
 
 @main.command(name="import", help="Import template from YAML file or URL")
@@ -418,8 +410,7 @@ def import_template(source: str):
             # Load from file
             source_path = Path(source)
             if not source_path.exists():
-                console.print(f"[red]Error: File not found: {source}[/red]")
-                sys.exit(ExitCode.GENERAL_ERROR.value)
+                raise click.ClickException(f"File not found: {source}")
 
             yaml_content = source_path.read_text()
 
@@ -428,11 +419,9 @@ def import_template(source: str):
         console.print(f"[dim]Saved to: ~/.podx/templates/{template.name}.yaml[/dim]")
 
     except TemplateError as e:
-        console.print(f"[red]Error: {e}[/red]")
-        sys.exit(ExitCode.GENERAL_ERROR.value)
+        raise click.ClickException(str(e))
     except Exception as e:
-        console.print(f"[red]Failed to import template: {e}[/red]")
-        sys.exit(ExitCode.GENERAL_ERROR.value)
+        raise click.ClickException(f"Failed to import template: {e}")
 
 
 @main.command(name="delete", help="Delete a user template")
@@ -454,8 +443,7 @@ def delete_template(template_name: str, yes: bool):
             console.print(f"[yellow]Template not found: {template_name}[/yellow]")
 
     except TemplateError as e:
-        console.print(f"[red]Error: {e}[/red]")
-        sys.exit(ExitCode.GENERAL_ERROR.value)
+        raise click.ClickException(str(e))
 
 
 if __name__ == "__main__":
