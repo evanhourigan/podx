@@ -7,6 +7,91 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.1] - 2025-11-25
+
+### 🔧 Internal Improvements & Quality
+
+A maintenance release focused on internal architecture improvements, updated pricing data, and enhanced user experience.
+
+---
+
+### ✨ Added
+
+#### 🗂️ Centralized Model Catalog
+- **New `podx/models/` module** - Single source of truth for all model data
+  - `podx/models/catalog.py` - Core loader with query interface
+  - `podx/models/__init__.py` - Clean public API
+  - Singleton pattern for efficient loading
+  - Case-insensitive model lookup
+  - Comprehensive alias support (e.g., `gpt-5.1`, `gpt5.1`, `gpt-5-1` all work)
+- **43 models across 8 providers** - OpenAI, Anthropic, Google, Meta, DeepSeek, Mistral, Cohere, Ollama
+- **Provider configuration** - Centralized API key environment variables and documentation URLs
+- **Backward compatible** - Existing code continues to work without changes
+
+#### 💰 Updated Model Pricing (January 2025)
+- **New OpenAI models:**
+  - GPT-5.1 ($1.25/$10.00 per 1M tokens)
+  - GPT-5 ($1.25/$10.00)
+  - GPT-5-mini ($0.25/$2.00)
+  - GPT-5-nano ($0.05/$0.40)
+  - GPT-4.1 family (4.1, 4.1-mini, 4.1-nano)
+  - O-series reasoning models (o1, o1-mini, o3, o3-mini, o4-mini)
+- **New Anthropic models:**
+  - Claude Opus 4.5 ($5.00/$25.00) with prompt caching support
+  - Claude Sonnet 4.5 ($3.00/$15.00)
+  - Claude Haiku 4.5 ($1.00/$5.00)
+- **Updated pricing** for all existing models to January 2025 rates
+
+---
+
+### 🔄 Changed
+
+#### Error Messages
+- **Replaced rich-click** with plain Click for UNIX-style error messages
+  - Clean `Error: message` format instead of bordered panels
+  - Removed fancy formatting for better terminal compatibility
+  - Standard Unix tool aesthetics
+- **Removed Python stacktraces** from user-facing template errors
+  - Uses `click.ClickException` for clean error reporting
+  - Stacktraces only shown for actual bugs, not user errors
+
+#### Display Improvements
+- **Smarter price formatting** - Shows 2-4 decimal places based on actual precision
+- **Conditional columns** - "Est USD" column only shows when `--estimate` flag is used
+- **Better model display** - Always shows actual model name (fixes duplicate entries)
+
+---
+
+### 🏗️ Internal Refactoring
+
+#### Architecture
+- **Eliminated DRY violations** - Model pricing was duplicated across 48+ files
+- **Data-code separation** - All model data now in `podx/data/models.json`
+- **Centralized queries** - `get_model()`, `list_models()`, `get_provider()`, `check_api_key()`
+- **Easy maintenance** - Add new models by editing JSON, no code changes needed
+
+#### Files Modified
+- `podx/cli/models.py` - Now uses centralized catalog
+- `podx/cli/templates.py` - Now uses centralized catalog for cost estimation
+- `podx/pricing.py` - Ready for future migration to catalog
+- `podx/cli/orchestrate.py` - Removed rich-click dependency
+
+---
+
+### 📝 Documentation
+- Updated `.ai-docs/MODEL_CATALOG_REFACTORING.md` - Complete refactoring documentation
+- All changes maintain backward compatibility
+
+---
+
+### 🧪 Testing
+- ✅ All existing tests pass
+- ✅ Verified `podx models` command works correctly
+- ✅ Verified `podx templates preview --cost` works with model aliases
+- ✅ Confirmed no regressions in functionality
+
+---
+
 ## [3.2.0] - 2025-11-24
 
 ### 🎯 Enhanced Template System

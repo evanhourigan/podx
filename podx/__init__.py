@@ -19,7 +19,7 @@ For complete examples, see: https://github.com/evanhourigan/podx
 """
 
 # Version
-__version__ = "3.1.0"
+__version__ = "3.2.1"
 
 # Configuration
 from podx.config import get_config

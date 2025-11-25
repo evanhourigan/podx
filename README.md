@@ -130,11 +130,17 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 podx models --status
 ```
 
-**Supported Providers:**
-- **OpenAI** - GPT-4, GPT-3.5 models
-- **Anthropic** - Claude Opus, Sonnet, Haiku
-- **OpenRouter** - Access multiple models through one API
+**Supported Providers (43 models across 8 providers):**
+- **OpenAI** - GPT-5.x, GPT-4.1, GPT-4o, O-series reasoning models
+- **Anthropic** - Claude Opus 4.5, Sonnet 4.5, Haiku 4.5, Claude 4.x/3.x
+- **Google** - Gemini 2.5 Flash, Gemini 2.0 Pro, Gemini 1.5
+- **Meta** - Llama 3.3, Llama 3.2, Llama 3.1
+- **DeepSeek** - Chat, Reasoner (V3)
+- **Mistral** - Large, Medium, Small
+- **Cohere** - Command R+, Command R
 - **Ollama** - Local models (no API key required)
+
+View all models with pricing: `podx models`
 
 ---
 
