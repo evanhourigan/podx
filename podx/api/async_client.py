@@ -11,7 +11,7 @@ from typing import Any, AsyncIterator, Callable, Dict, Optional
 from ..errors import ValidationError
 from ..logging import get_logger
 from .config import ClientConfig
-from .models import DiarizeResponse, TranscribeResponse
+from .models import CostEstimate, DiarizeResponse, ModelInfo, TranscribeResponse
 
 logger = get_logger(__name__)
 
@@ -460,3 +460,172 @@ class AsyncPodxClient:
         if final_result:
             return final_result
         return "\n".join(stdout_lines)
+
+    # =========================================================================
+    # Model Catalog Methods (synchronous - no I/O)
+    # =========================================================================
+
+    def list_models(
+        self,
+        provider: Optional[str] = None,
+        default_only: bool = False,
+        capability: Optional[str] = None,
+    ) -> list[ModelInfo]:
+        """List available LLM models with optional filtering.
+
+        Note: This method is synchronous (no async) as it only reads cached data.
+
+        Args:
+            provider: Filter by provider (e.g., "openai", "anthropic")
+            default_only: If True, only include models shown in default CLI listings
+            capability: Filter by capability (e.g., "vision", "function-calling")
+
+        Returns:
+            List of ModelInfo objects, sorted by provider then model ID
+
+        Example:
+            >>> client = AsyncPodxClient()
+            >>> # List all OpenAI models
+            >>> openai_models = client.list_models(provider="openai")
+            >>> for model in openai_models:
+            ...     print(f"{model.name}: ${model.pricing.input_per_1m}/M")
+        """
+        from ..models import list_models as _list_models
+
+        catalog_models = _list_models(
+            provider=provider,
+            default_only=default_only,
+            capability=capability,
+        )
+        return [ModelInfo.from_catalog_model(m) for m in catalog_models]
+
+    def get_model_info(self, model_id_or_alias: str) -> ModelInfo:
+        """Get detailed information about a specific model.
+
+        Supports case-insensitive lookup and aliases. For example, "gpt-5.1",
+        "gpt5.1", "GPT-5-1" all resolve to the same model.
+
+        Note: This method is synchronous (no async) as it only reads cached data.
+
+        Args:
+            model_id_or_alias: Model ID or alias (case-insensitive)
+
+        Returns:
+            ModelInfo with full model details including pricing
+
+        Raises:
+            KeyError: If model not found
+
+        Example:
+            >>> client = AsyncPodxClient()
+            >>> model = client.get_model_info("gpt-5")
+            >>> print(f"Price: ${model.pricing.input_per_1m}/M input")
+        """
+        from ..models import get_model as _get_model
+
+        catalog_model = _get_model(model_id_or_alias)
+        return ModelInfo.from_catalog_model(catalog_model)
+
+    def estimate_cost(
+        self,
+        model: str,
+        transcript_path: Optional[str] = None,
+        text: Optional[str] = None,
+        token_count: Optional[int] = None,
+        output_ratio: float = 0.3,
+    ) -> CostEstimate:
+        """Estimate the cost of processing with a specific model.
+
+        Provide one of: transcript_path, text, or token_count.
+
+        Token estimation uses ~4 characters per token as a rough approximation.
+        Output tokens are estimated as a ratio of input tokens (default 30%).
+
+        Note: This method is synchronous. For transcript_path, it reads the file
+        synchronously. Use in async context with care for large files.
+
+        Args:
+            model: Model ID or alias (e.g., "gpt-5", "claude-sonnet-4.5")
+            transcript_path: Path to transcript JSON file
+            text: Raw text to estimate
+            token_count: Pre-calculated token count
+            output_ratio: Expected output/input token ratio (default 0.3 = 30%)
+
+        Returns:
+            CostEstimate with token counts and USD costs
+
+        Raises:
+            ValueError: If no input provided or multiple inputs provided
+            KeyError: If model not found
+            FileNotFoundError: If transcript_path doesn't exist
+
+        Example:
+            >>> client = AsyncPodxClient()
+            >>> estimate = client.estimate_cost(model="gpt-5", token_count=50000)
+            >>> print(f"Estimated cost: ${estimate.total_cost_usd:.4f}")
+        """
+        from ..models import get_model as _get_model
+
+        # Validate input - exactly one source required
+        inputs_provided = sum(
+            [transcript_path is not None, text is not None, token_count is not None]
+        )
+        if inputs_provided == 0:
+            raise ValueError(
+                "Must provide one of: transcript_path, text, or token_count"
+            )
+        if inputs_provided > 1:
+            raise ValueError(
+                "Provide only one of: transcript_path, text, or token_count"
+            )
+
+        # Get model info
+        catalog_model = _get_model(model)
+
+        # Determine input text and tokens
+        input_text = ""
+        if transcript_path:
+            path = Path(transcript_path)
+            if not path.exists():
+                raise FileNotFoundError(f"Transcript not found: {transcript_path}")
+            try:
+                transcript_data = json.loads(path.read_text())
+                # Extract text from segments
+                segments = transcript_data.get("segments", [])
+                input_text = " ".join(seg.get("text", "") for seg in segments)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid transcript JSON: {e}")
+
+        elif text:
+            input_text = text
+
+        # Calculate tokens
+        if token_count is not None:
+            input_tokens = token_count
+            text_length = 0
+        else:
+            text_length = len(input_text)
+            # Rough estimate: ~4 characters per token
+            input_tokens = max(1, text_length // 4)
+
+        # Estimate output tokens based on ratio
+        output_tokens = int(input_tokens * output_ratio)
+
+        # Calculate costs
+        input_cost = (input_tokens / 1_000_000) * catalog_model.pricing.input_per_1m
+        output_cost = (output_tokens / 1_000_000) * catalog_model.pricing.output_per_1m
+        total_cost = input_cost + output_cost
+
+        return CostEstimate(
+            model_id=catalog_model.id,
+            model_name=catalog_model.name,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            input_cost_usd=round(input_cost, 6),
+            output_cost_usd=round(output_cost, 6),
+            total_cost_usd=round(total_cost, 6),
+            currency="USD",
+            transcript_path=transcript_path,
+            text_length=text_length if token_count is None else 0,
+            notes=f"Estimate based on ~4 chars/token, {output_ratio:.0%} output ratio",
+        )

@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.2] - 2025-11-25
+
+### ✨ Added
+
+#### 🐍 Python API Additions
+
+New methods to expose the model catalog through the `PodxClient` and `AsyncPodxClient` API:
+
+- **`client.list_models(provider, default_only, capability)`** - List available LLM models with optional filtering
+  - Filter by provider (e.g., `"openai"`, `"anthropic"`)
+  - Filter by capability (e.g., `"vision"`, `"function-calling"`)
+  - Option to show only default CLI models
+
+- **`client.get_model_info(model_id_or_alias)`** - Get detailed model information
+  - Case-insensitive lookup with full alias support
+  - Returns pricing, context window, capabilities, and more
+
+- **`client.estimate_cost(model, transcript_path, text, token_count)`** - Estimate processing cost
+  - Supports transcript files, raw text, or pre-calculated token counts
+  - Configurable output/input token ratio
+  - Returns detailed cost breakdown
+
+#### 📦 New Response Models
+
+- **`ModelInfo`** - Full model details including pricing, capabilities, and provider
+- **`ModelPricingInfo`** - Pricing information with input/output costs per 1M tokens
+- **`CostEstimate`** - Cost estimation with token counts and USD costs
+
+#### Example Usage
+
+```python
+from podx.api import PodxClient
+
+client = PodxClient()
+
+# List all OpenAI models
+for model in client.list_models(provider="openai"):
+    print(f"{model.name}: ${model.pricing.input_per_1m}/M")
+
+# Get model info with alias support
+model = client.get_model_info("gpt5.1")  # or "gpt-5.1", "GPT-5-1"
+print(f"Context: {model.context_window:,} tokens")
+
+# Estimate cost before processing
+estimate = client.estimate_cost(
+    model="claude-sonnet-4.5",
+    transcript_path="transcript.json"
+)
+print(f"Estimated cost: ${estimate.total_cost_usd:.4f}")
+```
+
+---
+
+### 🧪 Testing
+- ✅ 25 new unit tests for API model methods
+- ✅ All existing tests pass
+
+---
+
 ## [3.2.1] - 2025-11-25
 
 ### 🔧 Internal Improvements & Quality

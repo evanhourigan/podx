@@ -18,20 +18,25 @@ Advanced usage with configuration:
 from .client import AsyncPodxClient, ClientConfig, PodxClient
 from .models import (
     APIError,
+    CostEstimate,
     DeepcastResponse,
     DiarizeResponse,
     ExistsCheckResponse,
     ExportResponse,
     FetchResponse,
+    ModelInfo,
+    ModelPricingInfo,
     NotionResponse,
     TranscribeResponse,
     ValidationResult,
 )
 
 __all__ = [
+    # Clients
     "PodxClient",
     "AsyncPodxClient",
     "ClientConfig",
+    # Processing responses
     "TranscribeResponse",
     "DeepcastResponse",
     "DiarizeResponse",
@@ -39,6 +44,11 @@ __all__ = [
     "FetchResponse",
     "NotionResponse",
     "ExistsCheckResponse",
+    # Model catalog responses
+    "ModelInfo",
+    "ModelPricingInfo",
+    "CostEstimate",
+    # Errors and validation
     "APIError",
     "ValidationResult",
 ]

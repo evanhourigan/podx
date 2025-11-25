@@ -6,7 +6,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from podx.api import ClientConfig, DeepcastResponse, PodxClient, TranscribeResponse
+from podx.api import (
+    ClientConfig,
+    CostEstimate,
+    DeepcastResponse,
+    ModelInfo,
+    ModelPricingInfo,
+    PodxClient,
+    TranscribeResponse,
+)
 from podx.errors import AudioError, NetworkError, ValidationError
 
 
@@ -867,3 +875,269 @@ class TestPublishToNotionAPI:
 
         assert result.success is False
         assert result.error is not None
+
+
+class TestListModelsAPI:
+    """Test list_models API method."""
+
+    def test_list_models_all(self):
+        """Test listing all models."""
+        client = PodxClient()
+        models = client.list_models()
+
+        assert len(models) > 0
+        assert all(isinstance(m, ModelInfo) for m in models)
+        # Should include models from multiple providers
+        providers = {m.provider for m in models}
+        assert len(providers) >= 2  # At least OpenAI and Anthropic
+
+    def test_list_models_by_provider(self):
+        """Test filtering models by provider."""
+        client = PodxClient()
+        openai_models = client.list_models(provider="openai")
+
+        assert len(openai_models) > 0
+        assert all(m.provider == "openai" for m in openai_models)
+
+    def test_list_models_default_only(self):
+        """Test filtering to default CLI models only."""
+        client = PodxClient()
+        all_models = client.list_models()
+        default_models = client.list_models(default_only=True)
+
+        assert len(default_models) > 0
+        assert len(default_models) <= len(all_models)
+        assert all(m.default_in_cli for m in default_models)
+
+    def test_list_models_by_capability(self):
+        """Test filtering models by capability."""
+        client = PodxClient()
+        chat_models = client.list_models(capability="chat")
+
+        assert len(chat_models) > 0
+        assert all("chat" in m.capabilities for m in chat_models)
+
+    def test_list_models_combined_filters(self):
+        """Test combining multiple filters."""
+        client = PodxClient()
+        models = client.list_models(provider="openai", default_only=True)
+
+        assert all(m.provider == "openai" for m in models)
+        assert all(m.default_in_cli for m in models)
+
+    def test_model_info_structure(self):
+        """Test that ModelInfo has all expected fields."""
+        client = PodxClient()
+        models = client.list_models(provider="openai")
+
+        model = models[0]
+        assert isinstance(model.id, str)
+        assert isinstance(model.name, str)
+        assert isinstance(model.provider, str)
+        assert isinstance(model.aliases, list)
+        assert isinstance(model.description, str)
+        assert isinstance(model.pricing, ModelPricingInfo)
+        assert isinstance(model.context_window, int)
+        assert isinstance(model.capabilities, list)
+        assert isinstance(model.default_in_cli, bool)
+
+    def test_model_pricing_info_structure(self):
+        """Test that ModelPricingInfo has all expected fields."""
+        client = PodxClient()
+        models = client.list_models(provider="openai")
+
+        pricing = models[0].pricing
+        assert isinstance(pricing.input_per_1m, float)
+        assert isinstance(pricing.output_per_1m, float)
+        assert pricing.currency == "USD"
+        assert isinstance(pricing.tier, str)
+
+
+class TestGetModelInfoAPI:
+    """Test get_model_info API method."""
+
+    def test_get_model_info_by_id(self):
+        """Test getting model info by canonical ID."""
+        client = PodxClient()
+        model = client.get_model_info("gpt-5.1")
+
+        assert model.id == "gpt-5.1"
+        assert model.provider == "openai"
+        assert model.pricing.input_per_1m > 0
+        assert model.pricing.output_per_1m > 0
+
+    def test_get_model_info_by_alias(self):
+        """Test getting model info by alias."""
+        client = PodxClient()
+
+        # These should all resolve to the same model
+        model1 = client.get_model_info("gpt-5.1")
+        model2 = client.get_model_info("gpt5.1")
+        model3 = client.get_model_info("gpt-5-1")
+
+        assert model1.id == model2.id == model3.id
+
+    def test_get_model_info_case_insensitive(self):
+        """Test that model lookup is case-insensitive."""
+        client = PodxClient()
+
+        model1 = client.get_model_info("gpt-5.1")
+        model2 = client.get_model_info("GPT-5.1")
+        model3 = client.get_model_info("Gpt-5.1")
+
+        assert model1.id == model2.id == model3.id
+
+    def test_get_model_info_not_found(self):
+        """Test that invalid model raises KeyError."""
+        client = PodxClient()
+
+        with pytest.raises(KeyError, match="Model not found"):
+            client.get_model_info("nonexistent-model-xyz")
+
+    def test_get_model_info_anthropic(self):
+        """Test getting Anthropic model info."""
+        client = PodxClient()
+        model = client.get_model_info("claude-sonnet-4.5")
+
+        assert model.provider == "anthropic"
+        assert "claude" in model.name.lower()
+
+    def test_model_info_to_dict(self):
+        """Test converting ModelInfo to dictionary."""
+        client = PodxClient()
+        model = client.get_model_info("gpt-5.1")
+        model_dict = model.to_dict()
+
+        assert isinstance(model_dict, dict)
+        assert model_dict["id"] == "gpt-5.1"
+        assert "pricing" in model_dict
+        assert model_dict["pricing"]["currency"] == "USD"
+
+
+class TestEstimateCostAPI:
+    """Test estimate_cost API method."""
+
+    def test_estimate_cost_with_token_count(self):
+        """Test cost estimation with pre-calculated token count."""
+        client = PodxClient()
+        estimate = client.estimate_cost(model="gpt-5.1", token_count=100000)
+
+        assert isinstance(estimate, CostEstimate)
+        assert estimate.model_id == "gpt-5.1"
+        assert estimate.input_tokens == 100000
+        assert estimate.output_tokens == 30000  # 30% default ratio
+        assert estimate.total_cost_usd > 0
+        assert estimate.currency == "USD"
+
+    def test_estimate_cost_with_text(self):
+        """Test cost estimation with raw text."""
+        client = PodxClient()
+        text = "Hello world. " * 1000  # ~13,000 characters
+        estimate = client.estimate_cost(model="gpt-5.1", text=text)
+
+        assert estimate.input_tokens > 0
+        assert estimate.text_length == len(text)
+        assert estimate.total_cost_usd > 0
+
+    def test_estimate_cost_with_transcript(self, tmp_path):
+        """Test cost estimation from transcript file."""
+        transcript_path = tmp_path / "transcript.json"
+        transcript_data = {
+            "segments": [
+                {"text": "Hello world."},
+                {"text": "This is a test."},
+                {"text": "More content here."},
+            ]
+        }
+        transcript_path.write_text(json.dumps(transcript_data))
+
+        client = PodxClient()
+        estimate = client.estimate_cost(
+            model="gpt-5.1", transcript_path=str(transcript_path)
+        )
+
+        assert estimate.input_tokens > 0
+        assert estimate.transcript_path == str(transcript_path)
+
+    def test_estimate_cost_custom_output_ratio(self):
+        """Test cost estimation with custom output ratio."""
+        client = PodxClient()
+        estimate = client.estimate_cost(
+            model="gpt-5.1", token_count=100000, output_ratio=0.5
+        )
+
+        assert estimate.output_tokens == 50000  # 50% of input
+
+    def test_estimate_cost_model_alias(self):
+        """Test cost estimation works with model aliases."""
+        client = PodxClient()
+        estimate = client.estimate_cost(model="gpt5.1", token_count=1000)
+
+        assert estimate.model_id == "gpt-5.1"  # Canonical ID
+
+    def test_estimate_cost_no_input_raises_error(self):
+        """Test that estimate_cost requires at least one input."""
+        client = PodxClient()
+
+        with pytest.raises(ValueError, match="Must provide one of"):
+            client.estimate_cost(model="gpt-5.1")
+
+    def test_estimate_cost_multiple_inputs_raises_error(self):
+        """Test that estimate_cost rejects multiple inputs."""
+        client = PodxClient()
+
+        with pytest.raises(ValueError, match="Provide only one of"):
+            client.estimate_cost(
+                model="gpt-5.1", text="hello", token_count=1000
+            )
+
+    def test_estimate_cost_invalid_model(self):
+        """Test that invalid model raises KeyError."""
+        client = PodxClient()
+
+        with pytest.raises(KeyError):
+            client.estimate_cost(model="nonexistent-model", token_count=1000)
+
+    def test_estimate_cost_missing_transcript(self):
+        """Test that missing transcript file raises FileNotFoundError."""
+        client = PodxClient()
+
+        with pytest.raises(FileNotFoundError, match="Transcript not found"):
+            client.estimate_cost(
+                model="gpt-5.1", transcript_path="/nonexistent/transcript.json"
+            )
+
+    def test_estimate_cost_invalid_transcript_json(self, tmp_path):
+        """Test that invalid transcript JSON raises ValueError."""
+        transcript_path = tmp_path / "invalid.json"
+        transcript_path.write_text("not valid json{{{")
+
+        client = PodxClient()
+
+        with pytest.raises(ValueError, match="Invalid transcript JSON"):
+            client.estimate_cost(model="gpt-5.1", transcript_path=str(transcript_path))
+
+    def test_estimate_cost_to_dict(self):
+        """Test converting CostEstimate to dictionary."""
+        client = PodxClient()
+        estimate = client.estimate_cost(model="gpt-5.1", token_count=1000)
+        estimate_dict = estimate.to_dict()
+
+        assert isinstance(estimate_dict, dict)
+        assert estimate_dict["model_id"] == "gpt-5.1"
+        assert "total_cost_usd" in estimate_dict
+
+    def test_estimate_cost_calculation_accuracy(self):
+        """Test that cost calculation is mathematically correct."""
+        client = PodxClient()
+        model = client.get_model_info("gpt-5.1")
+        estimate = client.estimate_cost(
+            model="gpt-5.1", token_count=1000000, output_ratio=0.3
+        )
+
+        # Manually calculate expected cost
+        expected_input_cost = model.pricing.input_per_1m  # 1M tokens
+        expected_output_cost = model.pricing.output_per_1m * 0.3  # 300K tokens
+        expected_total = expected_input_cost + expected_output_cost
+
+        assert abs(estimate.total_cost_usd - expected_total) < 0.01

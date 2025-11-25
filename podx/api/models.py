@@ -264,3 +264,118 @@ class NotionResponse(BaseModel):
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility."""
         return self.model_dump(exclude_none=True)
+
+
+class ModelPricingInfo(BaseModel):
+    """Pricing information for a model.
+
+    Attributes:
+        input_per_1m: Cost per 1 million input tokens (USD)
+        output_per_1m: Cost per 1 million output tokens (USD)
+        currency: Currency code (always "USD")
+        tier: Pricing tier (e.g., "standard", "batch")
+        notes: Additional pricing notes (e.g., caching discounts)
+    """
+
+    input_per_1m: float = Field(..., description="Cost per 1M input tokens")
+    output_per_1m: float = Field(..., description="Cost per 1M output tokens")
+    currency: str = Field("USD", description="Currency code")
+    tier: str = Field("standard", description="Pricing tier")
+    notes: Optional[str] = Field(None, description="Additional pricing notes")
+
+
+class ModelInfo(BaseModel):
+    """Response model for get_model_info API.
+
+    Provides detailed information about a language model including pricing,
+    capabilities, and provider information.
+
+    Attributes:
+        id: Canonical model identifier (e.g., "gpt-5.1")
+        name: Human-readable model name (e.g., "GPT-5.1")
+        provider: Provider key (e.g., "openai", "anthropic")
+        aliases: Alternative identifiers for this model
+        description: Brief description of the model
+        pricing: Pricing information
+        context_window: Maximum context length in tokens
+        capabilities: List of capabilities (e.g., "vision", "function-calling")
+        default_in_cli: Whether this model appears in default CLI listings
+    """
+
+    id: str = Field(..., description="Canonical model identifier")
+    name: str = Field(..., description="Human-readable model name")
+    provider: str = Field(..., description="Provider key")
+    aliases: list[str] = Field(default_factory=list, description="Alternative identifiers")
+    description: str = Field(..., description="Brief model description")
+    pricing: ModelPricingInfo = Field(..., description="Pricing information")
+    context_window: int = Field(..., description="Maximum context length in tokens")
+    capabilities: list[str] = Field(default_factory=list, description="Model capabilities")
+    default_in_cli: bool = Field(False, description="Appears in default CLI listings")
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for backward compatibility."""
+        return self.model_dump(exclude_none=True)
+
+    @classmethod
+    def from_catalog_model(cls, model: Any) -> "ModelInfo":
+        """Create ModelInfo from internal catalog Model dataclass.
+
+        Args:
+            model: Model dataclass from podx.models.catalog
+
+        Returns:
+            ModelInfo instance
+        """
+        return cls(
+            id=model.id,
+            name=model.name,
+            provider=model.provider,
+            aliases=model.aliases,
+            description=model.description,
+            pricing=ModelPricingInfo(
+                input_per_1m=model.pricing.input_per_1m,
+                output_per_1m=model.pricing.output_per_1m,
+                currency=model.pricing.currency,
+                tier=model.pricing.tier,
+                notes=model.pricing.notes,
+            ),
+            context_window=model.context_window,
+            capabilities=model.capabilities,
+            default_in_cli=model.default_in_cli,
+        )
+
+
+class CostEstimate(BaseModel):
+    """Response model for estimate_cost API.
+
+    Provides cost estimation for processing a transcript with a specific model.
+
+    Attributes:
+        model_id: Model used for estimation
+        model_name: Human-readable model name
+        input_tokens: Estimated input token count
+        output_tokens: Estimated output token count (based on typical response ratio)
+        input_cost_usd: Cost for input tokens
+        output_cost_usd: Cost for output tokens
+        total_cost_usd: Total estimated cost
+        currency: Currency code (always "USD")
+        transcript_path: Path to transcript (if provided)
+        text_length: Length of input text in characters
+        notes: Additional notes about the estimate
+    """
+
+    model_id: str = Field(..., description="Model used for estimation")
+    model_name: str = Field(..., description="Human-readable model name")
+    input_tokens: int = Field(..., ge=0, description="Estimated input token count")
+    output_tokens: int = Field(..., ge=0, description="Estimated output token count")
+    input_cost_usd: float = Field(..., ge=0, description="Cost for input tokens")
+    output_cost_usd: float = Field(..., ge=0, description="Cost for output tokens")
+    total_cost_usd: float = Field(..., ge=0, description="Total estimated cost")
+    currency: str = Field("USD", description="Currency code")
+    transcript_path: Optional[str] = Field(None, description="Path to transcript file")
+    text_length: int = Field(..., ge=0, description="Input text length in characters")
+    notes: Optional[str] = Field(None, description="Additional estimation notes")
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for backward compatibility."""
+        return self.model_dump(exclude_none=True)

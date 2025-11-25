@@ -337,9 +337,124 @@ if result.success:
     print(f"Page ID: {result.page_id}")
 ```
 
+#### `list_models()`
+
+**NEW in v3.2.2:** List available LLM models with optional filtering.
+
+```python
+models = client.list_models(
+    provider: Optional[str] = None,           # Filter by provider (openai, anthropic, etc.)
+    default_only: bool = False,               # Only show default CLI models
+    capability: Optional[str] = None,         # Filter by capability (vision, chat, etc.)
+) -> list[ModelInfo]
+```
+
+**Returns:** List of `ModelInfo` objects sorted by provider then model ID.
+
+**Example:**
+
+```python
+# List all models
+all_models = client.list_models()
+print(f"Total models: {len(all_models)}")
+
+# List OpenAI models only
+openai_models = client.list_models(provider="openai")
+for model in openai_models:
+    print(f"{model.name}: ${model.pricing.input_per_1m}/M input")
+
+# List models with vision capability
+vision_models = client.list_models(capability="vision")
+
+# List default CLI models (curated list)
+default_models = client.list_models(default_only=True)
+```
+
+#### `get_model_info()`
+
+**NEW in v3.2.2:** Get detailed information about a specific model.
+
+```python
+model = client.get_model_info(
+    model_id_or_alias: str,                   # Model ID or alias (case-insensitive)
+) -> ModelInfo
+```
+
+**Returns:** `ModelInfo` with full model details including pricing.
+
+**Raises:** `KeyError` if model not found.
+
+**Example:**
+
+```python
+# Supports case-insensitive lookup and aliases
+model = client.get_model_info("gpt-5.1")    # Canonical ID
+model = client.get_model_info("gpt5.1")     # Alias without hyphen
+model = client.get_model_info("GPT-5-1")    # Case-insensitive
+
+print(f"Name: {model.name}")
+print(f"Provider: {model.provider}")
+print(f"Input price: ${model.pricing.input_per_1m}/M tokens")
+print(f"Output price: ${model.pricing.output_per_1m}/M tokens")
+print(f"Context window: {model.context_window:,} tokens")
+print(f"Capabilities: {', '.join(model.capabilities)}")
+```
+
+#### `estimate_cost()`
+
+**NEW in v3.2.2:** Estimate the cost of processing with a specific model.
+
+```python
+estimate = client.estimate_cost(
+    model: str,                               # Model ID or alias
+    transcript_path: Optional[str] = None,    # Path to transcript JSON
+    text: Optional[str] = None,               # Raw text to estimate
+    token_count: Optional[int] = None,        # Pre-calculated token count
+    output_ratio: float = 0.3,                # Expected output/input ratio (default 30%)
+) -> CostEstimate
+```
+
+**Provide exactly one of:** `transcript_path`, `text`, or `token_count`.
+
+**Returns:** `CostEstimate` with token counts and USD costs.
+
+**Raises:**
+- `ValueError` if no input provided or multiple inputs provided
+- `KeyError` if model not found
+- `FileNotFoundError` if transcript_path doesn't exist
+
+**Example:**
+
+```python
+# Estimate from transcript file
+estimate = client.estimate_cost(
+    model="claude-sonnet-4.5",
+    transcript_path="transcript.json"
+)
+print(f"Input tokens: {estimate.input_tokens:,}")
+print(f"Output tokens: {estimate.output_tokens:,}")
+print(f"Estimated cost: ${estimate.total_cost_usd:.4f}")
+
+# Estimate from raw text
+estimate = client.estimate_cost(
+    model="gpt-5",
+    text="This is a sample text to estimate..."
+)
+
+# Estimate from known token count
+estimate = client.estimate_cost(
+    model="gpt-5.1",
+    token_count=50000,
+    output_ratio=0.5  # Expect 50% output tokens
+)
+print(f"Total: ${estimate.total_cost_usd:.4f}")
+```
+
 ### AsyncPodxClient Methods
 
 The async client provides async versions of long-running operations with progress support.
+
+> **Note:** The model catalog methods (`list_models()`, `get_model_info()`, `estimate_cost()`) are also available on `AsyncPodxClient` as synchronous methods since they only read cached data and don't require async I/O.
 
 #### `transcribe()` (Async)
 
@@ -511,6 +626,64 @@ class NotionResponse(BaseModel):
     database_id: Optional[str]            # Database ID where page was created
     success: bool = True                  # Whether publish succeeded
     error: Optional[str] = None           # Error message if failed
+
+    def to_dict() -> Dict[str, Any]:
+        """Convert to dictionary."""
+```
+
+### ModelInfo
+
+**NEW in v3.2.2:** Detailed information about an LLM model.
+
+```python
+class ModelInfo(BaseModel):
+    id: str                               # Canonical model identifier (e.g., "gpt-5.1")
+    name: str                             # Human-readable name (e.g., "GPT-5.1")
+    provider: str                         # Provider key (e.g., "openai", "anthropic")
+    aliases: list[str]                    # Alternative identifiers
+    description: str                      # Brief model description
+    pricing: ModelPricingInfo             # Pricing information
+    context_window: int                   # Maximum context length in tokens
+    capabilities: list[str]               # Model capabilities (e.g., "vision", "chat")
+    default_in_cli: bool                  # Appears in default CLI model listings
+
+    def to_dict() -> Dict[str, Any]:
+        """Convert to dictionary."""
+```
+
+### ModelPricingInfo
+
+**NEW in v3.2.2:** Pricing information for a model.
+
+```python
+class ModelPricingInfo(BaseModel):
+    input_per_1m: float                   # Cost per 1M input tokens (USD)
+    output_per_1m: float                  # Cost per 1M output tokens (USD)
+    currency: str = "USD"                 # Currency code
+    tier: str = "standard"                # Pricing tier
+    notes: Optional[str] = None           # Additional pricing notes
+
+    def to_dict() -> Dict[str, Any]:
+        """Convert to dictionary."""
+```
+
+### CostEstimate
+
+**NEW in v3.2.2:** Cost estimation for processing with a model.
+
+```python
+class CostEstimate(BaseModel):
+    model_id: str                         # Model used for estimation
+    model_name: str                       # Human-readable model name
+    input_tokens: int                     # Estimated input token count
+    output_tokens: int                    # Estimated output token count
+    input_cost_usd: float                 # Cost for input tokens
+    output_cost_usd: float                # Cost for output tokens
+    total_cost_usd: float                 # Total estimated cost
+    currency: str = "USD"                 # Currency code
+    transcript_path: Optional[str]        # Path to transcript (if provided)
+    text_length: int                      # Input text length in characters
+    notes: Optional[str]                  # Additional estimation notes
 
     def to_dict() -> Dict[str, Any]:
         """Convert to dictionary."""
