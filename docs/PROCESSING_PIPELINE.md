@@ -37,7 +37,7 @@ Base Transcript (fresh ASR output)
 
 ### 1. Base Transcript (`transcript-{model}.json`)
 
-**Source:** `podx-transcribe`
+**Source:** `podx transcribe`
 **Input:** Audio file (WAV16)
 **Output:** JSON with segments containing start/end/text
 
@@ -65,7 +65,7 @@ Base Transcript (fresh ASR output)
 
 ### 2. Diarized Transcript (`transcript-diarized-{model}.json`)
 
-**Source:** `podx-diarize`
+**Source:** `podx diarize`
 **Input:** Base transcript + audio file
 **Output:** JSON with speaker labels and word-level timestamps
 
@@ -101,7 +101,7 @@ Base Transcript (fresh ASR output)
 
 ### 3. Preprocessed Transcript (`transcript-preprocessed-{model}.json`)
 
-**Source:** `podx-preprocess`
+**Source:** `podx preprocess`
 **Input:** Any transcript (base or diarized)
 **Output:** JSON with cleaned/merged segments
 

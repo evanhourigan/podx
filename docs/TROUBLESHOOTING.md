@@ -249,7 +249,7 @@ Having issues with PodX? This guide covers common problems and their solutions. 
 
 3. **Re-download audio**:
    ```bash
-   podx-fetch --show "My Podcast" --date 2024-10-15 | tee fetch.json
+   podx fetch --show "My Podcast" --date 2024-10-15 | tee fetch.json
    ```
 
 4. **Skip transcoding** (if already in good format):
@@ -270,7 +270,7 @@ Having issues with PodX? This guide covers common problems and their solutions. 
 
    # Process each segment
    for f in segment_*.mp3; do
-     podx-transcribe --input "$f"
+     podx transcribe --input "$f"
    done
    ```
 
@@ -299,7 +299,7 @@ Having issues with PodX? This guide covers common problems and their solutions. 
 
 1. **Check FFmpeg logs**:
    ```bash
-   podx-transcode --input fetch.json --verbose
+   podx transcode --input fetch.json --verbose
    ```
 
 2. **Skip normalization** (use raw audio):
@@ -310,7 +310,7 @@ Having issues with PodX? This guide covers common problems and their solutions. 
 3. **Manual normalization**:
    ```bash
    ffmpeg -i input.mp3 -ar 16000 -ac 1 -ab 192k normalized.wav
-   podx-transcribe --input normalized.wav
+   podx transcribe --input normalized.wav
    ```
 
 4. **Check audio codec**:
@@ -335,7 +335,7 @@ Having issues with PodX? This guide covers common problems and their solutions. 
 
 2. **Force CPU mode** (if GPU RAM limited):
    ```bash
-   podx-transcribe --device cpu
+   podx transcribe --device cpu
    ```
 
 3. **Reduce batch size**:
@@ -373,7 +373,7 @@ Having issues with PodX? This guide covers common problems and their solutions. 
    python -c "import torch; print(torch.cuda.is_available())"
 
    # Use GPU
-   podx-transcribe --device cuda
+   podx transcribe --device cuda
    ```
 
 2. **Use faster model**:
@@ -417,7 +417,7 @@ Having issues with PodX? This guide covers common problems and their solutions. 
 
 2. **Specify language explicitly**:
    ```bash
-   podx-transcribe --language en  # Force English
+   podx transcribe --language en  # Force English
    ```
 
 3. **Check audio quality**:
@@ -435,7 +435,7 @@ Having issues with PodX? This guide covers common problems and their solutions. 
 5. **Improve audio preprocessing**:
    ```bash
    # Ensure proper normalization
-   podx-transcode --input fetch.json | podx-transcribe
+   podx transcode --input fetch.json | podx transcribe
    ```
 
 ### "CUDA out of memory"
@@ -451,7 +451,7 @@ Having issues with PodX? This guide covers common problems and their solutions. 
 
 2. **Use CPU instead**:
    ```bash
-   podx-transcribe --device cpu
+   podx transcribe --device cpu
    ```
 
 3. **Reduce batch size**:
@@ -503,7 +503,7 @@ Having issues with PodX? This guide covers common problems and their solutions. 
    ```bash
    # WhisperX has better diarization
    pip install -e ".[whisperx]"
-   podx-diarize --engine whisperx
+   podx diarize --engine whisperx
    ```
 
 5. **Manual correction**:
@@ -518,7 +518,7 @@ Having issues with PodX? This guide covers common problems and their solutions. 
 
 1. **Use GPU acceleration**:
    ```bash
-   podx-diarize --device cuda
+   podx diarize --device cuda
    ```
 
 2. **Skip diarization** (if not needed):
@@ -917,30 +917,30 @@ Having issues with PodX? This guide covers common problems and their solutions. 
 
 1. **Use interactive mode**:
    ```bash
-   podx-fetch --show "My Podcast" --interactive
+   podx fetch --show "My Podcast" --interactive
    ```
 
 2. **Check show name**:
    ```bash
    # Try variations
-   podx-fetch --show "Lex Fridman Podcast"
-   podx-fetch --show "The Lex Fridman Podcast"
+   podx fetch --show "Lex Fridman Podcast"
+   podx fetch --show "The Lex Fridman Podcast"
    ```
 
 3. **Use direct RSS URL**:
    ```bash
-   podx-fetch --rss-url "https://feeds.example.com/podcast.xml" --date 2024-10-15
+   podx fetch --rss-url "https://feeds.example.com/podcast.xml" --date 2024-10-15
    ```
 
 4. **Check date format**:
    ```bash
    # Use YYYY-MM-DD format
-   podx-fetch --show "My Podcast" --date 2024-10-15
+   podx fetch --show "My Podcast" --date 2024-10-15
    ```
 
 5. **Browse available episodes**:
    ```bash
-   podx-fetch --show "My Podcast" --list-episodes
+   podx fetch --show "My Podcast" --list-episodes
    ```
 
 ### "RSS feed error" or "Feed not accessible"
@@ -961,7 +961,7 @@ Having issues with PodX? This guide covers common problems and their solutions. 
    ```bash
    # Download audio directly
    wget https://example.com/episode.mp3
-   podx-transcribe --input episode.mp3
+   podx transcribe --input episode.mp3
    ```
 
 4. **Check network/firewall**:
@@ -1015,7 +1015,7 @@ Having issues with PodX? This guide covers common problems and their solutions. 
 
 1. **Check format is supported**:
    ```bash
-   podx-export --formats txt,srt,vtt,md,json
+   podx export --formats txt,srt,vtt,md,json
    ```
 
 2. **Verify input file**:
@@ -1026,8 +1026,8 @@ Having issues with PodX? This guide covers common problems and their solutions. 
 
 3. **Export one format at a time**:
    ```bash
-   podx-export --formats txt < transcript.json
-   podx-export --formats srt < transcript.json
+   podx export --formats txt < transcript.json
+   podx export --formats srt < transcript.json
    ```
 
 4. **Check output directory permissions**:
@@ -1083,7 +1083,7 @@ Having issues with PodX? This guide covers common problems and their solutions. 
 
 3. **Re-transcribe with better timestamps**:
    ```bash
-   podx-transcribe --timestamp-granularity word
+   podx transcribe --timestamp-granularity word
    ```
 
 ---

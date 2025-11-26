@@ -95,8 +95,8 @@ podx --version
 podx --help
 
 # Check individual commands
-podx-fetch --help
-podx-transcribe --help
+podx fetch --help
+podx transcribe --help
 ```
 
 ---
@@ -108,7 +108,7 @@ podx-transcribe --help
 The easiest way to configure PodX is with the interactive setup wizard:
 
 ```bash
-podx-init
+podx init
 ```
 
 This will guide you through:
@@ -180,19 +180,19 @@ Process the pipeline step by step:
 
 ```bash
 # 1. Fetch the episode
-podx-fetch --show "Lex Fridman Podcast" --date 2024-10-15 | tee fetch.json
+podx fetch --show "Lex Fridman Podcast" --date 2024-10-15 | tee fetch.json
 
 # 2. Transcode audio (normalize)
-podx-transcode < fetch.json | tee transcode.json
+podx transcode < fetch.json | tee transcode.json
 
 # 3. Transcribe to text
-podx-transcribe < transcode.json | tee transcript.json
+podx transcribe < transcode.json | tee transcript.json
 
 # 4. Add speaker labels
-podx-diarize < transcript.json | tee diarized.json
+podx diarize < transcript.json | tee diarized.json
 
 # 5. Export to formats
-podx-export --formats txt,srt,vtt < diarized.json
+podx export --formats txt,srt,vtt < diarized.json
 ```
 
 ### Option 3: Quick Transcription Only
@@ -304,13 +304,13 @@ podx run --show "The Daily" --date $(date -d yesterday +%Y-%m-%d)
 
 ```bash
 # Auto-detect and transcribe all new episodes (parallel processing!)
-podx-batch-transcribe --auto-detect --parallel 4
+podx batch transcribe --auto-detect --parallel 4
 
 # Full pipeline for multiple episodes
-podx-batch-pipeline --auto-detect --steps transcribe,diarize,export --parallel 2
+podx batch pipeline --auto-detect --steps transcribe,diarize,export --parallel 2
 
 # Check batch status
-podx-batch-status
+podx batch status
 ```
 
 **Old method (still works):**
@@ -333,7 +333,7 @@ podx run --rss-url "https://feeds.example.com/podcast.xml" --date 2024-10-15
 If you already have a transcript and just want to export:
 
 ```bash
-podx-export --input transcript.json --formats txt,srt,vtt,md
+podx export --input transcript.json --formats txt,srt,vtt,md
 ```
 
 ---
@@ -371,7 +371,7 @@ Use a smaller model or enable CPU-only mode:
 podx run --model base
 
 # Force CPU (slower but less memory)
-podx-transcribe --device cpu
+podx transcribe --device cpu
 ```
 
 ### "Episode not found"
@@ -382,7 +382,7 @@ podx-transcribe --device cpu
 
 ```bash
 # Interactive mode
-podx-fetch --show "My Podcast" --interactive
+podx fetch --show "My Podcast" --interactive
 ```
 
 ---
@@ -404,38 +404,38 @@ Now that you've processed your first episode, explore more features:
 1. **🔍 Search & Analysis (NEW!)**: Search your transcript library
    ```bash
    # Index a transcript
-   podx-search index transcript.json --episode-id ep001
+   podx search index transcript.json --episode-id ep001
 
    # Keyword search
-   podx-search query "artificial intelligence"
+   podx search query "artificial intelligence"
 
    # Extract quotes
-   podx-analyze quotes transcript.json
+   podx analyze quotes transcript.json
 
    # Speaker analytics
-   podx-analyze speakers transcript.json
+   podx analyze speakers transcript.json
    ```
 
 2. **🎨 PDF & HTML Export (NEW!)**: Beautiful exports with dark mode
    ```bash
-   podx-export transcript.json --formats pdf,html
+   podx export transcript.json --formats pdf,html
    ```
 
 3. **⚡ Quick Commands (NEW!)**: Use preset profiles
    ```bash
-   podx-quick podcast.mp3   # Fast transcription
-   podx-full podcast.mp3    # Complete pipeline
-   podx-hq podcast.mp3      # High-quality processing
+   podx quick podcast.mp3   # Fast transcription
+   podx full podcast.mp3    # Complete pipeline
+   podx hq podcast.mp3      # High-quality processing
    ```
 
 4. **💰 Cost Estimation (NEW!)**: Know before you spend
    ```bash
-   podx-estimate --duration 3600 --llm-model gpt-4o
+   podx estimate --duration 3600 --llm-model gpt-4o
    ```
 
 5. **Interactive Mode**: Browse episodes visually
    ```bash
-   podx-fetch --show "Huberman Lab" --interactive
+   podx fetch --show "Huberman Lab" --interactive
    ```
 
 6. **Python API**: Use PodX in your own code

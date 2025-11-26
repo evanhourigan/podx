@@ -949,22 +949,22 @@ Legend: ○ Not Started  ⏳ In Progress  ✓ Completed  ✗ Failed
 
 The batch module provides three CLI commands:
 
-#### podx-batch-transcribe
+#### podx batch transcribe
 
 Batch transcribe multiple episodes:
 
 ```bash
 # Auto-detect and transcribe all episodes
-podx-batch-transcribe --auto-detect
+podx batch transcribe --auto-detect
 
 # Filter by show and date
-podx-batch-transcribe --auto-detect --show "My Podcast" --since 2024-01-01
+podx batch transcribe --auto-detect --show "My Podcast" --since 2024-01-01
 
 # Use pattern matching
-podx-batch-transcribe --pattern "*/episode-audio.wav"
+podx batch transcribe --pattern "*/episode-audio.wav"
 
 # Configure processing
-podx-batch-transcribe \
+podx batch transcribe \
   --auto-detect \
   --model large-v3 \
   --parallel 4 \
@@ -986,47 +986,47 @@ podx-batch-transcribe \
 - `--retry-delay SECS` - Retry delay (default: 5)
 - `--continue-on-error` - Continue on failures (default: true)
 
-#### podx-batch-pipeline
+#### podx batch pipeline
 
 Run full pipeline on multiple episodes:
 
 ```bash
 # Run all steps
-podx-batch-pipeline --auto-detect
+podx batch pipeline --auto-detect
 
 # Select specific steps
-podx-batch-pipeline \
+podx batch pipeline \
   --auto-detect \
   --steps transcribe,diarize,export
 
 # Configure export formats
-podx-batch-pipeline \
+podx batch pipeline \
   --auto-detect \
   --export-formats txt,srt,md
 
 # Parallel processing
-podx-batch-pipeline --auto-detect --parallel 4
+podx batch pipeline --auto-detect --parallel 4
 ```
 
 **Options:**
-- All options from `podx-batch-transcribe`
+- All options from `podx batch transcribe`
 - `--steps STEPS` - Comma-separated steps (default: all)
   - Available: `transcribe`, `diarize`, `preprocess`, `deepcast`, `export`
 - `--export-formats FORMATS` - Export formats (default: txt,srt,md)
 
-#### podx-batch-status
+#### podx batch status
 
 View and manage batch processing status:
 
 ```bash
 # Display status table
-podx-batch-status
+podx batch status
 
 # Export to JSON
-podx-batch-status --export status.json
+podx batch status --export status.json
 
 # Clear completed episodes
-podx-batch-status --clear-completed
+podx batch status --clear-completed
 ```
 
 ### Practical Examples
@@ -1350,13 +1350,13 @@ The audio quality analyzer is also available as a CLI command:
 
 ```bash
 # Analyze audio file
-podx-analyze-audio episode.wav
+podx analyze-audio episode.wav
 
 # Output as JSON
-podx-analyze-audio episode.wav --json
+podx analyze-audio episode.wav --json
 
 # Export to file
-podx-analyze-audio episode.wav --export analysis.json
+podx analyze-audio episode.wav --export analysis.json
 ```
 
 **Output example:**
@@ -1390,7 +1390,7 @@ Suggestions:
 
 Suggested Command:
 ┌────────────────────────────────────────────────────────┐
-│ podx-transcribe episode.wav --model medium             │
+│ podx transcribe episode.wav --model medium             │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -1605,42 +1605,42 @@ The quote scoring algorithm considers:
 
 The search module is also available via CLI commands:
 
-#### podx-search
+#### podx search
 
 ```bash
 # Index a transcript
-podx-search index transcript.json --episode-id ep001 --title "AI Safety"
+podx search index transcript.json --episode-id ep001 --title "AI Safety"
 
 # Keyword search
-podx-search query "artificial intelligence" --limit 10
+podx search query "artificial intelligence" --limit 10
 
 # Semantic search
-podx-search query "dangers of AI" --semantic --limit 5
+podx search query "dangers of AI" --semantic --limit 5
 
 # List indexed episodes
-podx-search list --show "Lex Fridman"
+podx search list --show "Lex Fridman"
 
 # Show statistics
-podx-search stats
+podx search stats
 ```
 
-#### podx-analyze
+#### podx analyze
 
 ```bash
 # Extract quotes
-podx-analyze quotes transcript.json --max-quotes 20
+podx analyze quotes transcript.json --max-quotes 20
 
 # Group quotes by speaker
-podx-analyze quotes transcript.json --by-speaker
+podx analyze quotes transcript.json --by-speaker
 
 # Find highlights
-podx-analyze highlights transcript.json --duration 30
+podx analyze highlights transcript.json --duration 30
 
 # Cluster topics (requires semantic search)
-podx-analyze topics ep001 --clusters 10
+podx analyze topics ep001 --clusters 10
 
 # Speaker statistics
-podx-analyze speakers transcript.json
+podx analyze speakers transcript.json
 ```
 
 ### Performance Considerations

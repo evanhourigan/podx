@@ -172,15 +172,15 @@ podx/
 │
 └── cli/                     # CLI wrappers (future)
     ├── __init__.py
-    ├── transcode.py        # podx-transcode command
-    ├── fetch.py            # podx-fetch command
-    ├── preprocess.py       # podx-preprocess command
-    ├── transcribe.py       # podx-transcribe command
-    ├── diarize.py          # podx-diarize command
-    ├── deepcast.py         # podx-deepcast command
-    ├── notion.py           # podx-notion command
-    ├── export.py           # podx-export command
-    └── youtube.py          # podx-youtube command
+    ├── transcode.py        # podx transcode command
+    ├── fetch.py            # podx fetch command
+    ├── preprocess.py       # podx preprocess command
+    ├── transcribe.py       # podx transcribe command
+    ├── diarize.py          # podx diarize command
+    ├── deepcast.py         # podx deepcast command
+    ├── notion.py           # podx notion command
+    ├── export.py           # podx export command
+    └── youtube.py          # podx youtube command
 ```
 
 ### Core Module Template

@@ -147,7 +147,7 @@ PodX supports **99+ languages** via Whisper models, including:
 podx run --show "My Podcast" --date 2024-10-15
 
 # Force specific language
-podx-transcribe --language es --input audio.mp3
+podx transcribe --language es --input audio.mp3
 ```
 
 ### Does PodX support speaker diarization?
@@ -170,7 +170,7 @@ podx-transcribe --language es --input audio.mp3
 podx run --show "My Podcast" --date 2024-10-15
 
 # Specify exact speaker count
-podx-diarize --num-speakers 2 < transcript.json
+podx diarize --num-speakers 2 < transcript.json
 
 # Skip diarization
 podx run --no-diarize
@@ -208,10 +208,10 @@ PodX exports to multiple formats:
 **Usage:**
 ```bash
 # Export to all formats
-podx-export --formats txt,srt,vtt,md,json < transcript.json
+podx export --formats txt,srt,vtt,md,json < transcript.json
 
 # Export single format
-podx-export --formats txt < transcript.json
+podx export --formats txt < transcript.json
 ```
 
 ### Can PodX generate summaries and insights?
@@ -441,14 +441,14 @@ git log -1
 
 ```bash
 # Transcribe local file
-podx-transcribe --input /path/to/episode.mp3
+podx transcribe --input /path/to/episode.mp3
 
 # Full pipeline with local file
 podx run --input /path/to/episode.mp3
 
 # Batch process directory
 for f in *.mp3; do
-  podx-transcribe --input "$f"
+  podx transcribe --input "$f"
 done
 ```
 
@@ -523,13 +523,13 @@ SPEAKER_01: Great topic!
 **Usage:**
 ```bash
 # Auto-detect (recommended)
-podx-diarize < transcript.json
+podx diarize < transcript.json
 
 # Specify exact count
-podx-diarize --num-speakers 2 < transcript.json
+podx diarize --num-speakers 2 < transcript.json
 
 # Specify range
-podx-diarize --min-speakers 2 --max-speakers 4 < transcript.json
+podx diarize --min-speakers 2 --max-speakers 4 < transcript.json
 ```
 
 ### Can I customize speaker names?
@@ -780,7 +780,7 @@ podx run --model base
 podx run --device cpu
 
 # Use int8 compute type
-podx-transcribe --compute-type int8
+podx transcribe --compute-type int8
 ```
 
 ### Can I process podcasts in the cloud?

@@ -52,14 +52,14 @@ Three commits already made that reduced orchestrate.py from 2,533 → 1,256 line
 - THIS IS THE BIGGEST TARGET FOR EXTRACTION
 
 **Command Shims:** ~600+ lines (lines 623-1065)
-- fetch_cmd() - passthrough to podx-fetch
-- transcode_cmd() - passthrough to podx-transcode
-- transcribe_cmd() - passthrough to podx-transcribe
-- diarize_cmd() - passthrough to podx-diarize
-- export_cmd() - passthrough to podx-export
-- deepcast_cmd() - passthrough to podx-deepcast
-- models_cmd() - passthrough to podx-models
-- notion_cmd() - passthrough to podx-notion
+- fetch_cmd() - passthrough to podx fetch
+- transcode_cmd() - passthrough to podx transcode
+- transcribe_cmd() - passthrough to podx transcribe
+- diarize_cmd() - passthrough to podx diarize
+- export_cmd() - passthrough to podx export
+- deepcast_cmd() - passthrough to podx deepcast
+- models_cmd() - passthrough to podx models
+- notion_cmd() - passthrough to podx notion
 - quick() - deprecated workflow (62 lines)
 - analyze() - deprecated workflow (87 lines)
 - publish() - deprecated workflow (77 lines)
@@ -163,7 +163,7 @@ from podx.cli.services import run_passthrough
 @click.pass_context
 def fetch_cmd(ctx):
     """Fetch podcast episodes from RSS feed."""
-    run_passthrough("podx-fetch", ctx)
+    run_passthrough("podx fetch", ctx)
 ```
 
 ### Step 3: Extract Deprecated Commands (10 min)

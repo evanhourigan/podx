@@ -1,6 +1,6 @@
 # PodX Development Context
 
-**Last Updated**: 2025-11-25 20:22:17 UTC
+**Last Updated**: 2025-11-26 01:12:34 UTC
 **Current Branch**: `main`
 **Current Phase**: v3.2.0 Development - Phase 1 (Template Design) ⏳
 **Latest Commits**: daa385b (context updates), 078978c (completion refactor), d10ad3d (init fixes)
@@ -22,7 +22,7 @@
 
 **Bug Fixes (Post-Release):**
 - ✅ Fixed ProfileManager.install_builtin_profiles() missing method (d10ad3d)
-- ✅ Fixed podx-completion entry point registration (d10ad3d)
+- ✅ Fixed podx completion entry point registration (d10ad3d)
 - ✅ Refactored to Click's native shell completion (078978c)
   - Removed 287 lines of custom completion code
   - Now uses Click's built-in _PODX_COMPLETE mechanism
@@ -46,8 +46,8 @@
 ### Phase 6.1: LLM Provider Abstraction - 100% COMPLETE ✨
 
 **Just Completed (2025-11-16):**
-- ✅ `podx-models --status` - API key configuration status display
-- ✅ `podx-models --configure` - Interactive API key setup wizard
+- ✅ `podx models --status` - API key configuration status display
+- ✅ `podx models --configure` - Interactive API key setup wizard
 - ✅ Updated README.md with API Key Configuration section
 - ✅ Commit ccb1f3b
 
@@ -86,7 +86,7 @@
 4. **CLI Improvements (B.7)**: Better help text, examples, command aliases
 5. **Batch Processing (B.2)**: Parallel processing of multiple episodes
 6. **Audio Quality Analysis (B.5)**: SNR, dynamic range, clipping detection
-7. **Interactive Setup Wizard (B.8)**: podx-init for first-time setup
+7. **Interactive Setup Wizard (B.8)**: podx init for first-time setup
 8. **Transcript Search & Analysis (B.4)**: Full-text & semantic search, quotes, topics
 
 **Deferred to Future:**
@@ -129,7 +129,7 @@
 
 **Recent Commits:**
 - 078978c - refactor(completion): replace custom completion with Click native
-- a96d779 - fix(completion): update instructions to use podx-completion
+- a96d779 - fix(completion): update instructions to use podx completion
 - d10ad3d - fix(init): fix setup wizard bugs
 - 917c490 - chore(release): bump version to 3.1.0
 - 785f6de - feat(storage): add cloud storage integration

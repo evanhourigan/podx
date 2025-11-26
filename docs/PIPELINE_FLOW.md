@@ -2,19 +2,19 @@
 
 ```mermaid
 graph TD
-    A[podx-fetch] -->|EpisodeMeta JSON| B[podx-transcode]
-    B -->|AudioMeta JSON| C[podx-transcribe]
-    C -->|Transcript JSON| D[podx-align]
-    D -->|AlignedTranscript JSON| E[podx-diarize]
-    C -->|Transcript JSON| F[podx-export<br/>📁 writes files]
+    A[podx fetch] -->|EpisodeMeta JSON| B[podx transcode]
+    B -->|AudioMeta JSON| C[podx transcribe]
+    C -->|Transcript JSON| D[podx align]
+    D -->|AlignedTranscript JSON| E[podx diarize]
+    C -->|Transcript JSON| F[podx export<br/>📁 writes files]
     D -->|AlignedTranscript JSON| F
     E -->|DiarizedTranscript JSON| F
 
     %% AI Analysis and Publishing
-    C -->|Transcript JSON| G[podx-deepcast<br/>📄 writes analysis]
+    C -->|Transcript JSON| G[podx deepcast<br/>📄 writes analysis]
     D -->|AlignedTranscript JSON| G
     E -->|DiarizedTranscript JSON| G
-    G -->|DeepcastBrief JSON| H[podx-notion<br/>☁️ uploads to Notion]
+    G -->|DeepcastBrief JSON| H[podx notion<br/>☁️ uploads to Notion]
 
     %% Invalid flows (shown in red/dashed)
     C -.->|❌ Invalid| E
@@ -72,8 +72,8 @@ The `podx run` orchestrator shows steps as sequential (e.g., `export → deepcas
 
 ## Key Dependencies
 
-- **podx-diarize** requires **podx-align** (needs word-level timestamps)
-- **podx-deepcast** can accept any transcript JSON (transcribe, align, or diarize output)
-- **podx-export** can accept any transcript JSON (transcribe, align, or diarize output)
-- **podx-notion** requires deepcast output (needs structured analysis)
-- **podx-fetch** starts the pipeline (no input required)
+- **podx diarize** requires **podx align** (needs word-level timestamps)
+- **podx deepcast** can accept any transcript JSON (transcribe, align, or diarize output)
+- **podx export** can accept any transcript JSON (transcribe, align, or diarize output)
+- **podx notion** requires deepcast output (needs structured analysis)
+- **podx fetch** starts the pipeline (no input required)

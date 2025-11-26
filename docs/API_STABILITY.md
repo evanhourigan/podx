@@ -138,7 +138,7 @@ When deprecating public APIs:
 Command-line interfaces follow looser stability:
 
 - **Stable**: `podx run` (main orchestrator)
-- **Beta**: Individual commands (`podx-transcribe`, etc.)
+- **Beta**: Individual commands (`podx transcribe`, etc.)
 - **Options**: May add new options (backward compatible)
 - **Output Format**: JSON output schemas are stable (follow domain model guarantees)
 

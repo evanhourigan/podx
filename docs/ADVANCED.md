@@ -36,21 +36,21 @@ PodX supports multiple LLM providers for AI analysis. Choose based on your needs
 
 ```bash
 export OPENAI_API_KEY="sk-..."
-podx-deepcast --model gpt-4o < transcript.json
+podx deepcast --model gpt-4o < transcript.json
 ```
 
 #### Anthropic Claude
 
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-..."
-podx-deepcast --provider anthropic --model claude-3-opus < transcript.json
+podx deepcast --provider anthropic --model claude-3-opus < transcript.json
 ```
 
 #### OpenRouter (Multi-Model)
 
 ```bash
 export OPENROUTER_API_KEY="sk-or-..."
-podx-deepcast --provider openrouter --model gpt-4 < transcript.json
+podx deepcast --provider openrouter --model gpt-4 < transcript.json
 ```
 
 #### Ollama (Local Models)
@@ -63,7 +63,7 @@ ollama serve
 ollama pull llama2
 
 # Use in PodX
-podx-deepcast --provider ollama --model llama2 < transcript.json
+podx deepcast --provider ollama --model llama2 < transcript.json
 ```
 
 ### Python API with Multiple Providers
@@ -107,7 +107,7 @@ PodX supports three ASR (Automatic Speech Recognition) providers:
 **Cons**: Slower than cloud, requires more disk space
 
 ```bash
-podx-transcribe --asr-provider local --model large-v3-turbo
+podx transcribe --asr-provider local --model large-v3-turbo
 ```
 
 **Available Models**:
@@ -124,7 +124,7 @@ podx-transcribe --asr-provider local --model large-v3-turbo
 
 ```bash
 export OPENAI_API_KEY="sk-..."
-podx-transcribe --asr-provider openai --model whisper-1
+podx transcribe --asr-provider openai --model whisper-1
 ```
 
 #### 3. HuggingFace
@@ -134,7 +134,7 @@ podx-transcribe --asr-provider openai --model whisper-1
 
 ```bash
 export HF_TOKEN="hf_..."
-podx-transcribe --asr-provider hf --model large-v3
+podx transcribe --asr-provider hf --model large-v3
 ```
 
 ### Model Aliases & Shortcuts
@@ -143,17 +143,17 @@ PodX provides convenient aliases:
 
 ```bash
 # These are equivalent:
-podx-transcribe --model large-v3-turbo
-podx-transcribe --model local:large-v3-turbo
-podx-transcribe --asr-provider local --model large-v3-turbo
+podx transcribe --model large-v3-turbo
+podx transcribe --model local:large-v3-turbo
+podx transcribe --asr-provider local --model large-v3-turbo
 
 # OpenAI shortcuts:
-podx-transcribe --model openai:whisper-1
-podx-transcribe --asr-provider openai --model whisper-1
+podx transcribe --model openai:whisper-1
+podx transcribe --asr-provider openai --model whisper-1
 
 # HuggingFace shortcuts:
-podx-transcribe --model hf:distil-large-v3
-podx-transcribe --asr-provider hf --model distil-whisper/distil-large-v3
+podx transcribe --model hf:distil-large-v3
+podx transcribe --asr-provider hf --model distil-whisper/distil-large-v3
 ```
 
 ### Expert Transcription Flags
@@ -162,16 +162,16 @@ Fine-tune transcription quality (local provider only):
 
 ```bash
 # Voice Activity Detection (removes silence)
-podx-transcribe --vad-filter
+podx transcribe --vad-filter
 
 # Use previous text for context (improves accuracy)
-podx-transcribe --condition-on-previous-text
+podx transcribe --condition-on-previous-text
 
 # Initial prompt for better accuracy
-podx-transcribe --initial-prompt "This is a technical podcast about AI and machine learning"
+podx transcribe --initial-prompt "This is a technical podcast about AI and machine learning"
 
 # Combine all expert flags
-podx-transcribe --expert
+podx transcribe --expert
 ```
 
 ---
@@ -184,7 +184,7 @@ JSON progress for monitoring:
 
 ```bash
 # Progress as newline-delimited JSON
-podx-transcribe --progress-json < audio.json
+podx transcribe --progress-json < audio.json
 
 # Output:
 # {"type":"progress","stage":"loading","message":"Loading model..."}
@@ -510,28 +510,28 @@ print(f"Progress updates: {len(progress.calls)}")
 
 ```bash
 # MPS for diarization (automatic)
-podx-diarize --device mps < transcript.json
+podx diarize --device mps < transcript.json
 
 # CPU for transcription (optimized for M-series)
-podx-transcribe --compute int8_float16
+podx transcribe --compute int8_float16
 ```
 
 #### NVIDIA GPUs
 
 ```bash
 # CUDA for both transcription and diarization
-podx-transcribe --device cuda --compute float16
-podx-diarize --device cuda
+podx transcribe --device cuda --compute float16
+podx diarize --device cuda
 ```
 
 #### CPU-Only Optimization
 
 ```bash
 # Use int8 quantization for faster CPU inference
-podx-transcribe --compute int8
+podx transcribe --compute int8
 
 # Or auto-select optimal settings
-podx-transcribe --compute auto
+podx transcribe --compute auto
 ```
 
 ### Model Selection for Speed
@@ -547,10 +547,10 @@ podx-transcribe --compute auto
 
 ```bash
 # Speed comparison (approximate, 1-hour audio):
-podx-transcribe --model tiny       # ~2 minutes
-podx-transcribe --model base       # ~5 minutes
-podx-transcribe --model large-v3-turbo  # ~15 minutes (recommended)
-podx-transcribe --model large-v3   # ~30 minutes
+podx transcribe --model tiny       # ~2 minutes
+podx transcribe --model base       # ~5 minutes
+podx transcribe --model large-v3-turbo  # ~15 minutes (recommended)
+podx transcribe --model large-v3   # ~30 minutes
 ```
 
 ### Caching & Intermediate Files

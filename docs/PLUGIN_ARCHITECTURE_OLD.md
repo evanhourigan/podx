@@ -8,7 +8,7 @@ Podx now features a comprehensive plugin architecture that allows users to exten
 
 ### 1. 🔍 Source Plugins (`PluginType.SOURCE`)
 
-**Purpose**: Alternative content sources (replaces/extends `podx-fetch`)
+**Purpose**: Alternative content sources (replaces/extends `podx fetch`)
 **Interface**: `SourcePlugin`
 **Examples**:
 
@@ -24,7 +24,7 @@ Podx now features a comprehensive plugin architecture that allows users to exten
 
 ### 2. 🎵 Audio Plugins (`PluginType.AUDIO`)
 
-**Purpose**: Audio processing (replaces/extends `podx-transcode`)
+**Purpose**: Audio processing (replaces/extends `podx transcode`)
 **Interface**: `AudioPlugin`
 **Examples**:
 
@@ -39,7 +39,7 @@ Podx now features a comprehensive plugin architecture that allows users to exten
 
 ### 3. 🎤 ASR Plugins (`PluginType.ASR`)
 
-**Purpose**: Speech recognition (replaces/extends `podx-transcribe`)
+**Purpose**: Speech recognition (replaces/extends `podx transcribe`)
 **Interface**: `ASRPlugin`
 **Examples**:
 
@@ -54,7 +54,7 @@ Podx now features a comprehensive plugin architecture that allows users to exten
 
 ### 4. 🤖 Analysis Plugins (`PluginType.ANALYSIS`)
 
-**Purpose**: AI analysis (replaces/extends `podx-deepcast`)
+**Purpose**: AI analysis (replaces/extends `podx deepcast`)
 **Interface**: `AnalysisPlugin`
 **Examples**:
 
@@ -69,7 +69,7 @@ Podx now features a comprehensive plugin architecture that allows users to exten
 
 ### 5. 📤 Export Plugins (`PluginType.EXPORT`)
 
-**Purpose**: Export formats (replaces/extends `podx-export`)
+**Purpose**: Export formats (replaces/extends `podx export`)
 **Interface**: `ExportPlugin`
 **Examples**:
 
@@ -84,7 +84,7 @@ Podx now features a comprehensive plugin architecture that allows users to exten
 
 ### 6. 📢 Publish Plugins (`PluginType.PUBLISH`)
 
-**Purpose**: Publishing destinations (replaces/extends `podx-notion`)
+**Purpose**: Publishing destinations (replaces/extends `podx notion`)
 **Interface**: `PublishPlugin`
 **Examples**:
 
