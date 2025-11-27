@@ -63,7 +63,7 @@ def main():
         border_style=TABLE_BORDER_STYLE,
         expand=False,
     )
-    asr_table.add_column("Model", width=20)
+    asr_table.add_column("Model", width=22, no_wrap=True)
     asr_table.add_column("$/hr", justify="right", width=10)
     asr_table.add_column("Description")
 
@@ -91,7 +91,7 @@ def main():
         border_style=TABLE_BORDER_STYLE,
         expand=False,
     )
-    llm_table.add_column("Model", width=25)
+    llm_table.add_column("Model", width=30, no_wrap=True)
     llm_table.add_column("$/hr*", justify="right", width=10)
     llm_table.add_column("Description")
 
