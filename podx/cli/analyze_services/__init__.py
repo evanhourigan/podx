@@ -1,4 +1,4 @@
-"""Deepcast service modules for CLI operations."""
+"""Analyze service modules for CLI operations."""
 
 from .prompt_builder import (
     _build_prompt_display,
@@ -9,7 +9,7 @@ from .ui_helpers import (
     ALIAS_TYPES,
     CANONICAL_TYPES,
     select_ai_model,
-    select_deepcast_type,
+    select_analysis_type,
 )
 
 __all__ = [
@@ -20,6 +20,9 @@ __all__ = [
     # UI helpers
     "CANONICAL_TYPES",
     "ALIAS_TYPES",
-    "select_deepcast_type",
+    "select_analysis_type",
     "select_ai_model",
 ]
+
+# Backwards compatibility alias
+select_deepcast_type = select_analysis_type

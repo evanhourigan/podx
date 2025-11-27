@@ -446,9 +446,9 @@ class TestProgressReporterIntegration:
             if "step" in kwargs and kwargs["step"] is not None:
                 assert kwargs["step"] > 0
 
-    def test_with_deepcast_engine(self):
-        """ProgressReporter works with DeepcastEngine."""
-        from podx.core.deepcast import DeepcastEngine
+    def test_with_analyze_engine(self):
+        """ProgressReporter works with AnalyzeEngine."""
+        from podx.core.analyze import AnalyzeEngine
         from podx.llm import MockLLMProvider
 
         # Use APIProgressReporter to verify progress updates
@@ -456,7 +456,7 @@ class TestProgressReporterIntegration:
 
         mock_llm = MockLLMProvider(responses=["Analysis result", "Final summary"])
 
-        engine = DeepcastEngine(model="gpt-4", llm_provider=mock_llm, progress=reporter)
+        engine = AnalyzeEngine(model="gpt-4", llm_provider=mock_llm, progress=reporter)
 
         # Verify reporter was accepted
         assert engine.progress is reporter
@@ -469,7 +469,7 @@ class TestProgressReporterIntegration:
             ]
         }
 
-        markdown, json_data = engine.deepcast(
+        markdown, json_data = engine.analyze(
             transcript,
             system_prompt="Analyze this",
             map_instructions="Summarize",

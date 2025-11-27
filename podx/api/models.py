@@ -52,8 +52,8 @@ class TranscribeResponse(BaseModel):
         return self.model_dump(exclude_none=True)
 
 
-class DeepcastResponse(BaseModel):
-    """Response model for deepcast API.
+class AnalyzeResponse(BaseModel):
+    """Response model for analyze API.
 
     Attributes:
         markdown_path: Path to the generated markdown file
@@ -85,6 +85,10 @@ class DeepcastResponse(BaseModel):
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility."""
         return self.model_dump(exclude_none=True)
+
+
+# Backwards compatibility alias
+DeepcastResponse = AnalyzeResponse
 
 
 class ExistsCheckResponse(BaseModel):

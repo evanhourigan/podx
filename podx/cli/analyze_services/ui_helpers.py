@@ -1,10 +1,10 @@
-"""UI helper utilities for deepcast interactive mode."""
+"""UI helper utilities for analyze interactive mode."""
 
 from typing import Any, Dict, Optional
 
 from podx.prompt_templates import PodcastType
 
-# Canonical deepcast types presented to users
+# Canonical analysis types presented to users
 CANONICAL_TYPES: list[PodcastType] = [
     PodcastType.INTERVIEW_GUEST_FOCUSED,  # interview_guest_focused
     PodcastType.PANEL_DISCUSSION,  # multi_guest_panel
@@ -12,7 +12,7 @@ CANONICAL_TYPES: list[PodcastType] = [
     PodcastType.GENERAL,  # general
 ]
 
-# Alias deepcast types that inject prompt hints but map to canonical templates
+# Alias analysis types that inject prompt hints but map to canonical templates
 ALIAS_TYPES: dict[str, dict[str, Any]] = {
     "host_moderated_panel": {
         "canonical": PodcastType.PANEL_DISCUSSION,
@@ -33,8 +33,8 @@ ALIAS_TYPES: dict[str, dict[str, Any]] = {
 }
 
 
-def select_deepcast_type(row: Dict[str, Any], console) -> Optional[str]:
-    """Prompt user to select deepcast type."""
+def select_analysis_type(row: Dict[str, Any], console) -> Optional[str]:
+    """Prompt user to select analysis type."""
     # Get default type from config if available
     episode = row["episode"]
     show_name = episode.get("show", "")
@@ -54,16 +54,16 @@ def select_deepcast_type(row: Dict[str, Any], console) -> Optional[str]:
     if not default_type:
         default_type = "general"
 
-    # List canonical deepcast types plus friendly aliases
+    # List canonical analysis types plus friendly aliases
     all_types = [t.value for t in CANONICAL_TYPES] + list(ALIAS_TYPES.keys())
 
-    console.print("\n[bold cyan]Select a deepcast type:[/bold cyan]")
+    console.print("\n[bold cyan]Select an analysis type:[/bold cyan]")
     for idx, dtype in enumerate(all_types, start=1):
         marker = " ← Default" if dtype == default_type else ""
         console.print(f"  {idx:2}  {dtype}{marker}")
 
     choice = input(
-        f"\n👉 Select deepcast type (1-{len(all_types)}) or Q to cancel: "
+        f"\n👉 Select analysis type (1-{len(all_types)}) or Q to cancel: "
     ).strip()
 
     if choice.upper() in ["Q", "QUIT", "EXIT"]:
@@ -82,6 +82,10 @@ def select_deepcast_type(row: Dict[str, Any], console) -> Optional[str]:
     except ValueError:
         console.print(f"[red]Invalid input. Using default: {default_type}[/red]")
         return default_type
+
+
+# Backwards compatibility alias
+select_deepcast_type = select_analysis_type
 
 
 def select_ai_model(console) -> Optional[str]:

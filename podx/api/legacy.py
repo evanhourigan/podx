@@ -92,13 +92,13 @@ def transcribe(audio_url: str, asr_model: str, out_dir: str) -> Dict[str, Any]:
     # Transcode → AudioMeta JSON
     meta = {"audio_path": str(local_audio)}
     audio_meta = _run_cli(
-        ["podx-transcode", "--to", "wav16", "--outdir", str(out_path)],
+        ["podx", "transcode", "--to", "wav16", "--outdir", str(out_path)],
         stdin_payload=meta,
     )
 
     # Transcribe → Transcript JSON (also write to file for consistency)
     transcript = _run_cli(
-        ["podx-transcribe", "--model", asr_model], stdin_payload=audio_meta
+        ["podx", "transcribe", "--model", asr_model], stdin_payload=audio_meta
     )
     transcript_path = out_path / "transcript.json"
     transcript_path.write_text(json.dumps(transcript, indent=2), encoding="utf-8")
@@ -118,7 +118,7 @@ def transcribe(audio_url: str, asr_model: str, out_dir: str) -> Dict[str, Any]:
     }
 
 
-def deepcast(
+def analyze(
     transcript_path: str,
     llm_model: str,
     out_dir: str,
@@ -127,7 +127,7 @@ def deepcast(
     prompt_name: str = "default",
 ) -> Dict[str, Any]:
     """
-    Run deepcast analysis for a given transcript JSON. Writes unified JSON and markdown.
+    Run analysis for a given transcript JSON. Writes unified JSON and markdown.
 
     Note: the current CLI does not accept a free-form prompt; if provided, it is ignored
     until CLI support is added. The adapter sets provider API keys via environment.
@@ -155,8 +155,8 @@ def deepcast(
     model_suffix = re.sub(r"[^a-zA-Z0-9_]+", "_", llm_model)
     prompt_slug = _slug_with_hash(prompt_name)
 
-    # Nested prompt-scoped layout: deepcast/llm-<MODEL>/prompt-<PROMPT_SLUG>/analysis.*
-    prompt_dir = out_path / "deepcast" / f"llm-{model_suffix}" / f"prompt-{prompt_slug}"
+    # Nested prompt-scoped layout: analysis/llm-<MODEL>/prompt-<PROMPT_SLUG>/analysis.*
+    prompt_dir = out_path / "analysis" / f"llm-{model_suffix}" / f"prompt-{prompt_slug}"
     prompt_dir.mkdir(parents=True, exist_ok=True)
 
     json_out = prompt_dir / "analysis.json"
@@ -174,7 +174,8 @@ def deepcast(
     # Run CLI; always request markdown extraction so we have a file to point to
     _run_cli(
         [
-            "podx-deepcast",
+            "podx",
+            "analyze",
             "--input",
             str(transcript_path),
             "--output",
@@ -229,6 +230,10 @@ def deepcast(
     }
 
 
+# Backwards compatibility alias
+deepcast = analyze
+
+
 def has_transcript(
     episode_id: int | str, asr_model: str, out_dir: str
 ) -> Optional[str]:
@@ -270,7 +275,7 @@ def has_markdown(
     # New layout check
     p = (
         out_path
-        / "deepcast"
+        / "analysis"
         / f"llm-{model_suffix}"
         / f"prompt-{prompt_slug}"
         / "analysis.md"
@@ -278,7 +283,24 @@ def has_markdown(
     if p.exists():
         return str(p)
 
-    # Legacy fallback - check for any deepcast markdown files
+    # Legacy layout check (deprecated)
+    legacy_p = (
+        out_path
+        / "deepcast"
+        / f"llm-{model_suffix}"
+        / f"prompt-{prompt_slug}"
+        / "analysis.md"
+    )
+    if legacy_p.exists():
+        return str(legacy_p)
+
+    # Legacy fallback - check for any analysis/deepcast markdown files
+    analysis_files = list(out_path.glob("analysis-*.md"))
+    if analysis_files:
+        latest = max(analysis_files, key=lambda p: p.stat().st_mtime)
+        return str(latest)
+
+    # Legacy fallback - check for any deepcast markdown files (deprecated)
     deepcast_files = list(out_path.glob("deepcast-*.md"))
     if deepcast_files:
         # Return most recent one

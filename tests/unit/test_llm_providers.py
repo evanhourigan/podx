@@ -190,11 +190,11 @@ class TestProviderFactory:
 
 
 class TestDeepcastEngineWithMock:
-    """Test DeepcastEngine with mock LLM provider."""
+    """Test AnalyzeEngine with mock LLM provider."""
 
-    def test_deepcast_with_mock_provider(self):
-        """Test deepcast using mock provider."""
-        from podx.core.deepcast import DeepcastEngine
+    def test_analyze_with_mock_provider(self):
+        """Test analyze using mock provider."""
+        from podx.core.analyze import AnalyzeEngine
 
         # Create mock with pre-defined responses
         mock = MockLLMProvider(
@@ -205,7 +205,7 @@ class TestDeepcastEngineWithMock:
         )
 
         # Create engine with mock provider
-        engine = DeepcastEngine(
+        engine = AnalyzeEngine(
             model="test-model",
             temperature=0.5,
             llm_provider=mock,
@@ -218,8 +218,8 @@ class TestDeepcastEngineWithMock:
             ]
         }
 
-        # Run deepcast
-        result, json_data = engine.deepcast(
+        # Run analyze
+        result, json_data = engine.analyze(
             transcript=transcript,
             system_prompt="Test system",
             map_instructions="Analyze",

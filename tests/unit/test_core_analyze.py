@@ -1,4 +1,4 @@
-"""Unit tests for core.deepcast module.
+"""Unit tests for core.analyze module.
 
 Tests pure business logic without UI dependencies.
 Uses MockLLMProvider to avoid actual API calls.
@@ -10,10 +10,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from podx.core.deepcast import (
-    DeepcastEngine,
-    DeepcastError,
-    deepcast_transcript,
+from podx.core.analyze import (
+    AnalyzeEngine,
+    AnalyzeError,
+    analyze_transcript,
     hhmmss,
     segments_to_plain_text,
     split_into_chunks,
@@ -122,13 +122,13 @@ class TestUtilityFunctions:
         assert len(chunks) >= 1
 
 
-class TestDeepcastEngineInit:
-    """Test DeepcastEngine initialization."""
+class TestAnalyzeEngineInit:
+    """Test AnalyzeEngine initialization."""
 
     def test_init_defaults(self):
         """Test default initialization with API key."""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test_key"}):
-            engine = DeepcastEngine()
+            engine = AnalyzeEngine()
             assert engine.model == "gpt-4"
             assert engine.temperature == 0.2
             assert engine.max_chars_per_chunk == 24000
@@ -140,7 +140,7 @@ class TestDeepcastEngineInit:
         def callback(msg):
             return None
 
-        engine = DeepcastEngine(
+        engine = AnalyzeEngine(
             model="gpt-4",
             temperature=0.5,
             max_chars_per_chunk=10000,
@@ -158,13 +158,13 @@ class TestDeepcastEngineInit:
     def test_init_missing_api_key_raises_error(self):
         """Test that missing API key raises error."""
         with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(DeepcastError, match="OpenAI API key not found"):
-                DeepcastEngine()
+            with pytest.raises(AnalyzeError, match="OpenAI API key not found"):
+                AnalyzeEngine()
 
     def test_init_explicit_key_overrides_env(self):
         """Test that explicit API key overrides environment."""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "env_key"}):
-            engine = DeepcastEngine(api_key="explicit_key")
+            engine = AnalyzeEngine(api_key="explicit_key")
             assert engine.api_key == "explicit_key"
 
     def test_init_base_url_from_env(self):
@@ -172,12 +172,12 @@ class TestDeepcastEngineInit:
         with patch.dict(
             os.environ, {"OPENAI_API_KEY": "key", "OPENAI_BASE_URL": "https://env.api"}
         ):
-            engine = DeepcastEngine(base_url="https://env.api")
+            engine = AnalyzeEngine(base_url="https://env.api")
             assert engine.base_url == "https://env.api"
 
 
-class TestDeepcastEngineGetClient:
-    """Test DeepcastEngine LLM provider initialization."""
+class TestAnalyzeEngineGetClient:
+    """Test AnalyzeEngine LLM provider initialization."""
 
     def test_get_client_missing_openai(self):
         """Test that missing openai library raises error during provider init."""
@@ -192,13 +192,13 @@ class TestDeepcastEngineGetClient:
             with patch("builtins.__import__", side_effect=mock_import):
                 # Should fail during provider initialization
                 with pytest.raises(
-                    DeepcastError, match="Failed to initialize LLM provider"
+                    AnalyzeError, match="Failed to initialize LLM provider"
                 ):
-                    DeepcastEngine()
+                    AnalyzeEngine()
 
 
-class TestDeepcastEngineDeepcast:
-    """Test DeepcastEngine.deepcast() method."""
+class TestAnalyzeEngineDeepcast:
+    """Test AnalyzeEngine.analyze() method."""
 
     @pytest.fixture
     def sample_transcript(self):
@@ -215,8 +215,8 @@ class TestDeepcastEngineDeepcast:
         # Use MockLLMProvider with predefined responses
         mock_llm = MockLLMProvider(responses=["Analysis result", "Final synthesis"])
 
-        engine = DeepcastEngine(llm_provider=mock_llm)
-        markdown, json_data = engine.deepcast(
+        engine = AnalyzeEngine(llm_provider=mock_llm)
+        markdown, json_data = engine.analyze(
             sample_transcript,
             system_prompt="You are an analyst",
             map_instructions="Analyze this",
@@ -235,8 +235,8 @@ class TestDeepcastEngineDeepcast:
         # Use MockLLMProvider with JSON response
         mock_llm = MockLLMProvider(responses=["Map result", response_with_json])
 
-        engine = DeepcastEngine(llm_provider=mock_llm)
-        markdown, json_data = engine.deepcast(
+        engine = AnalyzeEngine(llm_provider=mock_llm)
+        markdown, json_data = engine.analyze(
             sample_transcript,
             system_prompt="You are an analyst",
             map_instructions="Analyze this",
@@ -252,8 +252,8 @@ class TestDeepcastEngineDeepcast:
         transcript = {"text": "Plain text transcript"}
 
         mock_llm = MockLLMProvider(responses=["Map result", "Analysis"])
-        engine = DeepcastEngine(llm_provider=mock_llm)
-        markdown, json_data = engine.deepcast(
+        engine = AnalyzeEngine(llm_provider=mock_llm)
+        markdown, json_data = engine.analyze(
             transcript,
             "system",
             "map",
@@ -267,10 +267,10 @@ class TestDeepcastEngineDeepcast:
         transcript = {"segments": []}
 
         mock_llm = MockLLMProvider(responses=["Should not be called"])
-        engine = DeepcastEngine(llm_provider=mock_llm)
+        engine = AnalyzeEngine(llm_provider=mock_llm)
 
-        with pytest.raises(DeepcastError, match="No transcript text found"):
-            engine.deepcast(transcript, "system", "map", "reduce")
+        with pytest.raises(AnalyzeError, match="No transcript text found"):
+            engine.analyze(transcript, "system", "map", "reduce")
 
     def test_deepcast_calls_progress_callback(self, sample_transcript):
         """Test that deepcast calls progress callback."""
@@ -281,10 +281,10 @@ class TestDeepcastEngineDeepcast:
         def progress_callback(msg):
             progress_messages.append(msg)
 
-        engine = DeepcastEngine(
+        engine = AnalyzeEngine(
             llm_provider=mock_llm, progress_callback=progress_callback
         )
-        engine.deepcast(sample_transcript, "system", "map", "reduce")
+        engine.analyze(sample_transcript, "system", "map", "reduce")
 
         # Should have progress messages
         assert len(progress_messages) >= 2
@@ -301,10 +301,10 @@ class TestDeepcastEngineDeepcast:
                 raise LLMAPIError("API error")
 
         mock_llm = FailingMockProvider()
-        engine = DeepcastEngine(llm_provider=mock_llm)
+        engine = AnalyzeEngine(llm_provider=mock_llm)
 
-        with pytest.raises(DeepcastError, match="Map phase failed"):
-            engine.deepcast(sample_transcript, "system", "map", "reduce")
+        with pytest.raises(AnalyzeError, match="Map phase failed"):
+            engine.analyze(sample_transcript, "system", "map", "reduce")
 
     def test_deepcast_reduce_phase_failure(self, sample_transcript):
         """Test handling of reduce phase failure."""
@@ -326,10 +326,10 @@ class TestDeepcastEngineDeepcast:
                 return super().complete(*args, **kwargs)
 
         mock_llm = SelectivelyFailingMockProvider()
-        engine = DeepcastEngine(llm_provider=mock_llm)
+        engine = AnalyzeEngine(llm_provider=mock_llm)
 
-        with pytest.raises(DeepcastError, match="Reduce phase failed"):
-            engine.deepcast(sample_transcript, "system", "map", "reduce")
+        with pytest.raises(AnalyzeError, match="Reduce phase failed"):
+            engine.analyze(sample_transcript, "system", "map", "reduce")
 
     def test_deepcast_invalid_json_returns_none(self, sample_transcript):
         """Test that invalid JSON returns None for json_data."""
@@ -338,8 +338,8 @@ class TestDeepcastEngineDeepcast:
             responses=["Map result", "Analysis\n\n---JSON---\n{invalid json}"]
         )
 
-        engine = DeepcastEngine(llm_provider=mock_llm)
-        markdown, json_data = engine.deepcast(
+        engine = AnalyzeEngine(llm_provider=mock_llm)
+        markdown, json_data = engine.analyze(
             sample_transcript,
             "system",
             "map",
@@ -352,23 +352,23 @@ class TestDeepcastEngineDeepcast:
 
 
 class TestConvenienceFunction:
-    """Test deepcast_transcript convenience function."""
+    """Test analyze_transcript convenience function."""
 
-    def test_deepcast_transcript(self):
-        """Test deepcast_transcript convenience function."""
+    def test_analyze_transcript(self):
+        """Test analyze_transcript convenience function."""
         transcript = {
             "segments": [
                 {"text": "Hello world"},
             ]
         }
 
-        # Mock the underlying engine - deepcast_transcript creates its own engine
-        with patch("podx.core.deepcast.DeepcastEngine") as mock_engine_class:
+        # Mock the underlying engine - analyze_transcript creates its own engine
+        with patch("podx.core.analyze.AnalyzeEngine") as mock_engine_class:
             mock_instance = MagicMock()
-            mock_instance.deepcast.return_value = ("Analysis result", None)
+            mock_instance.analyze.return_value = ("Analysis result", None)
             mock_engine_class.return_value = mock_instance
 
-            markdown, json_data = deepcast_transcript(
+            markdown, json_data = analyze_transcript(
                 transcript,
                 "system prompt",
                 "map instructions",
@@ -377,10 +377,10 @@ class TestConvenienceFunction:
 
             assert markdown == "Analysis result"
             assert json_data is None
-            mock_instance.deepcast.assert_called_once()
+            mock_instance.analyze.assert_called_once()
 
-    def test_deepcast_transcript_with_custom_params(self):
-        """Test deepcast_transcript with custom parameters."""
+    def test_analyze_transcript_with_custom_params(self):
+        """Test analyze_transcript with custom parameters."""
         transcript = {"segments": [{"text": "Test"}]}
 
         progress_messages = []
@@ -388,12 +388,12 @@ class TestConvenienceFunction:
         def progress_callback(msg):
             progress_messages.append(msg)
 
-        with patch("podx.core.deepcast.DeepcastEngine") as mock_engine_class:
+        with patch("podx.core.analyze.AnalyzeEngine") as mock_engine_class:
             mock_instance = MagicMock()
-            mock_instance.deepcast.return_value = ("Result", None)
+            mock_instance.analyze.return_value = ("Result", None)
             mock_engine_class.return_value = mock_instance
 
-            markdown, _ = deepcast_transcript(
+            markdown, _ = analyze_transcript(
                 transcript,
                 "system",
                 "map",
@@ -427,10 +427,10 @@ class TestEdgeCases:
 
         # Need many responses for multiple chunks + reduce
         mock_llm = MockLLMProvider(responses=["Chunk 1"] * 50 + ["Final analysis"])
-        engine = DeepcastEngine(
+        engine = AnalyzeEngine(
             llm_provider=mock_llm, max_chars_per_chunk=1000
         )  # Small chunks
-        markdown, _ = engine.deepcast(transcript, "system", "map", "reduce")
+        markdown, _ = engine.analyze(transcript, "system", "map", "reduce")
 
         # Should have called complete_async multiple times (map calls) + reduce
         assert mock_llm.call_count > 2
@@ -445,8 +445,8 @@ class TestEdgeCases:
 
         for content in test_cases:
             mock_llm = MockLLMProvider(responses=["Map result", content])
-            engine = DeepcastEngine(llm_provider=mock_llm)
-            _, json_data = engine.deepcast(
+            engine = AnalyzeEngine(llm_provider=mock_llm)
+            _, json_data = engine.analyze(
                 {"segments": [{"text": "test"}]},
                 "system",
                 "map",

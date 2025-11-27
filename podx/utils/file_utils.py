@@ -194,7 +194,7 @@ def build_preprocess_command(output_path: Path, restore: bool = False) -> List[s
     return cmd
 
 
-def build_deepcast_command(
+def build_analyze_command(
     input_path: Path,
     output_path: Path,
     model: str,
@@ -204,11 +204,11 @@ def build_deepcast_command(
     extract_markdown: bool = False,
     generate_pdf: bool = False,
 ) -> List[str]:
-    """Build podx-deepcast command for AI transcript analysis.
+    """Build podx-analyze command for AI transcript analysis.
 
     Args:
         input_path: Input transcript file path
-        output_path: Output deepcast JSON file path
+        output_path: Output analysis JSON file path
         model: AI model name (e.g., "gpt-4", "claude-3")
         temperature: Model temperature (0.0-1.0)
         meta_path: Optional episode metadata file path
@@ -217,10 +217,10 @@ def build_deepcast_command(
         generate_pdf: Whether to generate PDF output
 
     Returns:
-        List of command arguments for podx-deepcast
+        List of command arguments for podx-analyze
     """
     cmd = [
-        "podx-deepcast",
+        "podx-analyze",
         "--input",
         str(input_path),
         "--output",
@@ -239,3 +239,7 @@ def build_deepcast_command(
     if generate_pdf:
         cmd.append("--pdf")
     return cmd
+
+
+# Backwards compatibility alias
+build_deepcast_command = build_analyze_command

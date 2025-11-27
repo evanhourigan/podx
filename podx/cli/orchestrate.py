@@ -110,9 +110,9 @@ main.add_command(estimate.main, name="estimate")
 main.add_command(init.main, name="init")
 main.add_command(analyze_audio.main, name="analyze-audio")
 
-# Register command groups (search and analyze already have Click groups)
+# Register command groups and standalone commands
 main.add_command(search.search_group, name="search")
-main.add_command(analyze.analyze_group, name="analyze")
+main.add_command(analyze.main, name="analyze")
 main.add_command(templates.main, name="templates")
 
 

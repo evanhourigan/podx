@@ -1,4 +1,4 @@
-"""Core deepcast engine - pure business logic.
+"""Core analyze engine - pure business logic.
 
 No UI dependencies, no CLI concerns. Just podcast transcript analysis using LLM map-reduce.
 Handles chunking, parallel API calls, and structured output generation.
@@ -16,10 +16,14 @@ from ..progress import ProgressReporter, SilentProgressReporter
 logger = get_logger(__name__)
 
 
-class DeepcastError(Exception):
-    """Raised when deepcast processing fails."""
+class AnalyzeError(Exception):
+    """Raised when analyze processing fails."""
 
     pass
+
+
+# Backwards compatibility alias
+DeepcastError = AnalyzeError
 
 
 def hhmmss(sec: float) -> str:
@@ -68,8 +72,8 @@ def split_into_chunks(text: str, approx_chars: int) -> List[str]:
     return chunks
 
 
-class DeepcastEngine:
-    """Pure deepcast logic with no UI dependencies.
+class AnalyzeEngine:
+    """Pure analyze logic with no UI dependencies.
 
     Implements map-reduce pattern for LLM-based podcast analysis:
     1. Split transcript into chunks
@@ -92,7 +96,7 @@ class DeepcastEngine:
         progress: Optional[Union[ProgressReporter, Callable[[str], None]]] = None,
         progress_callback: Optional[Callable[[str], None]] = None,  # Deprecated
     ):
-        """Initialize deepcast engine.
+        """Initialize analyze engine.
 
         Args:
             model: Model name (e.g., 'gpt-4', 'claude-3-opus', 'llama2')
@@ -140,7 +144,7 @@ class DeepcastEngine:
                     provider_name, api_key=api_key, base_url=base_url
                 )
             except Exception as e:
-                raise DeepcastError(f"Failed to initialize LLM provider: {e}") from e
+                raise AnalyzeError(f"Failed to initialize LLM provider: {e}") from e
 
     def _report_progress(self, message: str):
         """Report progress via ProgressReporter or legacy callback."""
@@ -179,7 +183,7 @@ class DeepcastEngine:
         )
         return response.content
 
-    def deepcast(
+    def analyze(
         self,
         transcript: Dict[str, Any],
         system_prompt: str,
@@ -188,7 +192,7 @@ class DeepcastEngine:
         want_json: bool = False,
         json_schema: Optional[str] = None,
     ) -> Tuple[str, Optional[Dict[str, Any]]]:
-        """Run deepcast analysis on transcript.
+        """Run analyze on transcript.
 
         Args:
             transcript: Transcript data with segments
@@ -202,14 +206,14 @@ class DeepcastEngine:
             Tuple of (markdown_output, json_data)
 
         Raises:
-            DeepcastError: If processing fails
+            AnalyzeError: If processing fails
         """
         segs = transcript.get("segments") or []
         if not segs:
             # Fallback to text field if no segments
             text = transcript.get("text", "")
             if not text.strip():
-                raise DeepcastError("No transcript text found in input")
+                raise AnalyzeError("No transcript text found in input")
         else:
             # Convert segments to plain text
             has_time = any("start" in s and "end" in s for s in segs)
@@ -217,10 +221,10 @@ class DeepcastEngine:
             text = segments_to_plain_text(segs, has_time, has_spk)
 
         if not text.strip():
-            raise DeepcastError("No transcript text found in input")
+            raise AnalyzeError("No transcript text found in input")
 
         logger.info(
-            "Starting deepcast analysis",
+            "Starting analysis",
             model=self.model,
             text_length=len(text),
             max_chunk_chars=self.max_chars_per_chunk,
@@ -253,7 +257,7 @@ class DeepcastEngine:
         try:
             map_notes = asyncio.run(process_chunks_parallel())
         except Exception as e:
-            raise DeepcastError(f"Map phase failed: {e}") from e
+            raise AnalyzeError(f"Map phase failed: {e}") from e
 
         logger.info("Map phase completed", notes_count=len(map_notes))
 
@@ -269,7 +273,7 @@ class DeepcastEngine:
         try:
             final = self._chat_once(system_prompt, reduce_prompt)
         except Exception as e:
-            raise DeepcastError(f"Reduce phase failed: {e}") from e
+            raise AnalyzeError(f"Reduce phase failed: {e}") from e
 
         logger.info("Reduce phase completed", output_length=len(final))
 
@@ -299,7 +303,7 @@ class DeepcastEngine:
 
 
 # Convenience function for direct use
-def deepcast_transcript(
+def analyze_transcript(
     transcript: Dict[str, Any],
     system_prompt: str,
     map_instructions: str,
@@ -312,7 +316,7 @@ def deepcast_transcript(
     api_key: Optional[str] = None,
     progress_callback: Optional[Callable[[str], None]] = None,
 ) -> Tuple[str, Optional[Dict[str, Any]]]:
-    """Run deepcast analysis on transcript.
+    """Run analysis on transcript.
 
     Args:
         transcript: Transcript data
@@ -330,14 +334,14 @@ def deepcast_transcript(
     Returns:
         Tuple of (markdown_output, json_data)
     """
-    engine = DeepcastEngine(
+    engine = AnalyzeEngine(
         model=model,
         temperature=temperature,
         max_chars_per_chunk=max_chars_per_chunk,
         api_key=api_key,
         progress_callback=progress_callback,
     )
-    return engine.deepcast(
+    return engine.analyze(
         transcript,
         system_prompt,
         map_instructions,
@@ -345,3 +349,8 @@ def deepcast_transcript(
         want_json,
         json_schema,
     )
+
+
+# Backwards compatibility aliases
+DeepcastEngine = AnalyzeEngine
+deepcast_transcript = analyze_transcript

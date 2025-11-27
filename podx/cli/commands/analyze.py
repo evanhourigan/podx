@@ -1,10 +1,10 @@
-"""Deepcast command for AI-powered transcript analysis."""
+"""Analyze command for AI-powered transcript analysis."""
 
 import click
 
 
 @click.command(
-    "deepcast",
+    "analyze",
     help="AI-powered transcript analysis and summarization",
     context_settings={
         "ignore_unknown_options": True,
@@ -14,11 +14,15 @@ import click
     },
 )
 @click.pass_context
-def deepcast_cmd(ctx):
+def analyze_cmd(ctx):
     """AI-powered transcript analysis and summarization."""
-    # Import and invoke the actual deepcast command
-    from podx.cli.deepcast import main as actual_command
+    # Import and invoke the actual analyze command
+    from podx.cli.analyze import main as actual_command
 
     # Invoke the Click command with the current context's arguments
     # This uses Click's invocation API to properly forward arguments
     actual_command.main(args=ctx.args, standalone_mode=False)
+
+
+# Backwards compatibility alias
+deepcast_cmd = analyze_cmd

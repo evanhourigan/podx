@@ -24,16 +24,11 @@ __version__ = "3.2.2"
 # Configuration
 from podx.config import get_config
 
-# Error types from core modules
 # Core processing engines
-from podx.core.deepcast import DeepcastEngine, DeepcastError
+from podx.core.analyze import AnalyzeEngine, AnalyzeError
 from podx.core.diarize import DiarizationEngine, DiarizationError
 from podx.core.export import ExportEngine, ExportError
-
-# Main processing functions
 from podx.core.fetch import FetchError, fetch_episode, find_feed_url, search_podcasts
-
-# Notion utilities
 from podx.core.notion import NotionEngine, NotionError, md_to_blocks
 from podx.core.preprocess import (
     PreprocessError,
@@ -44,8 +39,6 @@ from podx.core.preprocess import (
 )
 from podx.core.transcode import TranscodeEngine, TranscodeError
 from podx.core.transcribe import TranscriptionEngine, TranscriptionError
-
-# YouTube utilities
 from podx.core.youtube import (
     YouTubeEngine,
     YouTubeError,
@@ -70,11 +63,16 @@ from podx.schemas import (
     Word,
 )
 
+# Backwards compatibility aliases
+DeepcastEngine = AnalyzeEngine
+DeepcastError = AnalyzeError
+
 __all__ = [
     # Version
     "__version__",
     # Core engines
-    "DeepcastEngine",
+    "AnalyzeEngine",
+    "DeepcastEngine",  # Backwards compatibility alias for AnalyzeEngine
     "DiarizationEngine",
     "ExportEngine",
     "NotionEngine",
@@ -105,8 +103,9 @@ __all__ = [
     "Word",
     # Errors
     "AIError",
+    "AnalyzeError",
     "AudioError",
-    "DeepcastError",
+    "DeepcastError",  # Backwards compatibility alias for AnalyzeError
     "DiarizationError",
     "ExportError",
     "FetchError",

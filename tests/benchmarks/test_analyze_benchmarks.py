@@ -1,8 +1,8 @@
-"""Benchmarks for deepcast utility operations."""
+"""Benchmarks for analyze utility operations."""
 
 import pytest
 
-from podx.core.deepcast import hhmmss, segments_to_plain_text, split_into_chunks
+from podx.core.analyze import hhmmss, segments_to_plain_text, split_into_chunks
 
 
 class TestTimestampFormattingBenchmarks:

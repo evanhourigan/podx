@@ -191,17 +191,17 @@ class TestTranscribeAPI:
 
 
 class TestDeepcastAPI:
-    """Test deepcast API method."""
+    """Test deepcast API method (backwards compatibility)."""
 
-    @patch("podx.api.sync_client._deepcast")
-    def test_deepcast_success(self, mock_deepcast, tmp_path):
+    @patch("podx.api.sync_client._analyze")
+    def test_deepcast_success(self, mock_analyze, tmp_path):
         """Test successful deepcast analysis."""
         # Create markdown output
         markdown_path = tmp_path / "analysis.md"
         markdown_path.write_text("# Analysis")
 
         # Mock API response
-        mock_deepcast.return_value = {
+        mock_analyze.return_value = {
             "markdown_path": str(markdown_path),
             "usage": {"total_tokens": 1000},
             "prompt_used": "Test prompt",
@@ -222,13 +222,13 @@ class TestDeepcastAPI:
         assert result.prompt_used == "Test prompt"
         assert result.model_used == "gpt-4o"
 
-    @patch("podx.api.sync_client._deepcast")
-    def test_deepcast_uses_default_model(self, mock_deepcast, tmp_path):
+    @patch("podx.api.sync_client._analyze")
+    def test_deepcast_uses_default_model(self, mock_analyze, tmp_path):
         """Test deepcast uses default LLM model from config."""
         markdown_path = tmp_path / "analysis.md"
         markdown_path.write_text("")
 
-        mock_deepcast.return_value = {
+        mock_analyze.return_value = {
             "markdown_path": str(markdown_path),
         }
 
@@ -240,8 +240,8 @@ class TestDeepcastAPI:
         result = client.deepcast(str(transcript_path), out_dir=str(tmp_path))
 
         # Should use default LLM model from config
-        mock_deepcast.assert_called_once()
-        call_args = mock_deepcast.call_args
+        mock_analyze.assert_called_once()
+        call_args = mock_analyze.call_args
         assert call_args.kwargs["llm_model"] == "claude-3"
         assert result.model_used == "claude-3"
 
@@ -261,12 +261,12 @@ class TestDeepcastAPI:
         with pytest.raises(ValidationError, match="Transcript file not found"):
             client.deepcast("/nonexistent/transcript.json", llm_model="gpt-4o")
 
-    @patch("podx.api.sync_client._deepcast")
-    def test_deepcast_handles_ai_error(self, mock_deepcast, tmp_path):
+    @patch("podx.api.sync_client._analyze")
+    def test_deepcast_handles_ai_error(self, mock_analyze, tmp_path):
         """Test deepcast handles AI errors gracefully."""
         from podx.errors import AIError
 
-        mock_deepcast.side_effect = AIError("API key invalid")
+        mock_analyze.side_effect = AIError("API key invalid")
 
         transcript_path = tmp_path / "transcript.json"
         transcript_path.write_text("{}")
@@ -283,9 +283,9 @@ class TestTranscribeAndAnalyze:
     """Test transcribe_and_analyze combined API."""
 
     @patch("podx.api.sync_client._transcribe")
-    @patch("podx.api.sync_client._deepcast")
+    @patch("podx.api.sync_client._analyze")
     def test_transcribe_and_analyze_success(
-        self, mock_deepcast, mock_transcribe, tmp_path
+        self, mock_analyze, mock_transcribe, tmp_path
     ):
         """Test successful combined transcription and analysis."""
         # Setup transcript
@@ -301,7 +301,7 @@ class TestTranscribeAndAnalyze:
         markdown_path = tmp_path / "analysis.md"
         markdown_path.write_text("# Analysis")
 
-        mock_deepcast.return_value = {
+        mock_analyze.return_value = {
             "markdown_path": str(markdown_path),
         }
 

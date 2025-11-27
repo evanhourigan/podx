@@ -18,7 +18,8 @@ __all__ = [
     "preprocess",
     "transcribe",
     "diarize",
-    "deepcast",
+    "analyze",
+    "deepcast",  # Backwards compatibility alias for analyze
     "notion",
     "export",
     "youtube",

@@ -2,7 +2,8 @@
 
 from .config_applier import apply_podcast_config
 from .file_utils import (
-    build_deepcast_command,
+    build_analyze_command,
+    build_deepcast_command,  # Backwards compatibility alias
     build_preprocess_command,
     discover_transcripts,
     format_date,
@@ -14,7 +15,8 @@ from .file_utils import (
 
 __all__ = [
     "apply_podcast_config",
-    "build_deepcast_command",
+    "build_analyze_command",
+    "build_deepcast_command",  # Backwards compatibility alias
     "build_preprocess_command",
     "discover_transcripts",
     "format_date",

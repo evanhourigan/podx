@@ -82,7 +82,7 @@ def quick(audio_file: Path, output: Optional[Path]):
 
 
 @main.command(
-    name="full", help="Complete pipeline (transcribe → diarize → preprocess → deepcast)"
+    name="full", help="Complete pipeline (transcribe → diarize → preprocess → analyze)"
 )
 @click.argument("audio_file", type=click.Path(exists=True, path_type=Path))
 @click.option(
@@ -93,7 +93,7 @@ def quick(audio_file: Path, output: Optional[Path]):
 @click.option(
     "--llm-model",
     default="gpt-4o-mini",
-    help="LLM model for deepcast (default: gpt-4o-mini)",
+    help="LLM model for analysis (default: gpt-4o-mini)",
 )
 @click.option(
     "--output-dir",
@@ -107,13 +107,13 @@ def full(
     llm_model: str,
     output_dir: Optional[Path],
 ):
-    """Run complete pipeline: transcribe → diarize → preprocess → deepcast → export.
+    """Run complete pipeline: transcribe → diarize → preprocess → analyze → export.
 
     Equivalent to:
         podx-transcribe <audio> --model large-v3
         podx-diarize <transcript>
         podx-preprocess <transcript>
-        podx-deepcast <transcript> --llm-model gpt-4o-mini
+        podx-analyze <transcript> --llm-model gpt-4o-mini
         podx-export <transcript> --formats txt,srt,md
 
     Examples:
@@ -157,27 +157,27 @@ def full(
         )
         console.print("[green]✓[/green] Preprocessing complete")
 
-        # Step 4: Deepcast
-        console.print("\n[bold cyan]Step 4/5:[/bold cyan] Running deepcast analysis...")
+        # Step 4: Analyze
+        console.print("\n[bold cyan]Step 4/5:[/bold cyan] Running analysis...")
         try:
-            from podx.core.deepcast import DeepcastEngine
+            from podx.core.analyze import AnalyzeEngine
 
-            deepcast_engine = DeepcastEngine(llm_model=llm_model)
-            deepcast_notes, metadata = deepcast_engine.deepcast(preprocessed)
+            analyze_engine = AnalyzeEngine(llm_model=llm_model)
+            analysis_notes, metadata = analyze_engine.analyze(preprocessed)
 
-            # Add deepcast to transcript
-            preprocessed["deepcast_notes"] = deepcast_notes
+            # Add analysis to transcript
+            preprocessed["analysis_notes"] = analysis_notes
             if metadata:
-                preprocessed["deepcast_metadata"] = metadata
+                preprocessed["analysis_metadata"] = metadata
 
-            console.print("[green]✓[/green] Deepcast complete")
+            console.print("[green]✓[/green] Analysis complete")
         except ImportError:
             console.print(
-                "[yellow]⚠ Warning:[/yellow] Deepcast requires LLM dependencies"
+                "[yellow]⚠ Warning:[/yellow] Analysis requires LLM dependencies"
             )
             console.print("Install with: pip install podx[llm]")
         except Exception as e:
-            console.print(f"[yellow]⚠ Warning:[/yellow] Deepcast failed: {e}")
+            console.print(f"[yellow]⚠ Warning:[/yellow] Analysis failed: {e}")
 
         # Step 5: Export
         console.print("\n[bold cyan]Step 5/5:[/bold cyan] Exporting...")

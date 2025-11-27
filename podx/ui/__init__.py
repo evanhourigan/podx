@@ -23,13 +23,13 @@ from ..ui_styles import (
 
 # Import from new ui/ package modules
 from .asr_selector import ASR_MODELS, get_most_sophisticated_model, select_asr_model
-from .confirmation import Confirmation
-from .deepcast_browser import (
-    DeepcastBrowser,
+from .analyze_browser import (
+    AnalyzeBrowser,
     flatten_episodes_to_rows,
-    scan_deepcastable_episodes,
+    scan_analyzable_episodes,
 )
-from .deepcast_selector import select_deepcast_type
+from .analyze_selector import select_analysis_type
+from .confirmation import Confirmation
 from .diarize_browser import DiarizeTwoPhase, scan_diarizable_transcripts
 from .episode_browser_tui import (
     select_episode_for_processing,
@@ -51,8 +51,11 @@ from .transcribe_tui import (
     select_asr_model_tui,
 )
 
-# Backward compatibility alias
+# Backward compatibility aliases
 DiarizeBrowser = DiarizeTwoPhase
+DeepcastBrowser = AnalyzeBrowser
+scan_deepcastable_episodes = scan_analyzable_episodes
+select_deepcast_type = select_analysis_type
 
 __all__ = [
     # From ui_styles.py
@@ -76,8 +79,9 @@ __all__ = [
     # From new ui/ package
     "ASR_MODELS",
     "ASRModelModal",
+    "AnalyzeBrowser",
     "Confirmation",
-    "DeepcastBrowser",
+    "DeepcastBrowser",  # Backwards compatibility alias for AnalyzeBrowser
     "DiarizeBrowser",
     "EpisodeBrowser",
     "ExecutionTUI",
@@ -92,14 +96,16 @@ __all__ = [
     "flatten_episodes_to_rows",
     "get_most_sophisticated_model",
     "sanitize_filename",
-    "scan_deepcastable_episodes",
+    "scan_analyzable_episodes",
+    "scan_deepcastable_episodes",  # Backwards compatibility alias
     "scan_diarizable_transcripts",
     "scan_episode_status",
     "scan_transcodable_episodes",
     "scan_transcribable_episodes",
+    "select_analysis_type",
     "select_asr_model",
     "select_asr_model_tui",
-    "select_deepcast_type",
+    "select_deepcast_type",  # Backwards compatibility alias
     "select_episode_for_processing",
     "select_episode_interactive",
     "select_episode_with_config",

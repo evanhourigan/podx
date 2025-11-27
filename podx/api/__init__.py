@@ -17,9 +17,10 @@ Advanced usage with configuration:
 
 from .client import AsyncPodxClient, ClientConfig, PodxClient
 from .models import (
+    AnalyzeResponse,
     APIError,
     CostEstimate,
-    DeepcastResponse,
+    DeepcastResponse,  # Backwards compatibility alias for AnalyzeResponse
     DiarizeResponse,
     ExistsCheckResponse,
     ExportResponse,
@@ -38,7 +39,8 @@ __all__ = [
     "ClientConfig",
     # Processing responses
     "TranscribeResponse",
-    "DeepcastResponse",
+    "AnalyzeResponse",
+    "DeepcastResponse",  # Backwards compatibility alias for AnalyzeResponse
     "DiarizeResponse",
     "ExportResponse",
     "FetchResponse",

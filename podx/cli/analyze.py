@@ -1,343 +1,794 @@
 #!/usr/bin/env python3
-"""CLI commands for transcript analysis."""
+"""CLI wrapper for analyze command.
+
+Thin Click wrapper that uses core.analyze.AnalyzeEngine for map-reduce execution.
+Handles CLI arguments, prompt templates, podcast config, interactive mode, and I/O.
+"""
 
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import subprocess
+import sys
+import textwrap
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional, Tuple
 
 import click
-from rich.console import Console
-from rich.table import Table
 
-from podx.domain.models.transcript import Transcript
-from podx.search import QuoteExtractor
+from podx.core.analyze import (
+    AnalyzeEngine,
+    AnalyzeError,
+    segments_to_plain_text,
+    split_into_chunks,
+)
+from podx.domain.exit_codes import ExitCode
 
-console = Console()
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None  # type: ignore
+
+# Interactive browser imports (optional)
+try:
+    from rich.console import Console
+
+    RICH_AVAILABLE = True
+except ImportError:
+    RICH_AVAILABLE = False
+
+# Import UI components
+try:
+    from podx.ui import (
+        AnalyzeBrowser,
+        LiveTimer,
+        flatten_episodes_to_rows,
+        scan_analyzable_episodes,
+    )
+except ImportError:
+    AnalyzeBrowser = None  # type: ignore
+    flatten_episodes_to_rows = None  # type: ignore
+    scan_analyzable_episodes = None  # type: ignore
+    LiveTimer = None  # type: ignore
+
+from podx.cli.analyze_services import (
+    ALIAS_TYPES,
+    CANONICAL_TYPES,
+    _build_prompt_display,
+    build_episode_header,
+)
+from podx.podcast_config import get_podcast_config
+from podx.prompt_templates import (
+    ENHANCED_JSON_SCHEMA,
+    PodcastType,
+    build_enhanced_variant,
+    detect_podcast_type,
+    get_template,
+    map_to_canonical,
+)
+from podx.utils import sanitize_model_name
+from podx.yaml_config import get_podcast_yaml_config
 
 
-@click.group()
-def analyze_group() -> None:
-    """Analyze transcript content."""
-    pass
+# utils
+def generate_analysis_filename(
+    asr_model: str,
+    ai_model: str,
+    analysis_type: str,
+    extension: str = "json",
+    with_timestamp: bool = True,
+) -> str:
+    """Generate analysis filename: analysis-{asr}-{ai}-{type}[-YYYYMMDD-HHMMSS].{ext}"""
+    asr_safe = asr_model.replace(".", "_").replace("-", "_")
+    ai_safe = sanitize_model_name(ai_model)
+    type_safe = analysis_type.replace(".", "_").replace("-", "_")
+    ts = (
+        "-" + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        if with_timestamp
+        else ""
+    )
+    return f"analysis-{asr_safe}-{ai_safe}-{type_safe}{ts}.{extension}"
 
 
-@analyze_group.command(name="quotes")
-@click.argument("transcript_path", type=click.Path(exists=True))
-@click.option("--max-quotes", default=20, help="Maximum quotes to extract")
-@click.option("--speaker", help="Filter by speaker")
-@click.option("--by-speaker", is_flag=True, help="Group quotes by speaker")
-@click.option("--json-output", is_flag=True, help="Output as JSON")
-def extract_quotes(
-    transcript_path: str,
-    max_quotes: int,
-    speaker: Optional[str],
-    by_speaker: bool,
-    json_output: bool,
-) -> None:
-    """Extract notable quotes from a transcript.
+# Backwards compatibility alias
+generate_deepcast_filename = generate_analysis_filename
 
-    Examples:
-        # Extract top 20 quotes
-        podx-analyze quotes transcript.json
 
-        # Filter by speaker
-        podx-analyze quotes transcript.json --speaker "Alice"
-
-        # Group by speaker
-        podx-analyze quotes transcript.json --by-speaker
-
-        # JSON output
-        podx-analyze quotes transcript.json --json-output
-    """
-    # Load transcript
-    transcript = Transcript.from_file(Path(transcript_path))
-    extractor = QuoteExtractor()
-
-    if by_speaker:
-        results = extractor.extract_by_speaker(transcript, top_n=5)
-
-        if json_output:
-            console.print(json.dumps(results, indent=2))
-        else:
-            _display_quotes_by_speaker(results)
+def read_stdin_or_file(inp: Optional[Path]) -> Dict[str, Any]:
+    if inp:
+        raw = inp.read_text(encoding="utf-8")
     else:
-        quotes = extractor.extract_quotes(
-            transcript, max_quotes=max_quotes, speaker_filter=speaker
-        )
+        raw = sys.stdin.read()
 
-        if json_output:
-            console.print(json.dumps(quotes, indent=2))
+    if not raw.strip():
+        raise SystemExit("Provide transcript JSON via --in or stdin.")
+
+    return json.loads(raw)
+
+
+# prompting
+SYSTEM_BASE = "You are a meticulous editorial assistant for podcast transcripts."
+
+MAP_INSTRUCTIONS = textwrap.dedent(
+    """
+Extract key information from this transcript CHUNK.
+
+Return:
+- 3-6 Key Points
+- 2-5 Gold Nuggets
+- 3-10 Notable Quotes (increased to capture more key insights and gold nuggets)
+- Any Action Items / Resources
+
+Return a tight Markdown; do not include a global summary—chunk only.
+"""
+).strip()
+
+REDUCE_INSTRUCTIONS = textwrap.dedent(
+    """
+Synthesize these chunk-level notes into a single, cohesive Markdown brief.
+
+Deduplicate and organize cleanly. Follow the earlier rules for structure and formatting.
+"""
+).strip()
+
+JSON_SCHEMA_HINT = textwrap.dedent(
+    """
+After the Markdown, also prepare a concise JSON object with this structure:
+
+{
+  "summary": "string",
+  "key_points": ["string"],
+  "gold_nuggets": ["string"],
+  "quotes": [{"quote": "string", "time": "string", "speaker": "string"}],
+  "actions": ["string"],
+  "outline": [{"label": "string", "time": "string"}]
+}
+
+Return the JSON after the Markdown, separated by a line containing: ---JSON---
+"""
+).strip()
+
+
+# main pipeline
+def analyze(
+    transcript: Dict[str, Any],
+    model: str,
+    temperature: float,
+    max_chars_per_chunk: int,
+    want_json: bool,
+    podcast_type: Optional[PodcastType] = None,
+    show_prompt_only: Optional[str] = None,
+    extra_system_instructions: Optional[str] = None,
+) -> Tuple[str, Optional[Dict[str, Any]]]:
+    """Enhanced analyze pipeline with intelligent prompt selection.
+
+    Args:
+        transcript: Transcript data to analyze
+        model: OpenAI model name
+        temperature: Model temperature
+        max_chars_per_chunk: Max characters per chunk for map phase
+        want_json: Whether to request JSON output
+        podcast_type: Type of podcast for specialized analysis
+        show_prompt_only: If set to "all" or "system_only", return prompts without calling API
+
+    Returns:
+        Tuple of (markdown_output, json_data) or (prompts_display, None) if show_prompt_only is set
+    """
+    segs = transcript.get("segments") or []
+    has_time = any("start" in s and "end" in s for s in segs)
+    has_spk = any("speaker" in s for s in segs)
+
+    # Calculate episode duration for adaptive scaling
+    episode_duration_minutes = None
+    if segs and has_time:
+        try:
+            last_segment = max(segs, key=lambda s: s.get("end", 0))
+            episode_duration_minutes = int(last_segment.get("end", 0) / 60)
+        except (ValueError, TypeError):
+            pass
+
+    # Convert to plain text
+    text = segments_to_plain_text(segs, has_time, has_spk)
+    if not text.strip():
+        text = transcript.get("text", "")
+    if not text.strip():
+        raise SystemExit("No transcript text found in input")
+
+    # Check for podcast-specific configuration (YAML first, then JSON)
+    show_name = transcript.get("show") or transcript.get("show_name", "")
+    yaml_config = get_podcast_yaml_config(show_name) if show_name else None
+    json_config = get_podcast_config(show_name) if show_name else None
+
+    # Auto-detect podcast type if not specified, with config override (YAML takes precedence)
+    if podcast_type is None:
+        if yaml_config and yaml_config.analysis and yaml_config.analysis.type:
+            podcast_type = yaml_config.analysis.type
+        elif json_config and json_config.podcast_type:
+            podcast_type = json_config.podcast_type
         else:
-            _display_quotes(quotes)
+            podcast_type = detect_podcast_type(transcript)
 
+    # Canonicalize type to one of the three core templates
+    podcast_type = map_to_canonical(podcast_type)
+    template = get_template(podcast_type)
 
-@analyze_group.command(name="highlights")
-@click.argument("transcript_path", type=click.Path(exists=True))
-@click.option("--duration", default=30.0, help="Max time gap between quotes (seconds)")
-@click.option("--json-output", is_flag=True, help="Output as JSON")
-def find_highlights(transcript_path: str, duration: float, json_output: bool) -> None:
-    """Find highlight moments in a transcript.
+    # Use enhanced prompts with duration-aware scaling
+    system_prompt = template.system_prompt
 
-    Highlights are clusters of high-quality quotes close in time.
+    # Add custom prompt additions from config (YAML takes precedence)
+    if yaml_config and yaml_config.analysis and yaml_config.analysis.custom_prompts:
+        system_prompt += f"\n\n{yaml_config.analysis.custom_prompts}"
+    elif json_config and json_config.custom_prompt_additions:
+        system_prompt += f"\n\n{json_config.custom_prompt_additions}"
 
-    Examples:
-        # Find highlights
-        podx-analyze highlights transcript.json
-
-        # Adjust clustering threshold
-        podx-analyze highlights transcript.json --duration 60
-    """
-    # Load transcript
-    transcript = Transcript.from_file(Path(transcript_path))
-    extractor = QuoteExtractor()
-
-    highlights = extractor.find_highlights(transcript, duration_threshold=duration)
-
-    if json_output:
-        console.print(json.dumps(highlights, indent=2))
-    else:
-        _display_highlights(highlights)
-
-
-@analyze_group.command(name="topics")
-@click.argument("episode_id", required=False)
-@click.option("--clusters", default=10, help="Number of topic clusters")
-@click.option("--json-output", is_flag=True, help="Output as JSON")
-def cluster_topics(episode_id: Optional[str], clusters: int, json_output: bool) -> None:
-    """Cluster transcript segments into topics.
-
-    Requires semantic search to be installed.
-
-    Examples:
-        # Cluster all indexed transcripts
-        podx-analyze topics
-
-        # Cluster specific episode
-        podx-analyze topics ep001
-
-        # Adjust number of clusters
-        podx-analyze topics ep001 --clusters 15
-    """
+    # If YAML selected an alias type, inject its extra guidance too
     try:
-        from podx.search.semantic import SemanticSearch
-    except ImportError:
-        console.print(
-            "[red]Topic clustering requires semantic search[/red]\n"
-            "[dim]Install: pip install sentence-transformers faiss-cpu scikit-learn[/dim]"
-        )
-        return
+        if yaml_config and getattr(yaml_config, "analysis", None):
+            y_type = getattr(yaml_config.analysis, "type", None)
+            if isinstance(y_type, str) and y_type in ALIAS_TYPES:
+                system_prompt += f"\n\n{ALIAS_TYPES[y_type]['prompt']}"
+    except Exception:
+        pass
 
-    semantic = SemanticSearch()
-    topic_clusters = semantic.cluster_topics(
-        n_clusters=clusters, episode_filter=episode_id
+    # Add any ad-hoc extra instructions (e.g., from alias types)
+    if extra_system_instructions:
+        system_prompt += f"\n\n{extra_system_instructions}"
+
+    system = (
+        system_prompt
+        + "\n"
+        + build_enhanced_variant(
+            has_time, has_spk, podcast_type, episode_duration_minutes
+        )
     )
 
-    if json_output:
-        console.print(json.dumps(topic_clusters, indent=2))
-    else:
-        _display_topics(topic_clusters)
-
-
-@analyze_group.command(name="speakers")
-@click.argument("transcript_path", type=click.Path(exists=True))
-@click.option("--json-output", is_flag=True, help="Output as JSON")
-def analyze_speakers(transcript_path: str, json_output: bool) -> None:
-    """Analyze speaker statistics in a transcript.
-
-    Examples:
-        # Show speaker stats
-        podx-analyze speakers transcript.json
-    """
-    # Load transcript
-    transcript = Transcript.from_file(Path(transcript_path))
-
-    # Calculate stats
-    speaker_stats = {}
-    total_duration = 0.0
-
-    for segment in transcript.segments:
-        speaker = segment.speaker or "Unknown"
-        duration = segment.end - segment.start
-
-        if speaker not in speaker_stats:
-            speaker_stats[speaker] = {
-                "segment_count": 0,
-                "total_duration": 0.0,
-                "word_count": 0,
-            }
-
-        speaker_stats[speaker]["segment_count"] += 1
-        speaker_stats[speaker]["total_duration"] += duration
-        speaker_stats[speaker]["word_count"] += len(segment.text.split())
-        total_duration += duration
-
-    # Calculate percentages
-    for speaker in speaker_stats:
-        stats = speaker_stats[speaker]
-        stats["percentage"] = (
-            (stats["total_duration"] / total_duration * 100)
-            if total_duration > 0
-            else 0
+    # If show_prompt_only, build and return prompts without calling API
+    if show_prompt_only is not None:
+        chunks = split_into_chunks(text, max_chars_per_chunk)
+        prompt_display = _build_prompt_display(
+            system, template, chunks, want_json, show_prompt_only
         )
+        return prompt_display, None
 
-    if json_output:
-        console.print(json.dumps(speaker_stats, indent=2))
-    else:
-        _display_speaker_stats(speaker_stats, total_duration)
-
-
-def _display_quotes(quotes: list) -> None:
-    """Display quote list."""
-    if not quotes:
-        console.print("[yellow]No notable quotes found[/yellow]")
-        return
-
-    console.print(f"\n[bold cyan]Notable Quotes ({len(quotes)})[/bold cyan]\n")
-
-    for i, quote in enumerate(quotes, 1):
-        score_pct = quote["score"] * 100
-        timestamp = quote["timestamp"]
-        mins = int(timestamp // 60)
-        secs = int(timestamp % 60)
-
-        console.print(
-            f"[cyan]{i}. {quote['speaker']} [{mins:02d}:{secs:02d}] (score: {score_pct:.0f}%)[/cyan]"
+    # Use core analyze engine (pure business logic)
+    try:
+        engine = AnalyzeEngine(
+            model=model,
+            temperature=temperature,
+            max_chars_per_chunk=max_chars_per_chunk,
         )
-        console.print(f"   \"{quote['text']}\"")
-        console.print()
-
-
-def _display_quotes_by_speaker(results: dict) -> None:
-    """Display quotes grouped by speaker."""
-    if not results:
-        console.print("[yellow]No notable quotes found[/yellow]")
-        return
-
-    console.print("\n[bold cyan]Notable Quotes by Speaker[/bold cyan]\n")
-
-    for speaker, quotes in results.items():
-        console.print(f"[bold magenta]{speaker}[/bold magenta] ({len(quotes)} quotes)")
-
-        for i, quote in enumerate(quotes, 1):
-            score_pct = quote["score"] * 100
-            timestamp = quote["timestamp"]
-            mins = int(timestamp // 60)
-            secs = int(timestamp % 60)
-
-            console.print(
-                f"  {i}. [{mins:02d}:{secs:02d}] (score: {score_pct:.0f}%) {quote['text'][:80]}..."
-            )
-
-        console.print()
-
-
-def _display_highlights(highlights: list) -> None:
-    """Display highlight moments."""
-    if not highlights:
-        console.print("[yellow]No highlights found[/yellow]")
-        return
-
-    console.print(f"\n[bold cyan]Highlight Moments ({len(highlights)})[/bold cyan]\n")
-
-    for i, highlight in enumerate(highlights, 1):
-        start = highlight["start"]
-        end = highlight["end"]
-        duration = highlight["duration"]
-        quote_count = highlight["quote_count"]
-        avg_score = highlight["avg_score"] * 100
-
-        start_min = int(start // 60)
-        start_sec = int(start % 60)
-        end_min = int(end // 60)
-        end_sec = int(end % 60)
-
-        console.print(
-            f"[cyan]{i}. [{start_min:02d}:{start_sec:02d} - {end_min:02d}:{end_sec:02d}] "
-            f"({duration:.0f}s, {quote_count} quotes, avg score: {avg_score:.0f}%)[/cyan]"
+        md, json_data = engine.analyze(
+            transcript=transcript,
+            system_prompt=system,
+            map_instructions=template.map_instructions,
+            reduce_instructions=template.reduce_instructions,
+            want_json=want_json,
+            json_schema=ENHANCED_JSON_SCHEMA if want_json else None,
         )
+    except AnalyzeError as e:
+        raise SystemExit(str(e))
 
-        for quote in highlight["quotes"][:3]:  # Show first 3 quotes
-            console.print(f"   • {quote['speaker']}: {quote['text'][:80]}...")
-
-        if len(highlight["quotes"]) > 3:
-            console.print(f"   [dim]... and {len(highlight['quotes']) - 3} more[/dim]")
-
-        console.print()
-
-
-def _display_topics(topics: list) -> None:
-    """Display topic clusters."""
-    if not topics:
-        console.print("[yellow]No topics found[/yellow]")
-        return
-
-    console.print(f"\n[bold cyan]Topic Clusters ({len(topics)})[/bold cyan]\n")
-
-    for topic in topics:
-        cluster_id = topic["cluster_id"]
-        size = topic["size"]
-        rep = topic["representative"]
-
-        console.print(
-            f"[bold magenta]Topic {cluster_id + 1}[/bold magenta] ({size} segments)"
-        )
-        console.print(f"  Representative: {rep['speaker']}")
-        console.print(f"  {rep['text'][:100]}...")
-        console.print()
-
-
-def _display_speaker_stats(stats: dict, total_duration: float) -> None:
-    """Display speaker statistics table."""
-    if not stats:
-        console.print("[yellow]No speakers found[/yellow]")
-        return
-
-    table = Table(title="Speaker Statistics")
-    table.add_column("Speaker", style="cyan")
-    table.add_column("Segments", justify="right", style="white")
-    table.add_column("Duration", justify="right", style="green")
-    table.add_column("Percentage", justify="right", style="magenta")
-    table.add_column("Words", justify="right", style="yellow")
-
-    # Sort by duration
-    sorted_speakers = sorted(
-        stats.items(), key=lambda x: x[1]["total_duration"], reverse=True
-    )
-
-    for speaker, speaker_stats in sorted_speakers:
-        duration = speaker_stats["total_duration"]
-        mins = int(duration // 60)
-        secs = int(duration % 60)
-        percentage = speaker_stats["percentage"]
-
-        table.add_row(
-            speaker,
-            str(speaker_stats["segment_count"]),
-            f"{mins:02d}:{secs:02d}",
-            f"{percentage:.1f}%",
-            str(speaker_stats["word_count"]),
-        )
-
-    console.print()
-    console.print(table)
-
-    # Summary
-    total_mins = int(total_duration // 60)
-    total_secs = int(total_duration % 60)
-    console.print(f"\n[dim]Total duration: {total_mins:02d}:{total_secs:02d}[/dim]\n")
+    # Add episode header to markdown
+    return build_episode_header(transcript) + md, json_data
 
 
 @click.command()
-@click.pass_context
-def main(ctx: click.Context) -> None:
-    """Analyze podcast transcripts.
-
-    Extract quotes, find highlights, cluster topics, and analyze speakers.
+@click.option(
+    "--input",
+    "-i",
+    "inp",
+    type=click.Path(exists=True, path_type=Path),
+    help="Input transcript JSON file",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(path_type=Path),
+    help="Output unified JSON file (contains both summary and brief)",
+)
+@click.option(
+    "--model",
+    default=lambda: os.getenv("OPENAI_MODEL", "gpt-4.1"),
+    help="OpenAI model (gpt-4.1, gpt-4.1-mini) [default: gpt-4.1]",
+)
+@click.option(
+    "--temperature",
+    default=lambda: float(os.getenv("OPENAI_TEMPERATURE", "0.2")),
+    type=float,
+    help="Model temperature [default: 0.2]",
+)
+@click.option(
+    "--chunk-chars",
+    default=24000,
+    type=int,
+    help="Approximate chars per chunk [default: 24000]",
+)
+@click.option(
+    "--extract-markdown",
+    is_flag=True,
+    help="Also write raw markdown to a separate .md file",
+)
+@click.option(
+    "--pdf",
+    "export_pdf",
+    is_flag=True,
+    help="Also write a PDF rendering of the markdown (requires pandoc)",
+)
+@click.option(
+    "--type",
+    "podcast_type_str",
+    type=click.Choice([t.value for t in CANONICAL_TYPES] + list(ALIAS_TYPES.keys())),
+    help="Podcast type (canonical or alias): interview_guest_focused | panel_discussion | solo_commentary | general | host_moderated_panel | cohost_commentary",
+)
+@click.option(
+    "--meta",
+    type=click.Path(exists=True, path_type=Path),
+    help="Episode metadata JSON file (to populate show name, episode title, date)",
+)
+@click.option(
+    "--show-prompt",
+    type=click.Choice(["all", "system_only"], case_sensitive=False),
+    is_flag=False,
+    flag_value="all",
+    default=None,
+    help="Display the LLM prompts that would be sent (without actually calling the LLM) and exit. "
+    "Options: 'all' (default, shows all prompts) or 'system_only' (shows only system prompt)",
+)
+@click.option(
+    "--interactive",
+    is_flag=True,
+    help="Interactive browser to select episodes for analysis",
+)
+@click.option(
+    "--scan-dir",
+    type=click.Path(exists=True, path_type=Path),
+    default=".",
+    help="Directory to scan for episodes (default: current directory)",
+)
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    help="Output structured JSON (suppresses Rich formatting)",
+)
+@click.option(
+    "--progress-json",
+    is_flag=True,
+    help="Output progress updates as newline-delimited JSON",
+)
+def main(
+    inp: Optional[Path],
+    output: Optional[Path],
+    model: str,
+    temperature: float,
+    chunk_chars: int,
+    extract_markdown: bool,
+    export_pdf: bool,
+    podcast_type_str: Optional[str],
+    meta: Optional[Path],
+    show_prompt: Optional[str],
+    interactive: bool,
+    scan_dir: Path,
+    json_output: bool,
+    progress_json: bool,
+):
     """
-    # Forward to group
-    analyze_group(standalone_mode=False)
+    podx analyze: turn transcripts into a polished Markdown brief (and optional JSON) with summaries key points quotes timestamps and speaker labels when available
+    """
+    # Handle interactive mode
+    if interactive:
+        from podx.ui import select_episode_with_tui
+
+        # Step 1: Select episode using TUI
+        try:
+            episode, episode_meta = select_episode_with_tui(
+                scan_dir=Path(scan_dir),
+                show_filter=None,
+            )
+        except SystemExit:
+            print("❌ Episode selection cancelled")
+            sys.exit(0)
+
+        if not episode:
+            print("❌ Episode selection cancelled")
+            sys.exit(0)
+
+        # Find available transcripts for this episode
+        episode_dir = episode["directory"]
+        available_transcripts = []
+        transcript_patterns = [
+            "transcript-diarized-*.json",
+            "diarized-transcript-*.json",
+            "transcript-aligned-*.json",
+            "aligned-transcript-*.json",
+            "transcript-*.json",
+        ]
+
+        for pattern in transcript_patterns:
+            for transcript_file in episode_dir.glob(pattern):
+                filename = transcript_file.stem
+                # Skip non-transcript files
+                if any(keyword in filename for keyword in ["preprocessed"]):
+                    continue
+                available_transcripts.append(transcript_file)
+                break  # Take first match for this pattern
+
+        if not available_transcripts:
+            print(
+                f"❌ No transcripts found for episode: {episode.get('title', 'Unknown')}"
+            )
+            sys.exit(1)
+
+        # Use the most processed transcript (diarized > aligned > base)
+        inp = available_transcripts[0]
+
+        # Extract ASR model from filename
+        filename = inp.stem
+        asr_model_raw = "unknown"
+        if filename.startswith("transcript-diarized-"):
+            asr_model_raw = filename[len("transcript-diarized-") :]
+        elif filename.startswith("diarized-transcript-"):
+            asr_model_raw = filename[len("diarized-transcript-") :]
+        elif filename.startswith("transcript-aligned-"):
+            asr_model_raw = filename[len("transcript-aligned-") :]
+        elif filename.startswith("aligned-transcript-"):
+            asr_model_raw = filename[len("aligned-transcript-") :]
+        elif filename.startswith("transcript-"):
+            asr_model_raw = filename[len("transcript-") :]
+
+        # Step 2: Select analysis type
+        print("\n📝 Select analysis type:")
+        show_name = episode.get("show", "")
+        default_type = "general"
+
+        # Try to get default from podcast config
+        try:
+            config_obj = get_podcast_config(show_name)
+            if config_obj and hasattr(config_obj, "default_type"):
+                default_type = config_obj.default_type
+        except Exception:
+            pass
+
+        all_types = [t.value for t in CANONICAL_TYPES] + list(ALIAS_TYPES.keys())
+        for idx, dtype in enumerate(all_types, start=1):
+            marker = " ← Default" if dtype == default_type else ""
+            print(f"  {idx:2}  {dtype}{marker}")
+
+        choice = input(
+            f"\n👉 Select analysis type (1-{len(all_types)}, Enter for default, Q to cancel): "
+        ).strip()
+
+        if choice.upper() in ["Q", "QUIT", "EXIT"]:
+            print("❌ Analysis type selection cancelled")
+            sys.exit(0)
+
+        if not choice:
+            analysis_type = default_type
+        else:
+            try:
+                selection = int(choice)
+                if 1 <= selection <= len(all_types):
+                    analysis_type = all_types[selection - 1]
+                else:
+                    print(f"⚠️  Invalid choice. Using default: {default_type}")
+                    analysis_type = default_type
+            except ValueError:
+                print(f"⚠️  Invalid input. Using default: {default_type}")
+                analysis_type = default_type
+
+        # Step 3: Select AI model
+        default_model = "gpt-4.1-mini"
+        choice = input(
+            f"\n👉 Select AI model (e.g. gpt-4.1, gpt-4o, claude-4-sonnet; Enter for {default_model}, Q to cancel): "
+        ).strip()
+
+        if choice.upper() in ["Q", "QUIT", "EXIT"]:
+            print("❌ AI model selection cancelled")
+            sys.exit(0)
+
+        ai_model = choice if choice else default_model
+        model = ai_model  # Override the default model parameter
+
+        # Step 4: Check if analysis already exists and confirm overwrite
+        output_filename = generate_analysis_filename(
+            asr_model_raw, ai_model, analysis_type, "json", with_timestamp=True
+        )
+        output = episode_dir / output_filename
+
+        if output.exists():
+            print(f"\n⚠️  Analysis already exists: {output.name}")
+            confirm = (
+                input("Re-run analysis anyway? (yes/no, Q to quit): ").strip().lower()
+            )
+            if confirm in ["q", "quit", "exit"]:
+                print("❌ Analysis cancelled")
+                sys.exit(0)
+            if confirm not in ["yes", "y"]:
+                print("❌ Analysis cancelled")
+                sys.exit(0)
+
+        # Step 5: Ask about markdown generation
+        md_choice = (
+            input("\n👉 Generate markdown output file? y/N or Q to cancel: ")
+            .strip()
+            .lower()
+        )
+        if md_choice in ["q", "quit", "exit"]:
+            print("❌ Analysis cancelled")
+            sys.exit(0)
+        extract_markdown = md_choice in ["yes", "y"]
+
+        # Step 5b: Ask about PDF generation unless already requested via --pdf
+        if not export_pdf:
+            pdf_choice = (
+                input("\n👉 Also generate a PDF (via pandoc)? y/N or Q to cancel: ")
+                .strip()
+                .lower()
+            )
+            if pdf_choice in ["q", "quit", "exit"]:
+                print("❌ Analysis cancelled")
+                sys.exit(0)
+            export_pdf = pdf_choice in ["yes", "y"]
+
+        # Load the transcript file (already found earlier)
+        if not inp or not inp.exists():
+            print("❌ Transcript file not found")
+            sys.exit(1)
+
+        transcript = json.loads(inp.read_text(encoding="utf-8"))
+        podcast_type_str = analysis_type
+    else:
+        # Non-interactive mode: validate arguments
+        if show_prompt is None and not output:
+            raise SystemExit(
+                "--output must be provided (unless using --show-prompt or --interactive)"
+            )
+
+        transcript = read_stdin_or_file(inp)
+    want_json = True  # Always generate JSON for unified output
+
+    # Load and merge episode metadata if provided
+    if meta:
+        episode_meta = json.loads(meta.read_text())
+        # Merge metadata into transcript for show name, episode title, etc.
+        transcript.update(
+            {
+                "show": episode_meta.get("show", transcript.get("show")),
+                "episode_title": episode_meta.get(
+                    "episode_title", transcript.get("episode_title")
+                ),
+                "episode_published": episode_meta.get(
+                    "episode_published", transcript.get("episode_published")
+                ),
+                "episode_description": episode_meta.get(
+                    "episode_description", transcript.get("episode_description")
+                ),
+            }
+        )
+
+    # Convert podcast type string to enum
+    podcast_type = None
+    alias_used: Optional[str] = None
+    extra_instructions: Optional[str] = None
+    if podcast_type_str:
+        if podcast_type_str in ALIAS_TYPES:
+            alias_used = podcast_type_str
+            alias_cfg = ALIAS_TYPES[podcast_type_str]
+            podcast_type = alias_cfg["canonical"]
+            extra_instructions = alias_cfg["prompt"]
+        else:
+            podcast_type = PodcastType(podcast_type_str)
+
+    # Handle --show-prompt mode: display prompts and exit
+    if show_prompt is not None:
+        prompt_display, _ = analyze(
+            transcript,
+            model,
+            temperature,
+            chunk_chars,
+            want_json,
+            podcast_type,
+            show_prompt_only=show_prompt,
+            extra_system_instructions=extra_instructions,
+        )
+        print(prompt_display)
+        return
+
+    # Check for OpenAI library before proceeding
+    if OpenAI is None:
+        if interactive and RICH_AVAILABLE:
+            console = Console()
+            console.print("\n[red]❌ Error: OpenAI library not installed[/red]")
+            console.print("[yellow]Install with: pip install openai[/yellow]")
+        raise SystemExit("Install OpenAI: pip install openai")
+
+    # Normal execution mode
+    # Start live timer in interactive mode
+    timer = None
+    if interactive and RICH_AVAILABLE:
+        console = Console()
+        timer = LiveTimer("Generating analysis")
+        timer.start()
+
+    try:
+        md, json_data = analyze(
+            transcript,
+            model,
+            temperature,
+            chunk_chars,
+            want_json,
+            podcast_type,
+            extra_system_instructions=extra_instructions,
+        )
+    except SystemExit:
+        if timer:
+            timer.stop()
+        raise
+    except Exception as e:
+        if timer:
+            timer.stop()
+        if interactive and RICH_AVAILABLE:
+            console.print(f"\n[red]❌ Error during analysis generation: {e}[/red]")
+        raise
+
+    # Stop timer and show completion message in interactive mode
+    if timer:
+        elapsed = timer.stop()
+        minutes = int(elapsed // 60)
+        seconds = int(elapsed % 60)
+        console.print(f"[green]✓ Analysis completed in {minutes}:{seconds:02d}[/green]")
+
+    # Determine transcript variant (diarized > aligned > base)
+    transcript_variant = "base"
+    if transcript.get("segments") and len(transcript["segments"]) > 0:
+        first_seg = transcript["segments"][0]
+        if first_seg.get("speaker"):
+            transcript_variant = "diarized"
+        elif first_seg.get("words"):
+            transcript_variant = "aligned"
+
+    # If alias not provided via CLI, detect alias from YAML config so we can record it
+    if alias_used is None:
+        try:
+            show_name = transcript.get("show") or transcript.get("show_name", "")
+            yaml_cfg = get_podcast_yaml_config(show_name) if show_name else None
+            if (
+                yaml_cfg
+                and getattr(yaml_cfg, "analysis", None)
+                and getattr(yaml_cfg.analysis, "type", None) in ALIAS_TYPES
+            ):
+                alias_used = yaml_cfg.analysis.type  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+    # Unified JSON output
+    unified = {
+        "markdown": md,
+        "metadata": transcript,  # Original transcript metadata
+        "analysis_metadata": {
+            "model": model,
+            "temperature": temperature,
+            "podcast_type": podcast_type.value if podcast_type else "general",
+            "processed_at": datetime.now(timezone.utc).isoformat(),
+            "asr_model": transcript.get("asr_model"),  # Store ASR model from transcript
+            "transcript_variant": transcript_variant,  # Store transcript type
+            "analysis_type": (
+                podcast_type.value if podcast_type else "general"
+            ),  # Explicit type field
+            "analysis_alias": alias_used or None,
+        },
+    }
+    if json_data:
+        unified.update(json_data)  # Merge structured analysis
+
+    # Determine output path
+    # For non-interactive mode, user can provide explicit output or we can derive it
+    # For now, keep requiring output parameter (interactive mode will set it)
+    if output:
+        json_output = output
+    else:
+        # This shouldn't happen in current CLI (output is required), but prepare for interactive
+        asr_model_str = transcript.get("asr_model", "unknown")
+        analysis_type_str = podcast_type.value if podcast_type else "general"
+        json_filename = generate_analysis_filename(
+            asr_model_str, model, analysis_type_str, "json"
+        )
+        json_output = Path(json_filename)
+
+    # Save to file
+    json_output.write_text(
+        json.dumps(unified, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+    # Extract markdown to separate file if requested
+    if extract_markdown:
+        asr_model_str = transcript.get("asr_model", "unknown")
+        analysis_type_str = podcast_type.value if podcast_type else "general"
+        md_filename = generate_analysis_filename(
+            asr_model_str, model, analysis_type_str, "md", with_timestamp=True
+        )
+        markdown_file = (
+            json_output.parent / md_filename
+            if json_output.parent.name
+            else Path(md_filename)
+        )
+        # Add metadata as HTML comment at the top
+        metadata_comment = f"<!-- Metadata: ASR={asr_model_str}, AI={model}, Type={analysis_type_str}, Transcript={transcript_variant} -->\n\n"
+        markdown_with_metadata = metadata_comment + md
+        markdown_file.write_text(markdown_with_metadata, encoding="utf-8")
+
+    # Optionally export a PDF using pandoc (reads markdown from memory)
+    if export_pdf:
+        asr_model_str = transcript.get("asr_model", "unknown")
+        analysis_type_str = podcast_type.value if podcast_type else "general"
+        pdf_filename = generate_analysis_filename(
+            asr_model_str, model, analysis_type_str, "pdf", with_timestamp=True
+        )
+        pdf_file = (
+            json_output.parent / pdf_filename
+            if json_output.parent.name
+            else Path(pdf_filename)
+        )
+
+        pandoc_path = shutil.which("pandoc")
+        if not pandoc_path:
+            print(
+                "⚠️  pandoc not found. Install with: brew install pandoc",
+                file=sys.stderr,
+            )
+        else:
+            try:
+                # Feed markdown via stdin to pandoc
+                subprocess.run(
+                    [pandoc_path, "-f", "markdown", "-t", "pdf", "-o", str(pdf_file)],
+                    input=md,
+                    text=True,
+                    check=True,
+                )
+                # Success handled in final completion message below
+                pass
+            except subprocess.CalledProcessError as e:
+                print(f"❌ Failed to generate PDF with pandoc: {e}", file=sys.stderr)
+
+    # Print to stdout (for pipelines) - but not in interactive mode
+    if not interactive:
+        if json_output:
+            # Structured JSON output with success wrapper
+            output_data = {
+                "success": True,
+                "analysis": unified,
+                "files": {
+                    "json": str(json_output),
+                    "markdown": str(markdown_file) if extract_markdown else None,
+                    "pdf": str(pdf_file) if export_pdf and pdf_file.exists() else None,
+                },
+                "stats": {
+                    "model": model,
+                    "temperature": temperature,
+                    "podcast_type": podcast_type.value if podcast_type else "general",
+                },
+            }
+            print(json.dumps(output_data, ensure_ascii=False, indent=2))
+        else:
+            # Original behavior - raw unified JSON
+            print(json.dumps(unified, ensure_ascii=False))
+    else:
+        # In interactive mode, show detailed completion message
+        print("\n✅ Analysis complete")
+        print(f"   Type: {analysis_type}")
+        print(f"   AI Model: {model}")
+        print("   Outputs:")
+        print(f"      🤖 JSON: {json_output}")
+        if extract_markdown:
+            print(f"      📄 Markdown: {markdown_file}")
+        if export_pdf and pdf_file.exists():
+            print(f"      📕 PDF: {pdf_file}")
+
+    # Exit with success
+    sys.exit(ExitCode.SUCCESS)
 
 
 if __name__ == "__main__":

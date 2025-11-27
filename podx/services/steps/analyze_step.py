@@ -1,4 +1,4 @@
-"""Deepcast step executor for AI-powered transcript analysis."""
+"""Analyze step executor for AI-powered transcript analysis."""
 
 import time
 from typing import Any, Optional
@@ -11,8 +11,8 @@ from .base import PipelineStep, StepContext, StepResult
 logger = get_logger(__name__)
 
 
-class DeepcastStep(PipelineStep):
-    """Execute deepcast analysis step.
+class AnalyzeStep(PipelineStep):
+    """Execute analyze step.
 
     Handles AI-powered transcript analysis with configurable analysis types
     and output formats (JSON, markdown, PDF).
@@ -20,80 +20,80 @@ class DeepcastStep(PipelineStep):
 
     def __init__(
         self,
-        deepcast_model: str,
-        deepcast_temp: float,
+        analyze_model: str,
+        analyze_temp: float,
         yaml_analysis_type: Optional[str],
         extract_markdown: bool,
-        deepcast_pdf: bool,
+        analyze_pdf: bool,
     ):
-        """Initialize deepcast step.
+        """Initialize analyze step.
 
         Args:
-            deepcast_model: AI model for deepcast analysis
-            deepcast_temp: Temperature for deepcast LLM calls
+            analyze_model: AI model for analysis
+            analyze_temp: Temperature for LLM calls
             yaml_analysis_type: Optional analysis type from YAML config
-            extract_markdown: Extract markdown from deepcast output
-            deepcast_pdf: Generate PDF from deepcast output
+            extract_markdown: Extract markdown from analysis output
+            analyze_pdf: Generate PDF from analysis output
         """
-        self.deepcast_model = deepcast_model
-        self.deepcast_temp = deepcast_temp
+        self.analyze_model = analyze_model
+        self.analyze_temp = analyze_temp
         self.yaml_analysis_type = yaml_analysis_type
         self.extract_markdown = extract_markdown
-        self.deepcast_pdf = deepcast_pdf
+        self.analyze_pdf = analyze_pdf
 
     @property
     def name(self) -> str:
-        return "AI Analysis (Deepcast)"
+        return "AI Analysis"
 
     def should_skip(self, context: StepContext) -> tuple[bool, Optional[str]]:
-        """Check if deepcast can be skipped."""
+        """Check if analysis can be skipped."""
         # Use model-specific filenames to allow multiple analyses
-        model_suffix = self.deepcast_model.replace(".", "_").replace("-", "_")
-        json_out = context.working_dir / f"deepcast-{model_suffix}.json"
+        model_suffix = self.analyze_model.replace(".", "_").replace("-", "_")
+        json_out = context.working_dir / f"analysis-{model_suffix}.json"
 
         if json_out.exists():
-            return True, f"Found existing deepcast analysis for {self.deepcast_model}"
+            return True, f"Found existing analysis for {self.analyze_model}"
         return False, None
 
     def execute(
         self, context: StepContext, progress: Any, verbose: bool = False
     ) -> StepResult:
-        """Execute deepcast step."""
-        from podx.utils import build_deepcast_command
+        """Execute analyze step."""
+        from podx.utils import build_analyze_command
 
         wd = context.working_dir
 
         # Use model-specific filenames to allow multiple analyses
-        model_suffix = self.deepcast_model.replace(".", "_").replace("-", "_")
-        json_out = wd / f"deepcast-{model_suffix}.json"
-        md_out = wd / f"deepcast-{model_suffix}.md"
+        model_suffix = self.analyze_model.replace(".", "_").replace("-", "_")
+        json_out = wd / f"analysis-{model_suffix}.json"
+        md_out = wd / f"analysis-{model_suffix}.md"
 
         if json_out.exists():
-            logger.info("Found existing deepcast analysis, skipping AI analysis")
+            logger.info("Found existing analysis, skipping AI analysis")
             progress.complete_step("Using existing AI analysis", 0)
-            context.results.update({"deepcast_json": str(json_out)})
+            context.results.update({"analysis_json": str(json_out)})
             if self.extract_markdown and md_out.exists():
-                context.results.update({"deepcast_md": str(md_out)})
+                context.results.update({"analysis_md": str(md_out)})
             return StepResult.skip(
-                f"Using existing deepcast analysis for {self.deepcast_model}"
+                f"Using existing analysis for {self.analyze_model}"
             )
 
-        # Perform deepcast analysis
-        progress.start_step(f"Analyzing transcript with {self.deepcast_model}")
+        # Perform analysis
+        progress.start_step(f"Analyzing transcript with {self.analyze_model}")
         step_start = time.time()
 
         latest_path = wd / "latest.json"
         meta_file = wd / "episode-meta.json"
 
-        cmd = build_deepcast_command(
+        cmd = build_analyze_command(
             input_path=latest_path,
             output_path=json_out,
-            model=self.deepcast_model,
-            temperature=self.deepcast_temp,
+            model=self.analyze_model,
+            temperature=self.analyze_temp,
             meta_path=meta_file,
             analysis_type=self.yaml_analysis_type,
             extract_markdown=self.extract_markdown,
-            generate_pdf=self.deepcast_pdf,
+            generate_pdf=self.analyze_pdf,
         )
 
         run_command(cmd, verbose=verbose, save_to=None, label=None)
@@ -102,15 +102,15 @@ class DeepcastStep(PipelineStep):
         progress.complete_step("AI analysis completed", step_duration)
 
         # Update results
-        context.results.update({"deepcast_json": str(json_out)})
+        context.results.update({"analysis_json": str(json_out)})
         if self.extract_markdown and md_out.exists():
-            context.results.update({"deepcast_md": str(md_out)})
+            context.results.update({"analysis_md": str(md_out)})
 
         return StepResult.ok(
             "AI analysis completed",
             duration=step_duration,
             data={
-                "deepcast_json": str(json_out),
-                "deepcast_md": str(md_out) if md_out.exists() else None,
+                "analysis_json": str(json_out),
+                "analysis_md": str(md_out) if md_out.exists() else None,
             },
         )

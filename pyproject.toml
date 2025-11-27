@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "podx"
 version = "3.2.2"
-description = "Composable podcast pipeline: fetch → transcode → transcribe → diarize → preprocess → deepcast"
+description = "Composable podcast pipeline: fetch → transcode → transcribe → diarize → preprocess → analyze"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }

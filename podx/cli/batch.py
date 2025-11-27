@@ -240,7 +240,7 @@ def batch_transcribe(
 @click.option(
     "--llm-model",
     default="gpt-4o-mini",
-    help="LLM model for deepcast (default: gpt-4o-mini)",
+    help="LLM model for analysis (default: gpt-4o-mini)",
 )
 @click.option(
     "--parallel",
@@ -256,7 +256,7 @@ def batch_transcribe(
 )
 @click.option(
     "--steps",
-    default="transcribe,diarize,preprocess,deepcast,export",
+    default="transcribe,diarize,preprocess,analyze,export",
     help="Pipeline steps (comma-separated)",
 )
 @click.option(
@@ -402,36 +402,36 @@ def batch_pipeline(
                     episode_key, "preprocess", ProcessingState.COMPLETED
                 )
 
-            # Step 4: Deepcast
-            if "deepcast" in pipeline_steps:
+            # Step 4: Analyze
+            if "analyze" in pipeline_steps or "deepcast" in pipeline_steps:
                 batch_status.update_episode(
-                    episode_key, "deepcast", ProcessingState.IN_PROGRESS
+                    episode_key, "analyze", ProcessingState.IN_PROGRESS
                 )
 
                 try:
-                    from podx.core.deepcast import DeepcastEngine
+                    from podx.core.analyze import AnalyzeEngine
 
-                    deepcast_engine = DeepcastEngine(llm_model=llm_model)
-                    deepcast_notes, metadata = deepcast_engine.deepcast(transcript_data)
+                    analyze_engine = AnalyzeEngine(llm_model=llm_model)
+                    analysis_notes, metadata = analyze_engine.analyze(transcript_data)
 
-                    # Save deepcast notes
-                    output_file = output_dir / "deepcast-notes.md"
-                    output_file.write_text(deepcast_notes)
+                    # Save analysis notes
+                    output_file = output_dir / "analysis-notes.md"
+                    output_file.write_text(analysis_notes)
 
                     # Add to transcript
-                    transcript_data["deepcast_notes"] = deepcast_notes
+                    transcript_data["analysis_notes"] = analysis_notes
                     if metadata:
-                        transcript_data["deepcast_metadata"] = metadata
+                        transcript_data["analysis_metadata"] = metadata
 
                     batch_status.update_episode(
-                        episode_key, "deepcast", ProcessingState.COMPLETED
+                        episode_key, "analyze", ProcessingState.COMPLETED
                     )
 
                 except ImportError:
-                    logger.warning("Deepcast requires LLM dependencies")
+                    logger.warning("Analysis requires LLM dependencies")
                     batch_status.update_episode(
                         episode_key,
-                        "deepcast",
+                        "analyze",
                         ProcessingState.FAILED,
                         "Missing LLM dependencies",
                     )

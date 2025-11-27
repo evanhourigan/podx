@@ -1,4 +1,4 @@
-"""Prompt building utilities for deepcast command."""
+"""Prompt building utilities for analyze command."""
 
 import textwrap
 from typing import Any, Dict, List

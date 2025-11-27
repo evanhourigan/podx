@@ -12,14 +12,14 @@ from ..logging import get_logger
 from .config import ClientConfig
 
 # Import the underlying API functions from legacy module
-from .legacy import deepcast as _deepcast
+from .legacy import analyze as _analyze
 from .legacy import has_markdown as _has_markdown
 from .legacy import has_transcript as _has_transcript
 from .legacy import transcribe as _transcribe
 from .models import (
+    AnalyzeResponse,
     APIError,
     CostEstimate,
-    DeepcastResponse,
     DiarizeResponse,
     ExistsCheckResponse,
     ExportResponse,
@@ -146,7 +146,7 @@ class PodxClient:
                 error=str(error_response),
             )
 
-    def deepcast(
+    def analyze(
         self,
         transcript_path: str,
         llm_model: Optional[str] = None,
@@ -154,8 +154,8 @@ class PodxClient:
         provider_keys: Optional[Dict[str, str]] = None,
         prompt: Optional[str] = None,
         prompt_name: str = "default",
-    ) -> DeepcastResponse:
-        """Run deepcast analysis on a transcript.
+    ) -> AnalyzeResponse:
+        """Run analysis on a transcript.
 
         Args:
             transcript_path: Path to transcript JSON file
@@ -166,7 +166,7 @@ class PodxClient:
             prompt_name: Name for the prompt (for caching/organization)
 
         Returns:
-            DeepcastResponse with markdown path and metadata
+            AnalyzeResponse with markdown path and metadata
 
         Raises:
             ValidationError: If inputs are invalid
@@ -174,7 +174,7 @@ class PodxClient:
         """
         # Validate inputs
         if self.config.validate_inputs:
-            validation = self._validate_deepcast_inputs(
+            validation = self._validate_analyze_inputs(
                 transcript_path, llm_model, out_dir
             )
             if not validation.valid:
@@ -186,7 +186,7 @@ class PodxClient:
 
         try:
             # Call underlying API
-            result = _deepcast(
+            result = _analyze(
                 transcript_path=transcript_path,
                 llm_model=llm_model,
                 out_dir=out_dir,
@@ -196,7 +196,7 @@ class PodxClient:
             )
 
             # Wrap in response model
-            response = DeepcastResponse(
+            response = AnalyzeResponse(
                 markdown_path=result["markdown_path"],
                 usage=result.get("usage"),
                 prompt_used=result.get("prompt_used"),
@@ -205,19 +205,39 @@ class PodxClient:
             )
 
             logger.info(
-                "Deepcast analysis completed",
+                "Analysis completed",
                 path=response.markdown_path,
                 model=llm_model,
             )
             return response
 
         except Exception as e:
-            error_response = self._handle_error(e, "deepcast")
-            return DeepcastResponse(
+            error_response = self._handle_error(e, "analyze")
+            return AnalyzeResponse(
                 markdown_path="",
                 success=False,
                 error=str(error_response),
             )
+
+    # Backwards compatibility alias
+    def deepcast(
+        self,
+        transcript_path: str,
+        llm_model: Optional[str] = None,
+        out_dir: Optional[str] = None,
+        provider_keys: Optional[Dict[str, str]] = None,
+        prompt: Optional[str] = None,
+        prompt_name: str = "default",
+    ) -> AnalyzeResponse:
+        """Deprecated: Use analyze() instead. This is a backwards compatibility alias."""
+        return self.analyze(
+            transcript_path=transcript_path,
+            llm_model=llm_model,
+            out_dir=out_dir,
+            provider_keys=provider_keys,
+            prompt=prompt,
+            prompt_name=prompt_name,
+        )
 
     def fetch_episode(
         self,
@@ -821,10 +841,10 @@ class PodxClient:
 
         return result
 
-    def _validate_deepcast_inputs(
+    def _validate_analyze_inputs(
         self, transcript_path: str, llm_model: Optional[str], out_dir: Optional[str]
     ) -> ValidationResult:
-        """Validate inputs for deepcast API."""
+        """Validate inputs for analyze API."""
         result = ValidationResult(valid=True)
 
         # Validate transcript_path
@@ -838,6 +858,9 @@ class PodxClient:
             result.add_error(f"Invalid LLM model name: {llm_model}")
 
         return result
+
+    # Backwards compatibility alias
+    _validate_deepcast_inputs = _validate_analyze_inputs
 
     def _check_cache(
         self, audio_url: str, model: str, out_dir: str
