@@ -5,7 +5,6 @@ Handles CLI arguments, input/output, and interactive mode.
 """
 
 import json
-import shutil
 import sys
 from pathlib import Path
 
@@ -98,32 +97,12 @@ def main(show, rss_url, date, title_contains, outdir, output, interactive, json_
                 )
             sys.exit(ExitCode.USER_ERROR)
 
-        # Import the standalone fetch browser
-        from podx.ui.apps import run_fetch_browser_standalone
-
-        # Run the browser and get selected episode
-        result = run_fetch_browser_standalone(
-            show_name=show,
-            rss_url=rss_url,
-            output_dir=outdir or Path.cwd(),
+        # Interactive TUI browser removed in v4.0.0
+        console.print(
+            "[red]Error:[/red] Interactive fetch browser removed in v4.0.0. "
+            "Use --show and --rss options instead."
         )
-
-        if not result:
-            logger.info("User cancelled episode selection")
-            sys.exit(ExitCode.SUCCESS)
-
-        # Episode was fetched, extract metadata
-        meta = result.get("meta")
-        meta_file = result.get("meta_path")
-
-        # In interactive mode, save metadata if not already saved
-        if output and meta and meta_file:
-            # Copy to requested output location
-            shutil.copy(meta_file, output)
-            logger.info("Episode metadata copied", destination=str(output))
-
-        # Return the metadata
-        return meta
+        sys.exit(ExitCode.USER_ERROR)
 
     # Validate that either show or rss_url is provided (non-interactive mode)
     if not show and not rss_url:

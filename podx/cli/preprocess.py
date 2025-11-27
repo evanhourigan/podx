@@ -14,8 +14,10 @@ from podx.cli.cli_shared import print_json, read_stdin_json
 from podx.core.preprocess import PreprocessError, TranscriptPreprocessor
 from podx.logging import get_logger
 from podx.schemas import Segment, Transcript
-from podx.ui.preprocess_browser import PreprocessTwoPhase
 from podx.validation import validate_output
+
+# PreprocessTwoPhase browser removed in v4.0.0
+PreprocessTwoPhase = None
 
 try:
     RICH_AVAILABLE = True

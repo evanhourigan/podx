@@ -18,40 +18,21 @@ from podx.domain.exit_codes import ExitCode
 from podx.errors import AudioError, ValidationError
 from podx.logging import get_logger
 from podx.schemas import AudioMeta, Transcript
+from podx.ui import LiveTimer, select_asr_model, select_episode_interactive
 from podx.utils import sanitize_model_name
 from podx.validation import validate_output
 
 logger = get_logger(__name__)
 
-# Interactive browser imports (optional)
+# Check for optional dependencies
 try:
     import importlib.util
 
     TEXTUAL_AVAILABLE = importlib.util.find_spec("textual") is not None
-except ImportError:
-    TEXTUAL_AVAILABLE = False
-
-# Rich console for live timer in interactive mode
-try:
-    import importlib.util
-
     RICH_AVAILABLE = importlib.util.find_spec("rich") is not None
 except ImportError:
+    TEXTUAL_AVAILABLE = False
     RICH_AVAILABLE = False
-
-# Shared UI components
-try:
-    from podx.ui import (
-        LiveTimer,
-        scan_transcribable_episodes,
-        select_episode_for_processing,
-    )
-except Exception:
-    from podx.ui.live_timer import LiveTimer
-    from podx.ui.transcribe_browser import scan_transcribable_episodes
-
-    def select_episode_for_processing(*args, **kwargs):
-        raise ImportError("UI module not available")
 
 
 def _truncate_text(text: str, max_length: int = 60) -> str:
@@ -165,32 +146,29 @@ def main(
         suppress_logging()
 
         try:
-            # Browse and select episode and ASR model using integrated TUI
+            # Browse and select episode using interactive selector
             logger.info(f"Scanning for episodes in: {scan_dir}")
-            result = select_episode_for_processing(
-                scan_dir=Path(scan_dir),
-                title="Select Episode for Transcription",
-                episode_scanner=scan_transcribable_episodes,
-                show_model_selection=True,
+            selected, _ = select_episode_interactive(
+                scan_dir=str(scan_dir),
+                show_filter=None,
             )
 
-            if not result:
+            if not selected:
                 restore_logging()
-                logger.info("User cancelled episode/model selection")
+                logger.info("User cancelled episode selection")
                 print("❌ Selection cancelled")
                 sys.exit(0)
 
-            # Unpack result - should be (episode, model) tuple
-            if isinstance(result, tuple) and len(result) == 2:
-                selected, selected_model = result
-            else:
+            # Select ASR model
+            selected_model = select_asr_model(selected)
+            if not selected_model:
                 restore_logging()
-                logger.error("Unexpected result format from episode browser")
-                print("❌ Internal error: unexpected result format")
-                sys.exit(1)
+                logger.info("User cancelled model selection")
+                print("❌ Model selection cancelled")
+                sys.exit(0)
 
         finally:
-            # Restore logging after TUI exits
+            # Restore logging after interactive selection
             restore_logging()
 
         # Override model parameter with user selection

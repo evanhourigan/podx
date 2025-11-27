@@ -380,12 +380,12 @@ def main(
     """
     # Handle interactive mode
     if interactive:
-        from podx.ui import select_episode_with_tui
+        from podx.ui import select_episode_interactive
 
-        # Step 1: Select episode using TUI
+        # Step 1: Select episode using interactive selector
         try:
-            episode, episode_meta = select_episode_with_tui(
-                scan_dir=Path(scan_dir),
+            episode, episode_meta = select_episode_interactive(
+                scan_dir=str(scan_dir),
                 show_filter=None,
             )
         except SystemExit:

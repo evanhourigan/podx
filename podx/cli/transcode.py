@@ -23,14 +23,12 @@ try:
 except ImportError:
     TEXTUAL_AVAILABLE = False
 
-# Shared UI components
-try:
-    from podx.ui import scan_transcodable_episodes, select_episode_for_processing
-except Exception:
-    from podx.ui.transcode_browser import scan_transcodable_episodes
+# Interactive TUI removed in v4.0.0 - transcode is now internal to fetch
+def scan_transcodable_episodes(*args, **kwargs):
+    raise NotImplementedError("Interactive transcode removed in v4.0.0 - use podx fetch")
 
-    def select_episode_for_processing(*args, **kwargs):
-        raise ImportError("UI module not available")
+def select_episode_for_processing(*args, **kwargs):
+    raise NotImplementedError("Interactive transcode removed in v4.0.0 - use podx fetch")
 
 
 @click.command()

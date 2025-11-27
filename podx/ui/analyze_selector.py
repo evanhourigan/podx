@@ -1,13 +1,13 @@
-"""Interactive deepcast type selection UI."""
+"""Interactive analysis type selection UI."""
 
 from typing import Optional
 
 
-def select_deepcast_type(
+def select_analysis_type(
     console,
     default_type: Optional[str] = None,
 ) -> str:
-    """Interactively select deepcast analysis type.
+    """Interactively select analysis type.
 
     Args:
         console: Rich console instance
@@ -19,7 +19,7 @@ def select_deepcast_type(
     Raises:
         SystemExit: If user cancels
     """
-    from ..deepcast import ALIAS_TYPES, CANONICAL_TYPES
+    from ..cli.analyze_services import ALIAS_TYPES, CANONICAL_TYPES
 
     type_prompt_default = default_type or "general"
 
@@ -36,7 +36,7 @@ def select_deepcast_type(
         "cohost_commentary": "Two peers; back-and-forth commentary",
     }
 
-    console.print("\n[bold cyan]Select Deepcast type:[/bold cyan]")
+    console.print("\n[bold cyan]Select analysis type:[/bold cyan]")
     for i, tname in enumerate(type_options, start=1):
         marker = " ← default" if tname == type_prompt_default else ""
         d = desc.get(tname, "")
@@ -59,3 +59,7 @@ def select_deepcast_type(
 
     # Return default if no valid input
     return type_prompt_default
+
+
+# Backwards compatibility alias
+select_deepcast_type = select_analysis_type

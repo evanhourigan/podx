@@ -15,8 +15,10 @@ from podx.cli.cli_shared import print_json, read_stdin_json
 from podx.core.diarize import DiarizationEngine, DiarizationError
 from podx.domain.exit_codes import ExitCode
 from podx.logging import get_logger
-from podx.ui.diarize_browser import DiarizeTwoPhase
-from podx.ui.live_timer import LiveTimer
+from podx.ui import LiveTimer
+
+# DiarizeTwoPhase browser removed in v4.0.0
+DiarizeTwoPhase = None
 
 logger = get_logger(__name__)
 

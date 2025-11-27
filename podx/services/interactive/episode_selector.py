@@ -25,21 +25,18 @@ def handle_interactive_mode(
     Raises:
         SystemExit: If user cancels selection
     """
-    from podx.ui import select_episode_with_tui
+    from podx.ui import select_episode_interactive
 
     # 1. Episode selection
-    selected, meta = select_episode_with_tui(
-        scan_dir=scan_dir,
-        show_filter=config["show"],
+    selected, meta = select_episode_interactive(
+        scan_dir=str(scan_dir),
+        show_filter=config.get("show"),
+        console=console,
     )
 
-    # 2. Interactive configuration panel
-    from podx.ui import configure_pipeline_interactive
-
-    updated_config = configure_pipeline_interactive(config)
-    if updated_config is None:
-        console.print("[dim]Cancelled[/dim]")
-        raise SystemExit(0)
+    # 2. Interactive configuration panel removed in v4.0.0
+    # Just use config as-is
+    updated_config = config
 
     # Merge updated config back
     config.update(updated_config)
