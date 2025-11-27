@@ -1,11 +1,12 @@
-"""CLI command for configuration and profile management.
+"""CLI command for configuration management.
 
-Handles:
-- Configuration profiles (save, load, list, delete, export, import)
-- API key management (set, list, remove)
-- Built-in profile installation
+Simple `defaults`-style interface:
+  podx config              List all settings
+  podx config get KEY      Get a setting's value
+  podx config set KEY VAL  Set a setting's value
 """
 
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -14,369 +15,313 @@ import click
 from rich.console import Console
 from rich.table import Table
 
-from podx.config import (
-    ConfigProfile,
-    ProfileManager,
-    get_builtin_profiles,
-    install_builtin_profiles,
-)
 from podx.domain.exit_codes import ExitCode
 
 console = Console()
 
-
-@click.group(help="Manage configuration profiles and API keys")
-def main():
-    """Configuration management commands."""
-    pass
-
-
-# ============================================================================
-# Profile Management Commands
-# ============================================================================
-
-
-@main.command(name="save-profile", help="Save a new configuration profile")
-@click.argument("profile_name")
-@click.option("--description", help="Profile description")
-@click.option("--asr-model", help="ASR model (e.g., large-v3, medium)")
-@click.option(
-    "--asr-provider", type=click.Choice(["local", "openai"]), help="ASR provider"
-)
-@click.option("--diarize/--no-diarize", default=None, help="Enable speaker diarization")
-@click.option("--preprocess/--no-preprocess", default=None, help="Enable preprocessing")
-@click.option("--deepcast/--no-deepcast", default=None, help="Enable deepcast")
-@click.option(
-    "--llm-model", help="LLM model for deepcast (e.g., gpt-4o, claude-3-sonnet)"
-)
-@click.option(
-    "--llm-provider",
-    type=click.Choice(["openai", "anthropic", "openrouter"]),
-    help="LLM provider",
-)
-@click.option("--export-formats", help="Export formats (comma-separated)")
-def save_profile(profile_name: str, description: Optional[str], **kwargs):
-    """Save configuration profile with specified settings.
-
-    Example:
-        podx config save-profile "my-profile" \\
-            --asr-model large-v3 \\
-            --llm-model gpt-4o \\
-            --diarize \\
-            --export-formats txt,srt,md
-    """
-    # Build settings dict from provided options
-    settings = {}
-    for key, value in kwargs.items():
-        if value is not None:
-            # Convert export_formats string to list
-            if key == "export_formats":
-                settings[key] = [f.strip() for f in value.split(",")]
-            else:
-                settings[key] = value
-
-    if not settings:
-        console.print("[red]Error:[/red] No settings provided")
-        sys.exit(ExitCode.USER_ERROR)
-
-    # Create and save profile
-    profile = ConfigProfile(
-        name=profile_name, settings=settings, description=description or ""
-    )
-
-    manager = ProfileManager()
-    manager.save(profile)
-
-    console.print(f"[green]✓[/green] Saved profile '[cyan]{profile_name}[/cyan]'")
-    console.print(f"  Settings: {len(settings)} options")
+# Configuration keys with metadata
+CONFIG_KEYS = {
+    # Non-secret settings
+    "output-dir": {
+        "description": "Where files are saved ('cwd' for current directory)",
+        "secret": False,
+        "default": "cwd",
+    },
+    "transcribe-model": {
+        "description": "Default transcription model",
+        "secret": False,
+        "default": "large-v3",
+    },
+    "analyze-model": {
+        "description": "Default analysis model",
+        "secret": False,
+        "default": "gpt-4o-mini",
+    },
+    "language": {
+        "description": "Default language for transcription",
+        "secret": False,
+        "default": "auto",
+    },
+    # Secret settings (API keys)
+    "openai-api-key": {
+        "description": "OpenAI API key",
+        "secret": True,
+        "env_var": "OPENAI_API_KEY",
+    },
+    "anthropic-api-key": {
+        "description": "Anthropic API key",
+        "secret": True,
+        "env_var": "ANTHROPIC_API_KEY",
+    },
+    "huggingface-token": {
+        "description": "HuggingFace token for diarization",
+        "secret": True,
+        "env_var": "HUGGINGFACE_TOKEN",
+    },
+    "notion-token": {
+        "description": "Notion API token",
+        "secret": True,
+        "env_var": "NOTION_TOKEN",
+    },
+    "notion-database-id": {
+        "description": "Notion database ID",
+        "secret": False,
+        "default": "",
+    },
+}
 
 
-@main.command(name="list-profiles", help="List all configuration profiles")
-@click.option("--verbose", "-v", is_flag=True, help="Show profile details")
-def list_profiles(verbose: bool):
-    """List all available profiles."""
-    manager = ProfileManager()
-    profiles = manager.list_profiles()
-
-    if not profiles:
-        console.print("[yellow]No profiles found.[/yellow]")
-        console.print("\nCreate a profile with: podx config save-profile <name>")
-        console.print("Or install built-in profiles with: podx config install-builtins")
-        sys.exit(ExitCode.SUCCESS)
-
-    if verbose:
-        # Show detailed table
-        table = Table(show_header=True, header_style="bold cyan")
-        table.add_column("Profile", style="cyan")
-        table.add_column("Description")
-        table.add_column("Settings")
-
-        for name in profiles:
-            profile = manager.load(name)
-            if profile:
-                settings_summary = ", ".join(
-                    f"{k}={v}" for k, v in list(profile.settings.items())[:3]
-                )
-                if len(profile.settings) > 3:
-                    settings_summary += f", ... (+{len(profile.settings) - 3} more)"
-
-                table.add_row(name, profile.description or "-", settings_summary)
-
-        console.print(table)
-    else:
-        # Simple list
-        console.print("[bold]Available Profiles:[/bold]")
-        for name in profiles:
-            profile = manager.load(name)
-            if profile and profile.description:
-                console.print(f"  • [cyan]{name}[/cyan] - {profile.description}")
-            else:
-                console.print(f"  • [cyan]{name}[/cyan]")
-
-    sys.exit(ExitCode.SUCCESS)
+def _get_config_dir() -> Path:
+    """Get config directory path."""
+    return Path.home() / ".config" / "podx"
 
 
-@main.command(name="show-profile", help="Show profile details")
-@click.argument("profile_name")
-def show_profile(profile_name: str):
-    """Show detailed profile configuration."""
-    manager = ProfileManager()
-    profile = manager.load(profile_name)
-
-    if profile is None:
-        console.print(f"[red]Error:[/red] Profile '{profile_name}' not found")
-        sys.exit(ExitCode.USER_ERROR)
-
-    console.print(f"\n[bold cyan]Profile: {profile.name}[/bold cyan]")
-    if profile.description:
-        console.print(f"[dim]{profile.description}[/dim]")
-
-    console.print("\n[bold]Settings:[/bold]")
-    for key, value in profile.settings.items():
-        console.print(f"  {key}: [green]{value}[/green]")
-
-    console.print("")
-    sys.exit(ExitCode.SUCCESS)
+def _get_config_file() -> Path:
+    """Get config file path."""
+    return _get_config_dir() / "config.yaml"
 
 
-@main.command(name="delete-profile", help="Delete a configuration profile")
-@click.argument("profile_name")
-@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
-def delete_profile(profile_name: str, yes: bool):
-    """Delete configuration profile."""
-    manager = ProfileManager()
-
-    # Check if profile exists
-    if not manager.load(profile_name):
-        console.print(f"[red]Error:[/red] Profile '{profile_name}' not found")
-        sys.exit(ExitCode.USER_ERROR)
-
-    # Confirm deletion
-    if not yes:
-        confirm = click.confirm(f"Delete profile '{profile_name}'?", default=False)
-        if not confirm:
-            console.print("Cancelled")
-            sys.exit(ExitCode.SUCCESS)
-
-    # Delete
-    if manager.delete(profile_name):
-        console.print(f"[green]✓[/green] Deleted profile '[cyan]{profile_name}[/cyan]'")
-    else:
-        console.print("[red]Error:[/red] Failed to delete profile")
-        sys.exit(ExitCode.PROCESSING_ERROR)
-
-    sys.exit(ExitCode.SUCCESS)
+def _get_env_file() -> Path:
+    """Get env file path for secrets."""
+    return _get_config_dir() / "env.sh"
 
 
-@main.command(name="export-profile", help="Export profile as YAML")
-@click.argument("profile_name")
-@click.option(
-    "--output",
-    "-o",
-    type=click.Path(),
-    help="Output file (prints to stdout if not specified)",
-)
-def export_profile(profile_name: str, output: Optional[str]):
-    """Export profile configuration as YAML."""
-    manager = ProfileManager()
-    yaml_content = manager.export_profile(profile_name)
+def _load_config() -> dict[str, str]:
+    """Load config from YAML file."""
+    config_file = _get_config_file()
+    if not config_file.exists():
+        return {}
 
-    if yaml_content is None:
-        console.print(f"[red]Error:[/red] Profile '{profile_name}' not found")
-        sys.exit(ExitCode.USER_ERROR)
-
-    if output:
-        Path(output).write_text(yaml_content)
-        console.print(f"[green]✓[/green] Exported to {output}")
-    else:
-        print(yaml_content)
-
-    sys.exit(ExitCode.SUCCESS)
+    config = {}
+    for line in config_file.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and ":" in line:
+            key, value = line.split(":", 1)
+            config[key.strip()] = value.strip()
+    return config
 
 
-@main.command(name="import-profile", help="Import profile from YAML file")
-@click.argument("yaml_file", type=click.Path(exists=True))
-def import_profile(yaml_file: str):
-    """Import profile from YAML file."""
-    manager = ProfileManager()
+def _save_config(config: dict[str, str]) -> None:
+    """Save config to YAML file."""
+    config_dir = _get_config_dir()
+    config_dir.mkdir(parents=True, exist_ok=True)
 
-    try:
-        yaml_content = Path(yaml_file).read_text()
-        profile = manager.import_profile(yaml_content)
-        console.print(
-            f"[green]✓[/green] Imported profile '[cyan]{profile.name}[/cyan]'"
-        )
-    except Exception as e:
-        console.print(f"[red]Error:[/red] Failed to import profile: {e}")
-        sys.exit(ExitCode.PROCESSING_ERROR)
+    lines = ["# PodX Configuration", ""]
+    for key, value in config.items():
+        lines.append(f"{key}: {value}")
+    lines.append("")
 
-    sys.exit(ExitCode.SUCCESS)
+    _get_config_file().write_text("\n".join(lines))
 
 
-@main.command(name="install-builtins", help="Install built-in profiles")
-def install_builtins():
-    """Install built-in configuration profiles (quick, standard, high-quality)."""
-    count = install_builtin_profiles()
-    console.print(f"[green]✓[/green] Installed {count} built-in profiles:")
-
-    for profile in get_builtin_profiles():
-        console.print(f"  • [cyan]{profile.name}[/cyan] - {profile.description}")
-
-    sys.exit(ExitCode.SUCCESS)
-
-
-# ============================================================================
-# API Key Management Commands
-# ============================================================================
-
-
-@main.command(name="set-key", help="Set an API key")
-@click.argument(
-    "service", type=click.Choice(["openai", "anthropic", "openrouter", "notion"])
-)
-@click.option("--key", prompt=True, hide_input=True, help="API key value")
-def set_key(service: str, key: str):
-    """Set API key for a service.
-
-    Keys are stored in ~/.podx/.env file.
-
-    Supported services:
-    - openai: OpenAI API (GPT models, Whisper)
-    - anthropic: Anthropic API (Claude models)
-    - openrouter: OpenRouter API (multi-provider access)
-    - notion: Notion API (for notion integration)
-    """
-    env_file = Path.home() / ".podx" / ".env"
-    env_file.parent.mkdir(parents=True, exist_ok=True)
-
-    # Map service to env var name
-    env_vars = {
-        "openai": "OPENAI_API_KEY",
-        "anthropic": "ANTHROPIC_API_KEY",
-        "openrouter": "OPENROUTER_API_KEY",
-        "notion": "NOTION_TOKEN",
-    }
-
-    var_name = env_vars[service]
-
-    # Read existing .env
-    lines = []
-    if env_file.exists():
-        lines = env_file.read_text().splitlines()
-
-    # Update or add key
-    found = False
-    for i, line in enumerate(lines):
-        if line.startswith(f"{var_name}="):
-            lines[i] = f"{var_name}={key}"
-            found = True
-            break
-
-    if not found:
-        lines.append(f"{var_name}={key}")
-
-    # Write back
-    env_file.write_text("\n".join(lines) + "\n")
-    env_file.chmod(0o600)  # Secure permissions
-
-    console.print(f"[green]✓[/green] Set {service} API key")
-    console.print(f"  Stored in: [dim]{env_file}[/dim]")
-
-
-@main.command(name="list-keys", help="List configured API keys")
-def list_keys():
-    """List which API keys are configured (values hidden)."""
-    env_file = Path.home() / ".podx" / ".env"
-
+def _load_secrets() -> dict[str, str]:
+    """Load secrets from env file."""
+    env_file = _get_env_file()
     if not env_file.exists():
-        console.print("[yellow]No API keys configured.[/yellow]")
-        console.print("\nSet a key with: podx config set-key <service>")
-        sys.exit(ExitCode.SUCCESS)
+        return {}
 
-    # Parse .env
-    configured = {}
+    secrets = {}
     for line in env_file.read_text().splitlines():
-        if "=" in line and not line.startswith("#"):
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            # Parse: export KEY="value" or KEY="value"
+            if line.startswith("export "):
+                line = line[7:]
             key, value = line.split("=", 1)
-            if value.strip():
-                configured[key] = value
+            # Remove quotes
+            value = value.strip().strip('"').strip("'")
+            secrets[key.strip()] = value
+    return secrets
 
-    # Show configured keys
-    table = Table(show_header=True, header_style="bold cyan")
-    table.add_column("Service")
-    table.add_column("Status")
-    table.add_column("Preview")
 
-    services = {
-        "OPENAI_API_KEY": "OpenAI",
-        "ANTHROPIC_API_KEY": "Anthropic",
-        "OPENROUTER_API_KEY": "OpenRouter",
-        "NOTION_TOKEN": "Notion",
-    }
+def _save_secrets(secrets: dict[str, str]) -> None:
+    """Save secrets to env file."""
+    config_dir = _get_config_dir()
+    config_dir.mkdir(parents=True, exist_ok=True)
 
-    for env_var, service_name in services.items():
-        if env_var in configured:
-            value = configured[env_var]
-            # Show first 8 chars and last 4
-            preview = f"{value[:8]}...{value[-4:]}" if len(value) > 12 else "***"
-            table.add_row(service_name, "[green]✓ Configured[/green]", preview)
+    lines = [
+        "# PodX API Keys",
+        "# Source this file: source ~/.config/podx/env.sh",
+        "",
+    ]
+    for key, value in secrets.items():
+        lines.append(f'export {key}="{value}"')
+    lines.append("")
+
+    env_file = _get_env_file()
+    env_file.write_text("\n".join(lines))
+    os.chmod(env_file, 0o600)
+
+
+def _get_value(key: str) -> Optional[str]:
+    """Get a config value by key."""
+    key_info = CONFIG_KEYS.get(key)
+    if not key_info:
+        return None
+
+    if key_info.get("secret"):
+        # Check environment first, then env file
+        env_var = key_info.get("env_var", "")
+        value = os.environ.get(env_var)
+        if value:
+            return value
+        secrets = _load_secrets()
+        return secrets.get(env_var)
+    else:
+        config = _load_config()
+        return config.get(key, key_info.get("default", ""))
+
+
+def _set_value(key: str, value: str) -> bool:
+    """Set a config value. Returns True on success."""
+    key_info = CONFIG_KEYS.get(key)
+    if not key_info:
+        return False
+
+    if key_info.get("secret"):
+        env_var = key_info.get("env_var", "")
+        secrets = _load_secrets()
+        secrets[env_var] = value
+        _save_secrets(secrets)
+    else:
+        config = _load_config()
+        config[key] = value
+        _save_config(config)
+
+    return True
+
+
+@click.group(invoke_without_command=True)
+@click.pass_context
+def main(ctx):
+    """View and manage PodX configuration.
+
+    \b
+    Usage:
+      podx config                 List all settings
+      podx config get KEY         Get a setting's value
+      podx config set KEY VALUE   Set a setting's value
+
+    \b
+    Settings:
+      output-dir          Where files are saved ('cwd' for current directory)
+      transcribe-model    Default transcription model
+      analyze-model       Default analysis model
+      language            Default language for transcription
+
+    \b
+    API Keys:
+      openai-api-key      OpenAI API key
+      anthropic-api-key   Anthropic API key
+      huggingface-token   HuggingFace token
+      notion-token        Notion API token
+      notion-database-id  Notion database ID
+
+    \b
+    Examples:
+      podx config
+      podx config get analyze-model
+      podx config set analyze-model gpt-4o
+      podx config set openai-api-key sk-...
+    """
+    if ctx.invoked_subcommand is None:
+        # No subcommand - list all settings
+        _list_all()
+
+
+def _list_all():
+    """List all configuration settings."""
+    config = _load_config()
+    secrets = _load_secrets()
+
+    config_file = _get_config_file()
+    console.print(f"\n[bold]PodX Configuration[/bold] ({config_file})\n")
+
+    table = Table(show_header=True, header_style="bold cyan", expand=False)
+    table.add_column("Setting", width=20)
+    table.add_column("Value", width=25)
+    table.add_column("Description")
+
+    for key, info in CONFIG_KEYS.items():
+        if info.get("secret"):
+            env_var = info.get("env_var", "")
+            # Check env first, then file
+            if os.environ.get(env_var):
+                value = "[green][set via env][/green]"
+            elif secrets.get(env_var):
+                value = "[green][set][/green]"
+            else:
+                value = "[dim][not set][/dim]"
         else:
-            table.add_row(service_name, "[dim]Not set[/dim]", "-")
+            value = config.get(key, info.get("default", ""))
+            if not value:
+                value = "[dim][not set][/dim]"
+
+        table.add_row(key, value, info["description"])
 
     console.print(table)
-    sys.exit(ExitCode.SUCCESS)
+    console.print()
 
 
-@main.command(name="remove-key", help="Remove an API key")
-@click.argument(
-    "service", type=click.Choice(["openai", "anthropic", "openrouter", "notion"])
-)
-def remove_key(service: str):
-    """Remove API key for a service."""
-    env_file = Path.home() / ".podx" / ".env"
+@main.command()
+@click.argument("key")
+def get(key: str):
+    """Get a configuration value.
 
-    if not env_file.exists():
-        console.print("[yellow]No API keys configured.[/yellow]")
-        sys.exit(ExitCode.SUCCESS)
+    \b
+    Examples:
+      podx config get analyze-model
+      podx config get openai-api-key
+    """
+    if key not in CONFIG_KEYS:
+        console.print(f"[red]Error:[/red] Unknown config key '{key}'")
+        console.print("[dim]Run 'podx config' to see all keys[/dim]")
+        sys.exit(ExitCode.USER_ERROR)
 
-    # Map service to env var
-    env_vars = {
-        "openai": "OPENAI_API_KEY",
-        "anthropic": "ANTHROPIC_API_KEY",
-        "openrouter": "OPENROUTER_API_KEY",
-        "notion": "NOTION_TOKEN",
-    }
+    key_info = CONFIG_KEYS[key]
+    value = _get_value(key)
 
-    var_name = env_vars[service]
+    if key_info.get("secret"):
+        # Don't show actual secret value
+        if value:
+            console.print("[set]")
+        else:
+            console.print("[not set]")
+    else:
+        if value:
+            console.print(value)
+        else:
+            console.print("[not set]")
 
-    # Read and filter lines
-    lines = env_file.read_text().splitlines()
-    new_lines = [line for line in lines if not line.startswith(f"{var_name}=")]
 
-    # Write back
-    env_file.write_text("\n".join(new_lines) + "\n")
+@main.command()
+@click.argument("key")
+@click.argument("value")
+def set(key: str, value: str):
+    """Set a configuration value.
 
-    console.print(f"[green]✓[/green] Removed {service} API key")
+    \b
+    Examples:
+      podx config set analyze-model gpt-4o
+      podx config set output-dir ~/Podcasts
+      podx config set openai-api-key sk-abc123...
+    """
+    if key not in CONFIG_KEYS:
+        console.print(f"[red]Error:[/red] Unknown config key '{key}'")
+        console.print("[dim]Run 'podx config' to see all keys[/dim]")
+        sys.exit(ExitCode.USER_ERROR)
+
+    if _set_value(key, value):
+        key_info = CONFIG_KEYS[key]
+        if key_info.get("secret"):
+            console.print(f"Set {key} = [hidden]")
+            env_file = _get_env_file()
+            console.print(f"[dim]To load: source {env_file}[/dim]")
+        else:
+            console.print(f"Set {key} = {value}")
+    else:
+        console.print(f"[red]Error:[/red] Failed to set {key}")
+        sys.exit(ExitCode.PROCESSING_ERROR)
 
 
 if __name__ == "__main__":

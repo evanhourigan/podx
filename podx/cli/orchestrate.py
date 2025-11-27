@@ -27,19 +27,20 @@ from podx.cli import (  # noqa: E402 - Must import after logging setup
 
 # Import all command modules
 from podx.cli.commands import (  # noqa: E402 - Must import after logging setup
-    config_command,
     deepcast_cmd,
     diarize_cmd,
     export_cmd,
     fetch_cmd,
     models_cmd,
     notion_cmd,
-    register_config_group,
     register_deprecated_commands,
     run,
     server,
     transcribe_cmd,
 )
+
+# Import simplified config command
+from podx.cli import config  # noqa: E402
 
 
 class PodxGroup(BaseGroup):
@@ -92,13 +93,10 @@ main.add_command(models_cmd, name="models")
 main.add_command(notion_cmd, name="notion")
 
 # Register utility commands
-main.add_command(config_command, name="config")
+main.add_command(config.main, name="config")
 
 # Register deprecated commands (hidden from help)
 register_deprecated_commands(main, run)
-
-# Register config subcommands group
-register_config_group(main)
 
 # ============================================================================
 # Additional commands
