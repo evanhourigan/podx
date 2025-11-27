@@ -97,50 +97,23 @@ podx run --show "Lex Fridman Podcast" --date 2024-10-15
 # Output structure:
 # Lex_Fridman_Podcast/2024-10-15/
 #   ├── audio.mp3                          # Downloaded audio
-#   ├── audio-transcoded.wav               # Normalized for processing
-#   ├── transcript-large-v3-turbo.json     # Base transcript
-#   ├── transcript-diarized.json           # With speaker labels
-#   ├── deepcast-outline.md                # AI analysis
-#   └── notion-page-url.txt                # Notion URL
+#   ├── transcript.json                    # Transcript (with speaker labels if diarized)
+#   └── analysis.json                      # AI analysis
 ```
 
 ### Initial Setup
 
-**Quick Start (Recommended):**
 ```bash
-# Interactive setup wizard - configures everything in one go
+# Setup wizard - checks requirements, configures API keys
 podx init
 
-# Follow the prompts to configure:
-# - API keys (OpenAI, Anthropic, etc.)
-# - Default settings (models, output formats)
-# - Optional features (shell completion, profiles)
+# Or manually set environment variables
+export OPENAI_API_KEY="sk-..."       # For cloud transcription and GPT analysis
+export ANTHROPIC_API_KEY="sk-ant-..." # For Claude analysis models
+export HUGGINGFACE_TOKEN="hf_..."     # For improved speaker diarization
 ```
 
-**Manual Configuration:**
-```bash
-# Configure API keys interactively
-podx models --configure
-
-# Or set environment variables
-export OPENAI_API_KEY="sk-..."
-export ANTHROPIC_API_KEY="sk-ant-..."
-
-# Check configuration status
-podx models --status
-```
-
-**Supported Providers (43 models across 8 providers):**
-- **OpenAI** - GPT-5.x, GPT-4.1, GPT-4o, O-series reasoning models
-- **Anthropic** - Claude Opus 4.5, Sonnet 4.5, Haiku 4.5, Claude 4.x/3.x
-- **Google** - Gemini 2.5 Flash, Gemini 2.0 Pro, Gemini 1.5
-- **Meta** - Llama 3.3, Llama 3.2, Llama 3.1
-- **DeepSeek** - Chat, Reasoner (V3)
-- **Mistral** - Large, Medium, Small
-- **Cohere** - Command R+, Command R
-- **Ollama** - Local models (no API key required)
-
-View all models with pricing: `podx models`
+View available models: `podx models`
 
 ---
 

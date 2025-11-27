@@ -211,46 +211,21 @@ podx run --show "Lex Fridman Podcast" --date 2024-10-15 \
 After processing, you'll find your files in a structured directory:
 
 ```
-Lex_Fridman_Podcast/2024-10-15-yann-lecun-meta-ai/
-├── audio.mp3                          # Original downloaded audio
-├── audio-transcoded.wav               # Normalized for processing
-├── transcript-large-v3-turbo.json     # Base transcript
-├── transcript-diarized.json           # With speaker labels
-├── deepcast-outline.md                # AI analysis (if enabled)
-├── exports/                           # Exported formats
-│   ├── transcript.txt                 # Plain text
-│   ├── transcript.srt                 # Subtitles
-│   ├── transcript.vtt                 # WebVTT
-│   └── transcript.md                  # Markdown
-└── notion-page-url.txt                # Notion URL (if published)
+Show_Name/2024-10-15-episode-title/
+├── audio.mp3                          # Downloaded audio
+├── transcript.json                    # Transcript (with speaker labels if diarized)
+└── analysis.json                      # AI analysis (if enabled)
 ```
 
 ### Key Files Explained
 
-#### `transcript-large-v3-turbo.json`
+#### `transcript.json`
 
-Raw transcript with timestamps:
+Transcript with timestamps and optional speaker labels:
 
 ```json
 {
   "text": "Full transcript text...",
-  "segments": [
-    {
-      "start": 0.0,
-      "end": 3.5,
-      "text": "Welcome to the podcast."
-    }
-  ],
-  "language": "en"
-}
-```
-
-#### `transcript-diarized.json`
-
-Same as above, but with speaker labels:
-
-```json
-{
   "segments": [
     {
       "start": 0.0,
@@ -264,26 +239,24 @@ Same as above, but with speaker labels:
       "text": "Thanks for having me.",
       "speaker": "SPEAKER_01"
     }
-  ]
+  ],
+  "language": "en",
+  "diarized": true
 }
 ```
 
-#### `deepcast-outline.md`
+#### `analysis.json`
 
-AI-generated summary and insights:
+AI-generated analysis:
 
-```markdown
-# Episode Title
-
-## Summary
-A concise overview of the episode...
-
-## Key Topics
-- Topic 1
-- Topic 2
-
-## Insights
-Detailed analysis...
+```json
+{
+  "markdown": "# Episode Summary\n\n...",
+  "key_points": ["Point 1", "Point 2"],
+  "quotes": ["Notable quote 1", "Notable quote 2"],
+  "analysis_type": "interview",
+  "model": "gpt-4o-mini"
+}
 ```
 
 ---

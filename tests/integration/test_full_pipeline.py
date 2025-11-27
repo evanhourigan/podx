@@ -151,13 +151,13 @@ class TestFullPipelineExecution:
         assert len(transcript.segments) == 1
         assert transcript.audio_path == str(audio_file)
 
-    @patch("podx.core.deepcast.DeepcastEngine._chat_once")
-    @patch("podx.core.deepcast.DeepcastEngine._chat_once_async")
-    def test_deepcast_stage_with_transcript_input(
+    @patch("podx.core.analyze.AnalyzeEngine._chat_once")
+    @patch("podx.core.analyze.AnalyzeEngine._chat_once_async")
+    def test_analyze_stage_with_transcript_input(
         self, mock_chat_async, mock_chat_sync, tmp_path
     ):
-        """Test deepcast stage accepts transcript and produces markdown."""
-        from podx.cli.deepcast import deepcast
+        """Test analyze stage accepts transcript and produces markdown."""
+        from podx.core.analyze import AnalyzeEngine
 
         # Create transcript
         transcript_data = {
@@ -179,12 +179,17 @@ class TestFullPipelineExecution:
         # Reduce phase is sync
         mock_chat_sync.return_value = "Final summary of the transcript"
 
-        # Run deepcast
-        result, json_data = deepcast(
-            transcript=transcript_data,
+        # Run analyze
+        engine = AnalyzeEngine(
             model="gpt-4.1",
             temperature=0.2,
             max_chars_per_chunk=24000,
+        )
+        result, json_data = engine.analyze(
+            transcript=transcript_data,
+            system_prompt="You are an expert podcast analyst.",
+            map_instructions="Extract key points from this section.",
+            reduce_instructions="Synthesize the section summaries.",
             want_json=False,
         )
 
