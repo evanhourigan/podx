@@ -247,15 +247,15 @@ def _list_all():
             env_var = info.get("env_var", "")
             # Check env first, then file
             if os.environ.get(env_var):
-                value = "[green][set via env][/green]"
+                value = "[green]\\[set][/green]"
             elif secrets.get(env_var):
-                value = "[green][set][/green]"
+                value = "[green]\\[set][/green]"
             else:
-                value = "[dim][not set][/dim]"
+                value = "[dim]\\[not set][/dim]"
         else:
             value = config.get(key, info.get("default", ""))
             if not value:
-                value = "[dim][not set][/dim]"
+                value = "[dim]\\[undefined][/dim]"
 
         table.add_row(key, value, info["description"])
 
