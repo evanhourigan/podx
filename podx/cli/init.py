@@ -10,10 +10,6 @@ import sys
 from pathlib import Path
 
 import click
-from rich.console import Console
-from rich.panel import Panel
-
-console = Console()
 
 
 def _check_command(cmd: str) -> tuple[bool, str]:
@@ -33,52 +29,56 @@ def _check_command(cmd: str) -> tuple[bool, str]:
 
 def _check_requirements() -> bool:
     """Check system requirements. Returns True if all required deps are present."""
-    console.print("\n[bold]Checking requirements...[/bold]\n")
+    click.echo()
+    click.echo("Checking requirements...")
+    click.echo()
 
     all_good = True
 
     # Python version
     py_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
     if sys.version_info >= (3, 9):
-        console.print(f"  [green]✓[/green] Python {py_version}")
+        click.echo(f"  [ok] Python {py_version}")
     else:
-        console.print(f"  [red]✗[/red] Python {py_version} (requires 3.9+)")
+        click.echo(f"  [MISSING] Python {py_version} (requires 3.9+)")
         all_good = False
 
     # FFmpeg (required)
     ffmpeg_ok, ffmpeg_ver = _check_command("ffmpeg")
     if ffmpeg_ok:
-        console.print(f"  [green]✓[/green] FFmpeg {ffmpeg_ver[:30]}")
+        click.echo(f"  [ok] FFmpeg {ffmpeg_ver[:30]}")
     else:
-        console.print("  [red]✗[/red] FFmpeg not found (required)")
-        console.print("      Install: brew install ffmpeg (macOS) or apt install ffmpeg (Linux)")
+        click.echo("  [MISSING] FFmpeg (required)")
+        click.echo("      Install: brew install ffmpeg (macOS) or apt install ffmpeg (Linux)")
         all_good = False
 
     # yt-dlp (optional)
     ytdlp_ok, ytdlp_ver = _check_command("yt-dlp")
     if ytdlp_ok:
-        console.print(f"  [green]✓[/green] yt-dlp {ytdlp_ver[:30]}")
+        click.echo(f"  [ok] yt-dlp {ytdlp_ver[:30]}")
     else:
-        console.print("  [dim]○[/dim] yt-dlp not found (optional, for YouTube downloads)")
-        console.print("      Install: pip install yt-dlp")
+        click.echo("  [optional] yt-dlp not found (for YouTube downloads)")
+        click.echo("      Install: pip install yt-dlp")
 
-    console.print()
+    click.echo()
 
     if not all_good:
-        console.print("[red]Missing required dependencies. Install them and run 'podx init' again.[/red]\n")
+        click.echo("Missing required dependencies. Install them and run 'podx init' again.")
+        click.echo()
 
     return all_good
 
 
 def _configure_output_dir() -> str:
     """Configure output directory."""
-    console.print("[bold]Where should PodX save files?[/bold]\n")
-    console.print("  [cyan]1[/cyan]) Current working directory")
-    console.print("      Files saved relative to wherever you run podx.")
-    console.print()
-    console.print("  [cyan]2[/cyan]) Fixed directory")
-    console.print("      Files always saved to one location.")
-    console.print()
+    click.echo("Where should PodX save files?")
+    click.echo()
+    click.echo("  1) Current working directory")
+    click.echo("     Files saved relative to wherever you run podx.")
+    click.echo()
+    click.echo("  2) Fixed directory")
+    click.echo("     Files always saved to one location.")
+    click.echo()
 
     while True:
         choice = input("Choice [1]: ").strip() or "1"
@@ -90,64 +90,71 @@ def _configure_output_dir() -> str:
             path = os.path.expanduser(path)
             # Create directory if needed
             Path(path).mkdir(parents=True, exist_ok=True)
-            console.print(f"  [green]✓[/green] Created: {path}")
+            click.echo(f"  Created: {path}")
             return path
         else:
-            console.print("  Please enter 1 or 2")
+            click.echo("  Please enter 1 or 2")
 
 
 def _configure_api_keys() -> dict[str, str]:
     """Configure API keys."""
-    console.print("\n[bold]Configure API keys[/bold] (all optional, can be added later)\n")
+    click.echo()
+    click.echo("Configure API keys (all optional, can be added later)")
+    click.echo()
 
     keys = {}
 
     # OpenAI
-    console.print("[bold]OpenAI[/bold] - for cloud transcription and GPT analysis")
-    console.print("[dim]Get key: https://platform.openai.com/api-keys[/dim]")
+    click.echo("OpenAI - for cloud transcription and GPT analysis")
+    click.echo("Get key: https://platform.openai.com/api-keys")
     key = input("Enter key (or Enter to skip): ").strip()
     if key:
         keys["OPENAI_API_KEY"] = key
-        console.print("  [green]✓[/green] Saved\n")
+        click.echo("  Saved")
     else:
-        console.print("  [dim]Skipped[/dim]\n")
+        click.echo("  Skipped")
+    click.echo()
 
     # Anthropic
-    console.print("[bold]Anthropic[/bold] - for Claude analysis models")
-    console.print("[dim]Get key: https://console.anthropic.com/settings/keys[/dim]")
+    click.echo("Anthropic - for Claude analysis models")
+    click.echo("Get key: https://console.anthropic.com/settings/keys")
     key = input("Enter key (or Enter to skip): ").strip()
     if key:
         keys["ANTHROPIC_API_KEY"] = key
-        console.print("  [green]✓[/green] Saved\n")
+        click.echo("  Saved")
     else:
-        console.print("  [dim]Skipped[/dim]\n")
+        click.echo("  Skipped")
+    click.echo()
 
     # HuggingFace
-    console.print("[bold]HuggingFace[/bold] - for improved speaker diarization")
-    console.print("[dim]Get token: https://huggingface.co/settings/tokens[/dim]")
+    click.echo("HuggingFace - for improved speaker diarization")
+    click.echo("Get token: https://huggingface.co/settings/tokens")
     key = input("Enter token (or Enter to skip): ").strip()
     if key:
         keys["HUGGINGFACE_TOKEN"] = key
-        console.print("  [green]✓[/green] Saved\n")
+        click.echo("  Saved")
     else:
-        console.print("  [dim]Skipped[/dim]\n")
+        click.echo("  Skipped")
+    click.echo()
 
     # Notion (ask first)
     setup_notion = input("Set up Notion integration? (y/N): ").strip().lower()
     if setup_notion == "y":
-        console.print("\n[bold]Notion[/bold] - for publishing analyses")
-        console.print("[dim]Get token: https://www.notion.so/my-integrations[/dim]")
+        click.echo()
+        click.echo("Notion - for publishing analyses")
+        click.echo("Get token: https://www.notion.so/my-integrations")
         key = input("Enter token (or Enter to skip): ").strip()
         if key:
             keys["NOTION_TOKEN"] = key
-            console.print("  [green]✓[/green] Saved")
+            click.echo("  Saved")
 
         db_id = input("Enter database ID (or Enter to skip): ").strip()
         if db_id:
             keys["NOTION_DATABASE_ID"] = db_id
-            console.print("  [green]✓[/green] Saved\n")
+            click.echo("  Saved")
         else:
-            console.print("  [dim]Skipped[/dim]\n")
+            click.echo("  Skipped")
+        click.echo()
 
     return keys
 
@@ -212,10 +219,10 @@ def main() -> None:
       podx init
     """
     # Welcome
-    console.print(Panel.fit(
-        "[bold cyan]Welcome to PodX![/bold cyan]",
-        border_style="cyan",
-    ))
+    click.echo()
+    click.echo("=" * 40)
+    click.echo("  Welcome to PodX!")
+    click.echo("=" * 40)
 
     # Step 1: Check requirements
     if not _check_requirements():
@@ -231,15 +238,17 @@ def main() -> None:
     config_file = _save_config(output_dir, api_keys)
 
     # Show summary
-    console.print("\n" + "=" * 50)
-    console.print("[bold green]Setup complete![/bold green]")
-    console.print("=" * 50 + "\n")
+    click.echo()
+    click.echo("=" * 40)
+    click.echo("  Setup complete!")
+    click.echo("=" * 40)
+    click.echo()
 
-    console.print(f"Configuration saved to: {config_file}")
+    click.echo(f"Configuration saved to: {config_file}")
     if output_dir == "cwd":
-        console.print("Output directory: current working directory")
+        click.echo("Output directory: current working directory")
     else:
-        console.print(f"Output directory: {output_dir}")
+        click.echo(f"Output directory: {output_dir}")
 
     # API key status
     configured = []
@@ -256,27 +265,30 @@ def main() -> None:
             not_configured.append(label)
 
     if configured:
-        console.print(f"API keys: {', '.join(configured)} [green]✓[/green]")
+        click.echo(f"API keys: {', '.join(configured)} [set]")
     if not_configured:
-        console.print(f"Not configured: {', '.join(not_configured)} [dim](optional)[/dim]")
+        click.echo(f"Not configured: {', '.join(not_configured)} (optional)")
 
     # Load API keys instruction
     if api_keys:
         env_file = Path.home() / ".config" / "podx" / "env.sh"
-        console.print("\n[bold]To load API keys, run:[/bold]")
-        console.print(f"  [cyan]source {env_file}[/cyan]")
-        console.print("[dim]Or add this line to your ~/.zshrc or ~/.bashrc[/dim]")
+        click.echo()
+        click.echo("To load API keys, run:")
+        click.echo(f"  source {env_file}")
+        click.echo("Or add this line to your ~/.zshrc or ~/.bashrc")
 
     # Next steps
-    console.print("\n[bold]Get started:[/bold]")
-    console.print("  [cyan]podx fetch --show \"Lex Fridman\"[/cyan]")
-    console.print("  [cyan]podx transcribe ./episode/[/cyan]")
-    console.print("  [cyan]podx analyze ./episode/[/cyan]")
+    click.echo()
+    click.echo("Get started:")
+    click.echo('  podx fetch --show "Lex Fridman"')
+    click.echo("  podx transcribe ./episode/")
+    click.echo("  podx analyze ./episode/")
 
-    console.print("\n[bold]To change settings:[/bold]")
-    console.print("  [cyan]podx config[/cyan]")
+    click.echo()
+    click.echo("To change settings:")
+    click.echo("  podx config")
 
-    console.print()
+    click.echo()
 
 
 if __name__ == "__main__":

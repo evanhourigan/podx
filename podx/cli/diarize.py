@@ -6,20 +6,19 @@ Simplified v4.0 command that operates on episode directories.
 import json
 import os
 import sys
+import time
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from typing import Optional
 
 import click
-from rich.console import Console
 
 from podx.core.diarize import DiarizationEngine, DiarizationError
 from podx.domain.exit_codes import ExitCode
 from podx.logging import get_logger
-from podx.ui import LiveTimer, select_episode_interactive
+from podx.ui import select_episode_interactive
 
 logger = get_logger(__name__)
-console = Console()
 
 
 def _find_audio_file(directory: Path) -> Optional[Path]:
@@ -79,12 +78,12 @@ def main(path: Optional[Path], speakers: Optional[int]):
                 show_filter=None,
             )
             if not selected:
-                console.print("[dim]Selection cancelled[/dim]")
+                click.echo("Selection cancelled")
                 sys.exit(0)
 
             path = selected["directory"]
         except KeyboardInterrupt:
-            console.print("\n[dim]Cancelled[/dim]")
+            click.echo("\nCancelled")
             sys.exit(0)
 
     # Resolve path
@@ -95,39 +94,37 @@ def main(path: Optional[Path], speakers: Optional[int]):
     # Find transcript
     transcript_path = episode_dir / "transcript.json"
     if not transcript_path.exists():
-        console.print(f"[red]Error:[/red] No transcript.json found in {episode_dir}")
-        console.print("[dim]Run 'podx transcribe' first[/dim]")
+        click.echo(f"podx diarize: no transcript.json found in {episode_dir}", err=True)
+        click.echo("Run 'podx transcribe' first", err=True)
         sys.exit(ExitCode.USER_ERROR)
 
     # Find audio file
     audio_file = _find_audio_file(episode_dir)
     if not audio_file:
-        console.print(f"[red]Error:[/red] No audio file found in {episode_dir}")
+        click.echo(f"podx diarize: no audio file found in {episode_dir}", err=True)
         sys.exit(ExitCode.USER_ERROR)
 
     # Load transcript
     try:
         transcript = json.loads(transcript_path.read_text())
     except Exception as e:
-        console.print(f"[red]Error:[/red] Failed to load transcript: {e}")
+        click.echo(f"podx diarize: failed to load transcript: {e}", err=True)
         sys.exit(ExitCode.USER_ERROR)
 
     if "segments" not in transcript:
-        console.print("[red]Error:[/red] transcript.json missing 'segments' field")
+        click.echo("podx diarize: transcript.json missing 'segments' field", err=True)
         sys.exit(ExitCode.USER_ERROR)
 
     # Get language from transcript
     language = transcript.get("language", "en")
 
     # Show what we're doing
-    console.print(f"[cyan]Diarizing:[/cyan] {audio_file.name}")
-    console.print(f"[cyan]Transcript:[/cyan] {transcript_path.name}")
+    click.echo(f"Diarizing: {audio_file.name}")
+    click.echo(f"Transcript: {transcript_path.name}")
     if speakers:
-        console.print(f"[cyan]Expected speakers:[/cyan] {speakers}")
+        click.echo(f"Expected speakers: {speakers}")
 
-    # Start timer
-    timer = LiveTimer("Diarizing")
-    timer.start()
+    start_time = time.time()
 
     try:
         # Suppress WhisperX debug output
@@ -144,16 +141,14 @@ def main(path: Optional[Path], speakers: Optional[int]):
             result = engine.diarize(audio_file, transcript["segments"])
 
     except DiarizationError as e:
-        timer.stop()
-        console.print(f"[red]Diarization Error:[/red] {e}")
+        click.echo(f"podx diarize: {e}", err=True)
         sys.exit(ExitCode.PROCESSING_ERROR)
     except FileNotFoundError as e:
-        timer.stop()
-        console.print(f"[red]File Not Found:[/red] {e}")
+        click.echo(f"podx diarize: {e}", err=True)
         sys.exit(ExitCode.USER_ERROR)
 
-    # Stop timer
-    elapsed = timer.stop()
+    # Calculate elapsed time
+    elapsed = time.time() - start_time
     minutes = int(elapsed // 60)
     seconds = int(elapsed % 60)
 
@@ -174,9 +169,9 @@ def main(path: Optional[Path], speakers: Optional[int]):
     )
 
     # Show completion
-    console.print(f"\n[green]✓ Diarization complete ({minutes}:{seconds:02d})[/green]")
-    console.print(f"  Speakers found: {len(speakers_found)}")
-    console.print(f"  Updated: {transcript_path}")
+    click.echo(f"Diarization complete ({minutes}:{seconds:02d})")
+    click.echo(f"  Speakers found: {len(speakers_found)}")
+    click.echo(f"  Updated: {transcript_path}")
 
     sys.exit(ExitCode.SUCCESS)
 

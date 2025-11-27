@@ -8,15 +8,6 @@ from __future__ import annotations
 
 import click
 
-try:
-    from rich.table import Table
-
-    from podx.ui import TABLE_BORDER_STYLE, TABLE_HEADER_STYLE, make_console
-
-    RICH_AVAILABLE = True
-except Exception:
-    RICH_AVAILABLE = False
-
 
 @click.command()
 def main():
@@ -41,31 +32,11 @@ def main():
     """
     from podx.models import list_models
 
-    if not RICH_AVAILABLE:
-        print("AI Models for PodX")
-        print("=" * 70)
-        print("\nASR Models (Transcription):")
-        print("  local:large-v3     Best quality (default, free)")
-        print("  local:medium       Good balance (free)")
-        print("  openai:whisper-1   Cloud ($0.006/min)")
-        print("\nLLM Models (Analysis):")
-        print("  Run with Rich installed for detailed pricing table")
-        return
-
-    console = make_console()
-
-    # ASR Models section
-    console.print("\n[bold cyan]ASR Models (Transcription)[/bold cyan]\n")
-
-    asr_table = Table(
-        show_header=True,
-        header_style=TABLE_HEADER_STYLE,
-        border_style=TABLE_BORDER_STYLE,
-        expand=False,
-    )
-    asr_table.add_column("Model", width=20)
-    asr_table.add_column("$/hr", justify="right", width=10)
-    asr_table.add_column("Description")
+    click.echo()
+    click.echo("ASR Models (Transcription)")
+    click.echo("-" * 60)
+    click.echo(f"{'Model':<25}{'$/hr':<12}Description")
+    click.echo("-" * 60)
 
     asr_models = [
         ("local:large-v3", "Free", "Best quality (default)"),
@@ -78,22 +49,13 @@ def main():
     ]
 
     for model, cost, desc in asr_models:
-        asr_table.add_row(model, cost, desc)
+        click.echo(f"{model:<25}{cost:<12}{desc}")
 
-    console.print(asr_table)
-
-    # LLM Models section
-    console.print("\n[bold cyan]LLM Models (Analysis)[/bold cyan]\n")
-
-    llm_table = Table(
-        show_header=True,
-        header_style=TABLE_HEADER_STYLE,
-        border_style=TABLE_BORDER_STYLE,
-        expand=False,
-    )
-    llm_table.add_column("Model", width=25)
-    llm_table.add_column("$/hr*", justify="right", width=10)
-    llm_table.add_column("Description")
+    click.echo()
+    click.echo("LLM Models (Analysis)")
+    click.echo("-" * 60)
+    click.echo(f"{'Model':<25}{'$/hr*':<12}Description")
+    click.echo("-" * 60)
 
     # Get models from catalog, show defaults only
     try:
@@ -109,22 +71,20 @@ def main():
             hourly_cost = input_cost + output_cost
 
             cost_str = f"${hourly_cost:.2f}"
-            llm_table.add_row(
-                f"{model.provider}:{model.id}", cost_str, model.description or ""
-            )
+            model_id = f"{model.provider}:{model.id}"
+            desc = model.description or ""
+            click.echo(f"{model_id:<25}{cost_str:<12}{desc}")
     except Exception:
         # Fallback if catalog fails
-        llm_table.add_row("openai:gpt-4o", "$0.08", "Best quality (default)")
-        llm_table.add_row("openai:gpt-4o-mini", "$0.01", "Good quality, lower cost")
-        llm_table.add_row("anthropic:claude-sonnet-4-5", "$0.10", "Great alternative")
+        click.echo(f"{'openai:gpt-4o':<25}{'$0.08':<12}Best quality (default)")
+        click.echo(f"{'openai:gpt-4o-mini':<25}{'$0.01':<12}Good quality, lower cost")
+        click.echo(f"{'anthropic:claude-sonnet-4-5':<25}{'$0.10':<12}Great alternative")
 
-    console.print(llm_table)
-
-    console.print(
-        "\n[dim]* Estimated cost per hour of podcast audio[/dim]"
-        "\n[dim]  Local models run on your machine (requires GPU for best performance)[/dim]"
-        "\n[dim]  Cloud models require API keys (see 'podx config')[/dim]\n"
-    )
+    click.echo()
+    click.echo("* Estimated cost per hour of podcast audio")
+    click.echo("  Local models run on your machine (requires GPU for best performance)")
+    click.echo("  Cloud models require API keys (see 'podx config')")
+    click.echo()
 
 
 if __name__ == "__main__":
