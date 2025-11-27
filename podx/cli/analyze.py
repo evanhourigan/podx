@@ -7,20 +7,21 @@ Uses templates system for customizable analysis.
 
 import json
 import sys
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 import click
+from rich.console import Console
 
 from podx.core.analyze import AnalyzeEngine, AnalyzeError
 from podx.domain.exit_codes import ExitCode
 from podx.logging import get_logger
-from podx.templates.manager import TemplateError, TemplateManager
-from podx.ui import select_episode_interactive
+from podx.templates.manager import TemplateManager, TemplateError
+from podx.ui import LiveTimer, select_episode_interactive
 
 logger = get_logger(__name__)
+console = Console()
 
 
 def _find_transcript(directory: Path) -> Optional[Path]:
@@ -50,6 +51,23 @@ def _find_transcript(directory: Path) -> Optional[Path]:
                     return m
 
     return None
+
+
+def _get_available_templates() -> list[str]:
+    """Get list of available template names."""
+    try:
+        manager = TemplateManager()
+        return manager.list_templates()
+    except Exception:
+        return []
+
+
+def _format_template_help() -> str:
+    """Format template list for help text."""
+    templates = _get_available_templates()
+    if not templates:
+        return "interview-1on1  (default)"
+    return "\n      ".join(templates[:5]) + "\n      ... use 'podx templates list' for all"
 
 
 @click.command()
@@ -110,12 +128,12 @@ def main(path: Optional[Path], model: str, template: str):
                 show_filter=None,
             )
             if not selected:
-                click.echo("Selection cancelled")
+                console.print("[dim]Selection cancelled[/dim]")
                 sys.exit(0)
 
             path = selected["directory"]
         except KeyboardInterrupt:
-            click.echo("\nCancelled")
+            console.print("\n[dim]Cancelled[/dim]")
             sys.exit(0)
 
     # Resolve path
@@ -126,19 +144,19 @@ def main(path: Optional[Path], model: str, template: str):
     # Find transcript
     transcript_path = _find_transcript(episode_dir)
     if not transcript_path:
-        click.echo(f"podx analyze: no transcript.json found in {episode_dir}", err=True)
-        click.echo("Run 'podx transcribe' first", err=True)
+        console.print(f"[red]Error:[/red] No transcript.json found in {episode_dir}")
+        console.print("[dim]Run 'podx transcribe' first[/dim]")
         sys.exit(ExitCode.USER_ERROR)
 
     # Load transcript
     try:
         transcript = json.loads(transcript_path.read_text())
     except Exception as e:
-        click.echo(f"podx analyze: failed to load transcript: {e}", err=True)
+        console.print(f"[red]Error:[/red] Failed to load transcript: {e}")
         sys.exit(ExitCode.USER_ERROR)
 
     if "segments" not in transcript:
-        click.echo("podx analyze: transcript.json missing 'segments' field", err=True)
+        console.print("[red]Error:[/red] transcript.json missing 'segments' field")
         sys.exit(ExitCode.USER_ERROR)
 
     # Load template
@@ -146,19 +164,21 @@ def main(path: Optional[Path], model: str, template: str):
         manager = TemplateManager()
         tmpl = manager.load(template)
     except TemplateError:
-        click.echo(f"podx analyze: template '{template}' not found", err=True)
-        click.echo("Use 'podx templates list' to see available templates", err=True)
+        console.print(f"[red]Error:[/red] Template '{template}' not found")
+        console.print("[dim]Use 'podx templates list' to see available templates[/dim]")
         sys.exit(ExitCode.USER_ERROR)
 
     # Output path
     analysis_path = episode_dir / "analysis.json"
 
     # Show what we're doing
-    click.echo(f"Analyzing: {transcript_path.name}")
-    click.echo(f"Template: {template}")
-    click.echo(f"Model: {model}")
+    console.print(f"[cyan]Analyzing:[/cyan] {transcript_path.name}")
+    console.print(f"[cyan]Template:[/cyan] {template}")
+    console.print(f"[cyan]Model:[/cyan] {model}")
 
-    start_time = time.time()
+    # Start timer
+    timer = LiveTimer("Analyzing")
+    timer.start()
 
     try:
         engine = AnalyzeEngine(
@@ -198,11 +218,12 @@ def main(path: Optional[Path], model: str, template: str):
         )
 
     except AnalyzeError as e:
-        click.echo(f"podx analyze: {e}", err=True)
+        timer.stop()
+        console.print(f"[red]Analysis Error:[/red] {e}")
         sys.exit(ExitCode.PROCESSING_ERROR)
 
-    # Calculate elapsed time
-    elapsed = time.time() - start_time
+    # Stop timer
+    elapsed = timer.stop()
     minutes = int(elapsed // 60)
     seconds = int(elapsed % 60)
 
@@ -223,11 +244,11 @@ def main(path: Optional[Path], model: str, template: str):
     )
 
     # Show completion
-    click.echo(f"Analysis complete ({minutes}:{seconds:02d})")
+    console.print(f"\n[green]✓ Analysis complete ({minutes}:{seconds:02d})[/green]")
     if json_data:
-        click.echo(f"  Key points: {len(json_data.get('key_points', []))}")
-        click.echo(f"  Quotes: {len(json_data.get('quotes', []))}")
-    click.echo(f"  Output: {analysis_path}")
+        console.print(f"  Key points: {len(json_data.get('key_points', []))}")
+        console.print(f"  Quotes: {len(json_data.get('quotes', []))}")
+    console.print(f"  Output: {analysis_path}")
 
     sys.exit(ExitCode.SUCCESS)
 

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 import click
+from rich.console import Console
 
 from podx.core.fetch import FetchError, PodcastFetcher
 from podx.domain.exit_codes import ExitCode
@@ -15,6 +16,7 @@ from podx.errors import NetworkError, ValidationError
 from podx.logging import get_logger
 
 logger = get_logger(__name__)
+console = Console()
 
 
 @click.command()
@@ -60,11 +62,12 @@ def main(
     sources = sum(1 for s in [show, rss, url] if s)
 
     if sources == 0:
-        click.echo("podx fetch: provide --show, --rss, or --url", err=True)
+        console.print("[red]Error:[/red] Provide --show, --rss, or --url")
+        console.print("[dim]Run 'podx fetch --help' for examples[/dim]")
         sys.exit(ExitCode.USER_ERROR)
 
     if sources > 1:
-        click.echo("podx fetch: provide only one source (--show, --rss, or --url)", err=True)
+        console.print("[red]Error:[/red] Provide only one source (--show, --rss, or --url)")
         sys.exit(ExitCode.USER_ERROR)
 
     # Handle YouTube/video URL
@@ -73,9 +76,9 @@ def main(
             from podx.core.youtube import YouTubeDownloader, is_youtube_url
 
             if not is_youtube_url(url):
-                click.echo("Note: URL doesn't look like YouTube, trying yt-dlp anyway...")
+                console.print("[yellow]Note:[/yellow] URL doesn't look like YouTube, trying yt-dlp anyway...")
 
-            click.echo(f"Downloading from URL: {url}")
+            console.print(f"[cyan]Downloading from URL:[/cyan] {url}")
 
             downloader = YouTubeDownloader()
             result = downloader.download(url)
@@ -83,26 +86,26 @@ def main(
             audio_path = result.get("audio_path")
             meta = result.get("meta", {})
 
-            click.echo(f"Downloaded: {meta.get('title', 'Unknown')}")
+            console.print(f"\n[green]✓ Downloaded:[/green] {meta.get('title', 'Unknown')}")
             if audio_path:
-                click.echo(f"  Audio: {audio_path}")
+                console.print(f"  Audio: {audio_path}")
 
             sys.exit(ExitCode.SUCCESS)
 
         except ImportError:
-            click.echo("podx fetch: yt-dlp not installed", err=True)
-            click.echo("Install with: pip install yt-dlp", err=True)
+            console.print("[red]Error:[/red] yt-dlp not installed")
+            console.print("[dim]Install with: pip install yt-dlp[/dim]")
             sys.exit(ExitCode.USER_ERROR)
         except Exception as e:
-            click.echo(f"podx fetch: {e}", err=True)
+            console.print(f"[red]Download Error:[/red] {e}")
             sys.exit(ExitCode.PROCESSING_ERROR)
 
     # Handle podcast (show or RSS)
-    click.echo(f"Fetching podcast: {show or rss}")
+    console.print(f"[cyan]Fetching podcast:[/cyan] {show or rss}")
     if date:
-        click.echo(f"Date filter: {date}")
+        console.print(f"[cyan]Date filter:[/cyan] {date}")
     if title_contains:
-        click.echo(f"Title filter: {title_contains}")
+        console.print(f"[cyan]Title filter:[/cyan] {title_contains}")
 
     try:
         fetcher = PodcastFetcher()
@@ -114,13 +117,13 @@ def main(
             output_dir=None,  # Use smart naming
         )
     except ValidationError as e:
-        click.echo(f"podx fetch: {e}", err=True)
+        console.print(f"[red]Validation Error:[/red] {e}")
         sys.exit(ExitCode.USER_ERROR)
     except NetworkError as e:
-        click.echo(f"podx fetch: {e}", err=True)
+        console.print(f"[red]Network Error:[/red] {e}")
         sys.exit(ExitCode.SYSTEM_ERROR)
     except FetchError as e:
-        click.echo(f"podx fetch: {e}", err=True)
+        console.print(f"[red]Fetch Error:[/red] {e}")
         sys.exit(ExitCode.PROCESSING_ERROR)
 
     # Extract metadata from result
@@ -129,12 +132,12 @@ def main(
     episode_dir = Path(audio_path).parent if audio_path else None
 
     # Show completion
-    click.echo(f"Downloaded: {meta.get('title', 'Unknown')}")
-    click.echo(f"  Show: {meta.get('show_name', 'Unknown')}")
+    console.print(f"\n[green]✓ Downloaded:[/green] {meta.get('title', 'Unknown')}")
+    console.print(f"  Show: {meta.get('show_name', 'Unknown')}")
     if audio_path:
-        click.echo(f"  Audio: {audio_path}")
+        console.print(f"  Audio: {audio_path}")
     if episode_dir:
-        click.echo(f"  Directory: {episode_dir}")
+        console.print(f"  Directory: {episode_dir}")
 
     sys.exit(ExitCode.SUCCESS)
 

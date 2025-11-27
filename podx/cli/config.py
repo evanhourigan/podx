@@ -12,8 +12,12 @@ from pathlib import Path
 from typing import Optional
 
 import click
+from rich.console import Console
+from rich.table import Table
 
 from podx.domain.exit_codes import ExitCode
+
+console = Console()
 
 # Configuration keys with metadata
 CONFIG_KEYS = {
@@ -230,28 +234,33 @@ def _list_all():
     config = _load_config()
     secrets = _load_secrets()
 
-    # Simple tabular output without Rich
-    click.echo()
-    click.echo(f"{'Setting':<22}{'Value':<20}{'Description'}")
-    click.echo("-" * 70)
+    config_file = _get_config_file()
+    console.print(f"\n[bold]PodX Configuration[/bold] ({config_file})\n")
+
+    table = Table(show_header=True, header_style="bold cyan", expand=False)
+    table.add_column("Setting", width=20)
+    table.add_column("Value", width=25)
+    table.add_column("Description")
 
     for key, info in CONFIG_KEYS.items():
         if info.get("secret"):
             env_var = info.get("env_var", "")
-            # Check env first, then file - only show [set] or [not set]
-            if os.environ.get(env_var) or secrets.get(env_var):
-                value = "[set]"
+            # Check env first, then file
+            if os.environ.get(env_var):
+                value = "[green][set via env][/green]"
+            elif secrets.get(env_var):
+                value = "[green][set][/green]"
             else:
-                value = "[not set]"
+                value = "[dim][not set][/dim]"
         else:
-            # Non-secret: show actual value or [undefined]
             value = config.get(key, info.get("default", ""))
             if not value:
-                value = "[undefined]"
+                value = "[dim][not set][/dim]"
 
-        click.echo(f"{key:<22}{value:<20}{info['description']}")
+        table.add_row(key, value, info["description"])
 
-    click.echo()
+    console.print(table)
+    console.print()
 
 
 @main.command()
@@ -265,7 +274,8 @@ def get(key: str):
       podx config get openai-api-key
     """
     if key not in CONFIG_KEYS:
-        click.echo(f"podx config: unknown key '{key}'", err=True)
+        console.print(f"[red]Error:[/red] Unknown config key '{key}'")
+        console.print("[dim]Run 'podx config' to see all keys[/dim]")
         sys.exit(ExitCode.USER_ERROR)
 
     key_info = CONFIG_KEYS[key]
@@ -274,14 +284,14 @@ def get(key: str):
     if key_info.get("secret"):
         # Don't show actual secret value
         if value:
-            click.echo("[set]")
+            console.print("[set]")
         else:
-            click.echo("[not set]")
+            console.print("[not set]")
     else:
         if value:
-            click.echo(value)
+            console.print(value)
         else:
-            click.echo("[undefined]")
+            console.print("[not set]")
 
 
 @main.command()
@@ -297,19 +307,20 @@ def set(key: str, value: str):
       podx config set openai-api-key sk-abc123...
     """
     if key not in CONFIG_KEYS:
-        click.echo(f"podx config: unknown key '{key}'", err=True)
+        console.print(f"[red]Error:[/red] Unknown config key '{key}'")
+        console.print("[dim]Run 'podx config' to see all keys[/dim]")
         sys.exit(ExitCode.USER_ERROR)
 
     if _set_value(key, value):
         key_info = CONFIG_KEYS[key]
         if key_info.get("secret"):
-            click.echo(f"{key} = [set]")
+            console.print(f"Set {key} = [hidden]")
             env_file = _get_env_file()
-            click.echo(f"To load: source {env_file}")
+            console.print(f"[dim]To load: source {env_file}[/dim]")
         else:
-            click.echo(f"{key} = {value}")
+            console.print(f"Set {key} = {value}")
     else:
-        click.echo(f"podx config: failed to set {key}", err=True)
+        console.print(f"[red]Error:[/red] Failed to set {key}")
         sys.exit(ExitCode.PROCESSING_ERROR)
 
 

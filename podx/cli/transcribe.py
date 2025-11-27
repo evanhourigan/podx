@@ -5,20 +5,21 @@ Simplified v4.0 command that operates on episode directories.
 
 import json
 import sys
-import time
 from pathlib import Path
 from typing import Optional
 
 import click
+from rich.console import Console
 
 from podx.config import get_config
 from podx.core.transcribe import TranscriptionEngine, TranscriptionError
 from podx.domain.exit_codes import ExitCode
 from podx.errors import AudioError
 from podx.logging import get_logger
-from podx.ui import select_episode_interactive
+from podx.ui import LiveTimer, select_episode_interactive
 
 logger = get_logger(__name__)
+console = Console()
 
 
 def _find_audio_file(directory: Path) -> Optional[Path]:
@@ -94,12 +95,12 @@ def main(path: Optional[Path], model: str, language: str):
                 show_filter=None,
             )
             if not selected:
-                click.echo("Selection cancelled")
+                console.print("[dim]Selection cancelled[/dim]")
                 sys.exit(0)
 
             path = selected["directory"]
         except KeyboardInterrupt:
-            click.echo("\nCancelled")
+            console.print("\n[dim]Cancelled[/dim]")
             sys.exit(0)
 
     # Resolve path
@@ -110,19 +111,22 @@ def main(path: Optional[Path], model: str, language: str):
     # Find audio file
     audio_file = _find_audio_file(episode_dir)
     if not audio_file:
-        click.echo(f"podx transcribe: no audio file found in {episode_dir}", err=True)
+        console.print(f"[red]Error:[/red] No audio file found in {episode_dir}")
+        console.print("[dim]Expected: audio.mp3, audio.wav, or similar[/dim]")
         sys.exit(ExitCode.USER_ERROR)
 
     # Output path
     transcript_path = episode_dir / "transcript.json"
 
     # Show what we're doing
-    click.echo(f"Transcribing: {audio_file.name}")
-    click.echo(f"Model: {model}")
+    console.print(f"[cyan]Transcribing:[/cyan] {audio_file.name}")
+    console.print(f"[cyan]Model:[/cyan] {model}")
     if language != "auto":
-        click.echo(f"Language: {language}")
+        console.print(f"[cyan]Language:[/cyan] {language}")
 
-    start_time = time.time()
+    # Start timer
+    timer = LiveTimer("Transcribing")
+    timer.start()
 
     try:
         # Parse model to determine provider
@@ -141,14 +145,16 @@ def main(path: Optional[Path], model: str, language: str):
         result = engine.transcribe(audio_file, language=language if language != "auto" else None)
 
     except TranscriptionError as e:
-        click.echo(f"podx transcribe: {e}", err=True)
+        timer.stop()
+        console.print(f"[red]Transcription Error:[/red] {e}")
         sys.exit(ExitCode.PROCESSING_ERROR)
     except AudioError as e:
-        click.echo(f"podx transcribe: {e}", err=True)
+        timer.stop()
+        console.print(f"[red]Audio Error:[/red] {e}")
         sys.exit(ExitCode.USER_ERROR)
 
-    # Calculate elapsed time
-    elapsed = time.time() - start_time
+    # Stop timer
+    elapsed = timer.stop()
     minutes = int(elapsed // 60)
     seconds = int(elapsed % 60)
 
@@ -161,10 +167,10 @@ def main(path: Optional[Path], model: str, language: str):
     )
 
     # Show completion
-    click.echo(f"Transcription complete ({minutes}:{seconds:02d})")
-    click.echo(f"  Segments: {len(result.get('segments', []))}")
-    click.echo(f"  Language: {result.get('language', 'unknown')}")
-    click.echo(f"  Output: {transcript_path}")
+    console.print(f"\n[green]✓ Transcription complete ({minutes}:{seconds:02d})[/green]")
+    console.print(f"  Segments: {len(result.get('segments', []))}")
+    console.print(f"  Language: {result.get('language', 'unknown')}")
+    console.print(f"  Output: {transcript_path}")
 
     sys.exit(ExitCode.SUCCESS)
 
