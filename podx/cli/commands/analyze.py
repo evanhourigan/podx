@@ -1,28 +1,45 @@
-"""Analyze command for AI-powered transcript analysis."""
+"""Analyze command shim - forwards to main analyze module."""
 
 import click
 
 
-@click.command(
-    "analyze",
-    help="AI-powered transcript analysis and summarization",
-    context_settings={
-        "ignore_unknown_options": True,
-        "allow_extra_args": True,
-        "allow_interspersed_args": False,
-        "help_option_names": [],
-    },
-)
+@click.command("analyze")
+@click.argument("path", required=False)
+@click.option("--model", default="gpt-4o-mini", help="AI model for analysis")
+@click.option("--type", "analysis_type", default="general", help="Analysis type")
 @click.pass_context
-def analyze_cmd(ctx):
-    """AI-powered transcript analysis and summarization."""
-    # Import and invoke the actual analyze command
-    from podx.cli.analyze import main as actual_command
+def analyze_cmd(ctx, path, model, analysis_type):
+    """Generate AI analysis of a transcript."""
+    from podx.cli.analyze import main as analyze_main
 
-    # Invoke the Click command with the current context's arguments
-    # This uses Click's invocation API to properly forward arguments
-    actual_command.main(args=ctx.args, standalone_mode=False)
+    # Build args list
+    args = []
+    if path:
+        args.append(path)
+    if model != "gpt-4o-mini":
+        args.extend(["--model", model])
+    if analysis_type != "general":
+        args.extend(["--type", analysis_type])
+
+    analyze_main.main(args=args, standalone_mode=False)
 
 
-# Backwards compatibility alias
-deepcast_cmd = analyze_cmd
+# Backwards compatibility alias - shows deprecation message
+@click.command("deepcast")
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+@click.pass_context
+def deepcast_cmd(ctx, args):
+    """DEPRECATED: Use 'podx analyze' instead."""
+    from rich.console import Console
+
+    console = Console()
+    console.print(
+        "[yellow]Warning:[/yellow] 'podx deepcast' is deprecated. "
+        "Use 'podx analyze' instead."
+    )
+    console.print()
+
+    # Forward to analyze
+    from podx.cli.analyze import main as analyze_main
+
+    analyze_main.main(args=list(args), standalone_mode=False)
