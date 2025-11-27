@@ -1,355 +1,183 @@
 """CLI wrapper for diarize command.
 
-Thin Click wrapper that uses core.diarize.DiarizationEngine for actual logic.
-Handles CLI arguments, input/output, and interactive mode with progress display.
+Simplified v4.0 command that operates on episode directories.
 """
 
 import json
 import os
 import sys
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from typing import Optional
 
 import click
+from rich.console import Console
 
-from podx.cli.cli_shared import print_json, read_stdin_json
 from podx.core.diarize import DiarizationEngine, DiarizationError
 from podx.domain.exit_codes import ExitCode
 from podx.logging import get_logger
-from podx.ui import LiveTimer
-
-# DiarizeTwoPhase browser removed in v4.0.0
-DiarizeTwoPhase = None
+from podx.ui import LiveTimer, select_episode_interactive
 
 logger = get_logger(__name__)
+console = Console()
 
-# Rich console for live timer
-try:
-    from rich.console import Console
 
-    RICH_AVAILABLE = True
-except ImportError:
-    RICH_AVAILABLE = False
+def _find_audio_file(directory: Path) -> Optional[Path]:
+    """Find audio file in episode directory."""
+    for ext in [".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac"]:
+        audio_file = directory / f"audio{ext}"
+        if audio_file.exists():
+            return audio_file
+
+    for ext in [".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac"]:
+        matches = list(directory.glob(f"*{ext}"))
+        if matches:
+            return matches[0]
+
+    return None
 
 
 @click.command()
-@click.option(
-    "--audio",
-    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+@click.argument(
+    "path",
+    type=click.Path(exists=True, path_type=Path),
     required=False,
-    help="Audio file path (optional if specified in transcript JSON)",
 )
 @click.option(
-    "--input",
-    "-i",
-    type=click.Path(exists=True, path_type=Path),
-    help="Read Transcript JSON from file instead of stdin",
+    "--speakers",
+    type=int,
+    default=None,
+    help="Expected number of speakers (improves accuracy)",
 )
-@click.option(
-    "--output",
-    "-o",
-    type=click.Path(path_type=Path),
-    help="Save DiarizedTranscript JSON to file (also prints to stdout)",
-)
-@click.option(
-    "--interactive",
-    is_flag=True,
-    help="Interactive browser to select transcripts for diarization",
-)
-@click.option(
-    "--scan-dir",
-    type=click.Path(exists=True, path_type=Path),
-    default=".",
-    help="Directory to scan for transcripts (default: current directory)",
-)
-@click.option(
-    "--json",
-    "json_output",
-    is_flag=True,
-    help="Output structured JSON (suppresses Rich formatting)",
-)
-@click.option(
-    "--progress-json",
-    is_flag=True,
-    help="Output progress updates as newline-delimited JSON",
-)
-@click.option(
-    "--keep-intermediates/--no-keep-intermediates",
-    default=True,
-    help="Keep intermediate files after diarization (default: keep files)",
-)
-def main(
-    audio,
-    input,
-    output,
-    interactive,
-    scan_dir,
-    json_output,
-    progress_json,
-    keep_intermediates,
-):
+def main(path: Optional[Path], speakers: Optional[int]):
+    """Add speaker labels to a transcript.
+
+    \b
+    Arguments:
+      PATH    Episode directory (default: current directory)
+
+    Without PATH, shows interactive episode selection.
+
+    \b
+    Requirements:
+      - Episode must have transcript.json (run 'podx transcribe' first)
+      - Episode must have audio file (audio.wav or audio.mp3)
+      - First run downloads ~1GB pyannote model (cached after)
+      - Optional: Set HUGGINGFACE_TOKEN for better diarization models
+
+    \b
+    Examples:
+      podx diarize                              # Interactive selection
+      podx diarize ./Show/2024-11-24-ep/        # Direct path
+      podx diarize . --speakers 2               # Hint: 2 speakers expected
     """
-    Read transcript JSON -> WhisperX align + diarize -> print diarized JSON to stdout.
+    # Interactive mode if no path provided
+    if path is None:
+        try:
+            selected, _ = select_episode_interactive(
+                scan_dir=".",
+                show_filter=None,
+            )
+            if not selected:
+                console.print("[dim]Selection cancelled[/dim]")
+                sys.exit(0)
 
-    Runs alignment internally before diarization. Alignment adds word-level timing,
-    then diarization assigns speakers to each word.
+            path = selected["directory"]
+        except KeyboardInterrupt:
+            console.print("\n[dim]Cancelled[/dim]")
+            sys.exit(0)
 
-    With --interactive, browse base transcripts and select one to diarize.
-    """
-    # Handle interactive mode
-    if interactive:
-        if not RICH_AVAILABLE:
-            if json_output:
-                print(
-                    json.dumps(
-                        {
-                            "error": "Interactive mode requires rich library",
-                            "install": "pip install rich",
-                        }
-                    )
-                )
-            else:
-                console = Console()
-                console.print(
-                    "[red]Error:[/red] Interactive mode requires rich library. "
-                    "Install with: [cyan]pip install rich[/cyan]"
-                )
-            sys.exit(ExitCode.USER_ERROR)
+    # Resolve path
+    episode_dir = path.resolve()
+    if episode_dir.is_file():
+        episode_dir = episode_dir.parent
 
-        # Two-phase selection: episode → base transcript
-        logger.info(f"Scanning for episodes in: {scan_dir}")
-        browser = DiarizeTwoPhase(scan_dir=Path(scan_dir))
-        selected = browser.browse()
+    # Find transcript
+    transcript_path = episode_dir / "transcript.json"
+    if not transcript_path.exists():
+        console.print(f"[red]Error:[/red] No transcript.json found in {episode_dir}")
+        console.print("[dim]Run 'podx transcribe' first[/dim]")
+        sys.exit(ExitCode.USER_ERROR)
 
-        if not selected:
-            logger.info("User cancelled transcript selection")
-            if not json_output:
-                print("❌ Transcript selection cancelled")
-            sys.exit(ExitCode.SUCCESS)
+    # Find audio file
+    audio_file = _find_audio_file(episode_dir)
+    if not audio_file:
+        console.print(f"[red]Error:[/red] No audio file found in {episode_dir}")
+        sys.exit(ExitCode.USER_ERROR)
 
-        # Use selected base transcript
-        transcript = selected["transcript_data"]
-        audio = selected["audio_path"]
-        output = selected["diarized_file"]
+    # Load transcript
+    try:
+        transcript = json.loads(transcript_path.read_text())
+    except Exception as e:
+        console.print(f"[red]Error:[/red] Failed to load transcript: {e}")
+        sys.exit(ExitCode.USER_ERROR)
 
-    else:
-        # Non-interactive mode
-        # Read input
-        if input:
-            transcript = json.loads(input.read_text())
-        else:
-            transcript = read_stdin_json()
+    if "segments" not in transcript:
+        console.print("[red]Error:[/red] transcript.json missing 'segments' field")
+        sys.exit(ExitCode.USER_ERROR)
 
-        if not transcript or "segments" not in transcript:
-            if json_output:
-                print(
-                    json.dumps(
-                        {
-                            "error": "input must contain Transcript JSON with 'segments' field",
-                            "type": "validation_error",
-                        }
-                    )
-                )
-            else:
-                console = Console()
-                console.print(
-                    "[red]Validation Error:[/red] input must contain Transcript JSON with 'segments' field"
-                )
-            sys.exit(ExitCode.USER_ERROR)
-
-    # Preserve metadata from input transcript
-    asr_model = transcript.get("asr_model")
+    # Get language from transcript
     language = transcript.get("language", "en")
 
-    # Get audio path from --audio flag or from JSON (non-interactive mode)
-    if not interactive and not audio:
-        if "audio_path" not in transcript:
-            if json_output:
-                print(
-                    json.dumps(
-                        {
-                            "error": "--audio flag required when transcript JSON has no 'audio_path' field",
-                            "type": "validation_error",
-                        }
-                    )
-                )
-            else:
-                console = Console()
-                console.print(
-                    "[red]Validation Error:[/red] --audio flag required when transcript JSON has no 'audio_path' field"
-                )
-            sys.exit(ExitCode.USER_ERROR)
-        audio = Path(transcript["audio_path"])
-        if not audio.exists():
-            if json_output:
-                print(
-                    json.dumps(
-                        {
-                            "error": f"Audio file not found: {audio}",
-                            "type": "file_not_found",
-                        }
-                    )
-                )
-            else:
-                console = Console()
-                console.print(f"[red]Error:[/red] Audio file not found: {audio}")
-            sys.exit(ExitCode.USER_ERROR)
+    # Show what we're doing
+    console.print(f"[cyan]Diarizing:[/cyan] {audio_file.name}")
+    console.print(f"[cyan]Transcript:[/cyan] {transcript_path.name}")
+    if speakers:
+        console.print(f"[cyan]Expected speakers:[/cyan] {speakers}")
 
-    # Ensure we use absolute path
-    if not interactive:
-        audio = audio.resolve()
+    # Start timer
+    timer = LiveTimer("Diarizing")
+    timer.start()
 
-    # Suppress logging and WhisperX output before TUI in interactive mode
-    if interactive:
-        from podx.logging import suppress_logging
-
-        suppress_logging()
-
-    # Set up progress callback and timer for interactive mode or JSON progress
-    timer = None
-    progress_callback = None
-    console = None
-
-    if progress_json and not interactive:
-        # JSON progress mode
-        def progress_callback(message: str):
-            # Output newline-delimited JSON progress
-            progress_data = {
-                "type": "progress",
-                "stage": "diarizing",
-                "message": message,
-            }
-            print(json.dumps(progress_data), flush=True)
-
-    elif interactive and RICH_AVAILABLE:
-        console = Console()
-        timer = LiveTimer("Diarizing audio")
-        timer.start()
-
-        def progress_callback(message: str):
-            # Could update console here if needed
-            pass
-
-    # Suppress WhisperX debug output that contaminates stdout
-    from contextlib import redirect_stderr, redirect_stdout
-
-    # Use core diarization engine (pure business logic)
     try:
+        # Suppress WhisperX debug output
         with (
             redirect_stdout(open(os.devnull, "w")),
             redirect_stderr(open(os.devnull, "w")),
         ):
             engine = DiarizationEngine(
                 language=language,
-                device=None,  # Auto-detect best device (MPS/CUDA/CPU)
+                device=None,  # Auto-detect
                 hf_token=os.getenv("HUGGINGFACE_TOKEN"),
-                progress_callback=progress_callback,
+                num_speakers=speakers,
             )
-            final = engine.diarize(audio, transcript["segments"])
+            result = engine.diarize(audio_file, transcript["segments"])
+
     except DiarizationError as e:
-        if timer:
-            timer.stop()
-        if json_output:
-            print(json.dumps({"error": str(e), "type": "diarization_error"}))
-        else:
-            if not console:
-                console = Console()
-            console.print(f"[red]Diarization Error:[/red] {e}")
+        timer.stop()
+        console.print(f"[red]Diarization Error:[/red] {e}")
         sys.exit(ExitCode.PROCESSING_ERROR)
     except FileNotFoundError as e:
-        if timer:
-            timer.stop()
-        if json_output:
-            print(json.dumps({"error": str(e), "type": "file_not_found"}))
-        else:
-            if not console:
-                console = Console()
-            console.print(f"[red]File Not Found:[/red] {e}")
+        timer.stop()
+        console.print(f"[red]File Not Found:[/red] {e}")
         sys.exit(ExitCode.USER_ERROR)
 
-    # Stop timer and show completion in interactive mode
-    if timer:
-        elapsed = timer.stop()
-        minutes = int(elapsed // 60)
-        seconds = int(elapsed % 60)
-        console.print(
-            f"[green]✓ Diarization completed in {minutes}:{seconds:02d}[/green]"
-        )
+    # Stop timer
+    elapsed = timer.stop()
+    minutes = int(elapsed // 60)
+    seconds = int(elapsed % 60)
 
-    # Restore logging after diarization
-    if interactive:
-        from podx.logging import restore_logging
+    # Update transcript with diarization results
+    transcript["segments"] = result["segments"]
+    transcript["diarized"] = True
+    transcript["audio_path"] = str(audio_file)
 
-        restore_logging()
+    # Count speakers
+    speakers_found = set()
+    for seg in result.get("segments", []):
+        if seg.get("speaker"):
+            speakers_found.add(seg["speaker"])
 
-    # Preserve metadata from input transcript (always use absolute path)
-    final["audio_path"] = str(
-        audio if isinstance(audio, Path) else Path(audio).resolve()
+    # Save updated transcript
+    transcript_path.write_text(
+        json.dumps(transcript, indent=2, ensure_ascii=False), encoding="utf-8"
     )
-    final["language"] = language
-    if asr_model:
-        final["asr_model"] = asr_model
 
-    # Handle output based on interactive mode
-    if interactive:
-        # In interactive mode, save to file (new format: transcript-diarized-{model}.json)
-        output.write_text(
-            json.dumps(final, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
-        logger.info(f"Diarized transcript saved to: {output}")
-        # Print completion message
-        print("\n✅ Diarization complete")
-        print(f"   Model: {asr_model}")
-        print(f"   Output: {output}")
-    else:
-        # Non-interactive mode
-        diarized_path = None
-        if asr_model and not output:
-            # Use model-specific filename in same directory as audio (new format)
-            audio_dir = Path(audio).parent
-            diarized_path = audio_dir / f"transcript-diarized-{asr_model}.json"
-            diarized_path.write_text(
-                json.dumps(final, indent=2, ensure_ascii=False), encoding="utf-8"
-            )
-        elif output:
-            # Explicit output file specified
-            diarized_path = output
-            diarized_path.write_text(json.dumps(final, indent=2))
+    # Show completion
+    console.print(f"\n[green]✓ Diarization complete ({minutes}:{seconds:02d})[/green]")
+    console.print(f"  Speakers found: {len(speakers_found)}")
+    console.print(f"  Updated: {transcript_path}")
 
-        # Output to stdout
-        if json_output:
-            # Count unique speakers
-            speakers = set()
-            for seg in final.get("segments", []):
-                if seg.get("speaker"):
-                    speakers.add(seg["speaker"])
-
-            # Structured JSON output
-            output_data = {
-                "success": True,
-                "transcript": final,
-                "files": {
-                    "transcript": str(diarized_path) if diarized_path else None,
-                },
-                "stats": {
-                    "speakers_found": len(speakers),
-                    "segments": len(final.get("segments", [])),
-                    "language": final.get("language"),
-                },
-            }
-            print(json.dumps(output_data, indent=2))
-        else:
-            # Rich formatted output (existing behavior)
-            print_json(final)
-
-    # Cleanup intermediate files if not keeping them
-    # Note: Diarize processes transcript JSON and doesn't create intermediate files
-    # Cleanup happens at the orchestrator level (podx run) for pipeline-wide intermediates
-    if not keep_intermediates:
-        # If input was from a file (not stdin), we could optionally clean it up
-        # But we preserve input files by default - cleanup is for generated intermediates
-        pass
-
-    # Exit with success
     sys.exit(ExitCode.SUCCESS)
 
 

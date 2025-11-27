@@ -1,396 +1,177 @@
 """CLI wrapper for transcribe command.
 
-Thin Click wrapper that uses core.transcribe.TranscriptionEngine for actual logic.
-Handles CLI arguments, input/output, and interactive mode with progress display.
+Simplified v4.0 command that operates on episode directories.
 """
 
 import json
 import sys
 from pathlib import Path
+from typing import Optional
 
 import click
 from rich.console import Console
 
-from podx.cli.cli_shared import print_json, read_stdin_json
 from podx.config import get_config
 from podx.core.transcribe import TranscriptionEngine, TranscriptionError
 from podx.domain.exit_codes import ExitCode
-from podx.errors import AudioError, ValidationError
+from podx.errors import AudioError
 from podx.logging import get_logger
-from podx.schemas import AudioMeta, Transcript
-from podx.ui import LiveTimer, select_asr_model, select_episode_interactive
-from podx.utils import sanitize_model_name
-from podx.validation import validate_output
+from podx.ui import LiveTimer, select_episode_interactive
 
 logger = get_logger(__name__)
-
-# Check for optional dependencies
-try:
-    import importlib.util
-
-    TEXTUAL_AVAILABLE = importlib.util.find_spec("textual") is not None
-    RICH_AVAILABLE = importlib.util.find_spec("rich") is not None
-except ImportError:
-    TEXTUAL_AVAILABLE = False
-    RICH_AVAILABLE = False
+console = Console()
 
 
-def _truncate_text(text: str, max_length: int = 60) -> str:
-    """Truncate text to max length with ellipsis."""
-    if len(text) <= max_length:
-        return text
-    return text[: max_length - 3] + "..."
+def _find_audio_file(directory: Path) -> Optional[Path]:
+    """Find audio file in episode directory."""
+    # Check for standard audio files
+    for ext in [".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac"]:
+        # Check for audio.* pattern first
+        audio_file = directory / f"audio{ext}"
+        if audio_file.exists():
+            return audio_file
+
+    # Fall back to any audio file
+    for ext in [".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac"]:
+        matches = list(directory.glob(f"*{ext}"))
+        if matches:
+            return matches[0]
+
+    return None
 
 
 @click.command()
+@click.argument(
+    "path",
+    type=click.Path(exists=True, path_type=Path),
+    required=False,
+)
 @click.option(
     "--model",
     default=lambda: get_config().default_asr_model,
-    help=(
-        "ASR model (e.g., tiny, base, small, medium, large, large-v2, large-v3, "
-        "small.en, medium.en, or prefixed: openai:large-v3-turbo, hf:distil-large-v3)"
-    ),
+    help="Transcription model (e.g., large-v3, medium, openai:whisper-1)",
 )
 @click.option(
-    "--asr-provider",
-    type=click.Choice(["auto", "local", "openai", "hf"]),
+    "--language",
     default="auto",
-    help="ASR provider (auto-detect by model prefix/alias if 'auto')",
+    help="Language code (auto, en, es, fr, de, ja, zh, etc.)",
 )
-@click.option(
-    "--compute",
-    type=click.Choice(["auto", "int8", "int8_float16", "int8_bfloat16", "float16"]),
-    default=lambda: get_config().default_compute,
-    help="Compute type for faster-whisper (auto=detect optimal for device, local provider only)",
-)
-@click.option(
-    "--input",
-    "-i",
-    type=click.Path(exists=True, path_type=Path),
-    help="Read AudioMeta JSON from file instead of stdin",
-)
-@click.option(
-    "--output",
-    "-o",
-    type=click.Path(path_type=Path),
-    help="Save Transcript JSON to file (also prints to stdout)",
-)
-@click.option(
-    "--interactive",
-    is_flag=True,
-    help="Interactive browser to select episodes and models for transcription",
-)
-@click.option(
-    "--scan-dir",
-    type=click.Path(exists=True, path_type=Path),
-    default=".",
-    help="Directory to scan for episodes (default: current directory)",
-)
-@click.option(
-    "--json",
-    "json_output",
-    is_flag=True,
-    help="Output structured JSON (suppresses Rich formatting)",
-)
-@click.option(
-    "--progress-json",
-    is_flag=True,
-    help="Output progress updates as newline-delimited JSON",
-)
-@click.option(
-    "--keep-intermediates/--no-keep-intermediates",
-    default=True,
-    help="Keep intermediate files after transcription (default: keep files)",
-)
-@validate_output(Transcript)
-def main(
-    model,
-    asr_provider,
-    compute,
-    input,
-    output,
-    interactive,
-    scan_dir,
-    json_output,
-    progress_json,
-    keep_intermediates,
-):
+def main(path: Optional[Path], model: str, language: str):
+    """Transcribe audio to text.
+
+    \b
+    Arguments:
+      PATH    Episode directory (default: current directory)
+
+    Without PATH, shows interactive episode selection.
+
+    \b
+    Models:
+      Local (free, runs on your machine):
+        large-v3          Best quality (default)
+        large-v2          Previous best
+        medium            Good balance of speed/quality
+        base              Fast, lower accuracy
+        tiny              Fastest, lowest accuracy
+
+      Cloud (requires API key):
+        openai:whisper-1  $0.006/min, requires OPENAI_API_KEY
+
+      HuggingFace (downloads model locally, free):
+        hf:distil-large-v3  Distilled, faster than large-v3
+
+    \b
+    Examples:
+      podx transcribe                           # Interactive selection
+      podx transcribe ./Show/2024-11-24-ep/     # Direct path
+      podx transcribe . --model medium          # Current dir, medium model
+      podx transcribe ./ep/ --language es       # Spanish transcription
     """
-    Read AudioMeta JSON on stdin -> run faster-whisper -> print Transcript JSON to stdout.
-
-    With --interactive, browse episodes and select one to transcribe.
-    """
-    # Handle interactive mode
-    if interactive:
-        if not TEXTUAL_AVAILABLE:
-            if json_output:
-                print(
-                    json.dumps(
-                        {
-                            "error": "Interactive mode requires textual library",
-                            "install": "pip install textual",
-                        }
-                    )
-                )
-            else:
-                console = Console()
-                console.print(
-                    "[red]Error:[/red] Interactive mode requires textual library. "
-                    "Install with: [cyan]pip install textual[/cyan]"
-                )
-            sys.exit(ExitCode.USER_ERROR)
-
-        # Suppress logging before TUI starts
-        from podx.logging import restore_logging, suppress_logging
-
-        suppress_logging()
-
+    # Interactive mode if no path provided
+    if path is None:
         try:
-            # Browse and select episode using interactive selector
-            logger.info(f"Scanning for episodes in: {scan_dir}")
             selected, _ = select_episode_interactive(
-                scan_dir=str(scan_dir),
+                scan_dir=".",
                 show_filter=None,
             )
-
             if not selected:
-                restore_logging()
-                logger.info("User cancelled episode selection")
-                print("❌ Selection cancelled")
+                console.print("[dim]Selection cancelled[/dim]")
                 sys.exit(0)
 
-            # Select ASR model
-            selected_model = select_asr_model(selected)
-            if not selected_model:
-                restore_logging()
-                logger.info("User cancelled model selection")
-                print("❌ Model selection cancelled")
-                sys.exit(0)
+            path = selected["directory"]
+        except KeyboardInterrupt:
+            console.print("\n[dim]Cancelled[/dim]")
+            sys.exit(0)
 
-        finally:
-            # Restore logging after interactive selection
-            restore_logging()
+    # Resolve path
+    episode_dir = path.resolve()
+    if episode_dir.is_file():
+        episode_dir = episode_dir.parent
 
-        # Override model parameter with user selection
-        model = selected_model
-
-        # Use selected episode's audio path
-        audio = selected["audio_path"]
-        episode_dir = selected["directory"]
-
-        # Force output to transcript-{safe_model}.json in episode directory
-        safe_model = sanitize_model_name(model)
-        output = episode_dir / f"transcript-{safe_model}.json"
-
-        # Load audio metadata
-        try:
-            meta = AudioMeta.model_validate(selected["meta_data"])
-        except Exception as e:
-            raise ValidationError(f"Invalid AudioMeta input: {e}") from e
-
-    else:
-        # Non-interactive mode
-        logger.info("Starting transcription", model=model, compute=compute)
-
-        # Read input
-        if input:
-            raw_data = json.loads(input.read_text())
-            logger.debug("Reading input from file", file=str(input))
-        else:
-            raw_data = read_stdin_json()
-            logger.debug("Reading input from stdin")
-
-        if not raw_data or "audio_path" not in raw_data:
-            if json_output:
-                print(
-                    json.dumps(
-                        {
-                            "error": "input must contain AudioMeta JSON with 'audio_path' field",
-                            "type": "validation_error",
-                        }
-                    )
-                )
-            else:
-                console = Console()
-                console.print(
-                    "[red]Validation Error:[/red] input must contain AudioMeta JSON with 'audio_path' field"
-                )
-            sys.exit(ExitCode.USER_ERROR)
-
-        # Validate input data
-        try:
-            meta = AudioMeta.model_validate(raw_data)
-            audio = Path(meta.audio_path)
-            logger.debug("Input validation passed", audio_path=str(audio))
-        except Exception as e:
-            if json_output:
-                print(
-                    json.dumps(
-                        {
-                            "error": f"Invalid AudioMeta input: {e}",
-                            "type": "validation_error",
-                        }
-                    )
-                )
-            else:
-                console = Console()
-                console.print(
-                    f"[red]Validation Error:[/red] Invalid AudioMeta input: {e}"
-                )
-            sys.exit(ExitCode.USER_ERROR)
-
-    # Determine provider
-    provider_choice = None if asr_provider == "auto" else asr_provider
-
-    # Set up progress callback for interactive mode or JSON progress
-    timer = None
-    progress_callback = None
-
-    if progress_json and not interactive:
-        # JSON progress mode
-        def progress_callback(message: str):
-            # Output newline-delimited JSON progress
-            progress_data = {
-                "type": "progress",
-                "stage": "transcribing",
-                "message": message,
-            }
-            print(json.dumps(progress_data), flush=True)
-
-    elif interactive:
-        # Suppress logging and show progress
-        from podx.logging import suppress_logging
-
-        suppress_logging()
-
-        # Start live timer
-        if RICH_AVAILABLE:
-            console = Console()
-            timer = LiveTimer("Transcribing")
-            timer.start()
-
-            def progress_callback(message: str):
-                # Could update console here if needed
-                pass
-
-    # Use core transcription engine (pure business logic)
-    try:
-        # Pass None for compute_type if "auto" to enable auto-detection
-        compute_type_arg = None if compute == "auto" else compute
-
-        engine = TranscriptionEngine(
-            model=model,
-            provider=provider_choice,
-            compute_type=compute_type_arg,
-            device=None,  # Auto-detect best device (CUDA/CPU)
-            progress_callback=progress_callback,
-        )
-        result = engine.transcribe(Path(audio))
-    except TranscriptionError as e:
-        if timer:
-            timer.stop()
-        if json_output:
-            print(json.dumps({"error": str(e), "type": "transcription_error"}))
-        else:
-            console = Console()
-            console.print(f"[red]Transcription Error:[/red] {e}")
-        sys.exit(ExitCode.PROCESSING_ERROR)
-    except AudioError as e:
-        if timer:
-            timer.stop()
-        if json_output:
-            print(json.dumps({"error": str(e), "type": "audio_error"}))
-        else:
-            console = Console()
-            console.print(f"[red]Audio Error:[/red] {e}")
+    # Find audio file
+    audio_file = _find_audio_file(episode_dir)
+    if not audio_file:
+        console.print(f"[red]Error:[/red] No audio file found in {episode_dir}")
+        console.print("[dim]Expected: audio.mp3, audio.wav, or similar[/dim]")
         sys.exit(ExitCode.USER_ERROR)
 
-    # Stop timer and show completion in interactive mode
-    if timer:
-        elapsed = timer.stop()
-        minutes = int(elapsed // 60)
-        seconds = int(elapsed % 60)
-        console.print(
-            f"[green]✓ Transcribe completed in {minutes}:{seconds:02d}[/green]"
+    # Output path
+    transcript_path = episode_dir / "transcript.json"
+
+    # Show what we're doing
+    console.print(f"[cyan]Transcribing:[/cyan] {audio_file.name}")
+    console.print(f"[cyan]Model:[/cyan] {model}")
+    if language != "auto":
+        console.print(f"[cyan]Language:[/cyan] {language}")
+
+    # Start timer
+    timer = LiveTimer("Transcribing")
+    timer.start()
+
+    try:
+        # Parse model to determine provider
+        provider = None
+        model_name = model
+        if ":" in model:
+            provider, model_name = model.split(":", 1)
+
+        engine = TranscriptionEngine(
+            model=model_name,
+            provider=provider,
+            compute_type=None,  # Auto-detect
+            device=None,  # Auto-detect
         )
 
-    # Restore logging after transcription
-    if interactive:
-        from podx.logging import restore_logging
+        result = engine.transcribe(audio_file, language=language if language != "auto" else None)
 
-        restore_logging()
+    except TranscriptionError as e:
+        timer.stop()
+        console.print(f"[red]Transcription Error:[/red] {e}")
+        sys.exit(ExitCode.PROCESSING_ERROR)
+    except AudioError as e:
+        timer.stop()
+        console.print(f"[red]Audio Error:[/red] {e}")
+        sys.exit(ExitCode.USER_ERROR)
 
-    # Handle output based on interactive mode
-    if interactive:
-        # In interactive mode, save to file
-        output.write_text(
-            json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
-        # Show user-friendly completion message
-        print("\n✅ Transcription complete")
-        print(f"   Model: {model} ({result['asr_provider']})")
-        print(f"   Segments: {len(result['segments'])}")
-        print(f"   Language: {result['language']}")
-        print(f"   Output: {output}")
-        logger.info(f"Transcript saved to: {output}")
-    else:
-        # Non-interactive mode: use model-specific filename if model specified and no explicit output
-        transcript_path = None
-        if model and not output:
-            # Try to determine episode directory from audio path
-            audio_dir = Path(audio).parent
-            safe_model = sanitize_model_name(model)
-            transcript_path = audio_dir / f"transcript-{safe_model}.json"
-            transcript_path.write_text(
-                json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
-            )
-            logger.debug("Transcript saved to file", file=str(transcript_path))
-        elif output:
-            # Explicit output file specified
-            transcript_path = output
-            transcript_path.write_text(json.dumps(result, indent=2))
-            logger.debug("Transcript saved to file", file=str(transcript_path))
+    # Stop timer
+    elapsed = timer.stop()
+    minutes = int(elapsed // 60)
+    seconds = int(elapsed % 60)
 
-        # Output to stdout
-        if json_output:
-            # Structured JSON output
-            output_data = {
-                "success": True,
-                "transcript": result,
-                "files": {
-                    "transcript": str(transcript_path) if transcript_path else None,
-                },
-                "stats": {
-                    "model": model,
-                    "provider": result.get("asr_provider"),
-                    "language": result.get("language"),
-                    "segments": len(result.get("segments", [])),
-                },
-            }
-            print(json.dumps(output_data, indent=2))
-        else:
-            # Rich formatted output (existing behavior)
-            print_json(result)
+    # Add metadata
+    result["audio_path"] = str(audio_file)
 
-    # Cleanup intermediate files if not keeping them
-    if not keep_intermediates:
-        # Only cleanup .wav files (from transcode step)
-        # Don't cleanup original audio (e.g., .mp3 from podcast download)
-        if audio.suffix == ".wav" and audio.exists():
-            try:
-                audio.unlink()
-                logger.info(
-                    "Removed intermediate audio file",
-                    file=str(audio),
-                )
-            except Exception as e:
-                logger.warning(
-                    "Failed to remove intermediate file",
-                    file=str(audio),
-                    error=str(e),
-                )
+    # Save transcript
+    transcript_path.write_text(
+        json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
 
-    # Exit with success
+    # Show completion
+    console.print(f"\n[green]✓ Transcription complete ({minutes}:{seconds:02d})[/green]")
+    console.print(f"  Segments: {len(result.get('segments', []))}")
+    console.print(f"  Language: {result.get('language', 'unknown')}")
+    console.print(f"  Output: {transcript_path}")
+
     sys.exit(ExitCode.SUCCESS)
 
 

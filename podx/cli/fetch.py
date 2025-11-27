@@ -1,184 +1,144 @@
 """CLI wrapper for fetch command.
 
-Thin Click wrapper that uses core.fetch.PodcastFetcher for actual logic.
-Handles CLI arguments, input/output, and interactive mode.
+Simplified v4.0 command for downloading podcast episodes.
 """
 
-import json
 import sys
 from pathlib import Path
+from typing import Optional
 
 import click
 from rich.console import Console
 
-from podx.cli.cli_shared import print_json
 from podx.core.fetch import FetchError, PodcastFetcher
 from podx.domain.exit_codes import ExitCode
 from podx.errors import NetworkError, ValidationError
 from podx.logging import get_logger
-from podx.schemas import EpisodeMeta
-from podx.validation import validate_output
 
 logger = get_logger(__name__)
 console = Console()
 
-# Interactive browser imports (optional)
-try:
-    import importlib.util
-
-    TEXTUAL_AVAILABLE = importlib.util.find_spec("textual") is not None
-except ImportError:
-    TEXTUAL_AVAILABLE = False
-
-
-def _truncate_text(text: str, max_length: int = 80) -> str:
-    """Truncate text to max length with ellipsis."""
-    if len(text) <= max_length:
-        return text
-    return text[: max_length - 3] + "..."
-
 
 @click.command()
-@click.option("--show", help="Podcast show name (iTunes search).")
-@click.option("--rss-url", help="Direct RSS feed URL (alternative to --show).")
-@click.option("--date", help="Episode date (YYYY-MM-DD). Picks nearest.")
-@click.option("--title-contains", help="Substring to match in episode title.")
-@click.option(
-    "--outdir",
-    type=click.Path(path_type=Path),
-    help="Override output directory (bypasses smart naming)",
-)
-@click.option(
-    "--output",
-    "-o",
-    type=click.Path(path_type=Path),
-    help="Save EpisodeMeta JSON to file (also prints to stdout)",
-)
-@click.option(
-    "--interactive",
-    is_flag=True,
-    help="Interactive episode browser (ignores --date and --title-contains)",
-)
-@click.option(
-    "--json",
-    "json_output",
-    is_flag=True,
-    help="Output structured JSON (suppresses Rich formatting)",
-)
-@validate_output(EpisodeMeta)
-def main(show, rss_url, date, title_contains, outdir, output, interactive, json_output):
-    """Find feed, choose episode, download audio. Prints EpisodeMeta JSON to stdout."""
-    logger.info(
-        "Starting podcast fetch",
-        show=show,
-        rss_url=rss_url,
-        date=date,
-        title_contains=title_contains,
-        interactive=interactive,
-    )
+@click.option("--show", help="Podcast show name (searches iTunes)")
+@click.option("--rss", help="Direct RSS feed URL")
+@click.option("--url", help="Video URL (YouTube, Vimeo, etc. via yt-dlp)")
+@click.option("--date", help="Episode date (YYYY-MM-DD)")
+@click.option("--title", "title_contains", help="Substring to match in episode title")
+def main(
+    show: Optional[str],
+    rss: Optional[str],
+    url: Optional[str],
+    date: Optional[str],
+    title_contains: Optional[str],
+):
+    """Download podcast episodes.
 
-    # Handle interactive mode
-    if interactive:
-        # Check if textual is available
-        if not TEXTUAL_AVAILABLE:
-            if json_output:
-                print(
-                    json.dumps(
-                        {
-                            "error": "Interactive mode requires textual",
-                            "install": "pip install textual",
-                        }
-                    )
-                )
-            else:
-                console.print(
-                    "[red]Error:[/red] Interactive mode requires textual. "
-                    "Run: [cyan]pip install textual[/cyan]"
-                )
+    \b
+    Sources (pick one):
+      --show TEXT    Search iTunes for podcast by name
+      --rss TEXT     Direct RSS feed URL
+      --url TEXT     YouTube/Vimeo URL (via yt-dlp)
+
+    \b
+    Filtering (optional):
+      --date TEXT    Episode date (YYYY-MM-DD) - picks nearest
+      --title TEXT   Substring to match in episode title
+
+    \b
+    Examples:
+      podx fetch --show "Lex Fridman"
+      podx fetch --show "Huberman Lab" --date 2024-11-24
+      podx fetch --rss "https://example.com/feed.xml"
+      podx fetch --url "https://youtube.com/watch?v=xyz"
+
+    Creates a directory structure:
+      Show_Name/2024-11-24-episode-slug/
+        audio.mp3
+        audio.wav        (transcoded for ASR)
+        episode-meta.json
+    """
+    # Count sources provided
+    sources = sum(1 for s in [show, rss, url] if s)
+
+    if sources == 0:
+        console.print("[red]Error:[/red] Provide --show, --rss, or --url")
+        console.print("[dim]Run 'podx fetch --help' for examples[/dim]")
+        sys.exit(ExitCode.USER_ERROR)
+
+    if sources > 1:
+        console.print("[red]Error:[/red] Provide only one source (--show, --rss, or --url)")
+        sys.exit(ExitCode.USER_ERROR)
+
+    # Handle YouTube/video URL
+    if url:
+        try:
+            from podx.core.youtube import YouTubeDownloader, is_youtube_url
+
+            if not is_youtube_url(url):
+                console.print("[yellow]Note:[/yellow] URL doesn't look like YouTube, trying yt-dlp anyway...")
+
+            console.print(f"[cyan]Downloading from URL:[/cyan] {url}")
+
+            downloader = YouTubeDownloader()
+            result = downloader.download(url)
+
+            audio_path = result.get("audio_path")
+            meta = result.get("meta", {})
+
+            console.print(f"\n[green]✓ Downloaded:[/green] {meta.get('title', 'Unknown')}")
+            if audio_path:
+                console.print(f"  Audio: {audio_path}")
+
+            sys.exit(ExitCode.SUCCESS)
+
+        except ImportError:
+            console.print("[red]Error:[/red] yt-dlp not installed")
+            console.print("[dim]Install with: pip install yt-dlp[/dim]")
             sys.exit(ExitCode.USER_ERROR)
+        except Exception as e:
+            console.print(f"[red]Download Error:[/red] {e}")
+            sys.exit(ExitCode.PROCESSING_ERROR)
 
-        # Interactive TUI browser removed in v4.0.0
-        console.print(
-            "[red]Error:[/red] Interactive fetch browser removed in v4.0.0. "
-            "Use --show and --rss options instead."
-        )
-        sys.exit(ExitCode.USER_ERROR)
+    # Handle podcast (show or RSS)
+    console.print(f"[cyan]Fetching podcast:[/cyan] {show or rss}")
+    if date:
+        console.print(f"[cyan]Date filter:[/cyan] {date}")
+    if title_contains:
+        console.print(f"[cyan]Title filter:[/cyan] {title_contains}")
 
-    # Validate that either show or rss_url is provided (non-interactive mode)
-    if not show and not rss_url:
-        if json_output:
-            print(json.dumps({"error": "Either --show or --rss-url must be provided"}))
-        else:
-            console.print(
-                "[red]Error:[/red] Either --show or --rss-url must be provided."
-            )
-        sys.exit(ExitCode.USER_ERROR)
-    if show and rss_url:
-        if json_output:
-            print(json.dumps({"error": "Provide either --show or --rss-url, not both"}))
-        else:
-            console.print(
-                "[red]Error:[/red] Provide either --show or --rss-url, not both."
-            )
-        sys.exit(ExitCode.USER_ERROR)
-
-    # Use core podcast fetcher (pure business logic)
     try:
         fetcher = PodcastFetcher()
         result = fetcher.fetch_episode(
             show_name=show,
-            rss_url=rss_url,
+            rss_url=rss,
             date=date,
             title_contains=title_contains,
-            output_dir=outdir,
+            output_dir=None,  # Use smart naming
         )
     except ValidationError as e:
-        if json_output:
-            print(json.dumps({"error": str(e), "type": "validation_error"}))
-        else:
-            console.print(f"[red]Validation Error:[/red] {e}")
+        console.print(f"[red]Validation Error:[/red] {e}")
         sys.exit(ExitCode.USER_ERROR)
     except NetworkError as e:
-        if json_output:
-            print(json.dumps({"error": str(e), "type": "network_error"}))
-        else:
-            console.print(f"[red]Network Error:[/red] {e}")
+        console.print(f"[red]Network Error:[/red] {e}")
         sys.exit(ExitCode.SYSTEM_ERROR)
     except FetchError as e:
-        if json_output:
-            print(json.dumps({"error": str(e), "type": "fetch_error"}))
-        else:
-            console.print(f"[red]Fetch Error:[/red] {e}")
+        console.print(f"[red]Fetch Error:[/red] {e}")
         sys.exit(ExitCode.PROCESSING_ERROR)
 
     # Extract metadata from result
-    meta = result["meta"]
+    meta = result.get("meta", {})
     audio_path = result.get("audio_path")
-    meta_path = result.get("meta_path")
+    episode_dir = Path(audio_path).parent if audio_path else None
 
-    # Handle output
-    if output:
-        # Save to specified output file
-        output.write_text(json.dumps(meta, indent=2))
-        logger.info("Episode metadata saved", file=str(output))
+    # Show completion
+    console.print(f"\n[green]✓ Downloaded:[/green] {meta.get('title', 'Unknown')}")
+    console.print(f"  Show: {meta.get('show_name', 'Unknown')}")
+    if audio_path:
+        console.print(f"  Audio: {audio_path}")
+    if episode_dir:
+        console.print(f"  Directory: {episode_dir}")
 
-    # Output to stdout
-    if json_output:
-        # Structured JSON output
-        output_data = {
-            "success": True,
-            "episode": meta,
-            "files": {
-                "audio": str(audio_path) if audio_path else None,
-                "metadata": str(meta_path) if meta_path else None,
-            },
-        }
-        print(json.dumps(output_data, indent=2))
-    else:
-        # Rich formatted output (existing behavior)
-        print_json(meta)
-
-    # Return for validation decorator
     sys.exit(ExitCode.SUCCESS)
 
 
