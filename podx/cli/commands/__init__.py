@@ -9,15 +9,13 @@ from .export import export_cmd
 from .fetch import fetch_cmd
 from .models import models_cmd
 from .notion import notion_cmd
-from .preprocess import preprocess_shim
 from .run import run
-from .transcode import transcode_cmd
+from .server import server
 from .transcribe import transcribe_cmd
 
 __all__ = [
-    # Simple passthrough commands
+    # Core pipeline commands
     "fetch_cmd",
-    "transcode_cmd",
     "transcribe_cmd",
     "diarize_cmd",
     "export_cmd",
@@ -25,12 +23,13 @@ __all__ = [
     "deepcast_cmd",  # Backwards compatibility alias for analyze_cmd
     "models_cmd",
     "notion_cmd",
-    "preprocess_shim",
     # Utility commands
     "config_command",
     # Main orchestration command
     "run",
-    # Registration functions for complex commands
+    # Server
+    "server",
+    # Registration functions
     "register_deprecated_commands",
     "register_config_group",
 ]

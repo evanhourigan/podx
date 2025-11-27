@@ -21,11 +21,7 @@ setup_logging()
 # Import missing commands for v3.0 CLI restructure
 from podx.cli import (  # noqa: E402 - Must import after logging setup
     analyze,
-    analyze_audio,
-    batch,
-    estimate,
     init,
-    search,
     templates,
 )
 
@@ -38,12 +34,10 @@ from podx.cli.commands import (  # noqa: E402 - Must import after logging setup
     fetch_cmd,
     models_cmd,
     notion_cmd,
-    preprocess_shim,
     register_config_group,
     register_deprecated_commands,
     run,
     server,
-    transcode_cmd,
     transcribe_cmd,
 )
 
@@ -60,19 +54,26 @@ class PodxGroup(BaseGroup):
 
 @click.group(cls=PodxGroup)
 def main():
-    """Podx — composable podcast pipeline
+    """Podx — podcast processing pipeline
 
-    Core idea: small tools that do one thing well and compose cleanly.
+    Core commands:
+      fetch       Download podcast episodes
+      transcribe  Transcribe audio to text
+      diarize     Add speaker labels to transcript
+      analyze     Generate AI analysis (formerly deepcast)
+      export      Export transcript/analysis to various formats
+      notion      Publish to Notion
 
-    Core commands (composable):
-      fetch, transcode, transcribe, preprocess, diarize, export, deepcast, notion
-
-    Orchestrator:
-      run  — drive the pipeline end‑to‑end with flags (or interactive mode)
+    Utilities:
+      models      List AI models with pricing
+      config      Manage configuration
+      init        Setup wizard for new users
+      templates   Manage analysis templates
+      run         Full pipeline orchestrator
 
     Tips:
-    - Use 'podx COMMAND --help' for details on each tool
-    - All tools read JSON from stdin and write JSON to stdout so you can pipe them
+    - Use 'podx COMMAND --help' for details on each command
+    - Run 'podx init' for first-time setup
     - See README.md for usage examples
     """
     pass
@@ -81,16 +82,14 @@ def main():
 # Register main orchestration command
 main.add_command(run, name="run")
 
-# Register simple passthrough commands
+# Register core pipeline commands
 main.add_command(fetch_cmd, name="fetch")
-main.add_command(transcode_cmd, name="transcode")
 main.add_command(transcribe_cmd, name="transcribe")
 main.add_command(diarize_cmd, name="diarize")
 main.add_command(export_cmd, name="export")
-main.add_command(deepcast_cmd, name="deepcast")
+main.add_command(deepcast_cmd, name="deepcast")  # Backwards compat alias for analyze
 main.add_command(models_cmd, name="models")
 main.add_command(notion_cmd, name="notion")
-main.add_command(preprocess_shim, name="preprocess")
 
 # Register utility commands
 main.add_command(config_command, name="config")
@@ -102,37 +101,16 @@ register_deprecated_commands(main, run)
 register_config_group(main)
 
 # ============================================================================
-# v3.0 CLI Restructure - Register missing commands
+# Additional commands
 # ============================================================================
 
 # Register standalone commands
-main.add_command(estimate.main, name="estimate")
 main.add_command(init.main, name="init")
-main.add_command(analyze_audio.main, name="analyze-audio")
-
-# Register command groups and standalone commands
-main.add_command(search.search_group, name="search")
 main.add_command(analyze.main, name="analyze")
 main.add_command(templates.main, name="templates")
 
-
-# Create batch command group
-@click.group(name="batch")
-def batch_group():
-    """Batch processing commands for multiple episodes."""
-    pass
-
-
-# Add batch subcommands
-batch_group.add_command(batch.batch_transcribe, name="transcribe")
-batch_group.add_command(batch.batch_pipeline, name="pipeline")
-batch_group.add_command(batch.batch_status_cmd, name="status")
-
-# Register batch group to main CLI
-main.add_command(batch_group)
-
 # Register server command group (v3.0 - Web API Server)
-main.add_command(server.server, name="server")
+main.add_command(server, name="server")
 
 
 # ============================================================================
