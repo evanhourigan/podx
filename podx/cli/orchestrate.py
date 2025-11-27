@@ -53,10 +53,11 @@ class PodxGroup(BaseGroup):
         return [name for name in commands if name not in hidden_names]
 
 
-@click.group(cls=PodxGroup)
+@click.group(cls=PodxGroup, context_settings={"max_content_width": 120})
 def main():
     """Podx — podcast processing pipeline
 
+    \b
     Core commands:
       fetch       Download podcast episodes
       transcribe  Transcribe audio to text
@@ -65,6 +66,7 @@ def main():
       export      Export transcript/analysis to various formats
       notion      Publish to Notion
 
+    \b
     Utilities:
       models      List AI models with pricing
       config      Manage configuration
@@ -72,10 +74,10 @@ def main():
       templates   Manage analysis templates
       run         Full pipeline orchestrator
 
+    \b
     Tips:
-    - Use 'podx COMMAND --help' for details on each command
-    - Run 'podx init' for first-time setup
-    - See README.md for usage examples
+      Use 'podx COMMAND --help' for details on each command
+      Run 'podx init' for first-time setup
     """
     pass
 
