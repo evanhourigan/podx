@@ -55,10 +55,11 @@ class TestTemplatesCLI:
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert isinstance(data, list)
-        assert len(data) == 10  # All 10 built-in templates
+        assert len(data) == 11  # All 11 built-in templates
 
         # Verify structure
         template_names = {t["name"] for t in data}
+        assert "general" in template_names
         assert "interview-1on1" in template_names
         assert "solo-commentary" in template_names
 

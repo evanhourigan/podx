@@ -2,6 +2,7 @@
 """CLI wrapper for analyze command.
 
 Simplified v4.0 command that operates on episode directories.
+Uses templates system for customizable analysis.
 """
 
 import json
@@ -16,6 +17,7 @@ from rich.console import Console
 from podx.core.analyze import AnalyzeEngine, AnalyzeError
 from podx.domain.exit_codes import ExitCode
 from podx.logging import get_logger
+from podx.templates.manager import TemplateManager, TemplateError
 from podx.ui import LiveTimer, select_episode_interactive
 
 logger = get_logger(__name__)
@@ -51,6 +53,23 @@ def _find_transcript(directory: Path) -> Optional[Path]:
     return None
 
 
+def _get_available_templates() -> list[str]:
+    """Get list of available template names."""
+    try:
+        manager = TemplateManager()
+        return manager.list_templates()
+    except Exception:
+        return []
+
+
+def _format_template_help() -> str:
+    """Format template list for help text."""
+    templates = _get_available_templates()
+    if not templates:
+        return "interview-1on1  (default)"
+    return "\n      ".join(templates[:5]) + "\n      ... use 'podx templates list' for all"
+
+
 @click.command()
 @click.argument(
     "path",
@@ -63,12 +82,11 @@ def _find_transcript(directory: Path) -> Optional[Path]:
     help="AI model for analysis (e.g., gpt-4o, gpt-4o-mini, claude-sonnet-4-5)",
 )
 @click.option(
-    "--type",
-    "analysis_type",
+    "--template",
     default="general",
-    help="Analysis type (general, interview, panel, solo)",
+    help="Analysis template (see 'podx templates list')",
 )
-def main(path: Optional[Path], model: str, analysis_type: str):
+def main(path: Optional[Path], model: str, template: str):
     """Generate AI analysis of a transcript.
 
     \b
@@ -78,11 +96,12 @@ def main(path: Optional[Path], model: str, analysis_type: str):
     Without PATH, shows interactive episode selection.
 
     \b
-    Analysis Types:
-      general     Default, works for any podcast
-      interview   Guest-focused interview format
-      panel       Multiple hosts/guests discussion
-      solo        Single host commentary/monologue
+    Templates (use 'podx templates list' for full list):
+      general             Works for any podcast (default)
+      interview-1on1      Host interviewing a single guest
+      panel-discussion    Multiple hosts/guests discussing
+      solo-commentary     Single host sharing thoughts
+      technical-deep-dive In-depth technical discussion
 
     \b
     Models:
@@ -92,10 +111,10 @@ def main(path: Optional[Path], model: str, analysis_type: str):
 
     \b
     Examples:
-      podx analyze                              # Interactive selection
-      podx analyze ./Show/2024-11-24-ep/        # Direct path
-      podx analyze . --model gpt-4o             # Current dir, best model
-      podx analyze ./ep/ --type interview       # Interview-style analysis
+      podx analyze                                    # Interactive selection
+      podx analyze ./Show/2024-11-24-ep/              # Direct path
+      podx analyze . --model gpt-4o                   # Current dir, best model
+      podx analyze ./ep/ --template panel-discussion  # Panel analysis
 
     Requires:
       - Episode must have transcript.json (run 'podx transcribe' first)
@@ -140,13 +159,22 @@ def main(path: Optional[Path], model: str, analysis_type: str):
         console.print("[red]Error:[/red] transcript.json missing 'segments' field")
         sys.exit(ExitCode.USER_ERROR)
 
+    # Load template
+    try:
+        manager = TemplateManager()
+        tmpl = manager.load(template)
+    except TemplateError:
+        console.print(f"[red]Error:[/red] Template '{template}' not found")
+        console.print("[dim]Use 'podx templates list' to see available templates[/dim]")
+        sys.exit(ExitCode.USER_ERROR)
+
     # Output path
     analysis_path = episode_dir / "analysis.json"
 
     # Show what we're doing
     console.print(f"[cyan]Analyzing:[/cyan] {transcript_path.name}")
+    console.print(f"[cyan]Template:[/cyan] {template}")
     console.print(f"[cyan]Model:[/cyan] {model}")
-    console.print(f"[cyan]Type:[/cyan] {analysis_type}")
 
     # Start timer
     timer = LiveTimer("Analyzing")
@@ -159,20 +187,33 @@ def main(path: Optional[Path], model: str, analysis_type: str):
             max_chars_per_chunk=24000,
         )
 
-        # Build simple system prompt based on type
-        type_prompts = {
-            "general": "You are an expert podcast analyst. Create a comprehensive summary.",
-            "interview": "You are analyzing an interview podcast. Focus on the guest's insights and key takeaways.",
-            "panel": "You are analyzing a panel discussion. Track different perspectives and points of agreement/disagreement.",
-            "solo": "You are analyzing a solo commentary. Focus on the host's main arguments and conclusions.",
+        # Build transcript text for template
+        segments = transcript.get("segments", [])
+        transcript_text = "\n".join(
+            f"[{s.get('speaker', 'SPEAKER')}] {s.get('text', '')}"
+            if s.get("speaker")
+            else s.get("text", "")
+            for s in segments
+        )
+
+        # Count speakers
+        speakers = set(s.get("speaker") for s in segments if s.get("speaker"))
+
+        # Build context for template
+        context = {
+            "transcript": transcript_text,
+            "speaker_count": len(speakers) if speakers else 1,
+            "duration": int(segments[-1].get("end", 0) // 60) if segments else 0,
         }
-        system_prompt = type_prompts.get(analysis_type, type_prompts["general"])
+
+        # Render template
+        system_prompt, user_prompt = tmpl.render(context)
 
         md, json_data = engine.analyze(
             transcript=transcript,
             system_prompt=system_prompt,
             map_instructions="Extract key points, notable quotes, and insights from this section.",
-            reduce_instructions="Synthesize the section summaries into a cohesive analysis.",
+            reduce_instructions=user_prompt,
             want_json=True,
         )
 
@@ -189,7 +230,7 @@ def main(path: Optional[Path], model: str, analysis_type: str):
     # Build output
     result = {
         "markdown": md,
-        "analysis_type": analysis_type,
+        "template": template,
         "model": model,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "transcript_path": str(transcript_path),

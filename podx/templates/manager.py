@@ -109,6 +109,37 @@ class TemplateManager:
         )
 
         return {
+            "general": DeepcastTemplate(
+                name="general",
+                description="Format: Works for any podcast type. A versatile template that adapts to any format.",
+                format="general",
+                system_prompt=(
+                    "You are an expert podcast analyst. Create a comprehensive summary that captures:\n"
+                    "- The main topics and themes discussed\n"
+                    "- Key insights and takeaways\n"
+                    "- Notable quotes and memorable moments\n"
+                    "- The overall structure and flow of the episode\n\n"
+                    f"{scaling_guidance}"
+                ),
+                user_prompt=(
+                    "Analyze this podcast episode:\n\n"
+                    "Duration: {{duration}} minutes\n"
+                    "Speakers: {{speaker_count}}\n\n"
+                    "Transcript:\n{{transcript}}\n\n"
+                    "Provide a structured analysis with:\n\n"
+                    "1. **Summary**\n"
+                    "   - A concise overview of the episode (2-3 sentences)\n\n"
+                    "2. **Key Topics** (scale with duration)\n"
+                    "   - Main subjects discussed with brief descriptions\n\n"
+                    "3. **Key Insights** (scale with duration)\n"
+                    "   - Important takeaways and learnings\n\n"
+                    "4. **Notable Quotes** (scale with duration)\n"
+                    "   - Memorable statements with context\n\n"
+                    "5. **Takeaways**\n"
+                    "   - What listeners should remember from this episode"
+                ),
+                variables=["duration", "speaker_count", "transcript"],
+            ),
             "solo-commentary": DeepcastTemplate(
                 name="solo-commentary",
                 description="Format: One host sharing thoughts/analysis. Example podcasts: Dan Carlin's Hardcore History, Sam Harris: Making Sense (solo)",
