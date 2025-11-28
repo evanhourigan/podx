@@ -57,9 +57,7 @@ class DeepcastTemplate(BaseModel):
         # Check for required variables
         missing = set(self.variables) - set(context.keys())
         if missing:
-            raise TemplateError(
-                f"Missing required variables: {', '.join(missing)}"
-            )
+            raise TemplateError(f"Missing required variables: {', '.join(missing)}")
 
         # Render system prompt
         system = self.system_prompt
@@ -260,7 +258,14 @@ class TemplateManager:
                     "   - What emerged as the main conclusions or insights?\n"
                     "   - What should listeners remember?"
                 ),
-                variables=["title", "show", "duration", "transcript", "speakers", "speaker_count"],
+                variables=[
+                    "title",
+                    "show",
+                    "duration",
+                    "transcript",
+                    "speakers",
+                    "speaker_count",
+                ],
             ),
             "lecture-presentation": DeepcastTemplate(
                 name="lecture-presentation",
@@ -345,7 +350,14 @@ class TemplateManager:
                     "   - Which arguments were strongest/weakest?\n"
                     "   - What nuances emerged?"
                 ),
-                variables=["title", "show", "duration", "transcript", "speakers", "speaker_count"],
+                variables=[
+                    "title",
+                    "show",
+                    "duration",
+                    "transcript",
+                    "speakers",
+                    "speaker_count",
+                ],
             ),
             "news-analysis": DeepcastTemplate(
                 name="news-analysis",
@@ -654,9 +666,7 @@ class TemplateManager:
 
         # User templates
         if self.template_dir.exists():
-            user_templates = [
-                p.stem for p in self.template_dir.glob("*.yaml")
-            ]
+            user_templates = [p.stem for p in self.template_dir.glob("*.yaml")]
             templates.extend(user_templates)
 
         return sorted(set(templates))
@@ -674,9 +684,7 @@ class TemplateManager:
             TemplateError: If trying to delete built-in template
         """
         if name in self.get_builtin_templates():
-            raise TemplateError(
-                f"Cannot delete built-in template '{name}'"
-            )
+            raise TemplateError(f"Cannot delete built-in template '{name}'")
 
         template_file = self.template_dir / f"{name}.yaml"
         if template_file.exists():

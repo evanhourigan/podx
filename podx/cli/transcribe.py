@@ -136,14 +136,19 @@ def main(path: Optional[Path], model: str, language: str):
         if ":" in model:
             provider, model_name = model.split(":", 1)
 
+        def progress_callback(msg: str):
+            # Update the timer message
+            timer.message = msg
+
         engine = TranscriptionEngine(
             model=model_name,
             provider=provider,
             compute_type=None,  # Auto-detect
             device=None,  # Auto-detect
+            progress=progress_callback,
         )
 
-        result = engine.transcribe(audio_file, language=language if language != "auto" else None)
+        result = engine.transcribe(audio_file)
 
     except TranscriptionError as e:
         timer.stop()
@@ -168,7 +173,9 @@ def main(path: Optional[Path], model: str, language: str):
     )
 
     # Show completion
-    console.print(f"\n[green]✓ Transcription complete ({minutes}:{seconds:02d})[/green]")
+    console.print(
+        f"\n[green]✓ Transcription complete ({minutes}:{seconds:02d})[/green]"
+    )
     console.print(f"  Segments: {len(result.get('segments', []))}")
     console.print(f"  Language: {result.get('language', 'unknown')}")
     console.print(f"  Output: {transcript_path}")

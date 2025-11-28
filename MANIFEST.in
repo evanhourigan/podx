@@ -1,0 +1,2 @@
+include podx/models/*.json
+include podx/templates/*.yaml

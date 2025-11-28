@@ -2,9 +2,9 @@
 
 from typing import Any, Dict, List, Optional, Set
 
-from .client import WebhookClient, WebhookError, WebhookEvent
-
 from podx.logging import get_logger
+
+from .client import WebhookClient, WebhookError, WebhookEvent
 
 logger = get_logger(__name__)
 

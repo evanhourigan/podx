@@ -64,8 +64,12 @@ def list_templates():
 
         console.print("\n[bold]Available Templates[/bold]\n")
         console.print(table)
-        console.print("\n[dim]Use 'podx analyze --template NAME' to use a template[/dim]")
-        console.print("[dim]Use 'podx templates show NAME' for template details[/dim]\n")
+        console.print(
+            "\n[dim]Use 'podx analyze --template NAME' to use a template[/dim]"
+        )
+        console.print(
+            "[dim]Use 'podx templates show NAME' for template details[/dim]\n"
+        )
 
     except Exception as e:
         raise click.ClickException(f"Error listing templates: {e}")
@@ -89,21 +93,25 @@ def show_template(template_name: str):
         console.print(f"[bold]Variables:[/bold] {', '.join(template.variables)}")
         console.print(f"\n[bold]Description:[/bold]\n{template.description}\n")
 
-        console.print(Panel(
-            template.system_prompt,
-            title="System Prompt",
-            border_style="blue",
-        ))
+        console.print(
+            Panel(
+                template.system_prompt,
+                title="System Prompt",
+                border_style="blue",
+            )
+        )
 
         user_preview = template.user_prompt
         if len(user_preview) > 500:
             user_preview = user_preview[:500] + "..."
 
-        console.print(Panel(
-            user_preview,
-            title="User Prompt (preview)",
-            border_style="green",
-        ))
+        console.print(
+            Panel(
+                user_preview,
+                title="User Prompt (preview)",
+                border_style="green",
+            )
+        )
 
     except TemplateError as e:
         raise click.ClickException(str(e))

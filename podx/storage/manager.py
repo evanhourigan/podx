@@ -62,9 +62,7 @@ class StorageManager:
                 region_name=self.config.get("region", "us-east-1"),
             )
         except ImportError:
-            raise StorageError(
-                "boto3 not installed. Install with: pip install boto3"
-            )
+            raise StorageError("boto3 not installed. Install with: pip install boto3")
 
     def _get_gcs_client(self):
         """Get GCS client."""
@@ -91,7 +89,8 @@ class StorageManager:
                 return BlobServiceClient.from_connection_string(connection_string)
 
             account_url = self.config.get(
-                "account_url", f"https://{self.config.get('account_name')}.blob.core.windows.net"
+                "account_url",
+                f"https://{self.config.get('account_name')}.blob.core.windows.net",
             )
             credential = self.config.get("credential")
             return BlobServiceClient(account_url=account_url, credential=credential)

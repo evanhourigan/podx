@@ -18,7 +18,9 @@ from podx.logging import setup_logging  # noqa: E402
 
 setup_logging()
 
+# Import simplified config command
 # Import missing commands for v3.0 CLI restructure
+from podx.cli import config  # noqa: E402
 from podx.cli import (  # noqa: E402 - Must import after logging setup
     analyze,
     init,
@@ -38,9 +40,6 @@ from podx.cli.commands import (  # noqa: E402 - Must import after logging setup
     server,
     transcribe_cmd,
 )
-
-# Import simplified config command
-from podx.cli import config  # noqa: E402
 
 
 class PodxGroup(BaseGroup):

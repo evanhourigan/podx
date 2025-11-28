@@ -34,10 +34,10 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
-# Path to the JSON catalog
-_CATALOG_PATH = Path(__file__).parent.parent / "data" / "models.json"
+# Path to the JSON catalog (same directory as this module)
+_CATALOG_PATH = Path(__file__).parent / "models.json"
 
 
 @dataclass
@@ -111,7 +111,7 @@ class ModelCatalog:
             )
 
         try:
-            with open(catalog_path, 'r', encoding='utf-8') as f:
+            with open(catalog_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in model catalog: {e}")
@@ -422,6 +422,7 @@ def get_api_key(provider_name: str) -> Optional[str]:
 # ============================================================================
 # Backward compatibility helpers
 # ============================================================================
+
 
 def get_pricing_for_model(model_id_or_alias: str) -> Dict[str, Any]:
     """Get pricing data in legacy format for backward compatibility.

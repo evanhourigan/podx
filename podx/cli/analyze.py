@@ -17,7 +17,7 @@ from rich.console import Console
 from podx.core.analyze import AnalyzeEngine, AnalyzeError
 from podx.domain.exit_codes import ExitCode
 from podx.logging import get_logger
-from podx.templates.manager import TemplateManager, TemplateError
+from podx.templates.manager import TemplateError, TemplateManager
 from podx.ui import LiveTimer, select_episode_interactive
 
 logger = get_logger(__name__)
@@ -67,7 +67,9 @@ def _format_template_help() -> str:
     templates = _get_available_templates()
     if not templates:
         return "interview-1on1  (default)"
-    return "\n      ".join(templates[:5]) + "\n      ... use 'podx templates list' for all"
+    return (
+        "\n      ".join(templates[:5]) + "\n      ... use 'podx templates list' for all"
+    )
 
 
 @click.command(context_settings={"max_content_width": 120})
@@ -191,9 +193,11 @@ def main(path: Optional[Path], model: str, template: str):
         # Build transcript text for template
         segments = transcript.get("segments", [])
         transcript_text = "\n".join(
-            f"[{s.get('speaker', 'SPEAKER')}] {s.get('text', '')}"
-            if s.get("speaker")
-            else s.get("text", "")
+            (
+                f"[{s.get('speaker', 'SPEAKER')}] {s.get('text', '')}"
+                if s.get("speaker")
+                else s.get("text", "")
+            )
             for s in segments
         )
 

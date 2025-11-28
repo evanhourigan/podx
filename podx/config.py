@@ -79,7 +79,9 @@ class PodxConfig(BaseSettings):
     log_format: str = Field(default="console", validation_alias="PODX_LOG_FORMAT")
 
     # Webhook Configuration
-    webhook_url: Optional[str] = Field(default=None, validation_alias="PODX_WEBHOOK_URL")
+    webhook_url: Optional[str] = Field(
+        default=None, validation_alias="PODX_WEBHOOK_URL"
+    )
     webhook_secret: Optional[str] = Field(
         default=None, validation_alias="PODX_WEBHOOK_SECRET"
     )

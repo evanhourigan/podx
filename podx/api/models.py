@@ -309,11 +309,15 @@ class ModelInfo(BaseModel):
     id: str = Field(..., description="Canonical model identifier")
     name: str = Field(..., description="Human-readable model name")
     provider: str = Field(..., description="Provider key")
-    aliases: list[str] = Field(default_factory=list, description="Alternative identifiers")
+    aliases: list[str] = Field(
+        default_factory=list, description="Alternative identifiers"
+    )
     description: str = Field(..., description="Brief model description")
     pricing: ModelPricingInfo = Field(..., description="Pricing information")
     context_window: int = Field(..., description="Maximum context length in tokens")
-    capabilities: list[str] = Field(default_factory=list, description="Model capabilities")
+    capabilities: list[str] = Field(
+        default_factory=list, description="Model capabilities"
+    )
     default_in_cli: bool = Field(False, description="Appears in default CLI listings")
 
     def to_dict(self) -> Dict[str, Any]:

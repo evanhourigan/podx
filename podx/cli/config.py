@@ -30,12 +30,12 @@ CONFIG_KEYS = {
     "transcribe-model": {
         "description": "Default transcription model",
         "secret": False,
-        "default": "large-v3",
+        "default": "large-v3-turbo",
     },
     "analyze-model": {
         "description": "Default analysis model",
         "secret": False,
-        "default": "gpt-4o-mini",
+        "default": "openai:gpt-4o-mini",
     },
     "language": {
         "description": "Default language for transcription",

@@ -18,9 +18,11 @@ console = Console()
 
 def _run_fetch_step() -> Optional[Path]:
     """Run fetch step interactively. Returns episode directory or None."""
-    from podx.cli.fetch import _run_interactive, PodcastFetcher
+    from podx.cli.fetch import PodcastFetcher, _run_interactive
 
-    console.print("\n[bold cyan]── Fetch ──────────────────────────────────────────[/bold cyan]")
+    console.print(
+        "\n[bold cyan]── Fetch ──────────────────────────────────────────[/bold cyan]"
+    )
 
     fetcher = PodcastFetcher()
     result = _run_interactive(fetcher)
@@ -33,13 +35,16 @@ def _run_fetch_step() -> Optional[Path]:
 
 def _run_transcribe_step(episode_dir: Path) -> bool:
     """Run transcribe step. Returns True on success."""
+    import json
+
     from podx.cli.transcribe import _find_audio_file
     from podx.config import get_config
     from podx.core.transcribe import TranscriptionEngine, TranscriptionError
     from podx.ui import LiveTimer
-    import json
 
-    console.print("\n[bold cyan]── Transcribe ─────────────────────────────────────[/bold cyan]")
+    console.print(
+        "\n[bold cyan]── Transcribe ─────────────────────────────────────[/bold cyan]"
+    )
 
     # Check if already transcribed
     transcript_path = episode_dir / "transcript.json"
@@ -82,14 +87,17 @@ def _run_transcribe_step(episode_dir: Path) -> bool:
 
 def _run_diarize_step(episode_dir: Path) -> bool:
     """Run diarize step. Returns True on success."""
-    from podx.cli.diarize import _find_audio_file
-    from podx.core.diarize import DiarizationEngine, DiarizationError
-    from podx.ui import LiveTimer
     import json
     import os
     from contextlib import redirect_stderr, redirect_stdout
 
-    console.print("\n[bold cyan]── Diarize ────────────────────────────────────────[/bold cyan]")
+    from podx.cli.diarize import _find_audio_file
+    from podx.core.diarize import DiarizationEngine, DiarizationError
+    from podx.ui import LiveTimer
+
+    console.print(
+        "\n[bold cyan]── Diarize ────────────────────────────────────────[/bold cyan]"
+    )
 
     # Load transcript
     transcript_path = episode_dir / "transcript.json"
@@ -150,13 +158,16 @@ def _run_diarize_step(episode_dir: Path) -> bool:
 
 def _run_analyze_step(episode_dir: Path) -> bool:
     """Run analyze step. Returns True on success."""
+    import json
+    from datetime import datetime, timezone
+
     from podx.core.analyze import AnalyzeEngine, AnalyzeError
     from podx.templates.manager import TemplateManager
     from podx.ui import LiveTimer
-    from datetime import datetime, timezone
-    import json
 
-    console.print("\n[bold cyan]── Analyze ────────────────────────────────────────[/bold cyan]")
+    console.print(
+        "\n[bold cyan]── Analyze ────────────────────────────────────────[/bold cyan]"
+    )
 
     # Load transcript
     transcript_path = episode_dir / "transcript.json"
@@ -189,9 +200,11 @@ def _run_analyze_step(episode_dir: Path) -> bool:
         # Build transcript text
         segments = transcript.get("segments", [])
         transcript_text = "\n".join(
-            f"[{s.get('speaker', 'SPEAKER')}] {s.get('text', '')}"
-            if s.get("speaker")
-            else s.get("text", "")
+            (
+                f"[{s.get('speaker', 'SPEAKER')}] {s.get('text', '')}"
+                if s.get("speaker")
+                else s.get("text", "")
+            )
             for s in segments
         )
 
@@ -239,12 +252,15 @@ def _run_analyze_step(episode_dir: Path) -> bool:
 
 def _run_export_step(episode_dir: Path) -> bool:
     """Run export step. Returns True on success."""
-    console.print("\n[bold cyan]── Export ─────────────────────────────────────────[/bold cyan]")
+    console.print(
+        "\n[bold cyan]── Export ─────────────────────────────────────────[/bold cyan]"
+    )
 
     # Export transcript to markdown
     transcript_path = episode_dir / "transcript.json"
     if transcript_path.exists():
         import json
+
         transcript = json.loads(transcript_path.read_text())
         segments = transcript.get("segments", [])
 
@@ -266,6 +282,7 @@ def _run_export_step(episode_dir: Path) -> bool:
     analysis_path = episode_dir / "analysis.json"
     if analysis_path.exists():
         import json
+
         analysis = json.loads(analysis_path.read_text())
         md = analysis.get("markdown", "")
         if md:
@@ -320,7 +337,9 @@ def run():
         _run_export_step(episode_dir)
 
         # Done
-        console.print("\n[bold cyan]── Done ───────────────────────────────────────────[/bold cyan]")
+        console.print(
+            "\n[bold cyan]── Done ───────────────────────────────────────────[/bold cyan]"
+        )
         console.print("[green]✓ Pipeline complete[/green]")
         console.print(f"  Files saved to: {episode_dir}")
 

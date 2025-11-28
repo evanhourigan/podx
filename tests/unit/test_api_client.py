@@ -1087,9 +1087,7 @@ class TestEstimateCostAPI:
         client = PodxClient()
 
         with pytest.raises(ValueError, match="Provide only one of"):
-            client.estimate_cost(
-                model="gpt-5.1", text="hello", token_count=1000
-            )
+            client.estimate_cost(model="gpt-5.1", text="hello", token_count=1000)
 
     def test_estimate_cost_invalid_model(self):
         """Test that invalid model raises KeyError."""

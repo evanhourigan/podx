@@ -38,7 +38,9 @@ def _check_requirements() -> bool:
     all_good = True
 
     # Python version
-    py_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    py_version = (
+        f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    )
     if sys.version_info >= (3, 9):
         console.print(f"  [green]✓[/green] Python {py_version}")
     else:
@@ -51,7 +53,9 @@ def _check_requirements() -> bool:
         console.print(f"  [green]✓[/green] FFmpeg {ffmpeg_ver[:30]}")
     else:
         console.print("  [red]✗[/red] FFmpeg not found (required)")
-        console.print("      Install: brew install ffmpeg (macOS) or apt install ffmpeg (Linux)")
+        console.print(
+            "      Install: brew install ffmpeg (macOS) or apt install ffmpeg (Linux)"
+        )
         all_good = False
 
     # yt-dlp (optional)
@@ -59,13 +63,17 @@ def _check_requirements() -> bool:
     if ytdlp_ok:
         console.print(f"  [green]✓[/green] yt-dlp {ytdlp_ver[:30]}")
     else:
-        console.print("  [dim]○[/dim] yt-dlp not found (optional, for YouTube downloads)")
+        console.print(
+            "  [dim]○[/dim] yt-dlp not found (optional, for YouTube downloads)"
+        )
         console.print("      Install: pip install yt-dlp")
 
     console.print()
 
     if not all_good:
-        console.print("[red]Missing required dependencies. Install them and run 'podx init' again.[/red]\n")
+        console.print(
+            "[red]Missing required dependencies. Install them and run 'podx init' again.[/red]\n"
+        )
 
     return all_good
 
@@ -86,7 +94,10 @@ def _configure_output_dir() -> str:
             return "cwd"
         elif choice == "2":
             default_path = str(Path.home() / "Podcasts")
-            path = input(f"Enter directory path [{default_path}]: ").strip() or default_path
+            path = (
+                input(f"Enter directory path [{default_path}]: ").strip()
+                or default_path
+            )
             path = os.path.expanduser(path)
             # Create directory if needed
             Path(path).mkdir(parents=True, exist_ok=True)
@@ -98,7 +109,9 @@ def _configure_output_dir() -> str:
 
 def _configure_api_keys() -> dict[str, str]:
     """Configure API keys."""
-    console.print("\n[bold]Configure API keys[/bold] (all optional, can be added later)\n")
+    console.print(
+        "\n[bold]Configure API keys[/bold] (all optional, can be added later)\n"
+    )
 
     keys = {}
 
@@ -212,10 +225,12 @@ def main() -> None:
       podx init
     """
     # Welcome
-    console.print(Panel.fit(
-        "[bold cyan]Welcome to PodX![/bold cyan]",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold cyan]Welcome to PodX![/bold cyan]",
+            border_style="cyan",
+        )
+    )
 
     # Step 1: Check requirements
     if not _check_requirements():
@@ -258,7 +273,9 @@ def main() -> None:
     if configured:
         console.print(f"API keys: {', '.join(configured)} [green]✓[/green]")
     if not_configured:
-        console.print(f"Not configured: {', '.join(not_configured)} [dim](optional)[/dim]")
+        console.print(
+            f"Not configured: {', '.join(not_configured)} [dim](optional)[/dim]"
+        )
 
     # Load API keys instruction
     if api_keys:
@@ -269,7 +286,7 @@ def main() -> None:
 
     # Next steps
     console.print("\n[bold]Get started:[/bold]")
-    console.print("  [cyan]podx fetch --show \"Lex Fridman\"[/cyan]")
+    console.print('  [cyan]podx fetch --show "Lex Fridman"[/cyan]')
     console.print("  [cyan]podx transcribe ./episode/[/cyan]")
     console.print("  [cyan]podx analyze ./episode/[/cyan]")
 

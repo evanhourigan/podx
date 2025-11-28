@@ -74,9 +74,7 @@ class AnalyzeStep(PipelineStep):
             context.results.update({"analysis_json": str(json_out)})
             if self.extract_markdown and md_out.exists():
                 context.results.update({"analysis_md": str(md_out)})
-            return StepResult.skip(
-                f"Using existing analysis for {self.analyze_model}"
-            )
+            return StepResult.skip(f"Using existing analysis for {self.analyze_model}")
 
         # Perform analysis
         progress.start_step(f"Analyzing transcript with {self.analyze_model}")

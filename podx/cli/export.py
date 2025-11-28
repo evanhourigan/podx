@@ -146,7 +146,8 @@ def _export_transcript_vtt(transcript: dict, output_path: Path):
     required=False,
 )
 @click.option(
-    "--format", "-f",
+    "--format",
+    "-f",
     default="md",
     help="Output format(s), comma-separated [default: md]",
 )
@@ -231,7 +232,8 @@ def export_transcript(path: Optional[Path], format: str):
     required=False,
 )
 @click.option(
-    "--format", "-f",
+    "--format",
+    "-f",
     default="md",
     help="Output format(s), comma-separated [default: md]",
 )
@@ -298,6 +300,7 @@ def export_analysis(path: Optional[Path], format: str):
         elif fmt == "html":
             try:
                 import markdown
+
                 html = markdown.markdown(md_content)
                 html_doc = f"""<!DOCTYPE html>
 <html>
@@ -317,10 +320,13 @@ def export_analysis(path: Optional[Path], format: str):
                 output_path.write_text(html_doc, encoding="utf-8")
                 exported.append(output_path.name)
             except ImportError:
-                console.print("[yellow]HTML export requires 'markdown' package[/yellow]")
+                console.print(
+                    "[yellow]HTML export requires 'markdown' package[/yellow]"
+                )
 
         elif fmt == "pdf":
             import subprocess
+
             md_path = episode_dir / "analysis.md"
             md_path.write_text(md_content, encoding="utf-8")
 

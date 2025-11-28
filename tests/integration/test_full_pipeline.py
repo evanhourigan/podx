@@ -153,11 +153,18 @@ class TestFullPipelineExecution:
 
     @patch("podx.core.analyze.AnalyzeEngine._chat_once")
     @patch("podx.core.analyze.AnalyzeEngine._chat_once_async")
+    @patch("podx.core.analyze.get_provider")
     def test_analyze_stage_with_transcript_input(
-        self, mock_chat_async, mock_chat_sync, tmp_path
+        self, mock_get_provider, mock_chat_async, mock_chat_sync, tmp_path
     ):
         """Test analyze stage accepts transcript and produces markdown."""
+        from unittest.mock import MagicMock
+
         from podx.core.analyze import AnalyzeEngine
+
+        # Mock the LLM provider
+        mock_provider = MagicMock()
+        mock_get_provider.return_value = mock_provider
 
         # Create transcript
         transcript_data = {

@@ -45,6 +45,7 @@ episodes/
 *.srt
 *.vtt
 *.json
+!podx/models/models.json
 *.txt
 
 # Codex

@@ -152,7 +152,9 @@ def select_episode_interactive(
         start = page * ITEMS_PER_PAGE
         end = min(start + ITEMS_PER_PAGE, len(eps_sorted))
 
-        console.print(f"\n[bold cyan]Select an episode[/bold cyan] (page {page + 1}/{total_pages})\n")
+        console.print(
+            f"\n[bold cyan]Select an episode[/bold cyan] (page {page + 1}/{total_pages})\n"
+        )
 
         for idx, ep in enumerate(eps_sorted[start:end], start=start + 1):
             formatted = _format_episode(ep)

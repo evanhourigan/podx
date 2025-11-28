@@ -106,7 +106,9 @@ class TestTemplatesCLI:
 
         for template_name in expected_templates:
             result = runner.invoke(templates_cli, ["show", template_name])
-            assert result.exit_code == 0, f"Failed to show {template_name}: {result.output}"
+            assert (
+                result.exit_code == 0
+            ), f"Failed to show {template_name}: {result.output}"
             assert template_name in result.output
 
     # ========================================================================

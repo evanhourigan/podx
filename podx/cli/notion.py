@@ -89,6 +89,7 @@ def _publish_to_notion(episode_dir: Path, dry_run: bool = False) -> bool:
     if episode_date:
         try:
             from dateutil import parser as dtparse
+
             parsed = dtparse.parse(episode_date)
             date_iso = parsed.strftime("%Y-%m-%d")
         except Exception:
@@ -174,7 +175,9 @@ def _publish_to_notion(episode_dir: Path, dry_run: bool = False) -> bool:
     type=click.Path(exists=True, path_type=Path),
     required=False,
 )
-@click.option("--dry-run", is_flag=True, help="Show what would be published without uploading")
+@click.option(
+    "--dry-run", is_flag=True, help="Show what would be published without uploading"
+)
 def main(path: Optional[Path], dry_run: bool):
     """Publish episode analysis to Notion.
 

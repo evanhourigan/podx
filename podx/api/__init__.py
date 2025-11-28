@@ -16,11 +16,11 @@ Advanced usage with configuration:
 """
 
 from .client import AsyncPodxClient, ClientConfig, PodxClient
-from .models import (
+from .models import (  # Backwards compatibility alias for AnalyzeResponse
     AnalyzeResponse,
     APIError,
     CostEstimate,
-    DeepcastResponse,  # Backwards compatibility alias for AnalyzeResponse
+    DeepcastResponse,
     DiarizeResponse,
     ExistsCheckResponse,
     ExportResponse,

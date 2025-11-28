@@ -80,8 +80,15 @@ dev = [
 # Shell completion: Use Click's native completion (_PODX_COMPLETE=<shell>_source podx)
 podx = "podx.cli.orchestrate:main"
 
+[tool.setuptools]
+include-package-data = true
+
 [tool.setuptools.packages.find]
 where = ["."]
+
+[tool.setuptools.package-data]
+"podx.models" = ["*.json"]
+"podx.templates" = ["*.yaml"]
 
 [tool.ruff]
 line-length = 100
