@@ -1,605 +1,335 @@
-"""Main run command for orchestrating the complete podcast processing pipeline."""
+"""Main run command - interactive wizard for full pipeline.
 
-import json
-import time
+No options - walks through each step sequentially using the same UI
+as individual commands. For scripting, use individual commands instead.
+"""
+
+import sys
 from pathlib import Path
 from typing import Optional
 
 import click
+from rich.console import Console
 
-from podx.cli.services.command_runner import run_command
-from podx.cli.services.config_builder import build_pipeline_config
-from podx.cli.services.pipeline_steps import (
-    display_pipeline_config,
-    execute_cleanup,
-    execute_deepcast,
-    execute_enhancement,
-    execute_export_final,
-    execute_export_formats,
-    execute_fetch,
-    execute_notion_upload,
-    execute_transcribe,
-    handle_interactive_mode,
-    print_results_summary,
-)
-from podx.config import get_config
-from podx.constants import DEFAULT_ENCODING, JSON_INDENT
-from podx.logging import get_logger
-from podx.progress import ConsoleProgressReporter, print_podx_header
+from podx.domain.exit_codes import ExitCode
 
-logger = get_logger(__name__)
+console = Console()
 
 
-@click.command("run", help="Orchestrate the complete podcast processing pipeline.")
-@click.option("--show", help="Podcast show name (iTunes search)")
-@click.option("--rss-url", help="Direct RSS feed URL (alternative to --show)")
-@click.option(
-    "--youtube-url", help="YouTube video URL (alternative to --show and --rss-url)"
-)
-@click.option("--date", help="Episode date (YYYY-MM-DD)")
-@click.option("--title-contains", help="Substring to match in episode title")
-@click.option(
-    "--workdir",
-    type=click.Path(path_type=Path),
-    help="Override working directory (bypasses smart naming)",
-)
-@click.option(
-    "--fmt",
-    default="wav16",
-    type=click.Choice(["wav16", "mp3", "aac"]),
-    help="Transcode format for ASR step [default: wav16]",
-)
-@click.option(
-    "--model",
-    default=lambda: get_config().default_asr_model,
-    help="ASR transcription model",
-)
-@click.option(
-    "--asr-provider",
-    type=click.Choice(["auto", "local", "openai", "hf"]),
-    default="auto",
-    help="ASR provider (auto-detect by model prefix/alias if 'auto')",
-)
-@click.option(
-    "--compute",
-    default=lambda: get_config().default_compute,
-    type=click.Choice(["auto", "int8", "int8_float16", "float16", "float32"]),
-    help="Compute type",
-)
-@click.option(
-    "--preprocess/--no-preprocess",
-    default=True,
-    help="Run preprocessing (merge/normalize) before diarization/deepcast (default: enabled)",
-)
-@click.option(
-    "--restore/--no-restore",
-    default=False,
-    help="When preprocessing, attempt semantic restore using an LLM",
-)
-@click.option(
-    "--diarize/--no-diarize",
-    default=True,
-    help="Run diarization (default: enabled; use --no-diarize to skip)",
-)
-@click.option(
-    "--deepcast/--no-deepcast",
-    default=True,
-    help="Run LLM summarization (default: enabled; use --no-deepcast to skip)",
-)
-@click.option(
-    "--interactive",
-    "interactive_select",
-    is_flag=True,
-    help="Browse existing episodes and select one to process",
-)
-@click.option(
-    "--scan-dir",
-    type=click.Path(exists=True, path_type=Path),
-    default=".",
-    help="Directory to scan for episodes when using --interactive",
-)
-@click.option(
-    "--fetch-new",
-    is_flag=True,
-    help="When used with --interactive and --show, open fetch browser to add new episodes before selection",
-)
-@click.option(
-    "--deepcast-model",
-    default=lambda: get_config().openai_model,
-    help="OpenAI model for AI analysis",
-)
-@click.option(
-    "--deepcast-temp",
-    default=lambda: get_config().openai_temperature,
-    type=float,
-    help="OpenAI temperature for deepcast",
-)
-@click.option(
-    "--extract-markdown/--no-markdown",
-    "extract_markdown",
-    default=True,
-    help="Extract markdown file when running deepcast (default: enabled)",
-)
-@click.option(
-    "--deepcast-pdf",
-    "deepcast_pdf",
-    is_flag=True,
-    help="Also render a PDF of the deepcast markdown (requires pandoc)",
-)
-@click.option(
-    "--notion",
-    is_flag=True,
-    help="Upload to Notion database (default: no upload)",
-)
-@click.option(
-    "--db",
-    "notion_db",
-    default=lambda: get_config().notion_db_id,
-    help="Notion database ID (required if --notion)",
-)
-@click.option(
-    "--podcast-prop",
-    default=lambda: get_config().notion_podcast_prop,
-    help="Notion property name for podcast name",
-)
-@click.option(
-    "--date-prop",
-    default=lambda: get_config().notion_date_prop,
-    help="Notion property name for date",
-)
-@click.option(
-    "--episode-prop",
-    default=lambda: get_config().notion_episode_prop,
-    help="Notion property name for episode title",
-)
-@click.option(
-    "--model-prop",
-    default="Model",
-    help="Notion property name for deepcast model",
-)
-@click.option(
-    "--asr-prop",
-    default="ASR Model",
-    help="Notion property name for ASR model",
-)
-@click.option(
-    "--append-content",
-    is_flag=True,
-    help="Append to page body in Notion instead of replacing (default: replace)",
-)
-@click.option(
-    "--full",
-    is_flag=True,
-    help="Enable full pipeline: --deepcast --extract-markdown --notion (convenience flag)",
-)
-@click.option(
-    "--profile",
-    type=click.Choice(["quick", "standard", "high-quality"]),
-    help="Use a configuration profile (quick/standard/high-quality)",
-)
-@click.option("-v", "--verbose", is_flag=True, help="Print interstitial outputs")
-@click.option(
-    "--keep-intermediates/--no-keep-intermediates",
-    default=False,
-    help="Keep intermediate files after pipeline completion (default: auto-cleanup)",
-)
-@click.option(
-    "--keep-audio/--no-keep-audio",
-    default=True,
-    help="Keep audio files when cleaning up intermediates (default: keep audio)",
-)
-def run(
-    show: Optional[str],
-    rss_url: Optional[str],
-    youtube_url: Optional[str],
-    date: Optional[str],
-    title_contains: Optional[str],
-    workdir: Optional[Path],
-    fmt: str,
-    model: str,
-    compute: str,
-    asr_provider: str,
-    preprocess: bool,
-    restore: bool,
-    diarize: bool,
-    deepcast: bool,
-    interactive_select: bool,
-    scan_dir: Path,
-    fetch_new: bool,
-    deepcast_model: str,
-    deepcast_temp: float,
-    extract_markdown: bool,
-    deepcast_pdf: bool,
-    notion: bool,
-    notion_db: Optional[str],
-    podcast_prop: str,
-    date_prop: str,
-    episode_prop: str,
-    model_prop: str,
-    asr_prop: str,
-    append_content: bool,
-    full: bool,
-    profile: Optional[str],
-    verbose: bool,
-    keep_intermediates: bool,
-    keep_audio: bool,
-):
-    """Orchestrate the complete podcast processing pipeline.
+def _run_fetch_step() -> Optional[Path]:
+    """Run fetch step interactively. Returns episode directory or None."""
+    from podx.cli.fetch import _run_interactive, PodcastFetcher
 
-    This function handles the end-to-end workflow from episode fetch to publication,
-    supporting various pipeline configurations and resume capabilities.
+    console.print("\n[bold cyan]── Fetch ──────────────────────────────────────────[/bold cyan]")
 
-    Pipeline Flow (v2.0 - simplified):
-        1. Source Selection: Fetch from RSS, YouTube, or interactive browser
-        2. Audio Processing: Transcode to target format
-        3. Transcription: ASR transcription
-        4. Enhancement: Diarization (with internal alignment), preprocessing
-        5. Analysis: AI-powered deepcast with configurable types (default: ON)
-        6. Export: Markdown extraction (default: ON)
-        7. Publication: Optional Notion upload
+    fetcher = PodcastFetcher()
+    result = _run_interactive(fetcher)
 
-    v2.0 Defaults (enabled by default):
-        - Diarization, Preprocessing, Deepcast, Markdown extraction
-        - Use --no-diarize, --no-preprocess, --no-deepcast, --no-markdown to disable
+    if result is None:
+        return None
 
-    Resume Support:
-        The function detects existing artifacts and offers to skip completed steps,
-        maintaining state in run-state.json for crash recovery.
+    return Path(result["directory"])
 
-    Args:
-        show: Podcast name for iTunes search (alternative to rss_url/youtube_url)
-        rss_url: Direct RSS feed URL
-        youtube_url: YouTube video/channel URL
-        date: Filter episode by date (YYYY-MM-DD or partial)
-        title_contains: Filter episode by title substring
-        workdir: Working directory path (auto-generated if not specified)
-        fmt: Output audio format (wav16/mp3/aac)
-        model: ASR transcription model
-        compute: ASR compute type (int8/float16/float32)
-        asr_provider: ASR provider (auto/local/openai/hf)
-        preset: ASR preset (balanced/precision/recall)
-        align: Enable word-level alignment (WhisperX)
-        preprocess: Enable transcript preprocessing
-        restore: Enable semantic restore (LLM-based)
-        diarize: Enable speaker diarization (WhisperX)
-        deepcast: Enable AI analysis
-        interactive_select: Use interactive episode selection UI
-        scan_dir: Directory to scan for episodes in interactive mode
-        fetch_new: Force fetch new episode (skip interactive selection)
-        deepcast_model: AI model for deepcast analysis
-        deepcast_temp: Temperature for deepcast LLM calls
-        extract_markdown: Extract markdown from deepcast output
-        deepcast_pdf: Generate PDF from deepcast output
-        notion: Upload to Notion
-        notion_db: Notion database key (from YAML config)
-        podcast_prop: Notion property name for podcast
-        date_prop: Notion property name for date
-        episode_prop: Notion property name for episode
-        model_prop: Notion property name for model
-        asr_prop: Notion property name for ASR provider
-        append_content: Append to existing Notion page instead of replacing
-        full: Convenience flag to enable align + deepcast + markdown + notion
-        profile: Configuration profile name (quick/standard/high-quality)
-        verbose: Enable verbose logging
-        keep_intermediates: Keep intermediate files after completion (default: cleanup)
-        keep_audio: Keep audio files when cleaning intermediates (default: keep)
 
-    Raises:
-        ValidationError: On configuration or input validation failures
-        SystemExit: On user cancellation or missing required configuration
+def _run_transcribe_step(episode_dir: Path) -> bool:
+    """Run transcribe step. Returns True on success."""
+    from podx.cli.transcribe import _find_audio_file
+    from podx.config import get_config
+    from podx.core.transcribe import TranscriptionEngine, TranscriptionError
+    from podx.ui import LiveTimer
+    import json
 
-    Returns:
-        Exits with status code 0 on success, non-zero on failure
-    """
-    # 0. Apply profile settings if specified
-    if profile:
-        from podx.config import get_builtin_profiles
+    console.print("\n[bold cyan]── Transcribe ─────────────────────────────────────[/bold cyan]")
 
-        # Find the matching profile
-        profiles = {p.name: p for p in get_builtin_profiles()}
-        if profile in profiles:
-            profile_config = profiles[profile]
+    # Check if already transcribed
+    transcript_path = episode_dir / "transcript.json"
+    if transcript_path.exists():
+        console.print("[dim]Transcript already exists, skipping...[/dim]")
+        return True
 
-            # Apply profile settings (only if not explicitly set by user)
-            # Profile settings act as defaults, CLI args override them
-            ctx = click.get_current_context()
+    # Find audio
+    audio_file = _find_audio_file(episode_dir)
+    if not audio_file:
+        console.print("[red]Error:[/red] No audio file found")
+        return False
 
-            # Check which params were explicitly set by user
-            # If a param wasn't set, apply the profile default
-            if (
-                "model" not in ctx.params
-                or ctx.get_parameter_source("model")
-                == click.core.ParameterSource.DEFAULT
-            ):
-                model = profile_config.settings.get("asr_model", model)
-            if (
-                "asr_provider" not in ctx.params
-                or ctx.get_parameter_source("asr_provider")
-                == click.core.ParameterSource.DEFAULT
-            ):
-                asr_provider = profile_config.settings.get("asr_provider", asr_provider)
-            if (
-                "diarize" not in ctx.params
-                or ctx.get_parameter_source("diarize")
-                == click.core.ParameterSource.DEFAULT
-            ):
-                diarize = profile_config.settings.get("diarize", diarize)
-            if (
-                "preprocess" not in ctx.params
-                or ctx.get_parameter_source("preprocess")
-                == click.core.ParameterSource.DEFAULT
-            ):
-                preprocess = profile_config.settings.get("preprocess", preprocess)
-            if (
-                "deepcast" not in ctx.params
-                or ctx.get_parameter_source("deepcast")
-                == click.core.ParameterSource.DEFAULT
-            ):
-                deepcast = profile_config.settings.get("deepcast", deepcast)
-            if (
-                "deepcast_model" not in ctx.params
-                or ctx.get_parameter_source("deepcast_model")
-                == click.core.ParameterSource.DEFAULT
-            ):
-                deepcast_model = profile_config.settings.get(
-                    "llm_model", deepcast_model
-                )
+    model = get_config().default_asr_model
+    console.print(f"[dim]Transcribing with {model}...[/dim]")
 
-            if verbose:
-                click.echo(
-                    f"📋 Using profile: {profile} ({profile_config.description})"
-                )
+    timer = LiveTimer("Transcribing")
+    timer.start()
 
-    # 1. Build pipeline configuration from CLI args with preset transformations
-    config = build_pipeline_config(
-        show=show,
-        rss_url=rss_url,
-        youtube_url=youtube_url,
-        date=date,
-        title_contains=title_contains,
-        workdir=workdir,
-        fmt=fmt,
-        model=model,
-        compute=compute,
-        asr_provider=asr_provider,
-        preprocess=preprocess,
-        restore=restore,
-        diarize=diarize,
-        deepcast=deepcast,
-        deepcast_model=deepcast_model,
-        deepcast_temp=deepcast_temp,
-        extract_markdown=extract_markdown,
-        deepcast_pdf=deepcast_pdf,
-        notion=notion,
-        notion_db=notion_db,
-        podcast_prop=podcast_prop,
-        date_prop=date_prop,
-        episode_prop=episode_prop,
-        model_prop=model_prop,
-        asr_prop=asr_prop,
-        append_content=append_content,
-        full=full,
-        verbose=verbose,
-        clean=not keep_intermediates,  # Invert: cleanup by default unless keeping
-        no_keep_audio=not keep_audio,  # Invert: keep audio by default unless not keeping
-    )
-
-    # Print header and start progress tracking
-    print_podx_header()
-
-    start_time = time.time()
-
-    # Initialize results dictionary
-    results = {}
-
-    # Use progress tracking for the entire pipeline
-    progress = ConsoleProgressReporter()
-    progress.start_task("Running pipeline")
     try:
-        # We'll determine the actual workdir after fetching metadata
-        wd = None  # Will be set after fetch
+        engine = TranscriptionEngine(model=model)
+        result = engine.transcribe(audio_file)
+    except TranscriptionError as e:
+        timer.stop()
+        console.print(f"[red]Error:[/red] {e}")
+        return False
 
-        # 2. Interactive selection: choose existing episode and configure pipeline
-        interactive_meta = None
-        interactive_wd = None
-        if interactive_select:
-            from podx.ui import make_console
+    elapsed = timer.stop()
+    minutes = int(elapsed // 60)
+    seconds = int(elapsed % 60)
 
-            console = make_console()
-            interactive_meta, interactive_wd = handle_interactive_mode(
-                config, scan_dir, console
-            )
-
-            # Suppress logging during pipeline execution in interactive mode
-            from podx.logging import suppress_logging
-
-            suppress_logging()
-
-        # 3. Fetch episode metadata and determine working directory
-        meta, wd = execute_fetch(
-            config=config,
-            interactive_mode_meta=interactive_meta,
-            interactive_mode_wd=interactive_wd,
-            progress=progress,
-            verbose=config["verbose"],
-        )
-
-        # Show pipeline configuration (after YAML/JSON config is applied)
-        steps = display_pipeline_config(
-            align=config["align"],
-            diarize=config["diarize"],
-            deepcast=config["deepcast"],
-            notion=config["notion"],
-            show=config["show"],
-            rss_url=config["rss_url"],
-            date=config["date"],
-            model=config["model"],
-            compute=config["compute"],
-        )
-
-        # Working directory determined by execute_fetch()
-        wd.mkdir(parents=True, exist_ok=True)
-
-        # For YouTube URLs, now do the full fetch with proper workdir
-        if config["youtube_url"]:
-            from .youtube import fetch_youtube_episode
-
-            progress.start_step("Downloading YouTube audio")
-            meta = fetch_youtube_episode(config["youtube_url"], wd)
-            progress.complete_step(f"YouTube audio downloaded: {wd / '*.mp3'}")
-        # Save metadata to the determined workdir
-        (wd / "episode-meta.json").write_text(json.dumps(meta, indent=2))
-
-        # Track original audio path for cleanup
-        original_audio_path = Path(meta["audio_path"]) if "audio_path" in meta else None
-
-        # 2) TRANSCODE → audio-meta.json
-        audio_meta_file = wd / "audio-meta.json"
-        if audio_meta_file.exists():
-            logger.info("Found existing audio metadata, skipping transcode")
-            audio = json.loads(audio_meta_file.read_text())
-            progress.complete_step(f"Using existing {config['fmt']} audio", 0)
-        else:
-            progress.start_step(f"Transcoding audio to {config['fmt']}")
-            step_start = time.time()
-            from podx.cli.services import CommandBuilder
-
-            # Convert fmt enum to string value if needed
-            fmt_value = (
-                config["fmt"].value
-                if hasattr(config["fmt"], "value")
-                else config["fmt"]
-            )
-
-            transcode_cmd = (
-                CommandBuilder("podx-transcode")
-                .add_option("--to", fmt_value)
-                .add_option("--outdir", str(wd))
-            )
-            audio = run_command(
-                transcode_cmd.build(),
-                stdin_payload=meta,
-                verbose=config["verbose"],
-                save_to=audio_meta_file,
-                label=None,  # Progress handles the display
-            )
-            step_duration = time.time() - step_start
-            progress.complete_step(
-                f"Audio transcoded to {config['fmt']}", step_duration
-            )
-
-        # Track transcoded audio path for cleanup
-        transcoded_path = Path(audio["audio_path"])
-
-        # 3) TRANSCRIBE → transcript-{model}.json
-        latest, latest_name = execute_transcribe(
-            model=config["model"],
-            compute=config["compute"],
-            asr_provider=config["asr_provider"],
-            audio=audio,
-            wd=wd,
-            progress=progress,
-            verbose=config["verbose"],
-        )
-
-        # 4-6) ENHANCEMENT PIPELINE (preprocess, align, diarize)
-        latest, latest_name = execute_enhancement(
-            preprocess=config["preprocess"],
-            restore=config["restore"],
-            align=config["align"],
-            diarize=config["diarize"],
-            model=config["model"],
-            latest=latest,
-            latest_name=latest_name,
-            wd=wd,
-            progress=progress,
-            verbose=config["verbose"],
-        )
-
-        # Always keep a pointer to the latest JSON/SRT/TXT for convenience
-        (wd / "latest.json").write_text(
-            json.dumps(latest, indent=JSON_INDENT), encoding=DEFAULT_ENCODING
-        )
-
-        # Export to TXT/SRT formats and build results dictionary
-        results = execute_export_formats(
-            latest=latest,
-            latest_name=latest_name,
-            wd=wd,
-            progress=progress,
-            verbose=config["verbose"],
-        )
-
-        # 7) DEEPCAST (optional)
-        execute_deepcast(
-            deepcast=config["deepcast"],
-            model=config["model"],
-            deepcast_model=config["deepcast_model"],
-            deepcast_temp=config["deepcast_temp"],
-            yaml_analysis_type=config["yaml_analysis_type"],
-            extract_markdown=config["extract_markdown"],
-            deepcast_pdf=config["deepcast_pdf"],
-            wd=wd,
-            results=results,
-            progress=progress,
-            verbose=config["verbose"],
-        )
-
-        # Final export step (write exported-<timestamp>.* from deepcast)
-        execute_export_final(
-            preset=config["preset"],
-            deepcast_pdf=config["deepcast_pdf"],
-            wd=wd,
-            results=results,
-        )
-
-        # 7) NOTION (optional) — requires DB id
-        if config["notion"]:
-            if not config["notion_db"]:
-                raise SystemExit(
-                    "Please pass --db or set NOTION_DB_ID environment variable"
-                )
-
-            execute_notion_upload(
-                notion_db=config["notion_db"],
-                wd=wd,
-                results=results,
-                deepcast_model=config["deepcast_model"],
-                model=config["model"],
-                podcast_prop=config["podcast_prop"],
-                date_prop=config["date_prop"],
-                episode_prop=config["episode_prop"],
-                model_prop=config["model_prop"],
-                asr_prop=config["asr_prop"],
-                append_content=config["append_content"],
-                progress=progress,
-                verbose=config["verbose"],
-            )
-
-        # 8) Optional cleanup
-        execute_cleanup(
-            clean=config["clean"],
-            no_keep_audio=config["no_keep_audio"],
-            wd=wd,
-            latest_name=latest_name,
-            transcoded_path=transcoded_path,
-            original_audio_path=original_audio_path,
-            progress=progress,
-        )
-    finally:
-        progress.complete_task("Pipeline complete")
-
-    # Final summary
-    print_results_summary(
-        start_time=start_time,
-        steps=steps,
-        wd=wd,
-        results=results,
+    result["audio_path"] = str(audio_file)
+    transcript_path.write_text(
+        json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
     )
 
+    console.print(f"[green]✓ Transcription complete ({minutes}:{seconds:02d})[/green]")
+    return True
 
-# Add individual commands as subcommands to main CLI group
-# This provides a consistent interface: podx <command> instead of podx-<command>
+
+def _run_diarize_step(episode_dir: Path) -> bool:
+    """Run diarize step. Returns True on success."""
+    from podx.cli.diarize import _find_audio_file
+    from podx.core.diarize import DiarizationEngine, DiarizationError
+    from podx.ui import LiveTimer
+    import json
+    import os
+    from contextlib import redirect_stderr, redirect_stdout
+
+    console.print("\n[bold cyan]── Diarize ────────────────────────────────────────[/bold cyan]")
+
+    # Load transcript
+    transcript_path = episode_dir / "transcript.json"
+    if not transcript_path.exists():
+        console.print("[red]Error:[/red] No transcript found")
+        return False
+
+    transcript = json.loads(transcript_path.read_text())
+
+    # Check if already diarized
+    if transcript.get("diarized"):
+        console.print("[dim]Already diarized, skipping...[/dim]")
+        return True
+
+    # Find audio
+    audio_file = _find_audio_file(episode_dir)
+    if not audio_file:
+        console.print("[red]Error:[/red] No audio file found")
+        return False
+
+    console.print("[dim]Adding speaker labels...[/dim]")
+
+    timer = LiveTimer("Diarizing")
+    timer.start()
+
+    try:
+        with (
+            redirect_stdout(open(os.devnull, "w")),
+            redirect_stderr(open(os.devnull, "w")),
+        ):
+            engine = DiarizationEngine(
+                language=transcript.get("language", "en"),
+                hf_token=os.getenv("HUGGINGFACE_TOKEN"),
+            )
+            result = engine.diarize(audio_file, transcript["segments"])
+    except DiarizationError as e:
+        timer.stop()
+        console.print(f"[red]Error:[/red] {e}")
+        return False
+
+    elapsed = timer.stop()
+    minutes = int(elapsed // 60)
+    seconds = int(elapsed % 60)
+
+    # Update transcript
+    transcript["segments"] = result["segments"]
+    transcript["diarized"] = True
+    transcript_path.write_text(
+        json.dumps(transcript, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+    # Count speakers
+    speakers = set(s.get("speaker") for s in result["segments"] if s.get("speaker"))
+    console.print(f"[green]✓ Diarization complete ({minutes}:{seconds:02d})[/green]")
+    console.print(f"  Speakers found: {len(speakers)}")
+    return True
 
 
-## Deprecated: info command has been removed in favor of 'podx list'
+def _run_analyze_step(episode_dir: Path) -> bool:
+    """Run analyze step. Returns True on success."""
+    from podx.core.analyze import AnalyzeEngine, AnalyzeError
+    from podx.templates.manager import TemplateManager
+    from podx.ui import LiveTimer
+    from datetime import datetime, timezone
+    import json
+
+    console.print("\n[bold cyan]── Analyze ────────────────────────────────────────[/bold cyan]")
+
+    # Load transcript
+    transcript_path = episode_dir / "transcript.json"
+    if not transcript_path.exists():
+        console.print("[red]Error:[/red] No transcript found")
+        return False
+
+    transcript = json.loads(transcript_path.read_text())
+
+    # Check if already analyzed
+    analysis_path = episode_dir / "analysis.json"
+    if analysis_path.exists():
+        console.print("[dim]Analysis already exists, skipping...[/dim]")
+        return True
+
+    model = "gpt-4o-mini"  # Default
+    template = "general"
+
+    console.print(f"[dim]Analyzing with {model}...[/dim]")
+
+    timer = LiveTimer("Analyzing")
+    timer.start()
+
+    try:
+        manager = TemplateManager()
+        tmpl = manager.load(template)
+
+        engine = AnalyzeEngine(model=model)
+
+        # Build transcript text
+        segments = transcript.get("segments", [])
+        transcript_text = "\n".join(
+            f"[{s.get('speaker', 'SPEAKER')}] {s.get('text', '')}"
+            if s.get("speaker")
+            else s.get("text", "")
+            for s in segments
+        )
+
+        speakers = set(s.get("speaker") for s in segments if s.get("speaker"))
+        context = {
+            "transcript": transcript_text,
+            "speaker_count": len(speakers) if speakers else 1,
+            "duration": int(segments[-1].get("end", 0) // 60) if segments else 0,
+        }
+
+        system_prompt, user_prompt = tmpl.render(context)
+        md, json_data = engine.analyze(
+            transcript=transcript,
+            system_prompt=system_prompt,
+            map_instructions="Extract key points, notable quotes, and insights from this section.",
+            reduce_instructions=user_prompt,
+            want_json=True,
+        )
+    except AnalyzeError as e:
+        timer.stop()
+        console.print(f"[red]Error:[/red] {e}")
+        return False
+
+    elapsed = timer.stop()
+    minutes = int(elapsed // 60)
+    seconds = int(elapsed % 60)
+
+    # Save analysis
+    result = {
+        "markdown": md,
+        "template": template,
+        "model": model,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if json_data:
+        result.update(json_data)
+
+    analysis_path.write_text(
+        json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+    console.print(f"[green]✓ Analysis complete ({minutes}:{seconds:02d})[/green]")
+    return True
+
+
+def _run_export_step(episode_dir: Path) -> bool:
+    """Run export step. Returns True on success."""
+    console.print("\n[bold cyan]── Export ─────────────────────────────────────────[/bold cyan]")
+
+    # Export transcript to markdown
+    transcript_path = episode_dir / "transcript.json"
+    if transcript_path.exists():
+        import json
+        transcript = json.loads(transcript_path.read_text())
+        segments = transcript.get("segments", [])
+
+        # Build markdown
+        lines = ["# Transcript\n"]
+        for seg in segments:
+            speaker = seg.get("speaker", "")
+            text = seg.get("text", "")
+            if speaker:
+                lines.append(f"**{speaker}:** {text}\n")
+            else:
+                lines.append(f"{text}\n")
+
+        md_path = episode_dir / "transcript.md"
+        md_path.write_text("\n".join(lines), encoding="utf-8")
+        console.print("  Exported: transcript.md")
+
+    # Export analysis to markdown
+    analysis_path = episode_dir / "analysis.json"
+    if analysis_path.exists():
+        import json
+        analysis = json.loads(analysis_path.read_text())
+        md = analysis.get("markdown", "")
+        if md:
+            md_path = episode_dir / "analysis.md"
+            md_path.write_text(md, encoding="utf-8")
+            console.print("  Exported: analysis.md")
+
+    return True
+
+
+@click.command("run", context_settings={"max_content_width": 120})
+def run():
+    """Run the full podcast processing pipeline interactively.
+
+    \b
+    No options - walks you through each step:
+      1. Fetch: Search and download episode
+      2. Transcribe: Convert audio to text
+      3. Diarize: Add speaker labels
+      4. Analyze: Generate AI analysis
+      5. Export: Create markdown files
+
+    \b
+    For scripting, use individual commands:
+      podx fetch --show "Lex" --date 2024-11-24
+      podx transcribe ./episode/
+      podx diarize ./episode/
+      podx analyze ./episode/
+    """
+    try:
+        # Step 1: Fetch
+        episode_dir = _run_fetch_step()
+        if episode_dir is None:
+            console.print("[dim]Cancelled[/dim]")
+            sys.exit(0)
+
+        # Step 2: Transcribe
+        if not _run_transcribe_step(episode_dir):
+            sys.exit(ExitCode.PROCESSING_ERROR)
+
+        # Step 3: Diarize
+        if not _run_diarize_step(episode_dir):
+            # Diarization failure is not fatal - continue
+            console.print("[yellow]Diarization skipped[/yellow]")
+
+        # Step 4: Analyze
+        if not _run_analyze_step(episode_dir):
+            # Analysis failure is not fatal - continue
+            console.print("[yellow]Analysis skipped[/yellow]")
+
+        # Step 5: Export
+        _run_export_step(episode_dir)
+
+        # Done
+        console.print("\n[bold cyan]── Done ───────────────────────────────────────────[/bold cyan]")
+        console.print("[green]✓ Pipeline complete[/green]")
+        console.print(f"  Files saved to: {episode_dir}")
+
+        sys.exit(ExitCode.SUCCESS)
+
+    except KeyboardInterrupt:
+        console.print("\n[dim]Cancelled[/dim]")
+        sys.exit(0)
+
+
+if __name__ == "__main__":
+    run()

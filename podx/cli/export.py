@@ -1,182 +1,350 @@
-"""CLI wrapper for export command.
+"""CLI commands for exporting transcripts and analyses.
 
-Thin Click wrapper that uses core.export.ExportEngine for actual logic.
-Handles CLI arguments, input/output, and result formatting.
+Simplified v4.0 with subcommands for transcript and analysis export.
 """
 
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Optional
 
 import click
 from rich.console import Console
 
-from podx.cli.cli_shared import read_stdin_json
-from podx.core.export import ExportEngine, ExportError
 from podx.domain.exit_codes import ExitCode
+from podx.ui import select_episode_interactive
 
 console = Console()
 
 
-@click.command(
-    help="Export transcript JSON to text formats (txt, srt, vtt, md, pdf, html)"
-)
-@click.option(
-    "--input",
-    "-i",
-    type=click.Path(exists=True, path_type=Path),
-    help="Input transcript JSON file (or read from stdin)",
-)
-@click.option(
-    "--output",
-    "-o",
-    type=click.Path(path_type=Path),
-    help="Save output info JSON (summary of files written)",
-)
-@click.option(
-    "--formats",
-    default="txt,srt",
-    help="Output formats: txt, srt, vtt, md, pdf, html (comma-separated, default: txt,srt)",
-)
-@click.option(
-    "--output-dir",
-    type=click.Path(file_okay=False, path_type=Path),
-    help="Output directory (default: same as input file, or current directory)",
-)
-@click.option(
-    "--replace",
-    is_flag=True,
-    help="Only overwrite files if content has changed",
-)
-@click.option(
-    "--json",
-    "json_output",
-    is_flag=True,
-    help="Output structured JSON (suppresses Rich formatting)",
-)
-def main(
-    input: Optional[Path],
-    output: Optional[Path],
-    formats: str,
-    output_dir: Optional[Path],
-    replace: bool,
-    json_output: bool,
-):
+@click.group(context_settings={"max_content_width": 120})
+def main():
+    """Export transcript or analysis to various formats.
+
+    \b
+    Subcommands:
+      transcript    Export transcript to text/subtitle formats
+      analysis      Export analysis to document formats
     """
-    Convert transcript JSON to various text formats.
+    pass
 
-    Supports:
-    - TXT: Plain text, one segment per line
-    - SRT: SubRip subtitle format with timestamps
-    - VTT: WebVTT subtitle format with timestamps
-    - MD: Markdown format with heading
-    - PDF: Professional PDF document (ReportLab)
-    - HTML: Interactive HTML with search and dark mode
 
-    Reads transcript JSON from --input file or stdin.
-    Writes output files to --output-dir or same directory as input.
+def _find_transcript(directory: Path) -> Optional[Path]:
+    """Find transcript file in episode directory."""
+    transcript = directory / "transcript.json"
+    if transcript.exists():
+        return transcript
 
-    Examples:
-        podx-export -i transcript.json --formats txt,srt,md
-        podx-export -i transcript.json --formats pdf,html
-        cat transcript.json | podx-export --formats vtt
-    """
-    # Read input
-    data: Optional[Dict[str, Any]] = None
-    if input:
-        try:
-            data = json.loads(input.read_text(encoding="utf-8"))
-        except Exception as e:
-            if json_output:
-                print(
-                    json.dumps(
-                        {
-                            "error": f"Failed to read input file: {e}",
-                            "type": "file_error",
-                        }
-                    )
-                )
-            else:
-                console.print(f"[red]Error:[/red] Failed to read input file: {e}")
-            sys.exit(ExitCode.USER_ERROR)
-    else:
-        raw = read_stdin_json()
-        if isinstance(raw, dict):
-            data = raw
+    # Legacy patterns
+    patterns = ["transcript-*.json"]
+    for pattern in patterns:
+        matches = list(directory.glob(pattern))
+        if matches:
+            for m in matches:
+                if "preprocessed" not in m.name:
+                    return m
+    return None
 
-    if not data:
-        if json_output:
-            print(
-                json.dumps(
-                    {
-                        "error": "Provide transcript JSON via --input or stdin",
-                        "type": "validation_error",
-                    }
-                )
-            )
+
+def _find_analysis(directory: Path) -> Optional[Path]:
+    """Find analysis file in episode directory."""
+    analysis = directory / "analysis.json"
+    if analysis.exists():
+        return analysis
+
+    # Legacy patterns
+    patterns = ["deepcast-*.json", "deepcast.json"]
+    for pattern in patterns:
+        matches = list(directory.glob(pattern))
+        if matches:
+            return matches[0]
+    return None
+
+
+def _export_transcript_txt(transcript: dict, output_path: Path):
+    """Export transcript to plain text."""
+    lines = []
+    for seg in transcript.get("segments", []):
+        speaker = seg.get("speaker", "")
+        text = seg.get("text", "").strip()
+        if speaker:
+            lines.append(f"{speaker}: {text}")
         else:
-            console.print(
-                "[red]Error:[/red] Provide transcript JSON via --input or stdin"
-            )
+            lines.append(text)
+    output_path.write_text("\n\n".join(lines), encoding="utf-8")
+
+
+def _export_transcript_md(transcript: dict, output_path: Path):
+    """Export transcript to markdown."""
+    lines = ["# Transcript\n"]
+    for seg in transcript.get("segments", []):
+        speaker = seg.get("speaker", "")
+        text = seg.get("text", "").strip()
+        if speaker:
+            lines.append(f"**{speaker}:** {text}\n")
+        else:
+            lines.append(f"{text}\n")
+    output_path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _format_timestamp(seconds: float) -> str:
+    """Format seconds as SRT/VTT timestamp."""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    millis = int((seconds % 1) * 1000)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+
+
+def _export_transcript_srt(transcript: dict, output_path: Path):
+    """Export transcript to SRT subtitle format."""
+    lines = []
+    for i, seg in enumerate(transcript.get("segments", []), 1):
+        start = seg.get("start", 0)
+        end = seg.get("end", start + 1)
+        text = seg.get("text", "").strip()
+        speaker = seg.get("speaker", "")
+
+        if speaker:
+            text = f"[{speaker}] {text}"
+
+        lines.append(str(i))
+        lines.append(f"{_format_timestamp(start)} --> {_format_timestamp(end)}")
+        lines.append(text)
+        lines.append("")
+
+    output_path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _export_transcript_vtt(transcript: dict, output_path: Path):
+    """Export transcript to WebVTT subtitle format."""
+    lines = ["WEBVTT", ""]
+    for seg in transcript.get("segments", []):
+        start = seg.get("start", 0)
+        end = seg.get("end", start + 1)
+        text = seg.get("text", "").strip()
+        speaker = seg.get("speaker", "")
+
+        if speaker:
+            text = f"<v {speaker}>{text}"
+
+        # VTT uses . instead of , for milliseconds
+        start_ts = _format_timestamp(start).replace(",", ".")
+        end_ts = _format_timestamp(end).replace(",", ".")
+
+        lines.append(f"{start_ts} --> {end_ts}")
+        lines.append(text)
+        lines.append("")
+
+    output_path.write_text("\n".join(lines), encoding="utf-8")
+
+
+@main.command(name="transcript")
+@click.argument(
+    "path",
+    type=click.Path(exists=True, path_type=Path),
+    required=False,
+)
+@click.option(
+    "--format", "-f",
+    default="md",
+    help="Output format(s), comma-separated [default: md]",
+)
+def export_transcript(path: Optional[Path], format: str):
+    """Export transcript to text and subtitle formats.
+
+    \b
+    Arguments:
+      PATH    Episode directory (default: interactive selection)
+
+    \b
+    Formats:
+      txt    Plain text transcript
+      md     Markdown with speakers (default)
+      srt    SubRip subtitles (for video editing)
+      vtt    WebVTT subtitles (for web players)
+
+    \b
+    Examples:
+      podx export transcript ./ep/              # Export to markdown
+      podx export transcript ./ep/ -f srt,vtt   # Export subtitles
+      podx export transcript ./ep/ -f txt,md,srt,vtt  # All formats
+    """
+    # Interactive mode if no path provided
+    if path is None:
+        try:
+            selected, _ = select_episode_interactive(scan_dir=".", show_filter=None)
+            if not selected:
+                console.print("[dim]Selection cancelled[/dim]")
+                sys.exit(0)
+            path = selected["directory"]
+        except KeyboardInterrupt:
+            console.print("\n[dim]Cancelled[/dim]")
+            sys.exit(0)
+
+    episode_dir = path.resolve()
+    if episode_dir.is_file():
+        episode_dir = episode_dir.parent
+
+    # Find transcript
+    transcript_path = _find_transcript(episode_dir)
+    if not transcript_path:
+        console.print(f"[red]Error:[/red] No transcript.json found in {episode_dir}")
+        console.print("[dim]Run 'podx transcribe' first[/dim]")
+        sys.exit(ExitCode.USER_ERROR)
+
+    transcript = json.loads(transcript_path.read_text())
+
+    # Parse formats
+    formats = [f.strip().lower() for f in format.split(",")]
+    exported = []
+
+    for fmt in formats:
+        output_path = episode_dir / f"transcript.{fmt}"
+
+        if fmt == "txt":
+            _export_transcript_txt(transcript, output_path)
+        elif fmt == "md":
+            _export_transcript_md(transcript, output_path)
+        elif fmt == "srt":
+            _export_transcript_srt(transcript, output_path)
+        elif fmt == "vtt":
+            _export_transcript_vtt(transcript, output_path)
+        else:
+            console.print(f"[yellow]Unknown format: {fmt}[/yellow]")
+            continue
+
+        exported.append(output_path.name)
+
+    if exported:
+        console.print(f"[green]✓ Exported:[/green] {', '.join(exported)}")
+        sys.exit(ExitCode.SUCCESS)
+    else:
+        console.print("[red]No files exported[/red]")
+        sys.exit(ExitCode.USER_ERROR)
+
+
+@main.command(name="analysis")
+@click.argument(
+    "path",
+    type=click.Path(exists=True, path_type=Path),
+    required=False,
+)
+@click.option(
+    "--format", "-f",
+    default="md",
+    help="Output format(s), comma-separated [default: md]",
+)
+def export_analysis(path: Optional[Path], format: str):
+    """Export analysis to document formats.
+
+    \b
+    Arguments:
+      PATH    Episode directory (default: interactive selection)
+
+    \b
+    Formats:
+      md     Markdown summary (default)
+      html   HTML document
+      pdf    PDF document (requires pandoc)
+
+    \b
+    Examples:
+      podx export analysis ./ep/           # Export to markdown
+      podx export analysis ./ep/ -f html   # Export to HTML
+      podx export analysis ./ep/ -f md,pdf # Markdown and PDF
+    """
+    # Interactive mode if no path provided
+    if path is None:
+        try:
+            selected, _ = select_episode_interactive(scan_dir=".", show_filter=None)
+            if not selected:
+                console.print("[dim]Selection cancelled[/dim]")
+                sys.exit(0)
+            path = selected["directory"]
+        except KeyboardInterrupt:
+            console.print("\n[dim]Cancelled[/dim]")
+            sys.exit(0)
+
+    episode_dir = path.resolve()
+    if episode_dir.is_file():
+        episode_dir = episode_dir.parent
+
+    # Find analysis
+    analysis_path = _find_analysis(episode_dir)
+    if not analysis_path:
+        console.print(f"[red]Error:[/red] No analysis.json found in {episode_dir}")
+        console.print("[dim]Run 'podx analyze' first[/dim]")
+        sys.exit(ExitCode.USER_ERROR)
+
+    analysis = json.loads(analysis_path.read_text())
+    md_content = analysis.get("markdown", "")
+
+    if not md_content:
+        console.print("[red]Error:[/red] Analysis has no markdown content")
         sys.exit(ExitCode.USER_ERROR)
 
     # Parse formats
-    format_list = [f.strip().lower() for f in formats.split(",")]
+    formats = [f.strip().lower() for f in format.split(",")]
+    exported = []
 
-    # Determine output directory
-    if output_dir:
-        out_dir = output_dir
-    elif input:
-        out_dir = input.parent
-    else:
-        out_dir = Path(".")
+    for fmt in formats:
+        output_path = episode_dir / f"analysis.{fmt}"
 
-    # Generate base filename from input
-    if input:
-        base_name = input.stem
-    else:
-        base_name = "transcript"
+        if fmt == "md":
+            output_path.write_text(md_content, encoding="utf-8")
+            exported.append(output_path.name)
 
-    # Use core export engine
-    try:
-        engine = ExportEngine()
-        result = engine.export(
-            transcript=data,
-            formats=format_list,
-            output_dir=out_dir,
-            base_name=base_name,
-            replace=replace,
-        )
-    except ExportError as e:
-        if json_output:
-            print(json.dumps({"error": str(e), "type": "export_error"}))
+        elif fmt == "html":
+            try:
+                import markdown
+                html = markdown.markdown(md_content)
+                html_doc = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Analysis</title>
+    <style>
+        body {{ font-family: -apple-system, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }}
+        h1, h2, h3 {{ color: #333; }}
+        blockquote {{ border-left: 3px solid #ccc; padding-left: 1rem; color: #666; }}
+    </style>
+</head>
+<body>
+{html}
+</body>
+</html>"""
+                output_path.write_text(html_doc, encoding="utf-8")
+                exported.append(output_path.name)
+            except ImportError:
+                console.print("[yellow]HTML export requires 'markdown' package[/yellow]")
+
+        elif fmt == "pdf":
+            import subprocess
+            md_path = episode_dir / "analysis.md"
+            md_path.write_text(md_content, encoding="utf-8")
+
+            try:
+                subprocess.run(
+                    ["pandoc", str(md_path), "-o", str(output_path)],
+                    check=True,
+                    capture_output=True,
+                )
+                exported.append(output_path.name)
+            except FileNotFoundError:
+                console.print("[yellow]PDF export requires pandoc[/yellow]")
+            except subprocess.CalledProcessError as e:
+                console.print(f"[yellow]PDF export failed: {e}[/yellow]")
+
         else:
-            console.print(f"[red]Export Error:[/red] {e}")
-        sys.exit(ExitCode.PROCESSING_ERROR)
+            console.print(f"[yellow]Unknown format: {fmt}[/yellow]")
 
-    # Save output info if requested
-    if output:
-        output.write_text(json.dumps(result, indent=2))
-
-    # Output to stdout
-    if json_output:
-        # Structured JSON output
-        output_data = {
-            "success": True,
-            "files": result,
-            "stats": {
-                "formats": format_list,
-                "files_created": len(result),
-            },
-        }
-        print(json.dumps(output_data, indent=2))
+    if exported:
+        console.print(f"[green]✓ Exported:[/green] {', '.join(exported)}")
+        sys.exit(ExitCode.SUCCESS)
     else:
-        # Rich formatted output (existing behavior)
-        print(json.dumps(result, indent=2))
-
-    # Exit with success
-    sys.exit(ExitCode.SUCCESS)
+        console.print("[red]No files exported[/red]")
+        sys.exit(ExitCode.USER_ERROR)
 
 
 if __name__ == "__main__":

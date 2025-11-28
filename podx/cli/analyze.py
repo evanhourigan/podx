@@ -70,7 +70,7 @@ def _format_template_help() -> str:
     return "\n      ".join(templates[:5]) + "\n      ... use 'podx templates list' for all"
 
 
-@click.command()
+@click.command(context_settings={"max_content_width": 120})
 @click.argument(
     "path",
     type=click.Path(exists=True, path_type=Path),
@@ -116,6 +116,7 @@ def main(path: Optional[Path], model: str, template: str):
       podx analyze . --model gpt-4o                   # Current dir, best model
       podx analyze ./ep/ --template panel-discussion  # Panel analysis
 
+    \b
     Requires:
       - Episode must have transcript.json (run 'podx transcribe' first)
       - OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable

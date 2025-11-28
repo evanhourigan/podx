@@ -1,626 +1,233 @@
-#!/usr/bin/env python3
-from __future__ import annotations
+"""CLI wrapper for notion command.
+
+Simplified v4.0 command for publishing to Notion.
+"""
 
 import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Optional
 
 import click
+from rich.console import Console
 
 from podx.domain.exit_codes import ExitCode
+from podx.ui import select_episode_interactive
 
-# Optional rich UI (similar feel to podx-browse)
-try:
-    from rich.console import Console
-
-    _HAS_RICH = True
-    _console = Console()
-except Exception:  # pragma: no cover
-    _HAS_RICH = False
-    _console = None  # type: ignore
-
-from podx.cli.cli_shared import read_stdin_json
-from podx.cli.info import get_episode_workdir
-from podx.cli.notion_services import (
-    _interactive_table_flow,
-    upsert_page,
-)
-from podx.core.notion import NotionEngine, md_to_blocks
-from podx.yaml_config import NotionDatabase, get_yaml_config_manager
-
-try:
-    from notion_client import Client
-except ImportError:
-    Client = None  # type: ignore
+console = Console()
 
 
-# utils
-def notion_client_from_env(token: Optional[str] = None) -> Client:
-    if Client is None:
-        raise SystemExit("Install notion-client: pip install notion-client")
+def _find_analysis(directory: Path) -> Optional[Path]:
+    """Find analysis file in episode directory."""
+    # Check for analysis.json first (new standard name)
+    analysis = directory / "analysis.json"
+    if analysis.exists():
+        return analysis
 
-    auth_token = token or os.getenv("NOTION_TOKEN")
-    if not auth_token:
-        raise SystemExit(
-            "Set NOTION_TOKEN environment variable or configure a token via podx config."
-        )
+    # Fall back to legacy deepcast patterns
+    patterns = ["deepcast-*.json", "deepcast.json"]
+    for pattern in patterns:
+        matches = list(directory.glob(pattern))
+        if matches:
+            return matches[0]
 
-    return Client(auth=auth_token)
+    return None
 
 
-@click.command()
-@click.option(
-    "--db",
-    "db_id",
-    default=lambda: os.getenv("NOTION_DB_ID"),
-    help="Target Notion database ID",
-)
-@click.option(
-    "--config-db",
-    "config_db_name",
-    help="Named Notion database from podx config to use (overrides env defaults)",
-)
-@click.option(
-    "--show", help="Podcast show name (auto-detect workdir, files, and models)"
-)
-@click.option(
-    "--episode-date",
-    help="Episode date YYYY-MM-DD (auto-detect workdir, files, and models)",
-)
-@click.option(
-    "--select-model",
-    help="If multiple deepcast models exist, specify which to use (e.g., 'gpt-4.1')",
-)
-@click.option("--title", help="Page title (or derive from --meta)")
-@click.option(
-    "--date", "date_iso", help="ISO date (YYYY-MM-DD) (or derive from --meta)"
-)
-@click.option(
-    "--input",
-    "-i",
-    type=click.Path(exists=True, path_type=Path),
-    help="Read DeepcastBrief JSON from file instead of stdin",
-)
-@click.option(
-    "--markdown",
-    "md_path",
-    type=click.Path(exists=True, path_type=Path),
-    help="Markdown file (alternative to --input)",
-)
-@click.option(
-    "--json",
-    "json_path",
-    type=click.Path(exists=True, path_type=Path),
-    help="Structured JSON for extra Notion properties",
-)
-@click.option(
-    "--meta",
-    "meta_path",
-    type=click.Path(exists=True, path_type=Path),
-    help="Episode metadata JSON (to derive title/date)",
-)
-@click.option(
-    "--podcast-prop",
-    default=lambda: os.getenv("NOTION_PODCAST_PROP", "Podcast"),
-    help="Notion property name for podcast name",
-)
-@click.option(
-    "--date-prop",
-    default=lambda: os.getenv("NOTION_DATE_PROP", "Date"),
-    help="Notion property name for date",
-)
-@click.option(
-    "--episode-prop",
-    default=lambda: os.getenv("NOTION_EPISODE_PROP", "Episode"),
-    help="Notion property name for episode title",
-)
-@click.option(
-    "--model-prop",
-    default="Model",
-    help="Notion property name for deepcast model",
-)
-@click.option(
-    "--asr-prop",
-    default="ASR Model",
-    help="Notion property name for ASR model",
-)
-@click.option(
-    "--deepcast-model",
-    help="Deepcast model name to store in Notion",
-)
-@click.option(
-    "--asr-model",
-    help="ASR model name to store in Notion",
-)
-@click.option(
-    "--append-content",
-    is_flag=True,
-    help="Append to page body in Notion instead of replacing (default: replace)",
-)
-@click.option(
-    "--cover-image",
-    is_flag=True,
-    help="Set podcast artwork as page cover (requires image_url in meta)",
-)
-@click.option(
-    "--dry-run", is_flag=True, help="Parse and print Notion payload (don't write)"
-)
-@click.option(
-    "--output",
-    "-o",
-    "output",
-    type=click.Path(path_type=Path),
-    help="Save summary JSON (page_id, url, properties) to file",
-)
-@click.option(
-    "--interactive",
-    is_flag=True,
-    help="Interactive selection flow (show → date → model → run)",
-)
-@click.option(
-    "--json",
-    "json_output",
-    is_flag=True,
-    help="Output structured JSON (suppresses Rich formatting)",
-)
-def main(
-    db_id: Optional[str],
-    config_db_name: Optional[str],
-    show: Optional[str],
-    episode_date: Optional[str],
-    select_model: Optional[str],
-    title: Optional[str],
-    date_iso: Optional[str],
-    input: Optional[Path],
-    md_path: Optional[Path],
-    json_path: Optional[Path],
-    meta_path: Optional[Path],
-    podcast_prop: str,
-    date_prop: str,
-    episode_prop: str,
-    model_prop: str,
-    asr_prop: str,
-    deepcast_model: Optional[str],
-    asr_model: Optional[str],
-    append_content: bool,
-    cover_image: bool,
-    dry_run: bool,
-    output: Optional[Path],
-    interactive: bool,
-    json_output: bool,
-):
-    """
-    Create or update a Notion page from Markdown (+ optional JSON props).
-    Upsert by Title (+ Date if provided).
-    """
+def _publish_to_notion(episode_dir: Path, dry_run: bool = False) -> bool:
+    """Publish episode analysis to Notion. Returns True on success."""
+    try:
+        from notion_client import Client
+    except ImportError:
+        console.print("[red]Error:[/red] notion-client not installed")
+        console.print("[dim]Install with: pip install notion-client[/dim]")
+        return False
 
-    # Interactive table flow
-    if interactive:
-        params = _interactive_table_flow(
-            db_id,
-            config_db_name,
-            Path.cwd(),
-            dry_run=dry_run,
-            cover_image=cover_image,
-            notion_client_from_env=notion_client_from_env,
-        )
-        if not params:
-            return
+    # Get token
+    token = os.getenv("NOTION_TOKEN")
+    if not token:
+        console.print("[red]Error:[/red] NOTION_TOKEN not set")
+        console.print("[dim]Run 'podx config set notion-token YOUR_TOKEN'[/dim]")
+        return False
 
-        # Inject selected parameters
-        db_id = params["db_id"]
-        config_db_name = params.get("db_name", config_db_name)
-        if params.get("token"):
-            selected_token = params["token"]
-        input = params["input_path"]
-        meta_path = params.get("meta_path")
-        dry_run = params["dry_run"]
-        cover_image = params.get("cover", cover_image)
-
-    # Auto-detect workdir and files if --show and --episode-date provided
-    if show and episode_date:
-        workdir = get_episode_workdir(show, episode_date)
-        if not workdir.exists():
-            raise SystemExit(f"Episode directory not found: {workdir}")
-
-        # Auto-detect the most recent deepcast analysis if not specified
-        if not input and not md_path:
-            # Check for both new and legacy deepcast formats
-            deepcast_files = list(workdir.glob("deepcast-*.json"))
-            if deepcast_files:
-                if select_model:
-                    # Filter for specific model
-                    model_suffix = select_model.replace(".", "_").replace("-", "_")
-                    matching_files = [
-                        f for f in deepcast_files if f.stem.endswith(f"-{model_suffix}")
-                    ]
-                    if matching_files:
-                        # Sort by modification time, newest first
-                        input = max(matching_files, key=lambda p: p.stat().st_mtime)
-                        click.echo(
-                            f"📄 Selected deepcast file for {select_model}: {input.name}"
-                        )
-                    else:
-                        available_models = [
-                            f.stem.split("-")[-1].replace("_", ".")
-                            for f in deepcast_files
-                        ]
-                        raise SystemExit(
-                            f"No deepcast analysis found for model '{select_model}'. Available: {', '.join(set(available_models))}"
-                        )
-                else:
-                    # Sort by modification time, newest first
-                    input = max(deepcast_files, key=lambda p: p.stat().st_mtime)
-                    model_from_filename = input.stem.split("-")[-1].replace("_", ".")
-                    click.echo(
-                        f"📄 Auto-detected deepcast file: {input.name} (model: {model_from_filename})"
-                    )
-                    if len(deepcast_files) > 1:
-                        available_models = [
-                            f.stem.split("-")[-1].replace("_", ".")
-                            for f in deepcast_files
-                        ]
-                        click.echo(
-                            f"💡 Multiple models available: {', '.join(set(available_models))}. Use --select-model to choose."
-                        )
-            else:
-                raise SystemExit(f"No deepcast analysis found in {workdir}")
-
-        # Auto-detect meta file if not specified
-        if not meta_path:
-            episode_meta = workdir / "episode-meta.json"
-            if episode_meta.exists():
-                meta_path = episode_meta
-                click.echo(f"📋 Auto-detected metadata: {episode_meta.name}")
-
-        # Auto-detect models from files if not specified
-        if input and not deepcast_model:
-            try:
-                deepcast_data = json.loads(input.read_text())
-                auto_deepcast_model = deepcast_data.get("deepcast_metadata", {}).get(
-                    "model"
-                )
-                if auto_deepcast_model:
-                    deepcast_model = auto_deepcast_model
-                    click.echo(f"🤖 Auto-detected deepcast model: {deepcast_model}")
-            except (json.JSONDecodeError, FileNotFoundError):
-                pass
-
-        if not asr_model:
-            transcript_file = workdir / "transcript.json"
-            if transcript_file.exists():
-                try:
-                    transcript_data = json.loads(transcript_file.read_text())
-                    auto_asr_model = transcript_data.get("asr_model")
-                    if auto_asr_model:
-                        asr_model = auto_asr_model
-                        click.echo(f"🎤 Auto-detected ASR model: {asr_model}")
-                except (json.JSONDecodeError, FileNotFoundError):
-                    pass
-
-    selected_db: Optional[NotionDatabase] = None
-    selected_token: Optional[str] = None
-    if config_db_name:
-        try:
-            mgr = get_yaml_config_manager()
-            selected_db = mgr.get_notion_database(config_db_name)
-            if not selected_db:
-                raise SystemExit(
-                    f"No Notion database named '{config_db_name}' found in podx config."
-                )
-        except Exception as exc:
-            raise SystemExit(f"Failed to load podx config: {exc}")
-
-    if selected_db:
-        db_id = db_id or selected_db.database_id
-        podcast_prop = podcast_prop or selected_db.podcast_property
-        date_prop = date_prop or selected_db.date_property
-        episode_prop = episode_prop or selected_db.episode_property
-        selected_token = selected_db.token
-
+    # Get database ID
+    db_id = os.getenv("NOTION_DATABASE_ID")
     if not db_id:
-        raise SystemExit(
-            "Please pass --db, use --config-db, or set NOTION_DB_ID environment variable"
-        )
+        console.print("[red]Error:[/red] NOTION_DATABASE_ID not set")
+        console.print("[dim]Run 'podx config set notion-database-id YOUR_DB_ID'[/dim]")
+        return False
 
-    # Handle input modes: --input (from stdin/file) vs separate files
-    if input:
-        # Read DeepcastBrief JSON from file
-        deepcast_data = json.loads(input.read_text(encoding="utf-8"))
-    elif not md_path:
-        # Read DeepcastBrief JSON from stdin
-        deepcast_data = read_stdin_json()
+    # Find analysis
+    analysis_path = _find_analysis(episode_dir)
+    if not analysis_path:
+        console.print(f"[red]Error:[/red] No analysis.json found in {episode_dir}")
+        console.print("[dim]Run 'podx analyze' first[/dim]")
+        return False
+
+    # Load analysis
+    analysis = json.loads(analysis_path.read_text())
+    md = analysis.get("markdown", "")
+    if not md:
+        console.print("[red]Error:[/red] Analysis has no markdown content")
+        return False
+
+    # Load episode metadata
+    meta_path = episode_dir / "episode-meta.json"
+    if meta_path.exists():
+        meta = json.loads(meta_path.read_text())
     else:
-        # Traditional separate files mode
-        deepcast_data = None
-
-    if deepcast_data:
-        # Extract data from DeepcastBrief JSON
-        md = deepcast_data.get("markdown", "")
-        if not md:
-            raise SystemExit("DeepcastBrief JSON must contain 'markdown' field")
-
-        # Extract metadata if available
-        meta = deepcast_data.get("metadata", {})
-
-        # Merge episode metadata if available (from smart detection)
-        if meta_path and meta_path.exists():
-            episode_meta = json.loads(meta_path.read_text())
-            # Merge episode metadata with transcript metadata, episode takes priority
-            meta = {**meta, **episode_meta}
-
-        # Extract structured data for Notion properties
-        js = deepcast_data  # The whole deepcast output
-    else:
-        # Traditional mode: separate files
-        if not md_path:
-            raise SystemExit(
-                "Either provide --input (for DeepcastBrief JSON) or --markdown (for separate files)"
-            )
-
-        # Prefer explicit CLI title/date, else derive from meta JSON
         meta = {}
-        if meta_path:
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
 
-        md = md_path.read_text(encoding="utf-8")
+    # Extract info
+    show_name = meta.get("show", "Unknown Podcast")
+    episode_title = meta.get("episode_title", meta.get("title", "Untitled"))
+    episode_date = meta.get("episode_published", meta.get("date", ""))
 
-        # Extra Notion properties from JSON
-        js = {}
-        if json_path:
-            js = json.loads(json_path.read_text(encoding="utf-8"))
+    # Parse date
+    date_iso = None
+    if episode_date:
+        try:
+            from dateutil import parser as dtparse
+            parsed = dtparse.parse(episode_date)
+            date_iso = parsed.strftime("%Y-%m-%d")
+        except Exception:
+            if len(episode_date) >= 10:
+                date_iso = episode_date[:10]
 
-    # Derive podcast name, episode title and date
-    podcast_name = meta.get("show") or "Unknown Podcast"
-    if not title:
-        title = meta.get("episode_title") or meta.get("title") or "Podcast Notes"
-    episode_title = title
+    if dry_run:
+        console.print("\n[bold]Dry run - would publish:[/bold]")
+        console.print(f"  Database: {db_id[:8]}...")
+        console.print(f"  Show: {show_name}")
+        console.print(f"  Episode: {episode_title}")
+        console.print(f"  Date: {date_iso or 'None'}")
+        console.print(f"  Content: {len(md)} characters")
+        return True
 
-    # Auto-detect deepcast model from available data if not provided via CLI
-    if not deepcast_model:
-        # Try to extract from deepcast metadata in meta (from unified JSON)
-        if hasattr(meta, "get") and meta.get("deepcast_metadata"):
-            auto_deepcast_model = meta["deepcast_metadata"].get("model")
-            if auto_deepcast_model:
-                deepcast_model = auto_deepcast_model
-                click.echo(f"🤖 Auto-detected deepcast model: {deepcast_model}")
-        # Try to extract from separate JSON properties file
-        elif hasattr(js, "get") and js.get("deepcast_metadata"):
-            auto_deepcast_model = js["deepcast_metadata"].get("model")
-            if auto_deepcast_model:
-                deepcast_model = auto_deepcast_model
-                click.echo(f"🤖 Auto-detected deepcast model: {deepcast_model}")
-
-    # Extract ASR model if not provided via CLI
-    if not asr_model:
-        # First try deepcast metadata (preferred source)
-        if hasattr(js, "get") and js.get("deepcast_metadata"):
-            auto_asr_model = js["deepcast_metadata"].get("asr_model")
-            if auto_asr_model:
-                asr_model = auto_asr_model
-                click.echo(f"🎤 Auto-detected ASR model from deepcast: {asr_model}")
-
-        # Fallback to original transcript metadata
-        if not asr_model and hasattr(meta, "get"):
-            asr_model = meta.get("asr_model")
-
-        # Last resort: try loading transcript.json from same directory
-        if not asr_model and meta_path:
-            transcript_path = meta_path.parent / "transcript.json"
-            if transcript_path.exists():
-                try:
-                    transcript_data = json.loads(transcript_path.read_text())
-                    asr_model = transcript_data.get("asr_model")
-                    if asr_model:
-                        click.echo(
-                            f"🎤 Auto-detected ASR model from transcript: {asr_model}"
-                        )
-                except (json.JSONDecodeError, FileNotFoundError):
-                    pass
-
-    if not date_iso:
-        d = meta.get("episode_published") or meta.get("date")
-        if isinstance(d, str):
-            # Handle different date formats
-            try:
-                from datetime import datetime
-
-                # Try parsing RFC 2822 format (e.g., "Wed, 11 Jun 2025 14:18:45 +0000")
-                if "," in d and len(d) > 20:
-                    # Try with UTC offset format first
-                    try:
-                        dt = datetime.strptime(d, "%a, %d %b %Y %H:%M:%S %z")
-                        date_iso = dt.strftime("%Y-%m-%d")
-                    except ValueError:
-                        # Fallback to timezone name format (e.g., GMT)
-                        dt = datetime.strptime(d, "%a, %d %b %Y %H:%M:%S %Z")
-                        date_iso = dt.strftime("%Y-%m-%d")
-                # Try ISO format
-                elif len(d) >= 10:
-                    date_iso = d[:10]  # YYYY-MM-DD from ISO datetime
-            except ValueError:
-                # Fallback: try to extract YYYY-MM-DD pattern
-                if len(d) >= 10:
-                    date_iso = d[:10]
+    # Convert markdown to Notion blocks
+    from podx.core.notion import md_to_blocks
 
     blocks = md_to_blocks(md)
 
-    # Extra Notion properties from JSON
-    props_extra: Dict[str, Any] = {}
-    if js:
-        # Generate meaningful tags from episode metadata and analysis
-        tags = []
+    # Create/update page
+    client = Client(auth=token)
 
-        # Add model information as tags
-        deepcast_meta = js.get("deepcast_metadata", {})
-        if deepcast_meta.get("model"):
-            tags.append(f"AI-{deepcast_meta['model']}")
-        if deepcast_meta.get("asr_model"):
-            tags.append(f"ASR-{deepcast_meta['asr_model']}")
-
-        # Add podcast type if available
-        podcast_type = deepcast_meta.get("podcast_type")
-        if podcast_type and podcast_type != "general":
-            tags.append(f"Type-{podcast_type}")
-
-        # Extract technology/topic keywords from key points (limit to avoid clutter)
-        key_points = (js.get("key_points") or [])[:5]
-        tech_keywords = set()
-
-        # Common technology terms to extract as tags
-        tech_terms = [
-            "AI",
-            "machine learning",
-            "ChatGPT",
-            "Claude",
-            "OpenAI",
-            "agents",
-            "automation",
-            "engineering",
-            "coding",
-            "development",
-            "API",
-            "workflow",
-            "productivity",
-            "software",
-            "platform",
-            "tool",
-            "framework",
-            "algorithm",
-            "model",
-            "data",
-            "Python",
-            "JavaScript",
-            "React",
-            "Node",
-            "Docker",
-            "cloud",
-            "AWS",
-            "database",
-        ]
-
-        for kp in key_points:
-            for term in tech_terms:
-                if term.lower() in kp.lower() and len(tech_keywords) < 3:
-                    tech_keywords.add(term)
-
-        # Add technology tags
-        for tech in tech_keywords:
-            tags.append(tech)
-
-        # Convert to Notion format
-        if tags:
-            cleaned_tags = []
-            for tag in tags[:6]:  # Limit to 6 tags total
-                clean_tag = (
-                    tag.replace(",", "").replace(".", "").replace(";", "")[:50].strip()
-                )
-                if clean_tag:
-                    cleaned_tags.append({"name": clean_tag})
-
-            if cleaned_tags:
-                props_extra["Tags"] = {"multi_select": cleaned_tags}
-
-    # Handle cover image
-    cover_url = None
-    if cover_image and meta:
-        cover_url = (
-            meta.get("image_url") or meta.get("artwork_url") or meta.get("cover_url")
-        )
-
-    if dry_run:
-        payload = {
-            "db_id": db_id,
-            "podcast_prop": podcast_prop,
-            "episode_prop": episode_prop,
-            "date_prop": date_prop,
-            "podcast_name": podcast_name,
-            "episode_title": episode_title,
-            "date_iso": date_iso,
-            "replace_content": not append_content,
-            "cover_image": cover_url is not None,
-            "cover_url": cover_url,
-            "props_extra_keys": list(props_extra.keys()) if props_extra else [],
-            "blocks_count": len(blocks),
-        }
-        print(json.dumps(payload, indent=2))
-        print("\n✅ Dry run prepared. Payload summarized above.")
-        return
-
-    client = notion_client_from_env(selected_token)
-    page_id = upsert_page(
-        client=client,
-        db_id=db_id,
-        podcast_name=podcast_name,
-        episode_title=episode_title,
-        date_iso=date_iso,
-        podcast_prop=podcast_prop,
-        episode_prop=episode_prop,
-        date_prop=date_prop,
-        model_prop=model_prop,
-        asr_prop=asr_prop,
-        deepcast_model=deepcast_model,
-        asr_model=asr_model,
-        props_extra=props_extra,
-        blocks=blocks,
-        replace_content=not append_content,
-    )
-
-    # Set cover image if requested and available
-    if cover_url:
-        engine = NotionEngine(api_token=selected_token)
-        engine.set_page_cover(page_id, cover_url)
-
-    # Build result summary
-    result = {
-        "ok": True,
-        "page_id": page_id,
-        "url": f"https://notion.so/{page_id.replace('-', '')}",
+    # Build properties
+    properties = {
+        "Name": {"title": [{"text": {"content": episode_title}}]},
     }
 
-    # Save to output file if requested
-    if output:
-        output.write_text(json.dumps(result, indent=2), encoding="utf-8")
-        if interactive:
-            print("\n✅ Notion upload complete")
-            print(f"   Episode: {episode_title}")
-            print(
-                f"   Database: {config_db_name if config_db_name else db_id[:8] + '...'}"
-            )
-            print(f"   Page URL: {result['url']}")
-            if output:
-                print(f"   Summary saved: {output}")
+    # Add optional properties if they exist in the database
+    # (Notion will ignore properties that don't exist)
+    if show_name:
+        properties["Podcast"] = {"rich_text": [{"text": {"content": show_name}}]}
+    if date_iso:
+        properties["Date"] = {"date": {"start": date_iso}}
 
-    # Print result (interactive: detailed message, non-interactive: JSON)
-    if interactive:
-        if not output:
-            print("\n✅ Notion upload complete")
-            print(f"   Episode: {episode_title}")
-            print(
-                f"   Database: {config_db_name if config_db_name else db_id[:8] + '...'}"
-            )
-            print(f"   Page URL: {result['url']}")
+    # Check if page exists (by title)
+    try:
+        query = client.databases.query(
+            database_id=db_id,
+            filter={"property": "Name", "title": {"equals": episode_title}},
+        )
+        existing = query.get("results", [])
+    except Exception:
+        existing = []
+
+    if existing:
+        # Update existing page
+        page_id = existing[0]["id"]
+
+        # Clear existing content
+        try:
+            existing_blocks = client.blocks.children.list(block_id=page_id)
+            for block in existing_blocks.get("results", []):
+                try:
+                    client.blocks.delete(block_id=block["id"])
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Add new content
+        client.blocks.children.append(block_id=page_id, children=blocks)
+
+        page_url = f"https://notion.so/{page_id.replace('-', '')}"
+        console.print(f"\n[green]✓ Updated existing page:[/green] {page_url}")
     else:
-        if json_output:
-            # Structured JSON output with success wrapper
-            output_data = {
-                "success": True,
-                "notion": result,
-                "episode": {
-                    "title": episode_title,
-                    "podcast": podcast_name,
-                    "date": date_iso,
-                },
-            }
-            print(json.dumps(output_data, indent=2))
-        else:
-            # Original behavior - simple result JSON
-            print(json.dumps(result, indent=2))
+        # Create new page
+        page = client.pages.create(
+            parent={"database_id": db_id},
+            properties=properties,
+            children=blocks,
+        )
+        page_id = page["id"]
+        page_url = f"https://notion.so/{page_id.replace('-', '')}"
+        console.print(f"\n[green]✓ Created new page:[/green] {page_url}")
 
-    # Exit with success
-    sys.exit(ExitCode.SUCCESS)
+    return True
+
+
+@click.command(context_settings={"max_content_width": 120})
+@click.argument(
+    "path",
+    type=click.Path(exists=True, path_type=Path),
+    required=False,
+)
+@click.option("--dry-run", is_flag=True, help="Show what would be published without uploading")
+def main(path: Optional[Path], dry_run: bool):
+    """Publish episode analysis to Notion.
+
+    \b
+    Arguments:
+      PATH    Episode directory (default: interactive selection)
+
+    \b
+    Configuration (via 'podx config'):
+      notion-token         Notion API token (or NOTION_TOKEN env var)
+      notion-database-id   Target database ID (or NOTION_DATABASE_ID env var)
+
+    \b
+    Requirements:
+      - Notion token configured
+      - Notion database ID configured
+      - Episode must have analysis.json (run 'podx analyze' first)
+
+    \b
+    Examples:
+      podx notion                              # Interactive selection
+      podx notion ./Show/2024-11-24-ep/        # Direct path
+      podx notion ./ep/ --dry-run              # Preview without uploading
+    """
+    # Interactive mode if no path provided
+    if path is None:
+        try:
+            selected, _ = select_episode_interactive(
+                scan_dir=".",
+                show_filter=None,
+            )
+            if not selected:
+                console.print("[dim]Selection cancelled[/dim]")
+                sys.exit(0)
+
+            path = selected["directory"]
+        except KeyboardInterrupt:
+            console.print("\n[dim]Cancelled[/dim]")
+            sys.exit(0)
+
+    # Resolve path
+    episode_dir = path.resolve()
+    if episode_dir.is_file():
+        episode_dir = episode_dir.parent
+
+    # Show what we're doing
+    console.print(f"[cyan]Publishing:[/cyan] {episode_dir.name}")
+
+    # Publish
+    if _publish_to_notion(episode_dir, dry_run=dry_run):
+        sys.exit(ExitCode.SUCCESS)
+    else:
+        sys.exit(ExitCode.PROCESSING_ERROR)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,5 @@
-"""Tests for templates CLI commands."""
+"""Tests for templates CLI commands - v4.0 simplified."""
 
-import json
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -9,7 +8,7 @@ import pytest
 from click.testing import CliRunner
 
 from podx.cli.templates import main as templates_cli
-from podx.templates.manager import DeepcastTemplate, TemplateManager
+from podx.templates.manager import TemplateManager
 
 
 class TestTemplatesCLI:
@@ -38,8 +37,8 @@ class TestTemplatesCLI:
     # List Command Tests
     # ========================================================================
 
-    def test_list_templates_table_format(self, runner, mock_manager):
-        """Test listing templates in table format."""
+    def test_list_templates(self, runner, mock_manager):
+        """Test listing templates."""
         result = runner.invoke(templates_cli, ["list"])
 
         assert result.exit_code == 0
@@ -47,28 +46,14 @@ class TestTemplatesCLI:
         assert "interview-1on1" in result.output
         assert "solo-commentary" in result.output
         assert "panel-discussion" in result.output
+        assert "general" in result.output
 
-    def test_list_templates_json_format(self, runner, mock_manager):
-        """Test listing templates in JSON format."""
-        result = runner.invoke(templates_cli, ["list", "--format", "json"])
+    def test_list_shows_descriptions(self, runner, mock_manager):
+        """Test that list shows template descriptions."""
+        result = runner.invoke(templates_cli, ["list"])
 
         assert result.exit_code == 0
-        data = json.loads(result.output)
-        assert isinstance(data, list)
-        assert len(data) == 11  # All 11 built-in templates
-
-        # Verify structure
-        template_names = {t["name"] for t in data}
-        assert "general" in template_names
-        assert "interview-1on1" in template_names
-        assert "solo-commentary" in template_names
-
-        # Verify required fields
-        for template in data:
-            assert "name" in template
-            assert "description" in template
-            assert "format" in template
-            assert "variables" in template
+        assert "Available Templates" in result.output
 
     # ========================================================================
     # Show Command Tests
@@ -92,269 +77,21 @@ class TestTemplatesCLI:
         assert result.exit_code != 0
         assert "Error" in result.output
 
-    # ========================================================================
-    # Preview Command Tests
-    # ========================================================================
-
-    def test_preview_with_sample_data(self, runner, mock_manager):
-        """Test preview command with sample data."""
-        result = runner.invoke(
-            templates_cli, ["preview", "interview-1on1", "--sample"]
-        )
+    def test_show_general_template(self, runner, mock_manager):
+        """Test showing the general template (default)."""
+        result = runner.invoke(templates_cli, ["show", "general"])
 
         assert result.exit_code == 0
-        assert "Template Preview" in result.output
-        assert "System Prompt" in result.output
-        assert "User Prompt" in result.output
-        assert "interview-1on1" in result.output
-
-    def test_preview_with_individual_options(self, runner, mock_manager, temp_dir):
-        """Test preview with individual CLI options."""
-        # Create sample transcript file
-        transcript_file = temp_dir / "transcript.txt"
-        transcript_file.write_text("This is a sample transcript.")
-
-        result = runner.invoke(
-            templates_cli,
-            [
-                "preview",
-                "interview-1on1",
-                "--title",
-                "Test Episode",
-                "--show",
-                "Test Show",
-                "--duration",
-                "45",
-                "--transcript",
-                str(transcript_file),
-                "--speakers",
-                "Host, Guest",
-            ],
-        )
-
-        assert result.exit_code == 0
-        assert "Test Episode" in result.output
-        assert "Test Show" in result.output
-        assert "This is a sample transcript" in result.output
-
-    def test_preview_with_vars_json(self, runner, mock_manager, temp_dir):
-        """Test preview with JSON variables file."""
-        # Create variables JSON file
-        vars_file = temp_dir / "vars.json"
-        vars_data = {
-            "title": "JSON Episode",
-            "show": "JSON Show",
-            "duration": 60,
-            "transcript": "JSON transcript content",
-            "speakers": "Host, Guest",
-        }
-        vars_file.write_text(json.dumps(vars_data))
-
-        result = runner.invoke(
-            templates_cli,
-            ["preview", "interview-1on1", "--vars-json", str(vars_file)],
-        )
-
-        assert result.exit_code == 0
-        assert "JSON Episode" in result.output
-        assert "JSON Show" in result.output
-
-    def test_preview_with_cost_estimation(self, runner, mock_manager):
-        """Test preview with cost estimation."""
-        result = runner.invoke(
-            templates_cli, ["preview", "interview-1on1", "--sample", "--cost"]
-        )
-
-        assert result.exit_code == 0
-        assert "Cost Estimation" in result.output
-        assert "tokens" in result.output.lower()
-        assert "$" in result.output
-
-    def test_preview_missing_vars_json_file(self, runner, mock_manager):
-        """Test preview with nonexistent JSON file."""
-        result = runner.invoke(
-            templates_cli,
-            ["preview", "interview-1on1", "--vars-json", "/nonexistent/vars.json"],
-        )
-
-        assert result.exit_code != 0
-        assert "not found" in result.output.lower()
+        assert "general" in result.output
 
     # ========================================================================
-    # Export Command Tests
+    # All Built-in Templates Tests
     # ========================================================================
-
-    def test_export_template_to_stdout(self, runner, mock_manager):
-        """Test exporting template to stdout."""
-        result = runner.invoke(templates_cli, ["export", "interview-1on1"])
-
-        assert result.exit_code == 0
-        assert "name: interview-1on1" in result.output
-        assert "description:" in result.output
-        assert "system_prompt:" in result.output
-        assert "user_prompt:" in result.output
-        assert "format:" in result.output
-
-    def test_export_template_to_file(self, runner, mock_manager, temp_dir):
-        """Test exporting template to file."""
-        output_file = temp_dir / "exported.yaml"
-
-        result = runner.invoke(
-            templates_cli, ["export", "interview-1on1", "--output", str(output_file)]
-        )
-
-        assert result.exit_code == 0
-        assert output_file.exists()
-
-        content = output_file.read_text()
-        assert "name: interview-1on1" in content
-        assert "format:" in content
-
-    def test_export_nonexistent_template(self, runner, mock_manager):
-        """Test exporting nonexistent template."""
-        result = runner.invoke(templates_cli, ["export", "nonexistent"])
-
-        assert result.exit_code != 0
-
-    # ========================================================================
-    # Import Command Tests
-    # ========================================================================
-
-    def test_import_template_from_file(self, runner, mock_manager, temp_dir):
-        """Test importing template from file."""
-        # Create template YAML file
-        template_file = temp_dir / "custom.yaml"
-        yaml_content = """
-name: custom-template
-description: Custom imported template
-format: custom
-system_prompt: System {{var1}}
-user_prompt: User {{var2}}
-variables:
-  - var1
-  - var2
-output_format: markdown
-"""
-        template_file.write_text(yaml_content)
-
-        result = runner.invoke(templates_cli, ["import", str(template_file)])
-
-        assert result.exit_code == 0
-        assert "imported" in result.output.lower()
-        assert "custom-template" in result.output
-
-    def test_import_template_from_nonexistent_file(self, runner, mock_manager):
-        """Test importing from nonexistent file."""
-        result = runner.invoke(templates_cli, ["import", "/nonexistent/template.yaml"])
-
-        assert result.exit_code != 0
-        assert "not found" in result.output.lower()
-
-    def test_import_invalid_yaml(self, runner, mock_manager, temp_dir):
-        """Test importing invalid YAML."""
-        invalid_file = temp_dir / "invalid.yaml"
-        invalid_file.write_text("{ this is not valid yaml")
-
-        result = runner.invoke(templates_cli, ["import", str(invalid_file)])
-
-        assert result.exit_code != 0
-
-    # ========================================================================
-    # Delete Command Tests
-    # ========================================================================
-
-    def test_delete_user_template_with_confirmation(self, runner, mock_manager):
-        """Test deleting user template with confirmation."""
-        # Create a user template
-        template = DeepcastTemplate(
-            name="user-deleteme",
-            description="User template to delete",
-            system_prompt="System",
-            user_prompt="User",
-        )
-        mock_manager.save(template)
-
-        # Delete with confirmation (auto-yes)
-        result = runner.invoke(
-            templates_cli, ["delete", "user-deleteme", "--yes"]
-        )
-
-        assert result.exit_code == 0
-        assert "deleted" in result.output.lower()
-
-    def test_delete_builtin_template_fails(self, runner, mock_manager):
-        """Test that deleting built-in template fails."""
-        result = runner.invoke(
-            templates_cli, ["delete", "interview-1on1", "--yes"]
-        )
-
-        assert result.exit_code != 0
-        assert "cannot delete built-in" in result.output.lower()
-
-    def test_delete_nonexistent_template(self, runner, mock_manager):
-        """Test deleting nonexistent template."""
-        result = runner.invoke(
-            templates_cli, ["delete", "nonexistent", "--yes"]
-        )
-
-        assert result.exit_code == 0
-        assert "not found" in result.output.lower()
-
-    # ========================================================================
-    # Integration Tests
-    # ========================================================================
-
-    def test_export_import_roundtrip(self, runner, mock_manager, temp_dir):
-        """Test export → import roundtrip."""
-        export_file = temp_dir / "exported.yaml"
-
-        # Export built-in template
-        result = runner.invoke(
-            templates_cli, ["export", "interview-1on1", "--output", str(export_file)]
-        )
-        assert result.exit_code == 0
-
-        # Modify the exported file to create a new template
-        content = export_file.read_text()
-        content = content.replace("name: interview-1on1", "name: custom-interview")
-        export_file.write_text(content)
-
-        # Import it back
-        result = runner.invoke(templates_cli, ["import", str(export_file)])
-        assert result.exit_code == 0
-
-        # Verify it's listed
-        result = runner.invoke(templates_cli, ["list", "--format", "json"])
-        assert result.exit_code == 0
-        data = json.loads(result.output)
-        template_names = {t["name"] for t in data}
-        assert "custom-interview" in template_names
-
-    def test_preview_all_builtin_templates(self, runner, mock_manager):
-        """Test that all built-in templates can be previewed."""
-        expected_templates = [
-            "solo-commentary",
-            "interview-1on1",
-            "panel-discussion",
-            "lecture-presentation",
-            "debate-roundtable",
-            "news-analysis",
-            "case-study",
-            "technical-deep-dive",
-            "business-strategy",
-            "research-review",
-        ]
-
-        for template_name in expected_templates:
-            result = runner.invoke(
-                templates_cli, ["preview", template_name, "--sample"]
-            )
-            assert result.exit_code == 0, f"Failed to preview {template_name}"
-            assert template_name in result.output
 
     def test_show_all_builtin_templates(self, runner, mock_manager):
         """Test that all built-in templates can be shown."""
         expected_templates = [
+            "general",
             "solo-commentary",
             "interview-1on1",
             "panel-discussion",
@@ -369,5 +106,31 @@ output_format: markdown
 
         for template_name in expected_templates:
             result = runner.invoke(templates_cli, ["show", template_name])
-            assert result.exit_code == 0, f"Failed to show {template_name}"
+            assert result.exit_code == 0, f"Failed to show {template_name}: {result.output}"
             assert template_name in result.output
+
+    # ========================================================================
+    # Help Tests
+    # ========================================================================
+
+    def test_help_shows_subcommands(self, runner):
+        """Test that help shows available subcommands."""
+        result = runner.invoke(templates_cli, ["--help"])
+
+        assert result.exit_code == 0
+        assert "list" in result.output
+        assert "show" in result.output
+
+    def test_list_help(self, runner):
+        """Test list subcommand help."""
+        result = runner.invoke(templates_cli, ["list", "--help"])
+
+        assert result.exit_code == 0
+        assert "List available" in result.output
+
+    def test_show_help(self, runner):
+        """Test show subcommand help."""
+        result = runner.invoke(templates_cli, ["show", "--help"])
+
+        assert result.exit_code == 0
+        assert "TEMPLATE_NAME" in result.output

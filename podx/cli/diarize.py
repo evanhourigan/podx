@@ -37,7 +37,7 @@ def _find_audio_file(directory: Path) -> Optional[Path]:
     return None
 
 
-@click.command()
+@click.command(context_settings={"max_content_width": 120})
 @click.argument(
     "path",
     type=click.Path(exists=True, path_type=Path),

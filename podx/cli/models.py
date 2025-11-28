@@ -18,7 +18,7 @@ except Exception:
     RICH_AVAILABLE = False
 
 
-@click.command()
+@click.command(context_settings={"max_content_width": 120})
 def main():
     """List available AI models with pricing.
 

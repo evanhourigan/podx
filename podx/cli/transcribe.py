@@ -40,7 +40,7 @@ def _find_audio_file(directory: Path) -> Optional[Path]:
     return None
 
 
-@click.command()
+@click.command(context_settings={"max_content_width": 120})
 @click.argument(
     "path",
     type=click.Path(exists=True, path_type=Path),
@@ -66,19 +66,20 @@ def main(path: Optional[Path], model: str, language: str):
     Without PATH, shows interactive episode selection.
 
     \b
-    Models:
-      Local (free, runs on your machine):
-        large-v3          Best quality (default)
-        large-v2          Previous best
-        medium            Good balance of speed/quality
-        base              Fast, lower accuracy
-        tiny              Fastest, lowest accuracy
+    Models - Local (free, runs on your machine):
+      large-v3          Best quality (default)
+      large-v2          Previous best
+      medium            Good balance of speed/quality
+      base              Fast, lower accuracy
+      tiny              Fastest, lowest accuracy
 
-      Cloud (requires API key):
-        openai:whisper-1  $0.006/min, requires OPENAI_API_KEY
+    \b
+    Models - Cloud (requires API key):
+      openai:whisper-1  $0.006/min, requires OPENAI_API_KEY
 
-      HuggingFace (downloads model locally, free):
-        hf:distil-large-v3  Distilled, faster than large-v3
+    \b
+    Models - HuggingFace (downloads locally, free):
+      hf:distil-large-v3  Distilled, faster than large-v3
 
     \b
     Examples:

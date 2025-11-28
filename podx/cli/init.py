@@ -196,7 +196,7 @@ def _save_config(output_dir: str, api_keys: dict[str, str]) -> Path:
     return config_file
 
 
-@click.command()
+@click.command(context_settings={"max_content_width": 120})
 def main() -> None:
     """Setup wizard for new PodX users.
 
