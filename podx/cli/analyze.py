@@ -80,12 +80,14 @@ def _format_template_help() -> str:
 )
 @click.option(
     "--model",
-    default="gpt-4o-mini",
-    help="AI model for analysis (e.g., gpt-4o, gpt-4o-mini, claude-sonnet-4-5)",
+    default="openai:gpt-4o-mini",
+    show_default=True,
+    help="AI model for analysis (e.g., openai:gpt-4o, anthropic:claude-sonnet-4-5)",
 )
 @click.option(
     "--template",
     default="general",
+    show_default=True,
     help="Analysis template (see 'podx templates list')",
 )
 def main(path: Optional[Path], model: str, template: str):
@@ -107,16 +109,16 @@ def main(path: Optional[Path], model: str, template: str):
 
     \b
     Models:
-      gpt-4o-mini     Fast and affordable (default)
-      gpt-4o          Best quality
-      claude-sonnet-4-5   Anthropic alternative
+      openai:gpt-4o-mini        Fast and affordable (default)
+      openai:gpt-4o             Best quality
+      anthropic:claude-sonnet-4-5   Anthropic alternative
 
     \b
     Examples:
-      podx analyze                                    # Interactive selection
-      podx analyze ./Show/2024-11-24-ep/              # Direct path
-      podx analyze . --model gpt-4o                   # Current dir, best model
-      podx analyze ./ep/ --template panel-discussion  # Panel analysis
+      podx analyze                                         # Interactive selection
+      podx analyze ./Show/2024-11-24-ep/                   # Direct path
+      podx analyze . --model openai:gpt-4o                 # Current dir, best model
+      podx analyze ./ep/ --template panel-discussion       # Panel analysis
 
     \b
     Requires:
