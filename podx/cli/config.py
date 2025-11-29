@@ -221,7 +221,7 @@ def main(ctx):
     Examples:
       podx config
       podx config get analyze-model
-      podx config set analyze-model gpt-4o
+      podx config set analyze-model openai:gpt-4o
       podx config set openai-api-key sk-...
     """
     if ctx.invoked_subcommand is None:
@@ -302,7 +302,7 @@ def set(key: str, value: str):
 
     \b
     Examples:
-      podx config set analyze-model gpt-4o
+      podx config set analyze-model openai:gpt-4o
       podx config set output-dir ~/Podcasts
       podx config set openai-api-key sk-abc123...
     """
