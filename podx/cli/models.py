@@ -24,20 +24,6 @@ def main():
 
     Shows models for transcription (ASR) and analysis (LLM) with
     estimated cost per hour of podcast audio.
-
-    \b
-    ASR Models (Transcription):
-      local:large-v3      Best quality, runs locally (free)
-      local:large-v2      Previous best, runs locally (free)
-      local:medium        Good balance of speed/quality (free)
-      local:base          Fast, lower accuracy (free)
-      local:tiny          Fastest, lowest accuracy (free)
-      openai:whisper-1    Cloud transcription ($0.006/min)
-      hf:distil-large-v3  Distilled model, fast (free)
-
-    \b
-    LLM Models (Analysis):
-      Run 'podx models' to see current pricing.
     """
     from podx.models import list_models
 
@@ -45,9 +31,10 @@ def main():
         print("AI Models for PodX")
         print("=" * 70)
         print("\nASR Models (Transcription):")
-        print("  local:large-v3     Best quality (default, free)")
-        print("  local:medium       Good balance (free)")
-        print("  openai:whisper-1   Cloud ($0.006/min)")
+        print("  local:large-v3-turbo  Best quality, optimized (free)")
+        print("  local:large-v3        Best quality (free)")
+        print("  local:medium          Good balance (free)")
+        print("  openai:whisper-1      Cloud ($0.006/min)")
         print("\nLLM Models (Analysis):")
         print("  Run with Rich installed for detailed pricing table")
         return
@@ -68,13 +55,14 @@ def main():
     asr_table.add_column("Description")
 
     asr_models = [
-        ("local:large-v3", "Free", "Best quality (default)"),
-        ("local:large-v2", "Free", "Previous best"),
-        ("local:medium", "Free", "Good balance of speed/quality"),
-        ("local:base", "Free", "Fast, lower accuracy"),
-        ("local:tiny", "Free", "Fastest, lowest accuracy"),
-        ("openai:whisper-1", "$0.36", "Cloud transcription"),
-        ("hf:distil-large-v3", "Free", "Distilled, faster than large-v3"),
+        ("local:large-v3-turbo", "Free", "Best quality, optimized for speed"),
+        ("local:large-v3", "Free", "Best quality, slightly slower"),
+        ("local:large-v2", "Free", "Previous generation best quality"),
+        ("local:medium", "Free", "Good balance of speed and quality"),
+        ("local:base", "Free", "Fast transcription, lower accuracy"),
+        ("local:tiny", "Free", "Fastest transcription, lowest accuracy"),
+        ("openai:whisper-1", "$0.36", "OpenAI cloud transcription API"),
+        ("hf:distil-large-v3", "Free", "Distilled model, faster than large-v3"),
     ]
 
     for model, cost, desc in asr_models:
@@ -108,7 +96,11 @@ def main():
             output_cost = (output_tokens / 1_000_000) * model.pricing.output_per_1m
             hourly_cost = input_cost + output_cost
 
-            cost_str = f"${hourly_cost:.2f}"
+            # Show "< $0.01" for very cheap models instead of "$0.00"
+            if hourly_cost < 0.01 and hourly_cost > 0:
+                cost_str = "< $0.01"
+            else:
+                cost_str = f"${hourly_cost:.2f}"
             llm_table.add_row(
                 f"{model.provider}:{model.id}", cost_str, model.description or ""
             )

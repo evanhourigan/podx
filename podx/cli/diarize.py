@@ -59,11 +59,11 @@ def main(path: Optional[Path], speakers: Optional[int]):
     Without PATH, shows interactive episode selection.
 
     \b
-    Requirements:
+    Notes:
       - Episode must have transcript.json (run 'podx transcribe' first)
       - Episode must have audio file (audio.wav or audio.mp3)
       - First run downloads ~1GB pyannote model (cached after)
-      - Optional: Set HUGGINGFACE_TOKEN for better diarization models
+      - Requires HUGGINGFACE_TOKEN environment variable
 
     \b
     Examples:
@@ -77,12 +77,31 @@ def main(path: Optional[Path], speakers: Optional[int]):
             selected, _ = select_episode_interactive(
                 scan_dir=".",
                 show_filter=None,
+                require="transcript",
+                title="Select episode to diarize",
             )
             if not selected:
                 console.print("[dim]Selection cancelled[/dim]")
                 sys.exit(0)
 
             path = selected["directory"]
+
+            # Warn if already diarized
+            if selected.get("diarized"):
+                console.print(
+                    "\n[yellow]This episode already has speaker labels.[/yellow]"
+                )
+                console.print(
+                    "[dim]Re-diarizing will overwrite the existing labels.[/dim]"
+                )
+                try:
+                    confirm = input("Continue? [y/N] ").strip().lower()
+                except (KeyboardInterrupt, EOFError):
+                    console.print("\n[dim]Cancelled[/dim]")
+                    sys.exit(0)
+                if confirm not in ("y", "yes"):
+                    console.print("[dim]Cancelled[/dim]")
+                    sys.exit(0)
         except KeyboardInterrupt:
             console.print("\n[dim]Cancelled[/dim]")
             sys.exit(0)
@@ -116,6 +135,17 @@ def main(path: Optional[Path], speakers: Optional[int]):
         console.print("[red]Error:[/red] transcript.json missing 'segments' field")
         sys.exit(ExitCode.USER_ERROR)
 
+    # Block if transcript has been cleaned
+    if transcript.get("cleaned"):
+        console.print("[red]Error:[/red] This transcript has already been cleaned up.")
+        console.print(
+            "Diarization requires the raw ASR output to align with the audio."
+        )
+        console.print(
+            "[dim]Re-run 'podx transcribe' first, then 'podx diarize', then 'podx cleanup'.[/dim]"
+        )
+        sys.exit(ExitCode.USER_ERROR)
+
     # Get language from transcript
     language = transcript.get("language", "en")
 
@@ -124,6 +154,8 @@ def main(path: Optional[Path], speakers: Optional[int]):
     console.print(f"[cyan]Transcript:[/cyan] {transcript_path.name}")
     if speakers:
         console.print(f"[cyan]Expected speakers:[/cyan] {speakers}")
+    else:
+        console.print("[cyan]Expected speakers:[/cyan] auto-detect")
 
     # Start timer
     timer = LiveTimer("Diarizing")

@@ -35,6 +35,50 @@ def _find_analysis(directory: Path) -> Optional[Path]:
     return None
 
 
+def _find_transcript(directory: Path) -> Optional[Path]:
+    """Find transcript file in episode directory."""
+    transcript = directory / "transcript.json"
+    if transcript.exists():
+        return transcript
+
+    # Legacy patterns
+    patterns = ["transcript-*.json"]
+    for pattern in patterns:
+        matches = list(directory.glob(pattern))
+        if matches:
+            for m in matches:
+                if "preprocessed" not in m.name:
+                    return m
+    return None
+
+
+def _format_timestamp_readable(seconds: float) -> str:
+    """Format seconds as readable timestamp [HH:MM:SS]."""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    if hours > 0:
+        return f"[{hours}:{minutes:02d}:{secs:02d}]"
+    return f"[{minutes}:{secs:02d}]"
+
+
+def _format_transcript_as_markdown(transcript: dict) -> str:
+    """Format transcript as markdown with timestamps and speakers."""
+    lines = ["# Transcript\n"]
+    for seg in transcript.get("segments", []):
+        start = seg.get("start", 0)
+        speaker = seg.get("speaker", "")
+        text = seg.get("text", "").strip()
+
+        timestamp = _format_timestamp_readable(start)
+        if speaker:
+            lines.append(f"**{timestamp} {speaker}:** {text}\n")
+        else:
+            lines.append(f"**{timestamp}** {text}\n")
+
+    return "\n".join(lines)
+
+
 def _publish_to_notion(episode_dir: Path, dry_run: bool = False) -> bool:
     """Publish episode analysis to Notion. Returns True on success."""
     try:
@@ -71,6 +115,16 @@ def _publish_to_notion(episode_dir: Path, dry_run: bool = False) -> bool:
     if not md:
         console.print("[red]Error:[/red] Analysis has no markdown content")
         return False
+
+    # Always append transcript if available
+    transcript_path = _find_transcript(episode_dir)
+    if transcript_path:
+        try:
+            transcript = json.loads(transcript_path.read_text())
+            transcript_md = _format_transcript_as_markdown(transcript)
+            md = md + "\n\n---\n\n" + transcript_md
+        except Exception:
+            pass  # Continue without transcript on error
 
     # Load episode metadata
     meta_path = episode_dir / "episode-meta.json"
@@ -110,26 +164,67 @@ def _publish_to_notion(episode_dir: Path, dry_run: bool = False) -> bool:
 
     blocks = md_to_blocks(md)
 
+    # Notion API limits blocks to 100 per request
+    NOTION_BLOCK_LIMIT = 100
+
+    def append_blocks_chunked(client, block_id: str, blocks: list):
+        """Append blocks in chunks of 100 (Notion API limit)."""
+        for i in range(0, len(blocks), NOTION_BLOCK_LIMIT):
+            chunk = blocks[i : i + NOTION_BLOCK_LIMIT]
+            client.blocks.children.append(block_id=block_id, children=chunk)
+
     # Create/update page
     client = Client(auth=token)
 
-    # Build properties
+    # Query database schema to find the title property
+    try:
+        db_info = client.databases.retrieve(database_id=db_id)
+        db_properties = db_info.get("properties", {})
+    except Exception as e:
+        console.print(f"[red]Error:[/red] Failed to retrieve database schema: {e}")
+        return False
+
+    # Find the title property name (there's always exactly one title property)
+    title_prop_name = None
+    for prop_name, prop_info in db_properties.items():
+        if prop_info.get("type") == "title":
+            title_prop_name = prop_name
+            break
+
+    if not title_prop_name:
+        console.print("[red]Error:[/red] Could not find title property in database")
+        return False
+
+    # Build properties - use discovered title property
     properties = {
-        "Name": {"title": [{"text": {"content": episode_title}}]},
+        title_prop_name: {"title": [{"text": {"content": episode_title}}]},
     }
 
     # Add optional properties if they exist in the database
-    # (Notion will ignore properties that don't exist)
-    if show_name:
-        properties["Podcast"] = {"rich_text": [{"text": {"content": show_name}}]}
-    if date_iso:
-        properties["Date"] = {"date": {"start": date_iso}}
+    for prop_name, prop_info in db_properties.items():
+        prop_type = prop_info.get("type")
+
+        # Add show name to a rich_text property named "Show" or similar
+        if prop_type == "rich_text" and prop_name.lower() in ("show", "podcast name"):
+            if show_name:
+                properties[prop_name] = {
+                    "rich_text": [{"text": {"content": show_name}}]
+                }
+
+        # Add date to a date property
+        if prop_type == "date" and prop_name.lower() in (
+            "date",
+            "published",
+            "episode date",
+        ):
+            if date_iso:
+                properties[prop_name] = {"date": {"start": date_iso}}
 
     # Check if page exists (by title)
     try:
         query = client.databases.query(
             database_id=db_id,
-            filter={"property": "Name", "title": {"equals": episode_title}},
+            filter={"property": title_prop_name, "title": {"equals": episode_title}},
         )
         existing = query.get("results", [])
     except Exception:
@@ -150,19 +245,26 @@ def _publish_to_notion(episode_dir: Path, dry_run: bool = False) -> bool:
         except Exception:
             pass
 
-        # Add new content
-        client.blocks.children.append(block_id=page_id, children=blocks)
+        # Add new content (chunked to respect 100 block limit)
+        append_blocks_chunked(client, page_id, blocks)
 
         page_url = f"https://notion.so/{page_id.replace('-', '')}"
         console.print(f"\n[green]✓ Updated existing page:[/green] {page_url}")
     else:
-        # Create new page
+        # Create new page with first chunk of blocks
+        first_chunk = blocks[:NOTION_BLOCK_LIMIT]
         page = client.pages.create(
             parent={"database_id": db_id},
             properties=properties,
-            children=blocks,
+            children=first_chunk,
         )
         page_id = page["id"]
+
+        # Append remaining blocks if any
+        if len(blocks) > NOTION_BLOCK_LIMIT:
+            remaining = blocks[NOTION_BLOCK_LIMIT:]
+            append_blocks_chunked(client, page_id, remaining)
+
         page_url = f"https://notion.so/{page_id.replace('-', '')}"
         console.print(f"\n[green]✓ Created new page:[/green] {page_url}")
 
@@ -191,9 +293,9 @@ def main(path: Optional[Path], dry_run: bool):
       notion-database-id   Target database ID (or NOTION_DATABASE_ID env var)
 
     \b
-    Requirements:
-      - Notion token configured
-      - Notion database ID configured
+    Notes:
+      - Notion token must be configured
+      - Notion database ID must be configured
       - Episode must have analysis.json (run 'podx analyze' first)
 
     \b
@@ -208,6 +310,8 @@ def main(path: Optional[Path], dry_run: bool):
             selected, _ = select_episode_interactive(
                 scan_dir=".",
                 show_filter=None,
+                require="analyzed",
+                title="Select episode to publish to Notion",
             )
             if not selected:
                 console.print("[dim]Selection cancelled[/dim]")
@@ -225,6 +329,8 @@ def main(path: Optional[Path], dry_run: bool):
 
     # Show what we're doing
     console.print(f"[cyan]Publishing:[/cyan] {episode_dir.name}")
+    if dry_run:
+        console.print("[cyan]Dry run:[/cyan] yes")
 
     # Publish
     if _publish_to_notion(episode_dir, dry_run=dry_run):

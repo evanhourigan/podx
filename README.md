@@ -400,10 +400,10 @@ from podx.core.analyze import AnalyzeEngine
 
 # Transcribe with specific settings
 engine = TranscriptionEngine(
-    model="large-v3-turbo",
-    provider="local",  # or "openai", "hf"
-    device=None,  # Auto-detect: MPS/CUDA/CPU
-    compute_type=None,  # Auto-select optimal
+    model="large-v3-turbo",   # Model name without provider prefix
+    provider="local",         # Provider: "local", "openai", or "hf"
+    device=None,              # Auto-detect: MPS/CUDA/CPU
+    compute_type=None,        # Auto-select optimal
 )
 transcript = engine.transcribe(Path("audio.wav"))
 
@@ -560,14 +560,14 @@ podx analyze ./YouTube/2024-11-24-video-title/
 ```bash
 # Use OpenAI (default)
 export OPENAI_API_KEY="sk-..."
-podx analyze ./ep/ --model gpt-4o
+podx analyze ./ep/ --model openai:gpt-4o
 
 # Use Anthropic Claude
 export ANTHROPIC_API_KEY="sk-ant-..."
-podx analyze ./ep/ --model claude-3-5-sonnet-20241022
+podx analyze ./ep/ --model anthropic:claude-sonnet-4-5
 
 # Use Ollama (local, FREE)
-podx analyze ./ep/ --model ollama/llama2
+podx analyze ./ep/ --model ollama:llama2
 ```
 
 ### Batch Processing
@@ -612,17 +612,17 @@ done
 
 ```bash
 # Fast transcription with base model
-podx transcribe ./ep/ --model base  # ~0.3x real-time on GPU
+podx transcribe ./ep/ --model local:base  # ~0.3x real-time on GPU
 
 # Balanced: large-v3-turbo (recommended, default)
-podx transcribe ./ep/ --model large-v3-turbo  # ~0.5x real-time on GPU
+podx transcribe ./ep/ --model local:large-v3-turbo  # ~0.5x real-time on GPU
 
 # Maximum accuracy with large-v3
-podx transcribe ./ep/ --model large-v3  # ~1x real-time on GPU
+podx transcribe ./ep/ --model local:large-v3  # ~1x real-time on GPU
 
 # Use OpenAI Whisper API (fastest, paid)
 export OPENAI_API_KEY="sk-..."
-podx transcribe ./ep/ --provider openai
+podx transcribe ./ep/ --model openai:whisper-1
 ```
 
 ### Diarization Examples
@@ -784,7 +784,7 @@ Choose the best transcription provider for your needs:
 
 ```bash
 # Local (faster-whisper) - Best for privacy, no API costs
-podx transcribe ./ep/ --model large-v3-turbo
+podx transcribe ./ep/ --model local:large-v3-turbo
 
 # OpenAI API - Fastest, requires API key
 podx transcribe ./ep/ --model openai:whisper-1
@@ -797,7 +797,7 @@ podx models
 
 ```bash
 # Use turbo model for 2x speed (default)
-podx transcribe ./ep/ --model large-v3-turbo
+podx transcribe ./ep/ --model local:large-v3-turbo
 
 # Process multiple episode directories in parallel
 for dir in ./Show/*/; do

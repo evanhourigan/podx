@@ -14,63 +14,66 @@ from podx.templates.manager import TemplateError, TemplateManager
 console = Console()
 
 
-@click.group(context_settings={"max_content_width": 120})
-def main():
-    """Manage analysis templates.
+def _list_templates_output():
+    """Display the templates list."""
+    manager = TemplateManager()
+    templates = manager.list_templates()
+
+    table = Table(
+        show_header=True,
+        header_style="bold magenta",
+        box=None,
+        expand=False,
+    )
+    table.add_column("Template", style="cyan", no_wrap=True, width=23)
+    table.add_column("Description", style="white")
+
+    for name in templates:
+        template = manager.load(name)
+
+        # Parse description - get meaningful part
+        desc = template.description
+        if "Format:" in desc:
+            parts = desc.split("Example podcasts:")
+            desc = parts[0].replace("Format:", "").strip()
+
+        # Allow wrapping for long descriptions
+        table.add_row(template.name, desc)
+
+    console.print("\n[bold]Available Templates[/bold]\n")
+    console.print(table)
+    console.print(
+        "\n[dim]Run 'podx templates show NAME' to view template details.[/dim]"
+    )
+    console.print(
+        "[dim]For custom templates: add YAML files to ~/.podx/templates/[/dim]\n"
+    )
+
+
+@click.group(
+    invoke_without_command=True,
+    context_settings={"max_content_width": 120},
+)
+@click.pass_context
+def main(ctx):
+    """View templates that customize how 'podx analyze' processes transcripts.
 
     \b
-    Templates customize how 'podx analyze' processes transcripts.
-    Use 'podx templates list' to see available templates.
-    Use 'podx analyze --template NAME' to use a specific template.
-
-    \b
-    For custom templates:
-      Add YAML files to ~/.podx/templates/
+    For custom templates: add YAML files to ~/.podx/templates/
     """
-    pass
+    if ctx.invoked_subcommand is None:
+        # No subcommand - list templates directly
+        try:
+            _list_templates_output()
+        except Exception as e:
+            raise click.ClickException(f"Error listing templates: {e}")
 
 
 @main.command(name="list")
 def list_templates():
-    """List available analysis templates.
-
-    \b
-    Shows all built-in and custom templates with descriptions.
-    Use 'podx templates show NAME' for details on a specific template.
-    """
+    """List available analysis templates."""
     try:
-        manager = TemplateManager()
-        templates = manager.list_templates()
-
-        table = Table(
-            show_header=True,
-            header_style="bold cyan",
-            box=None,
-            expand=False,
-        )
-        table.add_column("Template", style="cyan bold", no_wrap=True, width=23)
-        table.add_column("Description", style="white")
-
-        for name in templates:
-            template = manager.load(name)
-
-            # Parse description
-            desc = template.description
-            if "Format:" in desc:
-                parts = desc.split("Example podcasts:")
-                desc = parts[0].replace("Format:", "").strip()
-
-            table.add_row(template.name, desc[:60])
-
-        console.print("\n[bold]Available Templates[/bold]\n")
-        console.print(table)
-        console.print(
-            "\n[dim]Use 'podx analyze --template NAME' to use a template[/dim]"
-        )
-        console.print(
-            "[dim]Use 'podx templates show NAME' for template details[/dim]\n"
-        )
-
+        _list_templates_output()
     except Exception as e:
         raise click.ClickException(f"Error listing templates: {e}")
 

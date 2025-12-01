@@ -1,14 +1,18 @@
 """Interactive episode selection UI - v4.0 simplified."""
 
 import json
+import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from rich.console import Console
 
 console = Console()
 
 ITEMS_PER_PAGE = 10
+
+# Required artifact types for filtering
+RequiredArtifact = Literal["transcript", "diarized", "analyzed", "audio", None]
 
 
 def scan_episode_status(root: Path) -> List[Dict[str, Any]]:
@@ -51,13 +55,15 @@ def scan_episode_status(root: Path) -> List[Dict[str, Any]]:
 
         has_transcript = transcript_path.exists()
         has_diarized = False
+        has_cleaned = False
         has_analyzed = analysis_path.exists()
 
-        # Check if transcript is diarized
+        # Check transcript state flags
         if has_transcript:
             try:
                 t = json.loads(transcript_path.read_text())
                 has_diarized = t.get("diarized", False)
+                has_cleaned = t.get("cleaned", False)
             except Exception:
                 pass
 
@@ -81,6 +87,7 @@ def scan_episode_status(root: Path) -> List[Dict[str, Any]]:
                 "title": title_val,
                 "transcribed": has_transcript,
                 "diarized": has_diarized,
+                "cleaned": has_cleaned,
                 "analyzed": has_analyzed,
             }
         )
@@ -88,24 +95,70 @@ def scan_episode_status(root: Path) -> List[Dict[str, Any]]:
     return episodes
 
 
-def _format_episode(ep: Dict[str, Any]) -> str:
-    """Format an episode for display with status indicators."""
-    show = ep.get("show", "Unknown")[:20]
+def _format_episode(ep: Dict[str, Any], max_width: int = 80) -> str:
+    """Format an episode for display with status indicators.
+
+    Tries to fit on one line: "Show (date) - Title (status)"
+    Wraps to multiple lines only if needed.
+
+    Args:
+        ep: Episode dictionary with show, date, title, and status fields
+        max_width: Maximum width for text wrapping
+
+    Returns:
+        Formatted string (may contain newlines if content is too long)
+    """
+    show = ep.get("show", "Unknown")
     date = ep.get("date", "")
-    title = ep.get("title", "Unknown")[:40]
+    title = ep.get("title", "Unknown")
 
     # Build status indicators
-    status = []
+    status_parts = []
     if ep.get("transcribed"):
-        status.append("transcribed")
+        status_parts.append("transcribed")
     if ep.get("diarized"):
-        status.append("diarized")
+        status_parts.append("diarized")
+    if ep.get("cleaned"):
+        status_parts.append("cleaned")
     if ep.get("analyzed"):
-        status.append("analyzed")
+        status_parts.append("analyzed")
 
-    status_str = f" [dim][{', '.join(status)}][/dim]" if status else ""
+    status_str = f" [dim]({', '.join(status_parts)})[/dim]" if status_parts else ""
 
-    return f"{show}: {date} - {title}{status_str}"
+    # Calculate available width (account for line number prefix "  123  ")
+    content_width = max_width - 7
+
+    # Try single line format: "Show (date) - Title (status)"
+    if date:
+        single_line = f"{show} [dim]({date})[/dim] - {title}{status_str}"
+        # Check length without markup
+        plain_len = (
+            len(show)
+            + len(date)
+            + 3
+            + 3
+            + len(title)
+            + sum(len(s) for s in status_parts)
+            + 4
+        )
+    else:
+        single_line = f"{show} - {title}{status_str}"
+        plain_len = len(show) + 3 + len(title) + sum(len(s) for s in status_parts) + 4
+
+    if plain_len <= content_width:
+        return single_line
+
+    # Need to wrap - use two lines
+    # Line 1: Show (date) (status)
+    line1 = f"{show} [dim]({date})[/dim]{status_str}" if date else f"{show}{status_str}"
+
+    # Truncate title if needed for line 2
+    available_for_title = content_width - 7  # Account for indent
+    if len(title) > available_for_title:
+        title = title[: available_for_title - 3] + "..."
+    line2 = f"       {title}"
+
+    return f"{line1}\n{line2}"
 
 
 def select_episode_interactive(
@@ -113,6 +166,8 @@ def select_episode_interactive(
     show_filter: Optional[str] = None,
     console: Optional[Console] = None,
     run_passthrough_fn=None,  # Unused, kept for compatibility
+    require: RequiredArtifact = None,
+    title: str = "Select an episode",
 ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
     """Interactively select an episode from scanned directory.
 
@@ -120,6 +175,14 @@ def select_episode_interactive(
         scan_dir: Directory to scan for episodes
         show_filter: Optional show name filter
         console: Rich console instance (optional)
+        run_passthrough_fn: Unused, kept for compatibility
+        require: Only show episodes with this artifact:
+                 - "transcript": must have transcript.json
+                 - "diarized": must have diarized transcript
+                 - "analyzed": must have analysis.json
+                 - "audio": must have audio file (for transcribe)
+                 - None: show all episodes
+        title: Title to display above the list
 
     Returns:
         Tuple of (selected_episode, episode_metadata) or (None, None) if cancelled
@@ -135,12 +198,35 @@ def select_episode_interactive(
         s_l = show_filter.lower()
         eps = [e for e in eps if s_l in (e.get("show", "").lower())]
 
+    # Filter by required artifact
+    if require == "transcript":
+        eps = [e for e in eps if e.get("transcribed")]
+    elif require == "diarized":
+        eps = [e for e in eps if e.get("diarized")]
+    elif require == "analyzed":
+        eps = [e for e in eps if e.get("analyzed")]
+    elif require == "audio":
+        # For transcribe - only show episodes that have audio but NOT transcript
+        eps = [e for e in eps if not e.get("transcribed")]
+
     if not eps:
-        if show_filter:
+        if require:
+            requirement_msg = {
+                "transcript": "with transcripts",
+                "diarized": "with diarized transcripts",
+                "analyzed": "with analysis",
+                "audio": "ready for transcription",
+            }.get(require, "matching criteria")
+            console.print(f"[yellow]No episodes found {requirement_msg}[/yellow]")
+            if require == "transcript":
+                console.print("[dim]Run 'podx transcribe' first[/dim]")
+            elif require == "audio":
+                console.print("[dim]All episodes are already transcribed[/dim]")
+        elif show_filter:
             console.print(f"[yellow]No episodes found for '{show_filter}'[/yellow]")
         else:
             console.print(f"[yellow]No episodes found in {scan_dir}[/yellow]")
-        console.print("[dim]Run 'podx fetch' to download episodes[/dim]")
+            console.print("[dim]Run 'podx fetch' to download episodes[/dim]")
         return None, None
 
     # Sort newest first
@@ -148,16 +234,19 @@ def select_episode_interactive(
     page = 0
     total_pages = max(1, (len(eps_sorted) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
 
+    # Get terminal width for formatting
+    term_width = shutil.get_terminal_size().columns
+
     while True:
         start = page * ITEMS_PER_PAGE
         end = min(start + ITEMS_PER_PAGE, len(eps_sorted))
 
         console.print(
-            f"\n[bold cyan]Select an episode[/bold cyan] (page {page + 1}/{total_pages})\n"
+            f"\n[bold cyan]{title}[/bold cyan] (page {page + 1}/{total_pages})\n"
         )
 
         for idx, ep in enumerate(eps_sorted[start:end], start=start + 1):
-            formatted = _format_episode(ep)
+            formatted = _format_episode(ep, max_width=term_width)
             console.print(f"  [bold]{idx:3}[/bold]  {formatted}")
 
         console.print()

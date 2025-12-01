@@ -12,9 +12,19 @@ import click
 from rich.console import Console
 
 from podx.domain.exit_codes import ExitCode
-from podx.ui import select_episode_interactive
+from podx.ui import (
+    get_export_formats_help,
+    prompt_with_help,
+    select_episode_interactive,
+    show_confirmation,
+    validate_export_format,
+)
 
 console = Console()
+
+# Default formats for each export type
+DEFAULT_TRANSCRIPT_FORMAT = "md"
+DEFAULT_ANALYSIS_FORMAT = "md"
 
 
 @click.group(context_settings={"max_content_width": 120})
@@ -139,6 +149,33 @@ def _export_transcript_vtt(transcript: dict, output_path: Path):
     output_path.write_text("\n".join(lines), encoding="utf-8")
 
 
+def _format_timestamp_readable(seconds: float) -> str:
+    """Format seconds as readable timestamp [HH:MM:SS]."""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    if hours > 0:
+        return f"[{hours}:{minutes:02d}:{secs:02d}]"
+    return f"[{minutes}:{secs:02d}]"
+
+
+def _format_transcript_as_markdown(transcript: dict) -> str:
+    """Format transcript as markdown with timestamps and speakers."""
+    lines = ["# Transcript\n"]
+    for seg in transcript.get("segments", []):
+        start = seg.get("start", 0)
+        speaker = seg.get("speaker", "")
+        text = seg.get("text", "").strip()
+
+        timestamp = _format_timestamp_readable(start)
+        if speaker:
+            lines.append(f"**{timestamp} {speaker}:** {text}\n")
+        else:
+            lines.append(f"**{timestamp}** {text}\n")
+
+    return "\n".join(lines)
+
+
 @main.command(name="transcript")
 @click.argument(
     "path",
@@ -147,11 +184,11 @@ def _export_transcript_vtt(transcript: dict, output_path: Path):
 )
 @click.option(
     "--format",
-    "-f",
-    default="md",
-    help="Output format(s), comma-separated [default: md]",
+    "format_opt",
+    default=None,
+    help=f"Output format(s), comma-separated (default: {DEFAULT_TRANSCRIPT_FORMAT})",
 )
-def export_transcript(path: Optional[Path], format: str):
+def export_transcript(path: Optional[Path], format_opt: Optional[str]):
     """Export transcript to text and subtitle formats.
 
     \b
@@ -161,20 +198,28 @@ def export_transcript(path: Optional[Path], format: str):
     \b
     Formats:
       txt    Plain text transcript
-      md     Markdown with speakers (default)
+      md     Markdown with speakers
       srt    SubRip subtitles (for video editing)
       vtt    WebVTT subtitles (for web players)
 
     \b
     Examples:
-      podx export transcript ./ep/              # Export to markdown
-      podx export transcript ./ep/ -f srt,vtt   # Export subtitles
-      podx export transcript ./ep/ -f txt,md,srt,vtt  # All formats
+      podx export transcript ./ep/                       # Export to markdown
+      podx export transcript ./ep/ --format srt,vtt      # Export subtitles
+      podx export transcript ./ep/ --format txt,md,srt,vtt  # All formats
     """
+    # Track if we're in interactive mode (no PATH provided)
+    interactive_mode = path is None
+
     # Interactive mode if no path provided
-    if path is None:
+    if interactive_mode:
         try:
-            selected, _ = select_episode_interactive(scan_dir=".", show_filter=None)
+            selected, _ = select_episode_interactive(
+                scan_dir=".",
+                show_filter=None,
+                require="transcript",
+                title="Select episode to export transcript",
+            )
             if not selected:
                 console.print("[dim]Selection cancelled[/dim]")
                 sys.exit(0)
@@ -196,8 +241,25 @@ def export_transcript(path: Optional[Path], format: str):
 
     transcript = json.loads(transcript_path.read_text())
 
+    # Interactive prompts for format (only in interactive mode)
+    if interactive_mode:
+        if format_opt is not None:
+            show_confirmation("Format", format_opt)
+            format_str = format_opt
+        else:
+            format_str = prompt_with_help(
+                help_text=get_export_formats_help("transcript"),
+                prompt_label="Format",
+                default=DEFAULT_TRANSCRIPT_FORMAT,
+                validator=lambda f: validate_export_format(f, "transcript"),
+                error_message="Invalid format. See list above for valid options.",
+            )
+    else:
+        # Non-interactive: use default if not specified
+        format_str = format_opt if format_opt is not None else DEFAULT_TRANSCRIPT_FORMAT
+
     # Parse formats
-    formats = [f.strip().lower() for f in format.split(",")]
+    formats = [f.strip().lower() for f in format_str.split(",")]
     exported = []
 
     for fmt in formats:
@@ -233,11 +295,18 @@ def export_transcript(path: Optional[Path], format: str):
 )
 @click.option(
     "--format",
-    "-f",
-    default="md",
-    help="Output format(s), comma-separated [default: md]",
+    "format_opt",
+    default=None,
+    help=f"Output format(s), comma-separated (default: {DEFAULT_ANALYSIS_FORMAT})",
 )
-def export_analysis(path: Optional[Path], format: str):
+@click.option(
+    "--include-transcript",
+    is_flag=True,
+    help="Append cleaned transcript after analysis",
+)
+def export_analysis(
+    path: Optional[Path], format_opt: Optional[str], include_transcript: bool
+):
     """Export analysis to document formats.
 
     \b
@@ -246,20 +315,33 @@ def export_analysis(path: Optional[Path], format: str):
 
     \b
     Formats:
-      md     Markdown summary (default)
+      md     Markdown summary
       html   HTML document
       pdf    PDF document (requires pandoc)
 
     \b
+    Options:
+      --include-transcript    Append cleaned transcript after analysis
+
+    \b
     Examples:
-      podx export analysis ./ep/           # Export to markdown
-      podx export analysis ./ep/ -f html   # Export to HTML
-      podx export analysis ./ep/ -f md,pdf # Markdown and PDF
+      podx export analysis ./ep/                        # Export to markdown
+      podx export analysis ./ep/ --format html          # Export to HTML
+      podx export analysis ./ep/ --format md,pdf        # Markdown and PDF
+      podx export analysis ./ep/ --include-transcript   # Include transcript
     """
+    # Track if we're in interactive mode (no PATH provided)
+    interactive_mode = path is None
+
     # Interactive mode if no path provided
-    if path is None:
+    if interactive_mode:
         try:
-            selected, _ = select_episode_interactive(scan_dir=".", show_filter=None)
+            selected, _ = select_episode_interactive(
+                scan_dir=".",
+                show_filter=None,
+                require="analyzed",
+                title="Select episode to export analysis",
+            )
             if not selected:
                 console.print("[dim]Selection cancelled[/dim]")
                 sys.exit(0)
@@ -286,8 +368,37 @@ def export_analysis(path: Optional[Path], format: str):
         console.print("[red]Error:[/red] Analysis has no markdown content")
         sys.exit(ExitCode.USER_ERROR)
 
+    # Optionally append transcript
+    if include_transcript:
+        transcript_path = _find_transcript(episode_dir)
+        if transcript_path:
+            transcript = json.loads(transcript_path.read_text())
+            transcript_md = _format_transcript_as_markdown(transcript)
+            md_content = md_content + "\n\n---\n\n" + transcript_md
+        else:
+            console.print(
+                "[yellow]Warning:[/yellow] No transcript.json found, skipping transcript"
+            )
+
+    # Interactive prompts for format (only in interactive mode)
+    if interactive_mode:
+        if format_opt is not None:
+            show_confirmation("Format", format_opt)
+            format_str = format_opt
+        else:
+            format_str = prompt_with_help(
+                help_text=get_export_formats_help("analysis"),
+                prompt_label="Format",
+                default=DEFAULT_ANALYSIS_FORMAT,
+                validator=lambda f: validate_export_format(f, "analysis"),
+                error_message="Invalid format. See list above for valid options.",
+            )
+    else:
+        # Non-interactive: use default if not specified
+        format_str = format_opt if format_opt is not None else DEFAULT_ANALYSIS_FORMAT
+
     # Parse formats
-    formats = [f.strip().lower() for f in format.split(",")]
+    formats = [f.strip().lower() for f in format_str.split(",")]
     exported = []
 
     for fmt in formats:

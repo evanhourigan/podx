@@ -29,6 +29,7 @@ from podx.cli import (  # noqa: E402 - Must import after logging setup
 
 # Import all command modules
 from podx.cli.commands import (  # noqa: E402 - Must import after logging setup
+    cleanup_cmd,
     deepcast_cmd,
     diarize_cmd,
     export_cmd,
@@ -61,6 +62,7 @@ def main():
       fetch       Download podcast episodes
       transcribe  Transcribe audio to text
       diarize     Add speaker labels to transcript
+      cleanup     Clean up transcript text for readability
       analyze     Generate AI analysis (formerly deepcast)
       export      Export transcript/analysis to various formats
       notion      Publish to Notion
@@ -88,6 +90,7 @@ main.add_command(run, name="run")
 main.add_command(fetch_cmd, name="fetch")
 main.add_command(transcribe_cmd, name="transcribe")
 main.add_command(diarize_cmd, name="diarize")
+main.add_command(cleanup_cmd, name="cleanup")
 main.add_command(export_cmd, name="export")
 main.add_command(deepcast_cmd, name="deepcast")  # Backwards compat alias for analyze
 main.add_command(models_cmd, name="models")

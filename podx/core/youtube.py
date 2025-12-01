@@ -7,7 +7,7 @@ Handles audio extraction, metadata parsing, and episode format conversion.
 import json
 import re
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urlparse
 
 from ..logging import get_logger
@@ -63,6 +63,18 @@ def is_youtube_url(url: str) -> bool:
         return parsed.netloc.lower() in youtube_domains
     except Exception:
         return False
+
+
+def is_playlist_url(url: str) -> bool:
+    """Check if a URL is a YouTube playlist URL.
+
+    Args:
+        url: URL to check
+
+    Returns:
+        True if URL is a playlist URL
+    """
+    return "playlist" in url.lower() or "list=" in url
 
 
 def format_upload_date(upload_date: Optional[str]) -> Optional[str]:
@@ -145,8 +157,77 @@ class YouTubeEngine:
         except Exception as e:
             raise YouTubeError(f"Failed to extract YouTube metadata: {e}") from e
 
+    def get_playlist_videos(self, url: str) -> List[Dict[str, Any]]:
+        """Extract video list from a YouTube playlist.
+
+        Args:
+            url: YouTube playlist URL
+
+        Returns:
+            List of dicts with video metadata (id, title, upload_date, duration, url)
+
+        Raises:
+            YouTubeError: If playlist extraction fails
+        """
+        self._report_progress("Fetching playlist...")
+
+        try:
+            import yt_dlp
+
+            ydl_opts = {
+                "quiet": True,
+                "no_warnings": True,
+                "extract_flat": True,  # Don't download, just get info
+                "ignoreerrors": True,  # Skip unavailable videos
+            }
+
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+
+                if not info:
+                    raise YouTubeError("Failed to extract playlist information")
+
+                entries = info.get("entries", [])
+                videos = []
+
+                for entry in entries:
+                    if entry is None:
+                        continue  # Skip unavailable videos
+
+                    videos.append(
+                        {
+                            "video_id": entry.get("id"),
+                            "title": entry.get("title", "Unknown"),
+                            "upload_date": entry.get("upload_date"),
+                            "duration": entry.get("duration"),
+                            "url": entry.get("url")
+                            or f"https://www.youtube.com/watch?v={entry.get('id')}",
+                            "channel": entry.get("uploader") or entry.get("channel"),
+                        }
+                    )
+
+                logger.info(
+                    "Playlist extracted",
+                    playlist_title=info.get("title"),
+                    count=len(videos),
+                )
+                return videos
+
+        except ImportError:
+            raise YouTubeError(
+                "yt-dlp library not installed. Install with: pip install yt-dlp"
+            )
+        except Exception as e:
+            raise YouTubeError(f"Failed to extract playlist: {e}") from e
+
     def download_audio(
-        self, url: str, output_dir: Path, filename: Optional[str] = None
+        self,
+        url: str,
+        output_dir: Path,
+        filename: Optional[str] = None,
+        download_progress_callback: Optional[
+            Callable[[int, Optional[int]], None]
+        ] = None,
     ) -> Dict[str, Any]:
         """Download audio from YouTube video and return metadata.
 
@@ -154,6 +235,7 @@ class YouTubeEngine:
             url: YouTube video URL
             output_dir: Directory to save audio file
             filename: Optional custom filename (defaults to sanitized title)
+            download_progress_callback: Optional callback(downloaded_bytes, total_bytes)
 
         Returns:
             Dict containing episode metadata
@@ -191,6 +273,17 @@ class YouTubeEngine:
             "quiet": True,
             "no_warnings": True,
         }
+
+        # Add progress hook if callback provided
+        if download_progress_callback:
+
+            def yt_progress_hook(d):
+                if d["status"] == "downloading":
+                    downloaded = d.get("downloaded_bytes", 0)
+                    total = d.get("total_bytes") or d.get("total_bytes_estimate")
+                    download_progress_callback(downloaded, total)
+
+            ydl_opts["progress_hooks"] = [yt_progress_hook]
 
         try:
             import yt_dlp
@@ -243,7 +336,14 @@ class YouTubeEngine:
         except Exception as e:
             raise YouTubeError(f"Failed to download YouTube audio: {e}") from e
 
-    def fetch_episode(self, url: str, workdir: Path) -> Dict[str, Any]:
+    def fetch_episode(
+        self,
+        url: str,
+        workdir: Path,
+        download_progress_callback: Optional[
+            Callable[[int, Optional[int]], None]
+        ] = None,
+    ) -> Dict[str, Any]:
         """Fetch a YouTube video as an episode.
 
         Downloads audio, extracts metadata, and saves episode-meta.json.
@@ -251,6 +351,7 @@ class YouTubeEngine:
         Args:
             url: YouTube video URL
             workdir: Working directory to save files
+            download_progress_callback: Optional callback(downloaded_bytes, total_bytes)
 
         Returns:
             Dict containing episode metadata
@@ -264,7 +365,9 @@ class YouTubeEngine:
         logger.info("Processing YouTube URL", url=url)
 
         # Download audio and get metadata
-        episode_meta = self.download_audio(url, workdir)
+        episode_meta = self.download_audio(
+            url, workdir, download_progress_callback=download_progress_callback
+        )
 
         # Save episode metadata
         meta_file = workdir / "episode-meta.json"
@@ -295,6 +398,7 @@ def download_youtube_audio(
     output_dir: Path,
     filename: Optional[str] = None,
     progress_callback: Optional[Callable[[str], None]] = None,
+    download_progress_callback: Optional[Callable[[int, Optional[int]], None]] = None,
 ) -> Dict[str, Any]:
     """Download audio from YouTube video and return metadata.
 
@@ -302,27 +406,36 @@ def download_youtube_audio(
         url: YouTube video URL
         output_dir: Directory to save audio
         filename: Optional custom filename
-        progress_callback: Optional progress callback
+        progress_callback: Optional status message callback
+        download_progress_callback: Optional callback(downloaded_bytes, total_bytes)
 
     Returns:
         Dict containing episode metadata
     """
     engine = YouTubeEngine(progress_callback=progress_callback)
-    return engine.download_audio(url, output_dir, filename)
+    return engine.download_audio(
+        url, output_dir, filename, download_progress_callback=download_progress_callback
+    )
 
 
 def fetch_youtube_episode(
-    url: str, workdir: Path, progress_callback: Optional[Callable[[str], None]] = None
+    url: str,
+    workdir: Path,
+    progress_callback: Optional[Callable[[str], None]] = None,
+    download_progress_callback: Optional[Callable[[int, Optional[int]], None]] = None,
 ) -> Dict[str, Any]:
     """Fetch a YouTube video as an episode.
 
     Args:
         url: YouTube video URL
         workdir: Working directory
-        progress_callback: Optional progress callback
+        progress_callback: Optional status message callback
+        download_progress_callback: Optional callback(downloaded_bytes, total_bytes)
 
     Returns:
         Dict containing episode metadata
     """
     engine = YouTubeEngine(progress_callback=progress_callback)
-    return engine.fetch_episode(url, workdir)
+    return engine.fetch_episode(
+        url, workdir, download_progress_callback=download_progress_callback
+    )

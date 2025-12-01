@@ -24,7 +24,7 @@ class PodxConfig(BaseSettings):
 
     # ASR Configuration
     default_asr_model: str = Field(
-        default="large-v3-turbo", validation_alias="PODX_DEFAULT_MODEL"
+        default="local:large-v3-turbo", validation_alias="PODX_DEFAULT_MODEL"
     )
     default_compute: str = Field(
         default="auto", validation_alias="PODX_DEFAULT_COMPUTE"

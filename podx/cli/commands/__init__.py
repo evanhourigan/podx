@@ -2,6 +2,7 @@
 
 # Import all command functions
 from .analyze import analyze_cmd, deepcast_cmd  # deepcast_cmd is backwards compat alias
+from .cleanup import cleanup_cmd
 from .deprecated import register_deprecated_commands
 from .diarize import diarize_cmd
 from .export import export_cmd
@@ -17,6 +18,7 @@ __all__ = [
     "fetch_cmd",
     "transcribe_cmd",
     "diarize_cmd",
+    "cleanup_cmd",
     "export_cmd",
     "analyze_cmd",
     "deepcast_cmd",  # Backwards compatibility alias for analyze_cmd

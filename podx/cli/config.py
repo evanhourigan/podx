@@ -26,21 +26,25 @@ CONFIG_KEYS = {
         "description": "Where files are saved ('cwd' for current directory)",
         "secret": False,
         "default": "cwd",
+        "validator": None,  # No validation needed
     },
     "transcribe-model": {
         "description": "Default transcription model",
         "secret": False,
-        "default": "large-v3-turbo",
+        "default": "local:large-v3-turbo",
+        "validator": "asr_model",
     },
     "analyze-model": {
         "description": "Default analysis model",
         "secret": False,
-        "default": "openai:gpt-4o-mini",
+        "default": "openai:gpt-5.1",
+        "validator": "llm_model",
     },
     "language": {
         "description": "Default language for transcription",
         "secret": False,
         "default": "auto",
+        "validator": "language",
     },
     # Secret settings (API keys)
     "openai-api-key": {
@@ -67,8 +71,47 @@ CONFIG_KEYS = {
         "description": "Notion database ID",
         "secret": False,
         "default": "",
+        "validator": None,  # No validation needed
     },
 }
+
+
+def _validate_value(key: str, value: str) -> tuple[bool, str]:
+    """Validate a config value. Returns (is_valid, error_message)."""
+    key_info = CONFIG_KEYS.get(key)
+    if not key_info:
+        return False, f"Unknown config key '{key}'"
+
+    validator = key_info.get("validator")
+    if not validator:
+        return True, ""
+
+    if validator == "asr_model":
+        from podx.ui.prompts import validate_asr_model
+
+        if not validate_asr_model(value):
+            return False, (
+                f"Invalid ASR model '{value}'. "
+                "Run 'podx models' to see available models."
+            )
+    elif validator == "llm_model":
+        from podx.ui.prompts import validate_llm_model
+
+        if not validate_llm_model(value):
+            return False, (
+                f"Invalid LLM model '{value}'. "
+                "Run 'podx models' to see available models."
+            )
+    elif validator == "language":
+        from podx.ui.prompts import validate_language
+
+        if not validate_language(value):
+            return False, (
+                f"Invalid language code '{value}'. "
+                "Use 'auto' or ISO 639-1 codes (e.g., en, es, fr)."
+            )
+
+    return True, ""
 
 
 def _get_config_dir() -> Path:
@@ -309,6 +352,12 @@ def set(key: str, value: str):
     if key not in CONFIG_KEYS:
         console.print(f"[red]Error:[/red] Unknown config key '{key}'")
         console.print("[dim]Run 'podx config' to see all keys[/dim]")
+        sys.exit(ExitCode.USER_ERROR)
+
+    # Validate the value
+    is_valid, error_msg = _validate_value(key, value)
+    if not is_valid:
+        console.print(f"[red]Error:[/red] {error_msg}")
         sys.exit(ExitCode.USER_ERROR)
 
     if _set_value(key, value):

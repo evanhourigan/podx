@@ -7,7 +7,7 @@ import json
 import subprocess
 from pathlib import Path
 from time import sleep
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urlencode, urlparse
 
 import feedparser
@@ -202,12 +202,19 @@ class PodcastFetcher:
 
         return None
 
-    def download_audio(self, entry: Dict[str, Any], output_dir: Path) -> Path:
+    def download_audio(
+        self,
+        entry: Dict[str, Any],
+        output_dir: Path,
+        progress_callback: Optional[Callable[[int, Optional[int]], None]] = None,
+    ) -> Path:
         """Download audio file from episode entry.
 
         Args:
             entry: Feed entry with audio enclosure
             output_dir: Directory to save audio file
+            progress_callback: Optional callback(downloaded_bytes, total_bytes)
+                               Called for each chunk downloaded. total_bytes may be None.
 
         Returns:
             Path to downloaded audio file
@@ -257,12 +264,23 @@ class PodcastFetcher:
                 ) as r:
                     r.raise_for_status()
 
+                    # Get total size from Content-Length header if available
+                    total_size = None
+                    content_length = r.headers.get("Content-Length")
+                    if content_length:
+                        try:
+                            total_size = int(content_length)
+                        except ValueError:
+                            pass
+
                     with open(dest, "wb") as f:
                         downloaded = 0
                         for chunk in r.iter_content(chunk_size=1 << 20):  # 1MB chunks
                             if chunk:
                                 f.write(chunk)
                                 downloaded += len(chunk)
+                                if progress_callback:
+                                    progress_callback(downloaded, total_size)
 
                 logger.info(
                     "Audio downloaded",
@@ -325,6 +343,7 @@ class PodcastFetcher:
         date: Optional[str] = None,
         title_contains: Optional[str] = None,
         output_dir: Optional[Path] = None,
+        progress_callback: Optional[Callable[[int, Optional[int]], None]] = None,
     ) -> Dict[str, Any]:
         """Fetch a podcast episode with smart defaults.
 
@@ -334,6 +353,7 @@ class PodcastFetcher:
             date: Episode date (YYYY-MM-DD) for filtering
             title_contains: Substring to match in episode title
             output_dir: Directory to save episode (defaults to smart naming)
+            progress_callback: Optional callback(downloaded_bytes, total_bytes) for download progress
 
         Returns:
             Dictionary with episode metadata, audio path, and directory
@@ -385,7 +405,9 @@ class PodcastFetcher:
             )
 
         # Download audio
-        audio_path = self.download_audio(episode, output_dir)
+        audio_path = self.download_audio(
+            episode, output_dir, progress_callback=progress_callback
+        )
 
         # Build metadata
         meta: EpisodeMeta = {
@@ -450,6 +472,7 @@ def fetch_episode(
     date: Optional[str] = None,
     title_contains: Optional[str] = None,
     output_dir: Optional[Path] = None,
+    progress_callback: Optional[Callable[[int, Optional[int]], None]] = None,
 ) -> Dict[str, Any]:
     """Fetch a podcast episode with smart defaults.
 
@@ -459,9 +482,12 @@ def fetch_episode(
         date: Episode date for filtering
         title_contains: Title substring to match
         output_dir: Output directory
+        progress_callback: Optional callback(downloaded_bytes, total_bytes) for download progress
 
     Returns:
         Dictionary with episode metadata and paths
     """
     fetcher = PodcastFetcher()
-    return fetcher.fetch_episode(show_name, rss_url, date, title_contains, output_dir)
+    return fetcher.fetch_episode(
+        show_name, rss_url, date, title_contains, output_dir, progress_callback
+    )

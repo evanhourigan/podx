@@ -4,6 +4,7 @@ Simplified v4.0 command for downloading podcast episodes.
 Supports interactive mode with simple numbered selection.
 """
 
+import shutil
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -16,12 +17,31 @@ from podx.core.transcode import TranscodeEngine, TranscodeError
 from podx.domain.exit_codes import ExitCode
 from podx.errors import NetworkError, ValidationError
 from podx.logging import get_logger
+from podx.ui.download_progress import DownloadProgress
 
 logger = get_logger(__name__)
 console = Console()
 
 # Pagination settings
 ITEMS_PER_PAGE = 10
+
+
+def _make_download_progress():
+    """Create a download progress tracker and callback.
+
+    Returns:
+        Tuple of (progress_instance, callback_function)
+    """
+    progress = DownloadProgress("Downloading")
+
+    def callback(downloaded: int, total: Optional[int]):
+        if progress.total_size is None and total:
+            progress.set_total(total)
+        # Only update display (don't re-add downloaded bytes)
+        progress.downloaded = downloaded
+        progress._display()
+
+    return progress, callback
 
 
 def _transcode_to_wav(audio_path: Path) -> Optional[Path]:
@@ -41,6 +61,11 @@ def _transcode_to_wav(audio_path: Path) -> Optional[Path]:
         return None
 
 
+def _get_terminal_width() -> int:
+    """Get terminal width, with a sensible default."""
+    return shutil.get_terminal_size().columns
+
+
 def _display_list(
     items: List[Dict[str, Any]],
     page: int,
@@ -56,10 +81,11 @@ def _display_list(
     start = page * ITEMS_PER_PAGE
     end = min(start + ITEMS_PER_PAGE, total)
 
+    term_width = _get_terminal_width()
     console.print(f"\n[bold cyan]{title}[/bold cyan] (page {page + 1}/{total_pages})\n")
 
     for idx, item in enumerate(items[start:end], start=start + 1):
-        formatted = format_fn(item)
+        formatted = format_fn(item, term_width)
         console.print(f"  [bold]{idx:3}[/bold]  {formatted}")
 
     console.print()
@@ -70,17 +96,39 @@ def _display_list(
     return total_pages
 
 
-def _format_show(show: Dict[str, Any]) -> str:
-    """Format a podcast show for display."""
+def _format_show(show: Dict[str, Any], max_width: int = 80) -> str:
+    """Format a podcast show for display.
+
+    Single line: "Show name [dim]by Artist (N episodes)[/dim]"
+    Wraps if too long.
+    """
+    content_width = max_width - 7  # Account for "  123  " prefix
+
     name = show.get("collectionName", "Unknown")
     artist = show.get("artistName", "")
     count = show.get("trackCount", 0)
-    return f"{name} [dim]by {artist} ({count} episodes)[/dim]"
+
+    suffix = f" [dim]by {artist} ({count} episodes)[/dim]"
+    plain_len = len(name) + 4 + len(artist) + 15  # approximate
+
+    if plain_len <= content_width:
+        return f"{name}{suffix}"
+
+    # Wrap to two lines
+    if len(name) > content_width:
+        name = name[: content_width - 3] + "..."
+    return f"{name}\n       [dim]by {artist} ({count} episodes)[/dim]"
 
 
-def _format_episode(entry: Dict[str, Any]) -> str:
-    """Format an episode for display."""
-    title = entry.get("title", "Unknown")[:60]
+def _format_episode(entry: Dict[str, Any], max_width: int = 80) -> str:
+    """Format an episode for display.
+
+    Single line: "Title [dim](date)[/dim]"
+    Wraps if too long.
+    """
+    content_width = max_width - 7  # Account for "  123  " prefix
+
+    title = entry.get("title", "Unknown")
     date = entry.get("published", entry.get("updated", ""))
     if date:
         # Try to extract just the date part
@@ -91,7 +139,50 @@ def _format_episode(entry: Dict[str, Any]) -> str:
             date = parsed.strftime("%Y-%m-%d")
         except Exception:
             date = date[:10] if len(date) >= 10 else date
-    return f"{title} [dim]{date}[/dim]"
+
+    single_line = f"{title} [dim]({date})[/dim]"
+    plain_len = len(title) + len(date) + 3
+
+    if plain_len <= content_width:
+        return single_line
+
+    # Wrap to two lines
+    if len(title) > content_width:
+        title = title[: content_width - 3] + "..."
+    return f"{title}\n       [dim]{date}[/dim]"
+
+
+def _format_video(video: Dict[str, Any], max_width: int = 80) -> str:
+    """Format a YouTube video for display.
+
+    Single line: "Title [dim](date • channel)[/dim]"
+    Wraps if too long.
+    """
+    content_width = max_width - 7  # Account for "  123  " prefix
+
+    title = video.get("title", "Unknown")
+    upload_date = video.get("upload_date", "")
+    if upload_date and len(upload_date) == 8:
+        # Format YYYYMMDD to YYYY-MM-DD
+        upload_date = f"{upload_date[:4]}-{upload_date[4:6]}-{upload_date[6:8]}"
+    channel = video.get("channel", "")
+
+    if channel:
+        suffix = f" [dim]({upload_date} • {channel})[/dim]"
+        plain_len = len(title) + len(upload_date) + len(channel) + 7
+    else:
+        suffix = f" [dim]({upload_date})[/dim]"
+        plain_len = len(title) + len(upload_date) + 3
+
+    if plain_len <= content_width:
+        return f"{title}{suffix}"
+
+    # Wrap to two lines
+    if len(title) > content_width:
+        title = title[: content_width - 3] + "..."
+    if channel:
+        return f"{title}\n       [dim]{upload_date} • {channel}[/dim]"
+    return f"{title}\n       [dim]{upload_date}[/dim]"
 
 
 def _interactive_show_selection(fetcher: PodcastFetcher) -> Optional[Dict[str, Any]]:
@@ -197,6 +288,44 @@ def _interactive_episode_selection(
                 console.print("[red]Invalid input[/red]")
 
 
+def _interactive_video_selection(
+    videos: List[Dict[str, Any]],
+    playlist_title: str,
+) -> Optional[Dict[str, Any]]:
+    """Interactive video selection from playlist.
+
+    Returns selected video dict or None if cancelled.
+    """
+    page = 0
+
+    while True:
+        total_pages = _display_list(
+            videos, page, _format_video, f"Videos from {playlist_title}"
+        )
+
+        try:
+            choice = input("\n> ").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            return None
+
+        if choice in ("q", "quit"):
+            return None
+        elif choice in ("b", "back"):
+            return None  # No "back" in playlist context, just quit
+        elif choice == "n" and page < total_pages - 1:
+            page += 1
+        elif choice == "p" and page > 0:
+            page -= 1
+        else:
+            try:
+                sel = int(choice)
+                if 1 <= sel <= len(videos):
+                    return videos[sel - 1]
+                console.print("[red]Invalid number[/red]")
+            except ValueError:
+                console.print("[red]Invalid input[/red]")
+
+
 def _run_interactive(fetcher: PodcastFetcher) -> Optional[Dict[str, Any]]:
     """Run full interactive flow: search → select show → select episode → download.
 
@@ -239,7 +368,11 @@ def _run_interactive(fetcher: PodcastFetcher) -> Optional[Dict[str, Any]]:
                 episode_title = episode.get("title", "")
                 output_dir = generate_workdir(show_name, episode_date, episode_title)
 
-                audio_path = fetcher.download_audio(episode, output_dir)
+                progress, progress_callback = _make_download_progress()
+                audio_path = fetcher.download_audio(
+                    episode, output_dir, progress_callback=progress_callback
+                )
+                progress.finish()
 
                 # Transcode to WAV for ASR
                 _transcode_to_wav(audio_path)
@@ -280,44 +413,41 @@ def _run_interactive(fetcher: PodcastFetcher) -> Optional[Dict[str, Any]]:
 @click.command(context_settings={"max_content_width": 120})
 @click.option("--show", help="Podcast show name (searches iTunes)")
 @click.option("--rss", help="Direct RSS feed URL")
-@click.option("--url", help="Video URL (YouTube, Vimeo, etc. via yt-dlp)")
-@click.option("--date", help="Episode date (YYYY-MM-DD)")
+@click.option("--date", help="Episode date filter (YYYY-MM-DD)")
 @click.option("--title", "title_contains", help="Substring to match in episode title")
+@click.option("--url", help="Video/playlist URL (YouTube, etc.)")
 def main(
     show: Optional[str],
     rss: Optional[str],
-    url: Optional[str],
     date: Optional[str],
     title_contains: Optional[str],
+    url: Optional[str],
 ):
     """Download podcast episodes.
 
     \b
-    Without options:
-      Fully interactive - search for show, then browse episodes
+    Interactive:
+      No options              Search for show, then browse episodes
+      --show or --rss         Browse episodes from that show/feed
+      --url (playlist)        Browse videos from YouTube playlist
 
     \b
-    With --show or --rss:
-      Opens episode browser - select episode by number
+    Direct download:
+      --show + (--date or --title)   Download matching episode
+      --url (single video)           Download that video
 
     \b
-    With --show + --date or --title:
-      Direct download - auto-selects matching episode
+    Examples - Interactive:
+      podx fetch                                # Search and browse
+      podx fetch --show "Lex Fridman"           # Browse show episodes
+      podx fetch --rss "https://feed.url/rss"   # Browse from RSS
+      podx fetch --url "https://youtube.com/playlist?list=xyz"  # Browse playlist
 
     \b
-    Navigation keys:
-      1-9    Select item by number
-      n      Next page
-      p      Previous page
-      b      Go back
-      q      Quit
-
-    \b
-    Examples:
-      podx fetch                                    # Full interactive
-      podx fetch --show "Lex Fridman"               # Browse episodes
-      podx fetch --show "Huberman Lab" --date 2024-11-24  # Direct download
-      podx fetch --url "https://youtube.com/watch?v=xyz"  # YouTube
+    Examples - Direct download:
+      podx fetch --show "Huberman Lab" --date 2024-11-24
+      podx fetch --show "Lex Fridman" --title "Sam Altman"
+      podx fetch --url "https://youtube.com/watch?v=xyz"
     """
     fetcher = PodcastFetcher()
 
@@ -345,17 +475,62 @@ def main(
     # Handle YouTube/video URL
     if url:
         try:
-            from podx.core.youtube import YouTubeDownloader, is_youtube_url
+            from podx.core.youtube import YouTubeEngine, is_playlist_url, is_youtube_url
+            from podx.utils import generate_workdir
 
             if not is_youtube_url(url):
                 console.print(
                     "[yellow]Note:[/yellow] URL doesn't look like YouTube, trying yt-dlp anyway..."
                 )
 
-            console.print(f"[cyan]Downloading from URL:[/cyan] {url}")
+            engine = YouTubeEngine()
 
-            downloader = YouTubeDownloader()
-            result = downloader.download(url)
+            # Check if this is a playlist URL - if so, show interactive browser
+            if is_playlist_url(url):
+                console.print(f"[cyan]Loading playlist:[/cyan] {url}")
+
+                videos = engine.get_playlist_videos(url)
+                if not videos:
+                    console.print("[red]Error:[/red] No videos found in playlist")
+                    sys.exit(ExitCode.USER_ERROR)
+
+                # Interactive video selection
+                selected_video = _interactive_video_selection(videos, "Playlist")
+                if selected_video is None:
+                    console.print("[dim]Cancelled[/dim]")
+                    sys.exit(0)
+
+                # Use the selected video's URL
+                url = selected_video["url"]
+                console.print(
+                    f"\n[cyan]Downloading:[/cyan] {selected_video.get('title', 'Unknown')}"
+                )
+
+            else:
+                console.print(f"[cyan]Downloading from URL:[/cyan] {url}")
+
+            # Get metadata first to determine workdir
+            meta = engine.get_metadata(url)
+            workdir = generate_workdir(
+                meta.get("channel", "YouTube"),
+                meta.get("upload_date", "unknown"),
+                meta.get("title", "video"),
+            )
+
+            progress, progress_callback = _make_download_progress()
+            result = {
+                "meta": engine.fetch_episode(
+                    url, workdir, download_progress_callback=progress_callback
+                ),
+                "audio_path": None,
+            }
+            progress.finish()
+            # Find audio path from workdir
+            for ext in [".mp3", ".m4a", ".wav"]:
+                audio_files = list(workdir.glob(f"*{ext}"))
+                if audio_files:
+                    result["audio_path"] = str(audio_files[0])
+                    break
 
             audio_path = result.get("audio_path")
             if audio_path:
@@ -364,10 +539,11 @@ def main(
             meta = result.get("meta", {})
 
             console.print(
-                f"\n[green]✓ Downloaded:[/green] {meta.get('title', 'Unknown')}"
+                f"\n[green]✓ Downloaded:[/green] {meta.get('episode_title', meta.get('title', 'Unknown'))}"
             )
             if audio_path:
                 console.print(f"  Audio: {audio_path}")
+            console.print(f"  Directory: {workdir}")
 
             sys.exit(ExitCode.SUCCESS)
 
@@ -375,6 +551,9 @@ def main(
             console.print("[red]Error:[/red] yt-dlp not installed")
             console.print("[dim]Install with: pip install yt-dlp[/dim]")
             sys.exit(ExitCode.USER_ERROR)
+        except KeyboardInterrupt:
+            console.print("\n[dim]Cancelled[/dim]")
+            sys.exit(0)
         except Exception as e:
             console.print(f"[red]Download Error:[/red] {e}")
             sys.exit(ExitCode.PROCESSING_ERROR)
@@ -391,13 +570,16 @@ def main(
             console.print(f"[cyan]Title filter:[/cyan] {title_contains}")
 
         try:
+            progress, progress_callback = _make_download_progress()
             result = fetcher.fetch_episode(
                 show_name=show,
                 rss_url=rss,
                 date=date,
                 title_contains=title_contains,
                 output_dir=None,
+                progress_callback=progress_callback,
             )
+            progress.finish()
             # Transcode to WAV for ASR
             audio_path = result.get("audio_path")
             if audio_path:
@@ -472,7 +654,11 @@ def main(
                 show_name or show, episode_date, episode_title
             )
 
-            audio_path = fetcher.download_audio(episode, output_dir)
+            progress, progress_callback = _make_download_progress()
+            audio_path = fetcher.download_audio(
+                episode, output_dir, progress_callback=progress_callback
+            )
+            progress.finish()
 
             # Transcode to WAV for ASR
             _transcode_to_wav(audio_path)

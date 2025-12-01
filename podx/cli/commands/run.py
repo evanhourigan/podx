@@ -156,6 +156,89 @@ def _run_diarize_step(episode_dir: Path) -> bool:
     return True
 
 
+def _run_cleanup_step(episode_dir: Path) -> bool:
+    """Run cleanup step. Returns True on success."""
+    import json
+    import os
+
+    from podx.core.preprocess import PreprocessError, TranscriptPreprocessor
+    from podx.ui import LiveTimer
+
+    console.print(
+        "\n[bold cyan]── Cleanup ────────────────────────────────────────[/bold cyan]"
+    )
+
+    # Load transcript
+    transcript_path = episode_dir / "transcript.json"
+    if not transcript_path.exists():
+        console.print("[red]Error:[/red] No transcript found")
+        return False
+
+    transcript = json.loads(transcript_path.read_text())
+
+    # Check if already cleaned
+    if transcript.get("cleaned"):
+        console.print("[dim]Already cleaned, skipping...[/dim]")
+        return True
+
+    # Check if we have OpenAI key for restore
+    do_restore = bool(os.getenv("OPENAI_API_KEY"))
+    if do_restore:
+        console.print("[dim]Cleaning up with LLM restore...[/dim]")
+    else:
+        console.print("[dim]Cleaning up (no API key, skipping restore)...[/dim]")
+
+    timer = LiveTimer("Cleaning up")
+    timer.start()
+
+    try:
+        preprocessor = TranscriptPreprocessor(
+            merge=True,
+            normalize=True,
+            restore=do_restore,
+            max_gap=1.0,
+            max_len=800,
+            restore_model="gpt-4o-mini",
+        )
+        result = preprocessor.preprocess(transcript)
+    except PreprocessError as e:
+        timer.stop()
+        console.print(f"[red]Error:[/red] {e}")
+        return False
+
+    elapsed = timer.stop()
+    minutes = int(elapsed // 60)
+    seconds = int(elapsed % 60)
+
+    # Preserve existing metadata
+    original_keys = [
+        "audio_path",
+        "language",
+        "asr_model",
+        "asr_provider",
+        "decoder_options",
+        "diarized",
+    ]
+    for key in original_keys:
+        if key in transcript:
+            result[key] = transcript[key]
+
+    # Set cleanup state flags
+    result["cleaned"] = True
+    result["restored"] = do_restore
+
+    # Save updated transcript
+    transcript_path.write_text(
+        json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+    original_count = len(transcript["segments"])
+    merged_count = len(result["segments"])
+    console.print(f"[green]✓ Cleanup complete ({minutes}:{seconds:02d})[/green]")
+    console.print(f"  Segments: {original_count} → {merged_count}")
+    return True
+
+
 def _run_analyze_step(episode_dir: Path) -> bool:
     """Run analyze step. Returns True on success."""
     import json
@@ -302,14 +385,16 @@ def run():
       1. Fetch: Search and download episode
       2. Transcribe: Convert audio to text
       3. Diarize: Add speaker labels
-      4. Analyze: Generate AI analysis
-      5. Export: Create markdown files
+      4. Cleanup: Clean up transcript text
+      5. Analyze: Generate AI analysis
+      6. Export: Create markdown files
 
     \b
     For scripting, use individual commands:
       podx fetch --show "Lex" --date 2024-11-24
       podx transcribe ./episode/
       podx diarize ./episode/
+      podx cleanup ./episode/
       podx analyze ./episode/
     """
     try:
@@ -328,12 +413,17 @@ def run():
             # Diarization failure is not fatal - continue
             console.print("[yellow]Diarization skipped[/yellow]")
 
-        # Step 4: Analyze
+        # Step 4: Cleanup
+        if not _run_cleanup_step(episode_dir):
+            # Cleanup failure is not fatal - continue
+            console.print("[yellow]Cleanup skipped[/yellow]")
+
+        # Step 5: Analyze
         if not _run_analyze_step(episode_dir):
             # Analysis failure is not fatal - continue
             console.print("[yellow]Analysis skipped[/yellow]")
 
-        # Step 5: Export
+        # Step 6: Export
         _run_export_step(episode_dir)
 
         # Done

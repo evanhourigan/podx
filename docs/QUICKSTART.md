@@ -176,32 +176,32 @@ This will:
 
 ### Option 2: Step-by-Step
 
-Process the pipeline step by step:
+Process the pipeline step by step using v4.0 directory-based workflow:
 
 ```bash
-# 1. Fetch the episode
-podx fetch --show "Lex Fridman Podcast" --date 2024-10-15 | tee fetch.json
+# 1. Fetch the episode (creates directory with audio)
+podx fetch --show "Lex Fridman Podcast" --date 2024-10-15
 
-# 2. Transcode audio (normalize)
-podx transcode < fetch.json | tee transcode.json
+# 2. Transcribe audio (creates transcript.json)
+podx transcribe ./Lex_Fridman_Podcast/2024-10-15-*/
 
-# 3. Transcribe to text
-podx transcribe < transcode.json | tee transcript.json
+# 3. Add speaker labels (updates transcript.json)
+podx diarize ./Lex_Fridman_Podcast/2024-10-15-*/
 
-# 4. Add speaker labels
-podx diarize < transcript.json | tee diarized.json
+# 4. Generate AI analysis (creates analysis.json)
+podx analyze ./Lex_Fridman_Podcast/2024-10-15-*/
 
 # 5. Export to formats
-podx export --formats txt,srt,vtt < diarized.json
+podx export transcript ./Lex_Fridman_Podcast/2024-10-15-*/ -f txt,srt,vtt
 ```
 
-### Option 3: Quick Transcription Only
+### Option 3: Interactive Mode (v4.0+)
 
-Just transcribe without extra features:
+Run commands without arguments for interactive prompts:
 
 ```bash
-podx run --show "Lex Fridman Podcast" --date 2024-10-15 \
-  --no-deepcast --no-notion --no-export
+podx transcribe    # Select episode, choose model, transcribe
+podx analyze       # Select episode, choose model/template, analyze
 ```
 
 ---
@@ -332,7 +332,7 @@ The first run downloads ~1-2GB of models. Subsequent runs will be much faster.
 Use a smaller model for faster downloads:
 
 ```bash
-podx run --show "My Podcast" --date 2024-10-15 --model base
+podx transcribe ./ep/ --model local:base
 ```
 
 ### "Out of memory"
@@ -341,21 +341,21 @@ Use a smaller model or enable CPU-only mode:
 
 ```bash
 # Use smaller model
-podx run --model base
+podx transcribe ./ep/ --model local:base
 
 # Force CPU (slower but less memory)
-podx transcribe --device cpu
+podx transcribe ./ep/ --device cpu
 ```
 
 ### "Episode not found"
 
 - Check the show name spelling
-- Try `--interactive` mode to browse episodes visually
-- Use `--rss-url` for direct RSS access
+- Run `podx fetch` without arguments for interactive episode browsing
+- Use `--rss` for direct RSS access
 
 ```bash
-# Interactive mode
-podx fetch --show "My Podcast" --interactive
+# Interactive mode (v4.0+)
+podx fetch
 ```
 
 ---

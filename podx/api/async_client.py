@@ -331,6 +331,110 @@ class AsyncPodxClient:
                 error=str(e),
             )
 
+    async def cleanup(
+        self,
+        transcript_path: str | Path,
+        restore: bool = True,
+        output_dir: Optional[Path] = None,
+    ) -> Dict[str, Any]:
+        """Clean up transcript text for readability and improved LLM analysis.
+
+        Args:
+            transcript_path: Path to transcript JSON file
+            restore: Use LLM to restore punctuation/capitalization (default: True)
+            output_dir: Directory to save cleaned transcript (default: same as input)
+
+        Returns:
+            Dict with success status, output path, and segment counts
+
+        Raises:
+            ValidationError: If inputs are invalid
+
+        Notes:
+            - Merges short adjacent segments into readable paragraphs
+            - Normalizes whitespace and punctuation spacing
+            - Optionally restores punctuation/capitalization via LLM
+
+        Example:
+            >>> result = await client.cleanup(Path("transcript.json"))
+            >>> print(f"Cleaned {result['original_segments']} -> {result['cleaned_segments']}")
+        """
+        from ..core.preprocess import PreprocessError, TranscriptPreprocessor
+
+        transcript_path = Path(transcript_path)
+        if not transcript_path.exists():
+            raise ValidationError(f"Transcript file not found: {transcript_path}")
+
+        # Run preprocessing in thread pool (sync operation)
+        def _do_cleanup():
+            # Load transcript
+            transcript_data = json.loads(transcript_path.read_text())
+
+            # Check if already cleaned
+            if transcript_data.get("cleaned"):
+                logger.info("Transcript already cleaned, skipping")
+                return {
+                    "success": True,
+                    "skipped": True,
+                    "transcript_path": str(transcript_path),
+                    "original_segments": len(transcript_data.get("segments", [])),
+                    "cleaned_segments": len(transcript_data.get("segments", [])),
+                }
+
+            # Run preprocessing
+            preprocessor = TranscriptPreprocessor(
+                merge=True,
+                normalize=True,
+                restore=restore,
+                max_gap=1.0,
+                max_len=800,
+                restore_model="gpt-4o-mini",
+            )
+            result = preprocessor.preprocess(transcript_data)
+
+            # Preserve existing metadata
+            original_keys = [
+                "audio_path",
+                "language",
+                "asr_model",
+                "asr_provider",
+                "decoder_options",
+                "diarized",
+            ]
+            for key in original_keys:
+                if key in transcript_data:
+                    result[key] = transcript_data[key]
+
+            # Set cleanup state flags
+            result["cleaned"] = True
+            result["restored"] = restore
+
+            # Save to output location
+            out_dir = output_dir or transcript_path.parent
+            out_path = out_dir / transcript_path.name
+            out_path.write_text(json.dumps(result, indent=2, ensure_ascii=False))
+
+            original_count = len(transcript_data.get("segments", []))
+            cleaned_count = len(result.get("segments", []))
+
+            return {
+                "success": True,
+                "transcript_path": str(out_path),
+                "original_segments": original_count,
+                "cleaned_segments": cleaned_count,
+                "restored": restore,
+            }
+
+        try:
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(None, _do_cleanup)
+        except PreprocessError as e:
+            logger.error("Failed to cleanup transcript", error=str(e))
+            return {"success": False, "error": str(e)}
+        except Exception as e:
+            logger.error("Failed to cleanup transcript", error=str(e))
+            return {"success": False, "error": str(e)}
+
     async def diarize_stream(
         self,
         transcript_path: str | Path,

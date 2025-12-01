@@ -16,10 +16,22 @@ from podx.core.transcribe import TranscriptionEngine, TranscriptionError
 from podx.domain.exit_codes import ExitCode
 from podx.errors import AudioError
 from podx.logging import get_logger
-from podx.ui import LiveTimer, select_episode_interactive
+from podx.ui import (
+    LiveTimer,
+    get_asr_models_help,
+    get_languages_help,
+    prompt_with_help,
+    select_episode_interactive,
+    show_confirmation,
+    validate_asr_model,
+    validate_language,
+)
 
 logger = get_logger(__name__)
 console = Console()
+
+# Sentinel value to detect if option was explicitly passed
+_NOT_PROVIDED = object()
 
 
 def _find_audio_file(directory: Path) -> Optional[Path]:
@@ -40,6 +52,25 @@ def _find_audio_file(directory: Path) -> Optional[Path]:
     return None
 
 
+def _get_default_model() -> str:
+    """Get default model from config or fallback."""
+    try:
+        config_model = get_config().default_asr_model
+        if config_model:
+            # Add local: prefix for local models if not already prefixed
+            if ":" not in config_model:
+                config_model = f"local:{config_model}"
+            return config_model
+    except Exception:
+        pass
+    return "local:large-v3-turbo"
+
+
+def _get_default_language() -> str:
+    """Get default language from config or fallback."""
+    return "auto"
+
+
 @click.command(context_settings={"max_content_width": 120})
 @click.argument(
     "path",
@@ -48,15 +79,15 @@ def _find_audio_file(directory: Path) -> Optional[Path]:
 )
 @click.option(
     "--model",
-    default=lambda: get_config().default_asr_model,
-    help="Transcription model (e.g., large-v3, medium, openai:whisper-1)",
+    default=None,
+    help=f"Transcription model (default: {_get_default_model()})",
 )
 @click.option(
     "--language",
-    default="auto",
-    help="Language code (auto, en, es, fr, de, ja, zh, etc.)",
+    default=None,
+    help=f"Language code (default: {_get_default_language()})",
 )
-def main(path: Optional[Path], model: str, language: str):
+def main(path: Optional[Path], model: Optional[str], language: Optional[str]):
     """Transcribe audio to text.
 
     \b
@@ -67,11 +98,12 @@ def main(path: Optional[Path], model: str, language: str):
 
     \b
     Models - Local (free, runs on your machine):
-      large-v3          Best quality (default)
-      large-v2          Previous best
-      medium            Good balance of speed/quality
-      base              Fast, lower accuracy
-      tiny              Fastest, lowest accuracy
+      local:large-v3-turbo  Best quality, optimized
+      local:large-v3        Best quality
+      local:large-v2        Previous best
+      local:medium          Good balance of speed/quality
+      local:base            Fast, lower accuracy
+      local:tiny            Fastest, lowest accuracy
 
     \b
     Models - Cloud (requires API key):
@@ -82,24 +114,58 @@ def main(path: Optional[Path], model: str, language: str):
       hf:distil-large-v3  Distilled, faster than large-v3
 
     \b
+    Languages:
+      auto    Auto-detect language
+      en      English
+      es      Spanish
+      fr      French
+      de      German
+      ...     (ISO 639-1 two-letter codes)
+
+    \b
     Examples:
-      podx transcribe                           # Interactive selection
-      podx transcribe ./Show/2024-11-24-ep/     # Direct path
-      podx transcribe . --model medium          # Current dir, medium model
-      podx transcribe ./ep/ --language es       # Spanish transcription
+      podx transcribe                                # Interactive selection
+      podx transcribe ./Show/2024-11-24-ep/          # Direct path
+      podx transcribe . --model local:medium         # Current dir, medium model
+      podx transcribe ./ep/ --language es            # Spanish transcription
     """
+    # Get defaults
+    default_model = _get_default_model()
+    default_language = _get_default_language()
+
+    # Track if we're in interactive mode (no PATH provided)
+    interactive_mode = path is None
+
     # Interactive mode if no path provided
-    if path is None:
+    if interactive_mode:
         try:
             selected, _ = select_episode_interactive(
                 scan_dir=".",
                 show_filter=None,
+                title="Select episode to transcribe",
             )
             if not selected:
                 console.print("[dim]Selection cancelled[/dim]")
                 sys.exit(0)
 
             path = selected["directory"]
+
+            # Warn if already transcribed
+            if selected.get("transcribed"):
+                console.print(
+                    "\n[yellow]This episode already has a transcript.[/yellow]"
+                )
+                console.print(
+                    "[dim]Re-transcribing will overwrite the existing file.[/dim]"
+                )
+                try:
+                    confirm = input("Continue? [y/N] ").strip().lower()
+                except (KeyboardInterrupt, EOFError):
+                    console.print("\n[dim]Cancelled[/dim]")
+                    sys.exit(0)
+                if confirm not in ("y", "yes"):
+                    console.print("[dim]Cancelled[/dim]")
+                    sys.exit(0)
         except KeyboardInterrupt:
             console.print("\n[dim]Cancelled[/dim]")
             sys.exit(0)
@@ -116,11 +182,43 @@ def main(path: Optional[Path], model: str, language: str):
         console.print("[dim]Expected: audio.mp3, audio.wav, or similar[/dim]")
         sys.exit(ExitCode.USER_ERROR)
 
+    # Interactive prompts for options (only in interactive mode)
+    if interactive_mode:
+        # Model prompt/confirmation
+        if model is not None:
+            show_confirmation("Model", model)
+        else:
+            model = prompt_with_help(
+                help_text=get_asr_models_help(),
+                prompt_label="Model",
+                default=default_model,
+                validator=validate_asr_model,
+                error_message="Invalid model. See list above for valid options.",
+            )
+
+        # Language prompt/confirmation
+        if language is not None:
+            show_confirmation("Language", language)
+        else:
+            language = prompt_with_help(
+                help_text=get_languages_help(),
+                prompt_label="Language",
+                default=default_language,
+                validator=validate_language,
+                error_message="Invalid language code. Use 'auto' or ISO 639-1 codes.",
+            )
+    else:
+        # Non-interactive: use defaults if not specified
+        if model is None:
+            model = default_model
+        if language is None:
+            language = default_language
+
     # Output path
     transcript_path = episode_dir / "transcript.json"
 
     # Show what we're doing
-    console.print(f"[cyan]Transcribing:[/cyan] {audio_file.name}")
+    console.print(f"\n[cyan]Transcribing:[/cyan] {audio_file.name}")
     console.print(f"[cyan]Model:[/cyan] {model}")
     if language != "auto":
         console.print(f"[cyan]Language:[/cyan] {language}")
@@ -166,6 +264,11 @@ def main(path: Optional[Path], model: str, language: str):
 
     # Add metadata
     result["audio_path"] = str(audio_file)
+
+    # Set initial state flags
+    result["diarized"] = False
+    result["cleaned"] = False
+    result["restored"] = False
 
     # Save transcript
     transcript_path.write_text(

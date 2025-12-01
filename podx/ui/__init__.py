@@ -29,9 +29,28 @@ from ..ui_styles import (
 from .analyze_selector import select_analysis_type, select_deepcast_type
 from .asr_selector import ASR_MODELS, get_most_sophisticated_model, select_asr_model
 from .confirmation import Confirmation
-from .episode_selector import scan_episode_status, select_episode_interactive
+from .download_progress import DownloadProgress
+from .episode_selector import (
+    RequiredArtifact,
+    scan_episode_status,
+    select_episode_interactive,
+)
 from .formatters import clean_cell, sanitize_filename
 from .live_timer import LiveTimer
+from .prompts import (
+    get_asr_models_help,
+    get_export_formats_help,
+    get_languages_help,
+    get_llm_models_help,
+    get_templates_help,
+    prompt_with_help,
+    show_confirmation,
+    validate_asr_model,
+    validate_export_format,
+    validate_language,
+    validate_llm_model,
+    validate_template,
+)
 
 __all__ = [
     # From ui_styles.py
@@ -55,13 +74,28 @@ __all__ = [
     # Interactive selectors
     "ASR_MODELS",
     "Confirmation",
+    "DownloadProgress",
     "LiveTimer",
     "clean_cell",
     "get_most_sophisticated_model",
     "sanitize_filename",
+    "RequiredArtifact",
     "scan_episode_status",
     "select_analysis_type",
     "select_asr_model",
     "select_deepcast_type",  # Backwards compatibility alias
     "select_episode_interactive",
+    # Prompt utilities
+    "get_asr_models_help",
+    "get_export_formats_help",
+    "get_languages_help",
+    "get_llm_models_help",
+    "get_templates_help",
+    "prompt_with_help",
+    "show_confirmation",
+    "validate_asr_model",
+    "validate_export_format",
+    "validate_language",
+    "validate_llm_model",
+    "validate_template",
 ]

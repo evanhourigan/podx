@@ -1,6 +1,6 @@
-# Deepcast Templates Guide
+# Analysis Templates Guide
 
-**Version:** 3.2.0
+**Version:** 4.0.0
 **Feature:** Format-based podcast analysis templates with length-adaptive scaling
 
 ## Overview
@@ -333,19 +333,16 @@ podx templates delete my-custom-template --yes
 
 **Note:** Built-in templates cannot be deleted.
 
-## Using Templates in Deepcast
+## Using Templates with Analyze
 
-Specify a template when running deepcast analysis:
+Specify a template when running analysis:
 
 ```bash
 # Use specific template
-podx deepcast --template interview-1on1 \
-  --title "Episode Title" \
-  --transcript transcript.txt \
-  --output analysis.md
+podx analyze ./ep/ --template interview-1on1
 
 # With full pipeline
-podx run episode.mp3 --template panel-discussion
+podx run --template panel-discussion
 ```
 
 ## Creating Custom Templates

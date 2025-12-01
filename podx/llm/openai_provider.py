@@ -97,13 +97,17 @@ class OpenAIProvider(LLMProvider):
             LLMAPIError: If API returns an error
         """
         try:
-            response = self._sync_client.chat.completions.create(
-                model=model,
-                messages=[msg.to_dict() for msg in messages],
-                temperature=temperature,
-                max_tokens=max_tokens,
+            # Build API params, only include max_tokens if specified
+            api_params = {
+                "model": model,
+                "messages": [msg.to_dict() for msg in messages],
+                "temperature": temperature,
                 **kwargs,
-            )
+            }
+            if max_tokens is not None:
+                api_params["max_tokens"] = max_tokens
+
+            response = self._sync_client.chat.completions.create(**api_params)
 
             return LLMResponse(
                 content=response.choices[0].message.content or "",
@@ -149,13 +153,17 @@ class OpenAIProvider(LLMProvider):
             LLMAPIError: If API returns an error
         """
         try:
-            response = await self._async_client.chat.completions.create(
-                model=model,
-                messages=[msg.to_dict() for msg in messages],
-                temperature=temperature,
-                max_tokens=max_tokens,
+            # Build API params, only include max_tokens if specified
+            api_params = {
+                "model": model,
+                "messages": [msg.to_dict() for msg in messages],
+                "temperature": temperature,
                 **kwargs,
-            )
+            }
+            if max_tokens is not None:
+                api_params["max_tokens"] = max_tokens
+
+            response = await self._async_client.chat.completions.create(**api_params)
 
             return LLMResponse(
                 content=response.choices[0].message.content or "",

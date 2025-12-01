@@ -18,10 +18,23 @@ from podx.core.analyze import AnalyzeEngine, AnalyzeError
 from podx.domain.exit_codes import ExitCode
 from podx.logging import get_logger
 from podx.templates.manager import TemplateError, TemplateManager
-from podx.ui import LiveTimer, select_episode_interactive
+from podx.ui import (
+    LiveTimer,
+    get_llm_models_help,
+    get_templates_help,
+    prompt_with_help,
+    select_episode_interactive,
+    show_confirmation,
+    validate_llm_model,
+    validate_template,
+)
 
 logger = get_logger(__name__)
 console = Console()
+
+# Default model for analysis
+DEFAULT_MODEL = "openai:gpt-5.1"
+DEFAULT_TEMPLATE = "general"
 
 
 def _find_transcript(directory: Path) -> Optional[Path]:
@@ -62,16 +75,6 @@ def _get_available_templates() -> list[str]:
         return []
 
 
-def _format_template_help() -> str:
-    """Format template list for help text."""
-    templates = _get_available_templates()
-    if not templates:
-        return "interview-1on1  (default)"
-    return (
-        "\n      ".join(templates[:5]) + "\n      ... use 'podx templates list' for all"
-    )
-
-
 @click.command(context_settings={"max_content_width": 120})
 @click.argument(
     "path",
@@ -80,17 +83,15 @@ def _format_template_help() -> str:
 )
 @click.option(
     "--model",
-    default="openai:gpt-4o-mini",
-    show_default=True,
-    help="AI model for analysis (e.g., openai:gpt-4o, anthropic:claude-sonnet-4-5)",
+    default=None,
+    help=f"AI model for analysis (default: {DEFAULT_MODEL})",
 )
 @click.option(
     "--template",
-    default="general",
-    show_default=True,
-    help="Analysis template (see 'podx templates list')",
+    default=None,
+    help=f"Analysis template (default: {DEFAULT_TEMPLATE})",
 )
-def main(path: Optional[Path], model: str, template: str):
+def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
     """Generate AI analysis of a transcript.
 
     \b
@@ -100,18 +101,20 @@ def main(path: Optional[Path], model: str, template: str):
     Without PATH, shows interactive episode selection.
 
     \b
-    Templates (use 'podx templates list' for full list):
-      general             Works for any podcast (default)
+    Models (use 'podx models' for full list):
+      openai:gpt-5.1              Latest, highest quality
+      openai:gpt-5-mini           Fast and affordable
+      openai:gpt-4.1              Previous generation
+      openai:gpt-4o               Multimodal capable
+      anthropic:claude-sonnet-4-5 Anthropic alternative
+
+    \b
+    Templates (use 'podx templates' for full list):
+      general             Works for any podcast
       interview-1on1      Host interviewing a single guest
       panel-discussion    Multiple hosts/guests discussing
       solo-commentary     Single host sharing thoughts
       technical-deep-dive In-depth technical discussion
-
-    \b
-    Models:
-      openai:gpt-4o-mini        Fast and affordable (default)
-      openai:gpt-4o             Best quality
-      anthropic:claude-sonnet-4-5   Anthropic alternative
 
     \b
     Examples:
@@ -121,22 +124,48 @@ def main(path: Optional[Path], model: str, template: str):
       podx analyze ./ep/ --template panel-discussion       # Panel analysis
 
     \b
-    Requires:
+    Notes:
       - Episode must have transcript.json (run 'podx transcribe' first)
-      - OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable
+      - Requires OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable
     """
+    # Get defaults
+    default_model = DEFAULT_MODEL
+    default_template = DEFAULT_TEMPLATE
+
+    # Track if we're in interactive mode (no PATH provided)
+    interactive_mode = path is None
+
     # Interactive mode if no path provided
-    if path is None:
+    if interactive_mode:
         try:
             selected, _ = select_episode_interactive(
                 scan_dir=".",
                 show_filter=None,
+                require="transcript",
+                title="Select episode to analyze",
             )
             if not selected:
                 console.print("[dim]Selection cancelled[/dim]")
                 sys.exit(0)
 
             path = selected["directory"]
+
+            # Warn if already analyzed
+            if selected.get("analyzed"):
+                console.print(
+                    "\n[yellow]This episode already has an analysis.[/yellow]"
+                )
+                console.print(
+                    "[dim]Re-analyzing will overwrite the existing file.[/dim]"
+                )
+                try:
+                    confirm = input("Continue? [y/N] ").strip().lower()
+                except (KeyboardInterrupt, EOFError):
+                    console.print("\n[dim]Cancelled[/dim]")
+                    sys.exit(0)
+                if confirm not in ("y", "yes"):
+                    console.print("[dim]Cancelled[/dim]")
+                    sys.exit(0)
         except KeyboardInterrupt:
             console.print("\n[dim]Cancelled[/dim]")
             sys.exit(0)
@@ -164,6 +193,47 @@ def main(path: Optional[Path], model: str, template: str):
         console.print("[red]Error:[/red] transcript.json missing 'segments' field")
         sys.exit(ExitCode.USER_ERROR)
 
+    # Load episode metadata if available
+    episode_meta = {}
+    meta_path = episode_dir / "episode-meta.json"
+    if meta_path.exists():
+        try:
+            episode_meta = json.loads(meta_path.read_text())
+        except Exception:
+            pass  # Non-fatal, we'll use defaults
+
+    # Interactive prompts for options (only in interactive mode)
+    if interactive_mode:
+        # Model prompt/confirmation
+        if model is not None:
+            show_confirmation("Model", model)
+        else:
+            model = prompt_with_help(
+                help_text=get_llm_models_help(),
+                prompt_label="Model",
+                default=default_model,
+                validator=validate_llm_model,
+                error_message="Invalid model. See list above for valid options.",
+            )
+
+        # Template prompt/confirmation
+        if template is not None:
+            show_confirmation("Template", template)
+        else:
+            template = prompt_with_help(
+                help_text=get_templates_help(),
+                prompt_label="Template",
+                default=default_template,
+                validator=validate_template,
+                error_message="Invalid template. See list above for valid options.",
+            )
+    else:
+        # Non-interactive: use defaults if not specified
+        if model is None:
+            model = default_model
+        if template is None:
+            template = default_template
+
     # Load template
     try:
         manager = TemplateManager()
@@ -186,8 +256,15 @@ def main(path: Optional[Path], model: str, template: str):
     timer.start()
 
     try:
+        # Parse model string (provider:model_name format)
+        provider_name = "openai"
+        model_name = model
+        if ":" in model:
+            provider_name, model_name = model.split(":", 1)
+
         engine = AnalyzeEngine(
-            model=model,
+            model=model_name,
+            provider_name=provider_name,
             temperature=0.2,
             max_chars_per_chunk=24000,
         )
@@ -203,14 +280,32 @@ def main(path: Optional[Path], model: str, template: str):
             for s in segments
         )
 
-        # Count speakers
-        speakers = set(s.get("speaker") for s in segments if s.get("speaker"))
+        # Count speakers and build speaker list
+        speaker_set = set(s.get("speaker") for s in segments if s.get("speaker"))
+        speaker_count = len(speaker_set) if speaker_set else 1
+        speakers_str = ", ".join(sorted(speaker_set)) if speaker_set else "Unknown"
 
-        # Build context for template
+        # Get episode date
+        date_str = episode_meta.get("episode_published", "")
+        if date_str:
+            try:
+                from dateutil import parser as dtparse
+
+                parsed = dtparse.parse(date_str)
+                date_str = parsed.strftime("%Y-%m-%d")
+            except Exception:
+                date_str = date_str[:10] if len(date_str) >= 10 else date_str
+
+        # Build context for template with all possible variables
         context = {
             "transcript": transcript_text,
-            "speaker_count": len(speakers) if speakers else 1,
+            "speaker_count": speaker_count,
+            "speakers": speakers_str,
             "duration": int(segments[-1].get("end", 0) // 60) if segments else 0,
+            "title": episode_meta.get("episode_title", episode_dir.name),
+            "show": episode_meta.get("show", "Unknown"),
+            "date": date_str or "Unknown",
+            "description": episode_meta.get("episode_description", ""),
         }
 
         # Render template
