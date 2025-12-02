@@ -66,7 +66,7 @@ class ExportEngine:
         """
         self.progress_callback = progress_callback
 
-    def _report_progress(self, message: str):
+    def _report_progress(self, message: str) -> None:
         """Report progress via callback if available."""
         if self.progress_callback:
             self.progress_callback(message)

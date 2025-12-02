@@ -8,7 +8,7 @@ Provides convenient shortcuts for frequently used command combinations:
 
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import click
 from rich.console import Console
@@ -26,7 +26,7 @@ logger = get_logger(__name__)
     invoke_without_command=True,
 )
 @click.pass_context
-def main(ctx):
+def main(ctx: click.Context) -> None:
     """Quick aliases for common podx workflows."""
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
@@ -35,7 +35,7 @@ def main(ctx):
 @main.command(name="quick", help="Fast transcription (base model, txt only)")
 @click.argument("audio_file", type=click.Path(exists=True, path_type=Path))
 @click.option("--output", "-o", type=click.Path(path_type=Path), help="Output file")
-def quick(audio_file: Path, output: Optional[Path]):
+def quick(audio_file: Path, output: Optional[Path]) -> None:
     """Quick transcription with base model and txt export only.
 
     Equivalent to:
@@ -46,31 +46,26 @@ def quick(audio_file: Path, output: Optional[Path]):
         podx quick podcast.mp3
         podx quick podcast.mp3 -o output.txt
     """
-    from podx.core.export_legacy import export
-    from podx.schemas import AudioMeta
+    from podx.core.export_legacy import export_transcript
 
     console.print("[bold blue]Quick Mode:[/bold blue] Fast transcription (base model)")
     console.print(f"File: {audio_file}")
 
     try:
-        # Create AudioMeta
-        audio_meta = AudioMeta(audio_path=str(audio_file))
-
         # Transcribe with base model
         console.print("\n[cyan]Transcribing...[/cyan]")
         engine = TranscriptionEngine(model="base")
-        transcript = engine.transcribe(audio_meta)
+        transcript_dict = engine.transcribe(audio_file)
 
         # Export to txt
         output_path = output or audio_file.with_suffix(".txt")
         console.print(f"\n[cyan]Exporting to {output_path}...[/cyan]")
 
-        export(
-            transcript_data=transcript.model_dump(),
+        export_transcript(
+            transcript=transcript_dict,
             output_dir=output_path.parent,
             base_name=output_path.stem,
             formats=["txt"],
-            title=audio_file.stem,
         )
 
         console.print(f"\n[green]✓[/green] Complete: {output_path}")
@@ -106,7 +101,7 @@ def full(
     model: str,
     llm_model: str,
     output_dir: Optional[Path],
-):
+) -> None:
     """Run complete pipeline: transcribe → diarize → preprocess → analyze → export.
 
     Equivalent to:
@@ -121,10 +116,9 @@ def full(
         podx full podcast.mp3 --model large-v3 --llm-model gpt-4o
         podx full podcast.mp3 -o ./output
     """
-    from podx.core.diarize import DiarizeEngine
-    from podx.core.export_legacy import export
-    from podx.core.preprocess import PreprocessEngine
-    from podx.schemas import AudioMeta
+    from podx.core.diarize import DiarizationEngine
+    from podx.core.export_legacy import export_transcript
+    from podx.core.preprocess import TranscriptPreprocessor
 
     console.print("[bold blue]Full Pipeline:[/bold blue] Complete processing")
     console.print(f"File: {audio_file}")
@@ -136,25 +130,27 @@ def full(
     try:
         # Step 1: Transcribe
         console.print("\n[bold cyan]Step 1/5:[/bold cyan] Transcribing...")
-        audio_meta = AudioMeta(audio_path=str(audio_file))
         engine = TranscriptionEngine(model=model)
-        transcript = engine.transcribe(audio_meta)
+        transcript_dict: Dict[str, Any] = engine.transcribe(audio_file)
         console.print("[green]✓[/green] Transcription complete")
 
         # Step 2: Diarize
         console.print("\n[bold cyan]Step 2/5:[/bold cyan] Diarizing...")
-        diarize_engine = DiarizeEngine()
+        diarize_engine = DiarizationEngine()
         transcript_with_speakers = diarize_engine.diarize(
-            audio_path=audio_file, transcript=transcript.model_dump()
+            audio_path=audio_file,
+            transcript_segments=transcript_dict.get("segments", []),
         )
         console.print("[green]✓[/green] Diarization complete")
 
         # Step 3: Preprocess
         console.print("\n[bold cyan]Step 3/5:[/bold cyan] Preprocessing...")
-        preprocess_engine = PreprocessEngine()
-        preprocessed = preprocess_engine.preprocess(
-            transcript_with_speakers, merge_segments=True, restore_punctuation=True
+        preprocessor = TranscriptPreprocessor(
+            merge=True,
+            normalize=True,
+            restore=True,
         )
+        preprocessed = preprocessor.preprocess(transcript_with_speakers)
         console.print("[green]✓[/green] Preprocessing complete")
 
         # Step 4: Analyze
@@ -162,8 +158,13 @@ def full(
         try:
             from podx.core.analyze import AnalyzeEngine
 
-            analyze_engine = AnalyzeEngine(llm_model=llm_model)
-            analysis_notes, metadata = analyze_engine.analyze(preprocessed)
+            analyze_engine = AnalyzeEngine(model=llm_model)
+            analysis_notes, metadata = analyze_engine.analyze(
+                preprocessed,
+                system_prompt="You are a podcast analyst.",
+                map_instructions="Analyze this transcript segment.",
+                reduce_instructions="Synthesize the analysis.",
+            )
 
             # Add analysis to transcript
             preprocessed["analysis_notes"] = analysis_notes
@@ -181,12 +182,11 @@ def full(
 
         # Step 5: Export
         console.print("\n[bold cyan]Step 5/5:[/bold cyan] Exporting...")
-        export(
-            transcript_data=preprocessed,
+        export_transcript(
+            transcript=preprocessed,
             output_dir=output_directory,
             base_name=audio_file.stem,
             formats=["txt", "srt", "md"],
-            title=audio_file.stem,
         )
         console.print("[green]✓[/green] Export complete")
 
@@ -209,7 +209,7 @@ def full(
     type=click.Path(path_type=Path),
     help="Output directory",
 )
-def hq(audio_file: Path, output_dir: Optional[Path]):
+def hq(audio_file: Path, output_dir: Optional[Path]) -> None:
     """High-quality processing with best models and all features.
 
     Equivalent to:

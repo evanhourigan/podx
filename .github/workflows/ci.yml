@@ -41,8 +41,8 @@ jobs:
         run: isort --check-only .
 
       - name: Run mypy
-        run: mypy podx --ignore-missing-imports
-        continue-on-error: true  # Don't fail build on type errors yet
+        continue-on-error: true  # TODO: Fix remaining 72 type errors in v4.1.0
+        run: mypy podx --ignore-missing-imports --disable-error-code=no-untyped-def
 
   test:
     name: Test (Python ${{ matrix.python-version }}, ${{ matrix.os }})

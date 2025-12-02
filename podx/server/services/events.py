@@ -6,7 +6,7 @@ Provides an in-memory pub/sub system for streaming job progress events via SSE.
 import asyncio
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, AsyncIterator, Dict, Optional
+from typing import Any, AsyncIterator, Dict, List, Optional
 
 from podx.logging import get_logger
 
@@ -33,10 +33,10 @@ class EventBroadcaster:
     real-time progress events without polling the database.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the event broadcaster."""
         # Map of job_id -> list of queues for subscribers
-        self._subscribers: Dict[str, list[asyncio.Queue[ProgressEvent]]] = defaultdict(
+        self._subscribers: Dict[str, List[asyncio.Queue[ProgressEvent]]] = defaultdict(
             list
         )
         self._lock = asyncio.Lock()

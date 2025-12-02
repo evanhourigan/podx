@@ -7,7 +7,7 @@ by web API endpoints for real-time progress streaming via SSE or WebSocket.
 import time
 from collections import deque
 from dataclasses import asdict, dataclass
-from typing import Deque, Optional
+from typing import Deque, List, Optional
 
 from .base import ProgressReporter
 
@@ -38,7 +38,7 @@ class ProgressEvent:
     duration: Optional[float] = None
     error: Optional[str] = None
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, object]:
         """Convert to dictionary for JSON serialization."""
         return {k: v for k, v in asdict(self).items() if v is not None}
 
@@ -130,7 +130,7 @@ class APIProgressReporter(ProgressReporter):
         error_msg = str(error) if error else None
         self._add_event("task_fail", message, error=error_msg)
 
-    def get_events(self, since: Optional[float] = None) -> list[ProgressEvent]:
+    def get_events(self, since: Optional[float] = None) -> List[ProgressEvent]:
         """Get all events, optionally filtered by timestamp.
 
         Args:

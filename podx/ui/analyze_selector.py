@@ -1,10 +1,12 @@
 """Interactive analysis type selection UI."""
 
-from typing import Optional
+from typing import Dict, Optional
+
+from rich.console import Console
 
 
 def select_analysis_type(
-    console,
+    console: Console,
     default_type: Optional[str] = None,
 ) -> str:
     """Interactively select analysis type.
@@ -27,7 +29,7 @@ def select_analysis_type(
     type_options = [t.value for t in CANONICAL_TYPES] + list(ALIAS_TYPES.keys())
 
     # Build short descriptions
-    desc: dict[str, str] = {
+    desc: Dict[str, str] = {
         "interview_guest_focused": "Interview; emphasize guest insights",
         "panel_discussion": "Multi-speaker panel; perspectives & dynamics",
         "solo_commentary": "Single voice; host analysis/thoughts",

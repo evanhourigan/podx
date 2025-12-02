@@ -5,7 +5,7 @@ Uses ReportLab for professional-looking PDF output with proper formatting.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -75,7 +75,7 @@ class PDFFormatter(ExportFormatter):
         segments: List[Dict[str, Any]],
         output_path: str,
         title: str = "Podcast Transcript",
-        metadata: Dict[str, Any] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Write transcript segments to PDF file.
 

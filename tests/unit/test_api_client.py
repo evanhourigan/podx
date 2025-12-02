@@ -811,7 +811,7 @@ class TestPublishToNotionAPI:
         deepcast_path.write_text(json.dumps(deepcast_data))
 
         mock_engine = MagicMock()
-        mock_engine.create_page.return_value = "page-123-id"
+        mock_engine.upsert_page.return_value = "page-123-id"
         mock_engine_class.return_value = mock_engine
 
         client = PodxClient()
@@ -833,7 +833,7 @@ class TestPublishToNotionAPI:
         deepcast_path.write_text('{"markdown": "test", "metadata": {}}')
 
         mock_engine = MagicMock()
-        mock_engine.create_page.return_value = "page-123-id"
+        mock_engine.upsert_page.return_value = "page-123-id"
         mock_engine_class.return_value = mock_engine
 
         client = PodxClient()
@@ -865,7 +865,7 @@ class TestPublishToNotionAPI:
         deepcast_path.write_text('{"markdown": "test", "metadata": {}}')
 
         mock_engine = MagicMock()
-        mock_engine.create_page.side_effect = Exception("Notion API error")
+        mock_engine.upsert_page.side_effect = Exception("Notion API error")
         mock_engine_class.return_value = mock_engine
 
         client = PodxClient()

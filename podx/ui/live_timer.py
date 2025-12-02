@@ -2,16 +2,17 @@
 
 import threading
 import time
+from typing import Optional
 
 
 class LiveTimer:
     """Display a live timer that updates every second in the console."""
 
-    def __init__(self, message: str = "Running"):
+    def __init__(self, message: str = "Running") -> None:
         self.message = message
-        self.start_time = None
+        self.start_time: Optional[float] = None
         self.stop_flag = threading.Event()
-        self.thread = None
+        self.thread: Optional[threading.Thread] = None
 
     def _format_time(self, seconds: int) -> str:
         """Format seconds as M:SS."""
@@ -19,17 +20,17 @@ class LiveTimer:
         secs = seconds % 60
         return f"{minutes}:{secs:02d}"
 
-    def _run(self):
+    def _run(self) -> None:
         """Run the timer loop."""
         while not self.stop_flag.is_set():
-            elapsed = int(time.time() - self.start_time)
+            elapsed = int(time.time() - (self.start_time or 0))
             # Use \r to overwrite the line
             print(
                 f"\r{self.message} ({self._format_time(elapsed)})", end="", flush=True
             )
             time.sleep(1)
 
-    def start(self):
+    def start(self) -> None:
         """Start the timer."""
         self.start_time = time.time()
         self.stop_flag.clear()
@@ -38,7 +39,7 @@ class LiveTimer:
 
     def stop(self) -> float:
         """Stop the timer and return elapsed time."""
-        elapsed = time.time() - self.start_time
+        elapsed = time.time() - (self.start_time or 0)
         self.stop_flag.set()
         if self.thread:
             self.thread.join(timeout=2)

@@ -33,8 +33,10 @@ from .silent import SilentProgressReporter
 
 _legacy_path = os.path.join(os.path.dirname(__file__), "..", "progress.py")
 _spec = importlib.util.spec_from_file_location("legacy_progress", _legacy_path)
-_legacy = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_legacy)
+if _spec is not None:
+    _legacy = importlib.util.module_from_spec(_spec)
+    if _spec.loader is not None:
+        _spec.loader.exec_module(_legacy)
 print_podx_header = _legacy.print_podx_header
 PodxProgress = _legacy.PodxProgress
 

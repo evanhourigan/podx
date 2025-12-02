@@ -278,7 +278,7 @@ class TranscriptionEngine:
                 client = OpenAI()
                 use_new_sdk = True
             except Exception:
-                import openai  # type: ignore
+                import openai  # type: ignore[import-untyped]
 
                 use_new_sdk = False
 
@@ -348,7 +348,7 @@ class TranscriptionEngine:
         self._report_progress(f"Using Hugging Face: {self.normalized_model}")
 
         try:
-            from transformers import pipeline  # type: ignore
+            from transformers import pipeline  # type: ignore[import-untyped]
         except ImportError:
             raise TranscriptionError(
                 "transformers not installed. "

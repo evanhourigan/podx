@@ -183,7 +183,7 @@ class PodcastFetcher:
                 except Exception:
                     continue
                 delta = abs((dt - want).total_seconds())
-                if best is None or delta < best_delta:
+                if best is None or (best_delta is not None and delta < best_delta):
                     best, best_delta = e, delta
 
             if best:
@@ -372,9 +372,9 @@ class PodcastFetcher:
         # Get feed URL
         if rss_url:
             feed_url = rss_url
-            extracted_show_name = None
+            extracted_show_name: Optional[str] = None
         else:
-            feed_url = self.find_feed_url(show_name)
+            feed_url = self.find_feed_url(show_name or "")
             extracted_show_name = show_name
 
         # Parse feed
@@ -410,7 +410,7 @@ class PodcastFetcher:
         )
 
         # Build metadata
-        meta: EpisodeMeta = {
+        meta_dict: Dict[str, Any] = {
             "show": extracted_show_name,
             "feed": feed_url,
             "episode_title": episode.get("title", ""),
@@ -422,12 +422,15 @@ class PodcastFetcher:
 
         # Add image URL if available
         if feed.feed.get("image", {}).get("href"):
-            meta["image_url"] = feed.feed["image"]["href"]
+            meta_dict["image_url"] = feed.feed["image"]["href"]
+
+        meta = EpisodeMeta(**meta_dict)
 
         # Save metadata to episode directory
         meta_file = output_dir / "episode-meta.json"
         meta_file.write_text(
-            json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8"
+            json.dumps(meta.model_dump(), indent=2, ensure_ascii=False),
+            encoding="utf-8",
         )
         logger.info("Episode metadata saved", file=str(meta_file))
 

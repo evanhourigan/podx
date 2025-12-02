@@ -1,11 +1,15 @@
 """Deprecated workflow commands for backwards compatibility."""
 
+from typing import Any, Callable
+
 import click
 
 from podx.config import get_config
 
 
-def register_deprecated_commands(main_group, run_command):
+def register_deprecated_commands(
+    main_group: click.Group, run_command: Callable[..., Any]
+) -> None:
     """Register deprecated workflow commands.
 
     Args:
@@ -38,16 +42,16 @@ def register_deprecated_commands(main_group, run_command):
     )
     @click.option("-v", "--verbose", is_flag=True, help="Print interstitial outputs")
     def quick(
-        show,
-        rss_url,
-        youtube_url,
-        date,
-        title_contains,
-        model,
-        asr_provider,
-        compute,
-        verbose,
-    ):
+        show: str,
+        rss_url: str,
+        youtube_url: str,
+        date: str,
+        title_contains: str,
+        model: str,
+        asr_provider: str,
+        compute: str,
+        verbose: bool,
+    ) -> None:
         """Quick workflow: fetch + transcribe only (fastest option)."""
         click.secho("[deprecated] Use: podx run (with no extra flags)", fg="yellow")
         click.echo("🚀 Running quick transcription workflow...")
@@ -121,18 +125,18 @@ def register_deprecated_commands(main_group, run_command):
     )
     @click.option("-v", "--verbose", is_flag=True, help="Print interstitial outputs")
     def analyze(
-        show,
-        rss_url,
-        youtube_url,
-        date,
-        title_contains,
-        model,
-        asr_provider,
-        compute,
-        deepcast_model,
-        podcast_type,
-        verbose,
-    ):
+        show: str,
+        rss_url: str,
+        youtube_url: str,
+        date: str,
+        title_contains: str,
+        model: str,
+        asr_provider: str,
+        compute: str,
+        deepcast_model: str,
+        podcast_type: str,
+        verbose: bool,
+    ) -> None:
         """Analysis workflow: transcribe + AI analysis (recommended)."""
         click.secho(
             "[deprecated] Use: podx run (deepcast + markdown enabled by default in v2.0)",
@@ -198,16 +202,16 @@ def register_deprecated_commands(main_group, run_command):
     )
     @click.option("-v", "--verbose", is_flag=True, help="Print interstitial outputs")
     def publish(
-        show,
-        rss_url,
-        youtube_url,
-        date,
-        title_contains,
-        notion_db,
-        deepcast_model,
-        podcast_type,
-        verbose,
-    ):
+        show: str,
+        rss_url: str,
+        youtube_url: str,
+        date: str,
+        title_contains: str,
+        notion_db: str,
+        deepcast_model: str,
+        podcast_type: str,
+        verbose: bool,
+    ) -> None:
         """Publishing workflow: full pipeline + Notion upload (complete)."""
         click.secho(
             "[deprecated] Use: podx run --notion (deepcast + markdown enabled by default in v2.0)",

@@ -9,7 +9,7 @@ from __future__ import annotations
 import sys
 
 # Use plain click for UNIX-style errors without fancy formatting
-import click  # type: ignore
+import click
 
 BaseGroup = click.Group
 
@@ -54,7 +54,7 @@ class PodxGroup(BaseGroup):
 
 
 @click.group(cls=PodxGroup, context_settings={"max_content_width": 120})
-def main():
+def main() -> None:
     """Podx — podcast processing pipeline
 
     \b

@@ -4,7 +4,7 @@ Estimates costs before running expensive operations like transcription and deepc
 Pricing data is current as of November 2025.
 """
 
-from typing import Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 
 class CostEstimator:
@@ -20,7 +20,7 @@ class CostEstimator:
 
     # Pricing (as of November 2025)
     # All costs in USD
-    PRICING = {
+    PRICING: Dict[str, Dict[str, Union[float, Dict[str, float]]]] = {
         "openai": {
             # GPT models (per 1K tokens)
             "gpt-4o": {"input": 0.0025, "output": 0.010},
@@ -59,7 +59,10 @@ class CostEstimator:
             Estimated cost in USD
         """
         if provider == "openai":
-            return duration_minutes * self.PRICING["openai"]["whisper-1"]
+            whisper_price = self.PRICING["openai"]["whisper-1"]
+            if isinstance(whisper_price, (int, float)):
+                return duration_minutes * whisper_price
+            return 0.0
         elif provider == "local":
             return 0.0  # Local inference is free (electricity costs not included)
 
@@ -110,10 +113,20 @@ class CostEstimator:
                 provider = "openai"  # Default
 
         # Get pricing
-        pricing = self.PRICING.get(provider, {}).get(model)
+        provider_pricing = self.PRICING.get(provider, {})
+        pricing: Optional[Dict[str, float]] = None
+        if isinstance(provider_pricing, dict):
+            model_pricing = provider_pricing.get(model)
+            if isinstance(model_pricing, dict):
+                pricing = model_pricing
         if pricing is None:
             # Fallback to gpt-4o-mini if model not found
-            pricing = self.PRICING["openai"]["gpt-4o-mini"]
+            fallback = self.PRICING["openai"]["gpt-4o-mini"]
+            pricing = (
+                fallback
+                if isinstance(fallback, dict)
+                else {"input": 0.00015, "output": 0.0006}
+            )
 
         input_cost = (total_input_tokens / 1000) * pricing["input"]
         output_cost = (output_tokens / 1000) * pricing["output"]
@@ -197,7 +210,7 @@ class CostEstimator:
         asr_provider: str = "local",
         llm_model: str = "gpt-4o",
         include_preprocessing: bool = False,
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """Estimate costs from audio file metadata.
 
         Args:

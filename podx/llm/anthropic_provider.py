@@ -55,12 +55,14 @@ class AnthropicProvider(LLMProvider):
             )
 
         # Initialize both sync and async clients
-        client_kwargs = {"api_key": self.api_key}
         if self.base_url:
-            client_kwargs["base_url"] = self.base_url
-
-        self._sync_client = Anthropic(**client_kwargs)
-        self._async_client = AsyncAnthropic(**client_kwargs)
+            self._sync_client = Anthropic(api_key=self.api_key, base_url=self.base_url)
+            self._async_client = AsyncAnthropic(
+                api_key=self.api_key, base_url=self.base_url
+            )
+        else:
+            self._sync_client = Anthropic(api_key=self.api_key)
+            self._async_client = AsyncAnthropic(api_key=self.api_key)
 
         logger.debug("Initialized Anthropic provider")
 

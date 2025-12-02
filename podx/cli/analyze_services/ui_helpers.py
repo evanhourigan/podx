@@ -1,11 +1,13 @@
 """UI helper utilities for analyze interactive mode."""
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
+
+from rich.console import Console
 
 from podx.prompt_templates import PodcastType
 
 # Canonical analysis types presented to users
-CANONICAL_TYPES: list[PodcastType] = [
+CANONICAL_TYPES: List[PodcastType] = [
     PodcastType.INTERVIEW_GUEST_FOCUSED,  # interview_guest_focused
     PodcastType.PANEL_DISCUSSION,  # multi_guest_panel
     PodcastType.SOLO_COMMENTARY,  # host_analysis_mode
@@ -33,7 +35,7 @@ ALIAS_TYPES: dict[str, dict[str, Any]] = {
 }
 
 
-def select_analysis_type(row: Dict[str, Any], console) -> Optional[str]:
+def select_analysis_type(row: Dict[str, Any], console: Console) -> Optional[str]:
     """Prompt user to select analysis type."""
     # Get default type from config if available
     episode = row["episode"]
@@ -88,7 +90,7 @@ def select_analysis_type(row: Dict[str, Any], console) -> Optional[str]:
 select_deepcast_type = select_analysis_type
 
 
-def select_ai_model(console) -> Optional[str]:
+def select_ai_model(console: Console) -> Optional[str]:
     """Prompt user to select AI model."""
     default_model = "gpt-4.1-mini"
 

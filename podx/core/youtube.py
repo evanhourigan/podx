@@ -115,7 +115,7 @@ class YouTubeEngine:
         """
         self.progress_callback = progress_callback
 
-    def _report_progress(self, message: str):
+    def _report_progress(self, message: str) -> None:
         """Report progress via callback if available."""
         if self.progress_callback:
             self.progress_callback(message)
@@ -277,7 +277,7 @@ class YouTubeEngine:
         # Add progress hook if callback provided
         if download_progress_callback:
 
-            def yt_progress_hook(d):
+            def yt_progress_hook(d: Dict[str, Any]) -> None:
                 if d["status"] == "downloading":
                     downloaded = d.get("downloaded_bytes", 0)
                     total = d.get("total_bytes") or d.get("total_bytes_estimate")
@@ -295,7 +295,7 @@ class YouTubeEngine:
 
             # Find the downloaded file (try multiple formats)
             audio_extensions = ["*.mp3", "*.m4a", "*.webm", "*.ogg"]
-            audio_files = []
+            audio_files: List[Path] = []
             for ext in audio_extensions:
                 audio_files.extend(output_dir.glob(ext))
 

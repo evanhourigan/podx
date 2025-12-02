@@ -165,7 +165,7 @@ def select_episode_interactive(
     scan_dir: str,
     show_filter: Optional[str] = None,
     console: Optional[Console] = None,
-    run_passthrough_fn=None,  # Unused, kept for compatibility
+    run_passthrough_fn: Any = None,  # Unused, kept for compatibility
     require: RequiredArtifact = None,
     title: str = "Select an episode",
 ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:

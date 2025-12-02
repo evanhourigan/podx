@@ -3,7 +3,7 @@
 import json
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from ..domain import PipelineConfig, PipelineResult
 from ..logging import get_logger
@@ -43,7 +43,7 @@ class PipelineService:
     def execute(
         self,
         skip_completed: bool = True,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable[[str, str], None]] = None,
     ) -> PipelineResult:
         """Execute the complete pipeline.
 
@@ -124,7 +124,7 @@ class PipelineService:
     def _execute_fetch(
         self,
         result: PipelineResult,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable[[str, str], None]] = None,
     ) -> Dict[str, Any]:
         """Execute fetch step.
 
@@ -177,7 +177,7 @@ class PipelineService:
         meta: Dict[str, Any],
         artifacts: EpisodeArtifacts,
         result: PipelineResult,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable[[str, str], None]] = None,
     ) -> Dict[str, Any]:
         """Execute transcode step.
 
@@ -230,7 +230,7 @@ class PipelineService:
         artifacts: EpisodeArtifacts,
         result: PipelineResult,
         skip_completed: bool,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable[[str, str], None]] = None,
     ) -> Dict[str, Any]:
         """Execute transcribe step.
 
@@ -261,11 +261,7 @@ class PipelineService:
             progress_callback("transcribe", "started")
 
         # Convert preset enum to string value if needed
-        preset_value = (
-            self.config.preset.value
-            if hasattr(self.config.preset, "value")
-            else self.config.preset
-        )
+        preset_value = getattr(self.config.preset, "value", self.config.preset)
 
         transcript = self.executor.transcribe(
             audio=audio,
@@ -290,7 +286,7 @@ class PipelineService:
         artifacts: EpisodeArtifacts,
         result: PipelineResult,
         skip_completed: bool,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable[[str, str], None]] = None,
     ) -> Dict[str, Any]:
         """Execute preprocess step.
 
@@ -342,7 +338,7 @@ class PipelineService:
         artifacts: EpisodeArtifacts,
         result: PipelineResult,
         skip_completed: bool,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable[[str, str], None]] = None,
     ) -> Dict[str, Any]:
         """Execute align step.
 
@@ -392,7 +388,7 @@ class PipelineService:
         artifacts: EpisodeArtifacts,
         result: PipelineResult,
         skip_completed: bool,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable[[str, str], None]] = None,
     ) -> Dict[str, Any]:
         """Execute diarize step.
 
@@ -440,7 +436,7 @@ class PipelineService:
         workdir: Path,
         latest: Dict[str, Any],
         result: PipelineResult,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable[[str, str], None]] = None,
     ) -> None:
         """Execute export step.
 
@@ -483,7 +479,7 @@ class PipelineService:
         workdir: Path,
         latest: Dict[str, Any],
         result: PipelineResult,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable[[str, str], None]] = None,
     ) -> None:
         """Execute deepcast step.
 
@@ -503,10 +499,8 @@ class PipelineService:
         meta_path = workdir / "episode-meta.json"
 
         # Convert analysis_type enum to string value if needed
-        analysis_type_value = (
-            self.config.analysis_type.value
-            if hasattr(self.config.analysis_type, "value")
-            else self.config.analysis_type
+        analysis_type_value = getattr(
+            self.config.analysis_type, "value", self.config.analysis_type
         )
 
         self.executor.deepcast(
@@ -535,7 +529,7 @@ class PipelineService:
         self,
         workdir: Path,
         result: PipelineResult,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable[[str, str], None]] = None,
     ) -> None:
         """Execute notion step.
 
@@ -584,7 +578,7 @@ class PipelineService:
         self,
         workdir: Path,
         result: PipelineResult,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable[[str, str], None]] = None,
     ) -> None:
         """Execute cleanup step.
 

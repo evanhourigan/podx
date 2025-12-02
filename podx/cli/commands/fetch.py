@@ -14,7 +14,7 @@ import click
     },
 )
 @click.pass_context
-def fetch_cmd(ctx):
+def fetch_cmd(ctx: click.Context) -> None:
     """Find and download podcast episodes by show name or RSS URL."""
     # Import and invoke the actual fetch command
     from podx.cli.fetch import main as actual_command

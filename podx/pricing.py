@@ -18,9 +18,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 # Optional SDKs
 try:  # pragma: no cover
-    import requests  # type: ignore
+    import requests as _requests_module
+
+    requests: Any = _requests_module
 except Exception:  # pragma: no cover
-    requests = None  # type: ignore
+    requests = None
 
 CACHE_DIR = Path(os.path.expanduser("~/.podx/cache"))
 CACHE_DIR.mkdir(parents=True, exist_ok=True)

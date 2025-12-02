@@ -3,7 +3,7 @@
 import json
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from podx.cli.services.command_runner import run_command
 from podx.constants import DEFAULT_ENCODING
@@ -18,7 +18,7 @@ class ExportStep(PipelineStep):
     Handles both intermediate export (TXT/SRT) and final export (timestamped markdown/PDF).
     """
 
-    def __init__(self, deepcast_pdf: bool = False, preset: str = None):
+    def __init__(self, deepcast_pdf: bool = False, preset: Optional[str] = None):
         """Initialize export step.
 
         Args:

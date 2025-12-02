@@ -28,7 +28,7 @@ DEFAULT_ANALYSIS_FORMAT = "md"
 
 
 @click.group(context_settings={"max_content_width": 120})
-def main():
+def main() -> None:
     """Export transcript or analysis to various formats.
 
     \b
@@ -71,7 +71,7 @@ def _find_analysis(directory: Path) -> Optional[Path]:
     return None
 
 
-def _export_transcript_txt(transcript: dict, output_path: Path):
+def _export_transcript_txt(transcript: dict, output_path: Path) -> None:
     """Export transcript to plain text."""
     lines = []
     for seg in transcript.get("segments", []):
@@ -84,7 +84,7 @@ def _export_transcript_txt(transcript: dict, output_path: Path):
     output_path.write_text("\n\n".join(lines), encoding="utf-8")
 
 
-def _export_transcript_md(transcript: dict, output_path: Path):
+def _export_transcript_md(transcript: dict, output_path: Path) -> None:
     """Export transcript to markdown."""
     lines = ["# Transcript\n"]
     for seg in transcript.get("segments", []):
@@ -106,7 +106,7 @@ def _format_timestamp(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
 
-def _export_transcript_srt(transcript: dict, output_path: Path):
+def _export_transcript_srt(transcript: dict, output_path: Path) -> None:
     """Export transcript to SRT subtitle format."""
     lines = []
     for i, seg in enumerate(transcript.get("segments", []), 1):
@@ -126,7 +126,7 @@ def _export_transcript_srt(transcript: dict, output_path: Path):
     output_path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def _export_transcript_vtt(transcript: dict, output_path: Path):
+def _export_transcript_vtt(transcript: dict, output_path: Path) -> None:
     """Export transcript to WebVTT subtitle format."""
     lines = ["WEBVTT", ""]
     for seg in transcript.get("segments", []):
@@ -219,7 +219,7 @@ def _format_transcript_as_markdown(
     default=None,
     help=f"Output format(s), comma-separated (default: {DEFAULT_TRANSCRIPT_FORMAT})",
 )
-def export_transcript(path: Optional[Path], format_opt: Optional[str]):
+def export_transcript(path: Optional[Path], format_opt: Optional[str]) -> None:
     """Export transcript to text and subtitle formats.
 
     \b
@@ -254,10 +254,14 @@ def export_transcript(path: Optional[Path], format_opt: Optional[str]):
             if not selected:
                 console.print("[dim]Selection cancelled[/dim]")
                 sys.exit(0)
-            path = selected["directory"]
+            path = Path(selected["directory"])
         except KeyboardInterrupt:
             console.print("\n[dim]Cancelled[/dim]")
             sys.exit(0)
+
+    if path is None:
+        console.print("[red]Error:[/red] No path specified")
+        sys.exit(ExitCode.USER_ERROR)
 
     episode_dir = path.resolve()
     if episode_dir.is_file():
@@ -337,7 +341,7 @@ def export_transcript(path: Optional[Path], format_opt: Optional[str]):
 )
 def export_analysis(
     path: Optional[Path], format_opt: Optional[str], include_transcript: bool
-):
+) -> None:
     """Export analysis to document formats.
 
     \b
@@ -376,10 +380,14 @@ def export_analysis(
             if not selected:
                 console.print("[dim]Selection cancelled[/dim]")
                 sys.exit(0)
-            path = selected["directory"]
+            path = Path(selected["directory"])
         except KeyboardInterrupt:
             console.print("\n[dim]Cancelled[/dim]")
             sys.exit(0)
+
+    if path is None:
+        console.print("[red]Error:[/red] No path specified")
+        sys.exit(ExitCode.USER_ERROR)
 
     episode_dir = path.resolve()
     if episode_dir.is_file():

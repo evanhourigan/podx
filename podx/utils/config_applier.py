@@ -9,6 +9,9 @@ from ..config import get_config
 from ..podcast_config import get_podcast_config
 from ..yaml_config import get_notion_database_config, get_podcast_yaml_config
 
+# Type alias for logger
+Logger = Any
+
 
 class ConfigResult:
     """Result of applying podcast configuration."""
@@ -34,7 +37,7 @@ def apply_podcast_config(
     deepcast_model: str,
     deepcast_temp: float,
     notion: bool,
-    logger,
+    logger: Logger,
 ) -> ConfigResult:
     """Apply podcast-specific configuration from YAML or JSON files.
 

@@ -7,7 +7,7 @@ Supports interactive mode with simple numbered selection.
 import shutil
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import click
 from rich.console import Console
@@ -26,7 +26,9 @@ console = Console()
 ITEMS_PER_PAGE = 10
 
 
-def _make_download_progress():
+def _make_download_progress() -> (
+    Tuple[DownloadProgress, Callable[[int, Optional[int]], None]]
+):
     """Create a download progress tracker and callback.
 
     Returns:
@@ -34,7 +36,7 @@ def _make_download_progress():
     """
     progress = DownloadProgress("Downloading")
 
-    def callback(downloaded: int, total: Optional[int]):
+    def callback(downloaded: int, total: Optional[int]) -> None:
         if progress.total_size is None and total:
             progress.set_total(total)
         # Only update display (don't re-add downloaded bytes)
@@ -69,7 +71,7 @@ def _get_terminal_width() -> int:
 def _display_list(
     items: List[Dict[str, Any]],
     page: int,
-    format_fn,
+    format_fn: Callable[[Dict[str, Any], int], str],
     title: str,
 ) -> int:
     """Display a paginated list with navigation.
@@ -244,10 +246,10 @@ def _interactive_episode_selection(
     fetcher: PodcastFetcher,
     feed_url: str,
     show_name: str,
-) -> Optional[Dict[str, Any]]:
+) -> Union[Dict[str, Any], str, None]:
     """Interactive episode selection from feed.
 
-    Returns selected episode entry or None if cancelled.
+    Returns selected episode entry, "back" string, or None if cancelled.
     """
     console.print(f"[dim]Loading episodes from {show_name}...[/dim]")
 
@@ -352,10 +354,15 @@ def _run_interactive(fetcher: PodcastFetcher) -> Optional[Dict[str, Any]]:
                 return None
             elif episode == "back":
                 break  # Go back to show selection
+            elif isinstance(episode, str):
+                # Handle any other string returns
+                continue
 
             # Step 3: Download
+            # episode is Dict[str, Any] at this point
+            episode_dict: Dict[str, Any] = episode
             console.print(
-                f"\n[cyan]Downloading:[/cyan] {episode.get('title', 'Unknown')}"
+                f"\n[cyan]Downloading:[/cyan] {episode_dict.get('title', 'Unknown')}"
             )
 
             try:
@@ -363,14 +370,16 @@ def _run_interactive(fetcher: PodcastFetcher) -> Optional[Dict[str, Any]]:
                 from podx.utils import generate_workdir
 
                 episode_date = (
-                    episode.get("published") or episode.get("updated") or "unknown"
+                    episode_dict.get("published")
+                    or episode_dict.get("updated")
+                    or "unknown"
                 )
-                episode_title = episode.get("title", "")
+                episode_title = episode_dict.get("title", "")
                 output_dir = generate_workdir(show_name, episode_date, episode_title)
 
                 progress, progress_callback = _make_download_progress()
                 audio_path = fetcher.download_audio(
-                    episode, output_dir, progress_callback=progress_callback
+                    episode_dict, output_dir, progress_callback=progress_callback
                 )
                 progress.finish()
 
@@ -383,7 +392,7 @@ def _run_interactive(fetcher: PodcastFetcher) -> Optional[Dict[str, Any]]:
                 meta = {
                     "show": show_name,
                     "feed": feed_url,
-                    "episode_title": episode.get("title", ""),
+                    "episode_title": episode_dict.get("title", ""),
                     "episode_published": episode_date,
                     "audio_path": str(audio_path.resolve()),
                 }
@@ -422,7 +431,7 @@ def main(
     date: Optional[str],
     title_contains: Optional[str],
     url: Optional[str],
-):
+) -> None:
     """Download podcast episodes.
 
     \b
@@ -603,7 +612,7 @@ def main(
             else:
                 console.print(f"[dim]Searching for '{show}'...[/dim]")
                 try:
-                    shows = fetcher.search_podcasts(show)
+                    shows = fetcher.search_podcasts(show or "")
                     if not shows:
                         console.print(
                             f"[red]Error:[/red] No podcasts found for '{show}'"
@@ -611,8 +620,8 @@ def main(
                         sys.exit(ExitCode.USER_ERROR)
                     # Use first result
                     selected_show = shows[0]
-                    feed_url = selected_show.get("feedUrl")
-                    show_name = selected_show.get("collectionName", show)
+                    feed_url = selected_show.get("feedUrl")  # type: ignore[assignment]
+                    show_name = str(selected_show.get("collectionName", show) or "")
                     if not feed_url:
                         console.print(
                             "[red]Error:[/red] No RSS feed found for this podcast"
@@ -627,19 +636,23 @@ def main(
 
             # Show interactive episode browser
             episode = _interactive_episode_selection(
-                fetcher, feed_url, show_name or show
+                fetcher, feed_url, show_name or show or ""
             )
 
             if episode is None:
                 console.print("[dim]Cancelled[/dim]")
                 sys.exit(0)
-            elif episode == "back":
+            elif isinstance(episode, str):
+                # "back" or other string - exit for browse mode
                 console.print("[dim]Cancelled[/dim]")
                 sys.exit(0)
 
+            # episode is Dict[str, Any] at this point
+            episode_dict: Dict[str, Any] = episode
+
             # Download selected episode
             console.print(
-                f"\n[cyan]Downloading:[/cyan] {episode.get('title', 'Unknown')}"
+                f"\n[cyan]Downloading:[/cyan] {episode_dict.get('title', 'Unknown')}"
             )
 
             import json
@@ -647,16 +660,18 @@ def main(
             from podx.utils import generate_workdir
 
             episode_date = (
-                episode.get("published") or episode.get("updated") or "unknown"
+                episode_dict.get("published")
+                or episode_dict.get("updated")
+                or "unknown"
             )
-            episode_title = episode.get("title", "")
+            episode_title = episode_dict.get("title", "")
             output_dir = generate_workdir(
-                show_name or show, episode_date, episode_title
+                show_name or show or "", episode_date, episode_title
             )
 
             progress, progress_callback = _make_download_progress()
             audio_path = fetcher.download_audio(
-                episode, output_dir, progress_callback=progress_callback
+                episode_dict, output_dir, progress_callback=progress_callback
             )
             progress.finish()
 
@@ -666,7 +681,7 @@ def main(
             meta = {
                 "show": show_name or show,
                 "feed": feed_url,
-                "episode_title": episode.get("title", ""),
+                "episode_title": episode_dict.get("title", ""),
                 "episode_published": episode_date,
                 "audio_path": str(audio_path.resolve()),
             }

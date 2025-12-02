@@ -14,7 +14,7 @@ from podx.templates.manager import TemplateError, TemplateManager
 console = Console()
 
 
-def _list_templates_output():
+def _list_templates_output() -> None:
     """Display the templates list."""
     manager = TemplateManager()
     templates = manager.list_templates()
@@ -55,7 +55,7 @@ def _list_templates_output():
     context_settings={"max_content_width": 120},
 )
 @click.pass_context
-def main(ctx):
+def main(ctx: click.Context) -> None:
     """View templates that customize how 'podx analyze' processes transcripts.
 
     \b
@@ -70,7 +70,7 @@ def main(ctx):
 
 
 @main.command(name="list")
-def list_templates():
+def list_templates() -> None:
     """List available analysis templates."""
     try:
         _list_templates_output()
@@ -80,7 +80,7 @@ def list_templates():
 
 @main.command(name="show")
 @click.argument("template_name")
-def show_template(template_name: str):
+def show_template(template_name: str) -> None:
     """Show detailed information about a template.
 
     \b

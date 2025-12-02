@@ -6,7 +6,7 @@ Error handling and retry utilities for podx.
 import logging
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, TypeVar, Union
+from typing import Any, Callable, Optional, Tuple, Type, TypeVar, Union
 
 import requests
 from tenacity import (
@@ -56,11 +56,14 @@ class AIError(PodxError):
 
 
 def with_retries(
-    stop_after: int = None,
+    stop_after: Optional[int] = None,
     wait_multiplier: float = 1.0,
     wait_min: float = 4.0,
     wait_max: float = 10.0,
-    retry_on: tuple = (requests.exceptions.RequestException, NetworkError),
+    retry_on: Tuple[Type[Exception], ...] = (
+        requests.exceptions.RequestException,
+        NetworkError,
+    ),
 ) -> Callable[[F], F]:
     """
     Decorator to add retry logic to functions.
@@ -83,10 +86,10 @@ def with_retries(
                 multiplier=wait_multiplier, min=wait_min, max=wait_max
             ),
             retry=retry_if_exception_type(retry_on),
-            before_sleep=before_sleep_log(logger, logging.WARNING),
+            before_sleep=before_sleep_log(logger, logging.WARNING),  # type: ignore[arg-type]
         )
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
                 return func(*args, **kwargs)
             except Exception as e:
@@ -97,7 +100,7 @@ def with_retries(
                     raise NetworkError(f"Network operation failed: {e}") from e
                 raise
 
-        return wrapper
+        return wrapper  # type: ignore[return-value]
 
     return decorator
 

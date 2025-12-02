@@ -29,17 +29,17 @@ class DownloadProgress:
         self.downloaded: int = 0
         self._last_line_len: int = 0
 
-    def set_total(self, total_bytes: Optional[int]):
+    def set_total(self, total_bytes: Optional[int]) -> None:
         """Set total size if known from Content-Length header."""
         if total_bytes and total_bytes > 0:
             self.total_size = total_bytes
 
-    def update(self, chunk_size: int):
+    def update(self, chunk_size: int) -> None:
         """Update progress with new chunk downloaded."""
         self.downloaded += chunk_size
         self._display()
 
-    def _display(self):
+    def _display(self) -> None:
         """Display current progress, overwriting previous line."""
         downloaded_str = format_size(self.downloaded)
 
@@ -56,7 +56,7 @@ class DownloadProgress:
         sys.stdout.flush()
         self._last_line_len = len(line)
 
-    def finish(self):
+    def finish(self) -> None:
         """Clear the progress line."""
         # Clear the line
         sys.stdout.write("\r" + " " * (self._last_line_len + 10) + "\r")

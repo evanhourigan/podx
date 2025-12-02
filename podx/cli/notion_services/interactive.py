@@ -169,7 +169,7 @@ def _scan_notion_rows(scan_dir: Path) -> List[Dict[str, Any]]:
             return "Unknown"
         # Try robust parsing first
         try:
-            from dateutil import parser as dtparse  # type: ignore
+            from dateutil import parser as dtparse
 
             return dtparse.parse(s).date().isoformat()
         except Exception:

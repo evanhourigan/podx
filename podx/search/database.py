@@ -124,7 +124,7 @@ class TranscriptDatabase:
 
         # Index segments
         for segment in transcript.segments:
-            speaker = segment.speaker or "Unknown"
+            speaker = getattr(segment, "speaker", None) or "Unknown"
             text = segment.text
             timestamp = segment.start
 

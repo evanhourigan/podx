@@ -239,7 +239,7 @@ PREDEFINED_CONFIGS = {
 }
 
 
-def create_predefined_configs():
+def create_predefined_configs() -> None:
     """Create predefined configurations for popular podcasts."""
     manager = get_podcast_config_manager()
 

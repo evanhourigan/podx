@@ -304,8 +304,9 @@ class TestPodcastFetcher:
         result = fetcher.fetch_episode(show_name="Test Show", output_dir=tmp_path)
 
         # When searching by show_name, it uses the search term
-        assert result["meta"]["show"] == "Test Show"
-        assert result["meta"]["episode_title"] == "Episode 1"
+        meta = result["meta"]
+        assert meta.show == "Test Show"
+        assert meta.episode_title == "Episode 1"
         assert "audio_path" in result
         assert "meta_path" in result
 
@@ -333,8 +334,9 @@ class TestPodcastFetcher:
         fetcher = PodcastFetcher()
         result = fetcher.fetch_episode(rss_url="http://feed.url", output_dir=tmp_path)
 
-        assert result["meta"]["show"] == "Direct Feed Podcast"
-        assert result["meta"]["feed"] == "http://feed.url"
+        meta = result["meta"]
+        assert meta.show == "Direct Feed Podcast"
+        assert meta.feed == "http://feed.url"
 
     def test_fetch_episode_no_show_or_rss(self):
         """Test error when neither show nor RSS provided."""
@@ -401,7 +403,8 @@ class TestPodcastFetcher:
         assert meta_path.exists()
 
         # Verify metadata contains image URL
-        assert result["meta"]["image_url"] == "http://image.url"
+        meta = result["meta"]
+        assert meta.image_url == "http://image.url"
 
 
 class TestConvenienceFunctions:

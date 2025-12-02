@@ -27,7 +27,7 @@ def validate_input(schema: Type[BaseModel]) -> Callable[[F], F]:
 
     def decorator(func: F) -> F:
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Assume first argument is the data to validate
             if args:
                 data = args[0]
@@ -44,7 +44,7 @@ def validate_input(schema: Type[BaseModel]) -> Callable[[F], F]:
                     raise ValidationError(f"Invalid input for {schema.__name__}: {e}")
             return func(*args, **kwargs)
 
-        return wrapper
+        return wrapper  # type: ignore[return-value]
 
     return decorator
 
@@ -59,7 +59,7 @@ def validate_output(schema: Type[BaseModel]) -> Callable[[F], F]:
 
     def decorator(func: F) -> F:
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             result = func(*args, **kwargs)
             try:
                 _validated = schema.model_validate(result)  # Validate but don't use
@@ -73,7 +73,7 @@ def validate_output(schema: Type[BaseModel]) -> Callable[[F], F]:
                 )
                 raise ValidationError(f"Invalid output for {schema.__name__}: {e}")
 
-        return wrapper
+        return wrapper  # type: ignore[return-value]
 
     return decorator
 

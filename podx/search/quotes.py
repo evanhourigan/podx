@@ -68,7 +68,8 @@ class QuoteExtractor:
 
         for segment in transcript.segments:
             # Apply speaker filter
-            if speaker_filter and segment.speaker != speaker_filter:
+            segment_speaker = getattr(segment, "speaker", None)
+            if speaker_filter and segment_speaker != speaker_filter:
                 continue
 
             text = segment.text.strip()
@@ -88,7 +89,7 @@ class QuoteExtractor:
                 candidates.append(
                     {
                         "text": text,
-                        "speaker": segment.speaker or "Unknown",
+                        "speaker": segment_speaker or "Unknown",
                         "timestamp": segment.start,
                         "score": score,
                         "word_count": word_count,
@@ -166,9 +167,13 @@ class QuoteExtractor:
             Dict mapping speaker name to list of quotes
         """
         # Get all speakers
-        speakers = set(seg.speaker for seg in transcript.segments if seg.speaker)
+        speakers: set[str] = set()
+        for seg in transcript.segments:
+            speaker = getattr(seg, "speaker", None)
+            if speaker is not None:
+                speakers.add(speaker)
 
-        results = {}
+        results: Dict[str, List[Dict[str, Any]]] = {}
         for speaker in speakers:
             quotes = self.extract_quotes(
                 transcript, max_quotes=top_n, speaker_filter=speaker

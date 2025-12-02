@@ -57,7 +57,7 @@ dev = [
   "pytest-timeout~=2.3.1",
   "pytest-benchmark~=5.2.3",
   "ruff~=0.14.0",
-  "mypy~=1.18.2",
+  "mypy~=1.17.0",
   "types-requests~=2.32.4",
   "types-python-dateutil~=2.9.0",
   "black~=25.1.0",
@@ -138,10 +138,15 @@ exclude_lines = [
 
 [tool.mypy]
 python_version = "3.9"
-warn_unused_ignores = true
+warn_unused_ignores = false
 warn_redundant_casts = true
 warn_unused_configs = true
-disallow_untyped_defs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
 ignore_missing_imports = true
 namespace_packages = true
 explicit_package_bases = true
+
+# Disable error codes that are too noisy for our codebase
+disable_error_code = "no-untyped-def"

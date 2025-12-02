@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from ..errors import AIError, AudioError, NetworkError, ValidationError
 from ..logging import get_logger
@@ -115,7 +115,7 @@ class PodxClient:
             result = _transcribe(audio_url, model, out_dir)
 
             # Wrap in response model
-            response = TranscribeResponse(
+            response = TranscribeResponse(  # type: ignore[call-arg]
                 transcript_path=result["transcript_path"],
                 duration_seconds=result.get("duration_seconds", 0),
                 model_used=model,
@@ -139,7 +139,7 @@ class PodxClient:
 
         except Exception as e:
             error_response = self._handle_error(e, "transcribe")
-            return TranscribeResponse(
+            return TranscribeResponse(  # type: ignore[call-arg]
                 transcript_path="",
                 duration_seconds=0,
                 success=False,
@@ -196,7 +196,7 @@ class PodxClient:
             )
 
             # Wrap in response model
-            response = AnalyzeResponse(
+            response = AnalyzeResponse(  # type: ignore[call-arg]
                 markdown_path=result["markdown_path"],
                 usage=result.get("usage"),
                 prompt_used=result.get("prompt_used"),
@@ -213,7 +213,7 @@ class PodxClient:
 
         except Exception as e:
             error_response = self._handle_error(e, "analyze")
-            return AnalyzeResponse(
+            return AnalyzeResponse(  # type: ignore[call-arg]
                 markdown_path="",
                 success=False,
                 error=str(error_response),
@@ -283,7 +283,7 @@ class PodxClient:
                 output_dir=output_dir or Path.cwd(),
             )
 
-            return FetchResponse(
+            return FetchResponse(  # type: ignore[call-arg]
                 episode_meta=result["meta"],
                 audio_meta=result.get("audio_meta"),
                 audio_path=str(result["audio_path"]),
@@ -292,7 +292,7 @@ class PodxClient:
             )
         except Exception as e:
             logger.error("Failed to fetch episode", error=str(e))
-            return FetchResponse(
+            return FetchResponse(  # type: ignore[call-arg]
                 episode_meta={},
                 audio_path="",
                 success=False,
@@ -357,12 +357,12 @@ class PodxClient:
             diarized_path.write_text(json.dumps(diarized_data, indent=2))
 
             # Count unique speakers
-            speakers = set()
+            speakers: set[str] = set()
             for seg in diarized_segments:
-                if seg.get("speaker"):
+                if isinstance(seg, dict) and seg.get("speaker"):
                     speakers.add(seg["speaker"])
 
-            return DiarizeResponse(
+            return DiarizeResponse(  # type: ignore[call-arg]
                 transcript_path=str(diarized_path),
                 speakers_found=len(speakers),
                 transcript=diarized_data,
@@ -370,7 +370,7 @@ class PodxClient:
             )
         except Exception as e:
             logger.error("Failed to diarize transcript", error=str(e))
-            return DiarizeResponse(
+            return DiarizeResponse(  # type: ignore[call-arg]
                 transcript_path="",
                 speakers_found=0,
                 success=False,
@@ -491,7 +491,7 @@ class PodxClient:
     def export(
         self,
         transcript_path: Path,
-        formats: list[str] = None,
+        formats: Optional[List[str]] = None,
         output_dir: Optional[Path] = None,
     ) -> ExportResponse:
         """Export transcript to different formats.
@@ -532,7 +532,7 @@ class PodxClient:
                 base_name=base_name,
             )
 
-            return ExportResponse(
+            return ExportResponse(  # type: ignore[call-arg]
                 output_files=result,
                 formats=formats,
                 success=True,
@@ -541,7 +541,7 @@ class PodxClient:
             logger.error("Failed to export transcript", error=str(e))
             return ExportResponse(
                 output_files={},
-                formats=formats,
+                formats=formats or [],
                 success=False,
                 error=str(e),
             )
@@ -599,18 +599,25 @@ class PodxClient:
             date_iso = metadata.get("episode_published") or metadata.get("date")
 
             # Publish to Notion
+            from ..core.notion import md_to_blocks
+
             engine = NotionEngine(api_token=token)
-            page_id = engine.create_page(
+            properties: Dict[str, Any] = {
+                "Name": {"title": [{"text": {"content": episode_title}}]},
+                "Show": {"rich_text": [{"text": {"content": podcast_name}}]},
+            }
+            if date_iso:
+                properties["Date"] = {"date": {"start": date_iso}}
+            blocks = md_to_blocks(markdown)
+            page_id = engine.upsert_page(
                 database_id=database_id,
-                title=episode_title,
-                podcast_name=podcast_name,
-                date=date_iso,
-                markdown=markdown,
+                properties=properties,
+                blocks=blocks,
             )
 
             page_url = f"https://notion.so/{page_id.replace('-', '')}"
 
-            return NotionResponse(
+            return NotionResponse(  # type: ignore[call-arg]
                 page_url=page_url,
                 page_id=page_id,
                 database_id=database_id,
@@ -618,7 +625,7 @@ class PodxClient:
             )
         except Exception as e:
             logger.error("Failed to publish to Notion", error=str(e))
-            return NotionResponse(
+            return NotionResponse(  # type: ignore[call-arg]
                 page_url="",
                 page_id="",
                 success=False,
@@ -708,7 +715,7 @@ class PodxClient:
             )
         except Exception as e:
             logger.warning("Failed to check transcript existence", error=str(e))
-            return ExistsCheckResponse(
+            return ExistsCheckResponse(  # type: ignore[call-arg]
                 exists=False,
                 path=None,
                 resource_type="transcript",
@@ -738,14 +745,14 @@ class PodxClient:
             path = _has_markdown(episode_id, asr_model, llm_model, prompt_name, out_dir)
             exists = path is not None
 
-            return ExistsCheckResponse(
+            return ExistsCheckResponse(  # type: ignore[call-arg]
                 exists=exists,
                 path=path,
                 resource_type="markdown",
             )
         except Exception as e:
             logger.warning("Failed to check markdown existence", error=str(e))
-            return ExistsCheckResponse(
+            return ExistsCheckResponse(  # type: ignore[call-arg]
                 exists=False,
                 path=None,
                 resource_type="markdown",
@@ -982,7 +989,7 @@ class PodxClient:
         if transcript_path.exists():
             try:
                 data = json.loads(transcript_path.read_text())
-                return TranscribeResponse(
+                return TranscribeResponse(  # type: ignore[call-arg]
                     transcript_path=str(transcript_path),
                     duration_seconds=data.get("duration", 0),
                     model_used=model,

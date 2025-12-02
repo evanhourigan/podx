@@ -1,7 +1,7 @@
 """Cleanup step executor for removing intermediate files."""
 
 import time
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 
 from podx.logging import get_logger
 
@@ -32,7 +32,7 @@ class CleanupStep(PipelineStep):
     def name(self) -> str:
         return "Cleanup Intermediate Files"
 
-    def should_skip(self, context: StepContext) -> tuple[bool, Optional[str]]:
+    def should_skip(self, context: StepContext) -> Tuple[bool, Optional[str]]:
         """Check if cleanup should be skipped."""
         if not self.clean:
             return True, "Cleanup disabled"
@@ -95,15 +95,20 @@ class CleanupStep(PipelineStep):
 
         # Remove audio files if not keeping them
         if self.no_keep_audio:
-            for p in [context.transcoded_audio_path, context.original_audio_path]:
-                if p and p.exists():
+            for audio_path in [
+                context.transcoded_audio_path,
+                context.original_audio_path,
+            ]:
+                if audio_path and audio_path.exists():
                     try:
-                        p.unlink()
+                        audio_path.unlink()
                         cleaned_files += 1
-                        logger.debug("Cleaned audio file", file=str(p))
+                        logger.debug("Cleaned audio file", file=str(audio_path))
                     except Exception as e:
                         logger.warning(
-                            "Failed to clean audio file", file=str(p), error=str(e)
+                            "Failed to clean audio file",
+                            file=str(audio_path),
+                            error=str(e),
                         )
 
         step_duration = time.time() - step_start

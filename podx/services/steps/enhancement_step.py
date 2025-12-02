@@ -2,7 +2,8 @@
 
 import json
 import time
-from typing import Any, Optional
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
 
 from podx.cli.services.command_runner import run_command
 from podx.logging import get_logger
@@ -49,7 +50,7 @@ class EnhancementStep(PipelineStep):
             parts.append("Diarize")
         return " & ".join(parts) if parts else "Enhancement"
 
-    def should_skip(self, context: StepContext) -> tuple[bool, Optional[str]]:
+    def should_skip(self, context: StepContext) -> Tuple[bool, Optional[str]]:
         """Check if enhancement can be skipped."""
         if not self.preprocess and not self.diarize:
             return True, "No enhancement steps enabled"
@@ -70,13 +71,13 @@ class EnhancementStep(PipelineStep):
         # PREPROCESS (optional)
         if self.preprocess:
             latest, latest_name = self._execute_preprocess(
-                latest, latest_name, wd, progress, verbose
+                latest or {}, latest_name or "", wd, progress, verbose
             )
 
         # DIARIZE (optional)
         if self.diarize:
             latest, latest_name = self._execute_diarize(
-                latest, latest_name, wd, progress, verbose
+                latest or {}, latest_name or "", wd, progress, verbose
             )
 
         # Update context
@@ -91,8 +92,13 @@ class EnhancementStep(PipelineStep):
         )
 
     def _execute_preprocess(
-        self, latest: dict, latest_name: str, wd, progress, verbose: bool
-    ) -> tuple[dict, str]:
+        self,
+        latest: Dict[str, Any],
+        latest_name: str,
+        wd: Path,
+        progress: Any,
+        verbose: bool,
+    ) -> Tuple[Dict[str, Any], str]:
         """Execute preprocessing step."""
         from podx.utils import build_preprocess_command, sanitize_model_name
 
@@ -123,8 +129,13 @@ class EnhancementStep(PipelineStep):
         return latest, latest_name
 
     def _execute_diarize(
-        self, latest: dict, latest_name: str, wd, progress, verbose: bool
-    ) -> tuple[dict, str]:
+        self,
+        latest: Dict[str, Any],
+        latest_name: str,
+        wd: Path,
+        progress: Any,
+        verbose: bool,
+    ) -> Tuple[Dict[str, Any], str]:
         """Execute diarization step."""
         from podx.utils import sanitize_model_name
 

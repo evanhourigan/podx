@@ -41,18 +41,14 @@ def format_database_id(db_id: str) -> str:
     return f"{clean_id[:8]}-{clean_id[8:12]}-{clean_id[12:16]}-{clean_id[16:20]}-{clean_id[20:]}"
 
 
-# Configure YAML to handle PodcastType enums
-def podcast_type_representer(dumper, data):
+# Configure YAML to handle PodcastType enums (representer only - not constructor)
+# The constructor was removed because adding a constructor for "tag:yaml.org,2002:str"
+# affects ALL yaml.safe_load calls and breaks unrelated YAML parsing (like template imports).
+def podcast_type_representer(dumper: yaml.Dumper, data: PodcastType) -> yaml.Node:
     return dumper.represent_scalar("tag:yaml.org,2002:str", data.value)
 
 
-def podcast_type_constructor(loader, node):
-    value = loader.construct_scalar(node)
-    return PodcastType(value)
-
-
 yaml.add_representer(PodcastType, podcast_type_representer)
-yaml.add_constructor("tag:yaml.org,2002:str", podcast_type_constructor)
 
 
 class NotionDatabase(BaseModel):

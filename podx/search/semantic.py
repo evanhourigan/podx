@@ -114,7 +114,7 @@ class SemanticSearch:
 
             seg_data = {
                 "episode_id": episode_id,
-                "speaker": segment.speaker or "Unknown",
+                "speaker": getattr(segment, "speaker", None) or "Unknown",
                 "text": text,
                 "timestamp": segment.start,
                 "metadata": metadata or {},
@@ -314,7 +314,11 @@ class SemanticSearch:
             )
 
         # Sort by cluster size (largest first)
-        clusters.sort(key=lambda x: x["size"], reverse=True)
+        def cluster_size_key(x: Dict[str, object]) -> int:
+            size = x.get("size", 0)
+            return int(size) if isinstance(size, (int, float)) else 0
+
+        clusters.sort(key=cluster_size_key, reverse=True)
 
         return clusters
 

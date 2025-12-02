@@ -1,6 +1,6 @@
 """Transcript and segment models."""
 
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -16,7 +16,7 @@ class Word(BaseModel):
 
     @field_validator("end")
     @classmethod
-    def end_after_start(cls, v: Optional[float], info) -> Optional[float]:
+    def end_after_start(cls, v: Optional[float], info: Any) -> Optional[float]:
         """Validate that end time is after start time if both present."""
         if v is not None and "start" in info.data and info.data["start"] is not None:
             if v < info.data["start"]:
@@ -37,7 +37,7 @@ class Segment(BaseModel):
 
     @field_validator("end")
     @classmethod
-    def end_after_start(cls, v: float, info) -> float:
+    def end_after_start(cls, v: float, info: Any) -> float:
         """Validate that end time is after start time."""
         if "start" in info.data and v < info.data["start"]:
             raise ValueError(

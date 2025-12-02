@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from podx.logging import get_logger
 
@@ -17,7 +17,7 @@ class EpisodeFilter:
 
     show: Optional[str] = None
     since: Optional[str] = None  # ISO date string
-    date_range: Optional[tuple[str, str]] = None  # (start, end) ISO dates
+    date_range: Optional[Tuple[str, str]] = None  # (start, end) ISO dates
     min_duration: Optional[int] = None  # seconds
     max_duration: Optional[int] = None  # seconds
     pattern: Optional[str] = None  # glob pattern
@@ -27,7 +27,7 @@ class EpisodeFilter:
 class EpisodeDiscovery:
     """Discover and filter episodes for batch processing."""
 
-    def __init__(self, base_dir: Path = None):
+    def __init__(self, base_dir: Optional[Path] = None):
         """Initialize episode discovery.
 
         Args:

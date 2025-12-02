@@ -254,7 +254,7 @@ class ArtifactDetector:
         Returns:
             List of matching file paths
         """
-        files = []
+        files: List[Path] = []
         for pattern in patterns:
             files.extend(self.working_dir.glob(pattern))
         # Remove duplicates and sort

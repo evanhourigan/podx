@@ -23,7 +23,7 @@ F = TypeVar("F", bound=Callable[..., Any])
 class ModelCache:
     """Cache for expensive model loading operations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._cache: Dict[str, Any] = {}
         self._access_times: Dict[str, float] = {}
         self._max_cache_size = 3  # Keep max 3 models in memory
@@ -60,7 +60,7 @@ class ModelCache:
         )
         return model
 
-    def clear(self):
+    def clear(self) -> None:
         """Clear the model cache."""
         self._cache.clear()
         self._access_times.clear()
@@ -82,11 +82,11 @@ def with_model_cache(cache_key_func: Callable[..., str]) -> Callable[[F], F]:
 
     def decorator(func: F) -> F:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             cache_key = cache_key_func(*args, **kwargs)
             return model_cache.get(cache_key, lambda: func(*args, **kwargs))
 
-        return wrapper
+        return wrapper  # type: ignore[return-value]
 
     return decorator
 
@@ -97,7 +97,7 @@ class MemoryMonitor:
     def __init__(self, warning_threshold_mb: int = 4000):
         self.warning_threshold = warning_threshold_mb * 1024 * 1024  # Convert to bytes
 
-    def check_memory(self, operation: str = "operation"):
+    def check_memory(self, operation: str = "operation") -> float:
         """Check current memory usage and log warnings if high."""
         process = psutil.Process()
         memory_info = process.memory_info()
@@ -127,13 +127,13 @@ def with_memory_monitoring(operation_name: str) -> Callable[[F], F]:
 
     def decorator(func: F) -> F:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             memory_monitor.check_memory(f"before_{operation_name}")
             result = func(*args, **kwargs)
             memory_monitor.check_memory(f"after_{operation_name}")
             return result
 
-        return wrapper
+        return wrapper  # type: ignore[return-value]
 
     return decorator
 

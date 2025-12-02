@@ -6,7 +6,7 @@ import asyncio
 import json
 import subprocess
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable, Dict, Optional
+from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional
 
 from ..errors import ValidationError
 from ..logging import get_logger
@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 
 # Type alias for progress callbacks
 ProgressCallback = Callable[[Dict[str, Any]], None]
-AsyncProgressCallback = Callable[[Dict[str, Any]], asyncio.Future[None]]
+AsyncProgressCallback = Callable[[Dict[str, Any]], Awaitable[None]]
 
 
 class AsyncPodxClient:
@@ -96,10 +96,8 @@ class AsyncPodxClient:
             raise ValidationError(f"Audio file not found: {audio_path}")
 
         # Create AudioMeta
-        meta = AudioMeta(
+        meta = AudioMeta(  # type: ignore[call-arg]
             audio_path=str(audio_path),
-            format="unknown",
-            duration=0,
             sample_rate=0,
         )
 
@@ -140,7 +138,7 @@ class AsyncPodxClient:
             # Parse result
             output_data = json.loads(result)
             if not output_data.get("success"):
-                return TranscribeResponse(
+                return TranscribeResponse(  # type: ignore[call-arg]
                     transcript_path="",
                     duration_seconds=0,
                     success=False,
@@ -148,7 +146,7 @@ class AsyncPodxClient:
                 )
 
             transcript = output_data.get("transcript", {})
-            return TranscribeResponse(
+            return TranscribeResponse(  # type: ignore[call-arg]
                 transcript_path=str(output_path),
                 duration_seconds=int(transcript.get("duration", 0)),
                 model_used=model,
@@ -158,7 +156,7 @@ class AsyncPodxClient:
             )
         except Exception as e:
             logger.error("Async transcription failed", error=str(e))
-            return TranscribeResponse(
+            return TranscribeResponse(  # type: ignore[call-arg]
                 transcript_path="",
                 duration_seconds=0,
                 success=False,
@@ -195,9 +193,9 @@ class AsyncPodxClient:
             ...     else:
             ...         print(f"Done: {update.transcript_path}")
         """
-        progress_updates = []
+        progress_updates: List[Dict[str, Any]] = []
 
-        async def callback(update: Dict[str, Any]):
+        async def callback(update: Dict[str, Any]) -> None:
             progress_updates.append(update)
 
         # Start transcription in background
@@ -262,16 +260,19 @@ class AsyncPodxClient:
             raise ValidationError(f"Transcript not found: {transcript_path}")
 
         # Load transcript to get audio path if needed
+        resolved_audio_path: Path
         if audio_path is None:
             transcript = Transcript.model_validate(
                 json.loads(transcript_path.read_text())
             )
-            audio_path = Path(transcript.audio_path)
+            if not transcript.audio_path:
+                raise ValidationError("Transcript missing audio_path")
+            resolved_audio_path = Path(transcript.audio_path)
         else:
-            audio_path = Path(audio_path)
+            resolved_audio_path = Path(audio_path)
 
-        if not audio_path.exists():
-            raise ValidationError(f"Audio file not found: {audio_path}")
+        if not resolved_audio_path.exists():
+            raise ValidationError(f"Audio file not found: {resolved_audio_path}")
 
         # Determine output directory
         if output_dir is None:
@@ -303,28 +304,28 @@ class AsyncPodxClient:
             # Parse result
             output_data = json.loads(result)
             if not output_data.get("success"):
-                return DiarizeResponse(
+                return DiarizeResponse(  # type: ignore[call-arg]
                     transcript_path="",
                     speakers_found=0,
                     success=False,
                     error=output_data.get("error", "Unknown error"),
                 )
 
-            transcript = output_data.get("transcript", {})
-            speakers = set()
-            for seg in transcript.get("segments", []):
-                if seg.get("speaker"):
+            transcript_data = output_data.get("transcript", {})
+            speakers: set[str] = set()
+            for seg in transcript_data.get("segments", []):
+                if isinstance(seg, dict) and seg.get("speaker"):
                     speakers.add(seg["speaker"])
 
-            return DiarizeResponse(
+            return DiarizeResponse(  # type: ignore[call-arg]
                 transcript_path=str(output_path),
                 speakers_found=len(speakers),
-                transcript=transcript,
+                transcript=transcript_data,
                 success=True,
             )
         except Exception as e:
             logger.error("Async diarization failed", error=str(e))
-            return DiarizeResponse(
+            return DiarizeResponse(  # type: ignore[call-arg]
                 transcript_path="",
                 speakers_found=0,
                 success=False,
@@ -366,7 +367,7 @@ class AsyncPodxClient:
             raise ValidationError(f"Transcript file not found: {transcript_path}")
 
         # Run preprocessing in thread pool (sync operation)
-        def _do_cleanup():
+        def _do_cleanup() -> Dict[str, Any]:
             # Load transcript
             transcript_data = json.loads(transcript_path.read_text())
 
@@ -459,9 +460,9 @@ class AsyncPodxClient:
         Yields:
             Progress update dicts, then final DiarizeResponse
         """
-        progress_updates = []
+        progress_updates: List[Dict[str, Any]] = []
 
-        async def callback(update: Dict[str, Any]):
+        async def callback(update: Dict[str, Any]) -> None:
             progress_updates.append(update)
 
         # Start diarization in background
@@ -518,46 +519,51 @@ class AsyncPodxClient:
         )
 
         # Send stdin data if provided
-        if stdin_data:
+        if stdin_data and process.stdin:
             process.stdin.write(stdin_data.encode())
+            await process.stdin.drain()
             process.stdin.close()
 
         # Collect output
-        stdout_lines = []
-        final_result = None
+        stdout_lines: List[str] = []
+        final_result: Optional[str] = None
 
         # Read stdout line by line for progress updates
-        while True:
-            line = await process.stdout.readline()
-            if not line:
-                break
+        if process.stdout:
+            while True:
+                line = await process.stdout.readline()
+                if not line:
+                    break
 
-            line_str = line.decode().strip()
-            if not line_str:
-                continue
+                line_str = line.decode().strip()
+                if not line_str:
+                    continue
 
-            # Try to parse as JSON
-            try:
-                data = json.loads(line_str)
+                # Try to parse as JSON
+                try:
+                    data = json.loads(line_str)
 
-                # Check if this is a progress update
-                if data.get("type") == "progress" and progress_callback:
-                    await progress_callback(data)
-                else:
-                    # This might be the final result
-                    final_result = line_str
-            except json.JSONDecodeError:
-                # Not JSON, might be final output or error
-                stdout_lines.append(line_str)
+                    # Check if this is a progress update
+                    if data.get("type") == "progress" and progress_callback:
+                        await progress_callback(data)
+                    else:
+                        # This might be the final result
+                        final_result = line_str
+                except json.JSONDecodeError:
+                    # Not JSON, might be final output or error
+                    stdout_lines.append(line_str)
 
         # Wait for process to complete
         await process.wait()
 
         # Check exit code
         if process.returncode != 0:
-            stderr = await process.stderr.read()
+            stderr_output = ""
+            if process.stderr:
+                stderr_bytes = await process.stderr.read()
+                stderr_output = stderr_bytes.decode()
             raise subprocess.CalledProcessError(
-                process.returncode, cmd, stderr=stderr.decode()
+                process.returncode or 1, cmd, stderr=stderr_output
             )
 
         # Return final result or joined output

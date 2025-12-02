@@ -152,11 +152,7 @@ class AsyncPipelineService:
             )
 
             # Convert preset enum to string value if needed
-            preset_value = (
-                self.config.preset.value
-                if hasattr(self.config.preset, "value")
-                else self.config.preset
-            )
+            preset_value = getattr(self.config.preset, "value", self.config.preset)
 
             transcript = await self.executor.transcribe(
                 audio=audio,
@@ -256,10 +252,8 @@ class AsyncPipelineService:
                 )
 
                 # Convert analysis_type enum to string value if needed
-                analysis_type_value = (
-                    self.config.analysis_type.value
-                    if hasattr(self.config.analysis_type, "value")
-                    else self.config.analysis_type
+                analysis_type_value = getattr(
+                    self.config.analysis_type, "value", self.config.analysis_type
                 )
 
                 deepcast_result = await self.executor.deepcast(
@@ -363,11 +357,13 @@ class AsyncPipelineService:
         """
         semaphore = asyncio.Semaphore(max_concurrent)
 
-        async def process_with_semaphore(idx: int, config: PipelineConfig):
+        async def process_with_semaphore(
+            idx: int, config: PipelineConfig
+        ) -> PipelineResult:
             async with semaphore:
                 service = AsyncPipelineService(config)
 
-                def callback(step: str, status: str):
+                def callback(step: str, status: str) -> None:
                     if progress_callback:
                         progress_callback(idx, step, status)
 

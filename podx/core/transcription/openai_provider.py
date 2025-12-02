@@ -76,7 +76,7 @@ class OpenAIProvider(ASRProvider):
                 client = OpenAI()
                 use_new_sdk = True
             except Exception:
-                import openai  # type: ignore
+                import openai  # type: ignore[import-untyped]
 
                 use_new_sdk = False
 

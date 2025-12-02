@@ -3,7 +3,7 @@
 import asyncio
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Awaitable, Dict, List, Optional
 
 from ..errors import ValidationError
 from ..logging import get_logger
@@ -299,7 +299,7 @@ class AsyncStepExecutor:
 
         return await self._run(cmd.build(), stdin_payload=transcript, label="deepcast")
 
-    async def run_concurrent(self, *coroutines) -> List[Any]:
+    async def run_concurrent(self, *coroutines: Awaitable[Any]) -> List[Any]:
         """Run multiple async operations concurrently.
 
         Args:

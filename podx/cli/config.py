@@ -9,7 +9,7 @@ Simple `defaults`-style interface:
 import os
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import click
 from rich.console import Console
@@ -20,7 +20,7 @@ from podx.domain.exit_codes import ExitCode
 console = Console()
 
 # Configuration keys with metadata
-CONFIG_KEYS = {
+CONFIG_KEYS: Dict[str, Dict[str, Any]] = {
     # Non-secret settings
     "output-dir": {
         "description": "Where files are saved ('cwd' for current directory)",
@@ -236,7 +236,7 @@ def _set_value(key: str, value: str) -> bool:
 
 @click.group(invoke_without_command=True)
 @click.pass_context
-def main(ctx):
+def main(ctx: click.Context) -> None:
     """View and manage PodX configuration.
 
     \b
@@ -272,7 +272,7 @@ def main(ctx):
         _list_all()
 
 
-def _list_all():
+def _list_all() -> None:
     """List all configuration settings."""
     config = _load_config()
     secrets = _load_secrets()
@@ -308,7 +308,7 @@ def _list_all():
 
 @main.command()
 @click.argument("key")
-def get(key: str):
+def get(key: str) -> None:
     """Get a configuration value.
 
     \b
@@ -340,7 +340,7 @@ def get(key: str):
 @main.command()
 @click.argument("key")
 @click.argument("value")
-def set(key: str, value: str):
+def set(key: str, value: str) -> None:
     """Set a configuration value.
 
     \b

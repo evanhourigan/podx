@@ -2,7 +2,7 @@
 
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
 from podx.logging import get_logger
@@ -36,8 +36,8 @@ class StorageManager:
         self,
         backend: Optional[StorageBackend] = None,
         bucket: Optional[str] = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Initialize storage manager.
 
         Args:
@@ -50,7 +50,7 @@ class StorageManager:
         self.config = kwargs
         self._client = None
 
-    def _get_s3_client(self):
+    def _get_s3_client(self) -> Any:
         """Get boto3 S3 client."""
         try:
             import boto3
@@ -64,7 +64,7 @@ class StorageManager:
         except ImportError:
             raise StorageError("boto3 not installed. Install with: pip install boto3")
 
-    def _get_gcs_client(self):
+    def _get_gcs_client(self) -> Any:
         """Get GCS client."""
         try:
             from google.cloud import storage
@@ -79,7 +79,7 @@ class StorageManager:
                 "Install with: pip install google-cloud-storage"
             )
 
-    def _get_azure_client(self):
+    def _get_azure_client(self) -> Any:
         """Get Azure Blob Storage client."""
         try:
             from azure.storage.blob import BlobServiceClient
@@ -253,10 +253,10 @@ class StorageManager:
         # Extract bucket and key from s3:// URL if needed
         if remote_path.startswith("s3://"):
             parsed = urlparse(remote_path)
-            bucket = parsed.netloc
+            bucket: str = parsed.netloc
             key = parsed.path.lstrip("/")
         else:
-            bucket = self.bucket
+            bucket = self.bucket or ""
             key = remote_path
 
         client.download_file(bucket, key, str(local_path))
@@ -271,10 +271,10 @@ class StorageManager:
         # Extract bucket and blob from gs:// URL if needed
         if remote_path.startswith("gs://"):
             parsed = urlparse(remote_path)
-            bucket_name = parsed.netloc
+            bucket_name: str = parsed.netloc
             blob_name = parsed.path.lstrip("/")
         else:
-            bucket_name = self.bucket
+            bucket_name = self.bucket or ""
             blob_name = remote_path
 
         bucket = client.bucket(bucket_name)
@@ -292,10 +292,10 @@ class StorageManager:
         if "blob.core.windows.net" in remote_path:
             parsed = urlparse(remote_path)
             parts = parsed.path.lstrip("/").split("/", 1)
-            container = parts[0]
+            container: str = parts[0]
             blob_name = parts[1] if len(parts) > 1 else ""
         else:
-            container = self.bucket
+            container = self.bucket or ""
             blob_name = remote_path
 
         blob_client = client.get_blob_client(container=container, blob=blob_name)
