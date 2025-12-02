@@ -14,6 +14,7 @@ from .base import ASRProvider, ProviderConfig, TranscriptionResult
 from .factory import get_provider, list_providers, register_provider
 from .local_provider import LocalProvider
 from .openai_provider import OpenAIProvider
+from .runpod_provider import RunPodProvider
 
 __all__ = [
     # Base classes
@@ -23,6 +24,7 @@ __all__ = [
     # Providers
     "LocalProvider",
     "OpenAIProvider",
+    "RunPodProvider",
     # Factory
     "get_provider",
     "register_provider",

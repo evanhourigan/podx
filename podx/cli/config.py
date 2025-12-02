@@ -73,6 +73,17 @@ CONFIG_KEYS: Dict[str, Dict[str, Any]] = {
         "default": "",
         "validator": None,  # No validation needed
     },
+    # RunPod cloud settings
+    "runpod-api-key": {
+        "description": "RunPod API key for cloud transcription",
+        "secret": True,
+        "env_var": "RUNPOD_API_KEY",
+    },
+    "runpod-endpoint-id": {
+        "description": "RunPod serverless endpoint ID",
+        "secret": True,
+        "env_var": "RUNPOD_ENDPOINT_ID",
+    },
 }
 
 

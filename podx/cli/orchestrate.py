@@ -23,6 +23,7 @@ setup_logging()
 from podx.cli import config  # noqa: E402
 from podx.cli import (  # noqa: E402 - Must import after logging setup
     analyze,
+    cloud,
     init,
     templates,
 )
@@ -73,6 +74,7 @@ def main() -> None:
       config      Manage configuration
       init        Setup wizard for new users
       templates   Manage analysis templates
+      cloud       Cloud acceleration (RunPod)
       run         Full pipeline orchestrator
 
     \b
@@ -110,6 +112,7 @@ register_deprecated_commands(main, run)
 main.add_command(init.main, name="init")
 main.add_command(analyze.main, name="analyze")
 main.add_command(templates.main, name="templates")
+main.add_command(cloud.main, name="cloud")
 
 # Register server command group (v3.0 - Web API Server)
 main.add_command(server, name="server")

@@ -51,6 +51,21 @@
       "api_key_env": null,
       "default_base_url": "http://localhost:11434",
       "docs_url": "https://ollama.ai/docs"
+    },
+    "runpod": {
+      "name": "RunPod",
+      "api_key_env": "RUNPOD_API_KEY",
+      "base_url_env": null,
+      "default_base_url": "https://api.runpod.ai/v2",
+      "docs_url": "https://docs.runpod.io",
+      "notes": "Serverless GPU for transcription. Run 'podx cloud setup' to configure."
+    },
+    "local": {
+      "name": "Local",
+      "api_key_env": null,
+      "default_base_url": null,
+      "docs_url": "https://github.com/SYSTRAN/faster-whisper",
+      "notes": "Runs on your local CPU/GPU using faster-whisper"
     }
   },
   "models": [
@@ -730,6 +745,159 @@
       "context_window": 4096,
       "capabilities": ["text", "chat"],
       "default_in_cli": true
+    },
+    {
+      "id": "runpod:large-v3-turbo",
+      "name": "RunPod Whisper Large v3 Turbo",
+      "provider": "runpod",
+      "aliases": ["runpod:turbo"],
+      "description": "Cloud-accelerated faster-whisper, ~20-30x realtime",
+      "pricing": {
+        "input_per_1m": 0,
+        "output_per_1m": 0,
+        "hourly_rate": 0.067,
+        "currency": "USD",
+        "tier": "serverless",
+        "notes": "~$0.05-0.10 per hour of audio. GPU-seconds billing."
+      },
+      "context_window": null,
+      "capabilities": ["transcription"],
+      "default_in_cli": true
+    },
+    {
+      "id": "runpod:large-v3",
+      "name": "RunPod Whisper Large v3",
+      "provider": "runpod",
+      "aliases": [],
+      "description": "Cloud-accelerated faster-whisper large-v3",
+      "pricing": {
+        "input_per_1m": 0,
+        "output_per_1m": 0,
+        "hourly_rate": 0.067,
+        "currency": "USD",
+        "tier": "serverless",
+        "notes": "~$0.05-0.10 per hour of audio"
+      },
+      "context_window": null,
+      "capabilities": ["transcription"],
+      "default_in_cli": true
+    },
+    {
+      "id": "runpod:large-v2",
+      "name": "RunPod Whisper Large v2",
+      "provider": "runpod",
+      "aliases": [],
+      "description": "Cloud-accelerated faster-whisper large-v2",
+      "pricing": {
+        "input_per_1m": 0,
+        "output_per_1m": 0,
+        "hourly_rate": 0.067,
+        "currency": "USD",
+        "tier": "serverless",
+        "notes": "~$0.05-0.10 per hour of audio"
+      },
+      "context_window": null,
+      "capabilities": ["transcription"],
+      "default_in_cli": true
+    },
+    {
+      "id": "runpod:medium",
+      "name": "RunPod Whisper Medium",
+      "provider": "runpod",
+      "aliases": [],
+      "description": "Cloud-accelerated faster-whisper medium",
+      "pricing": {
+        "input_per_1m": 0,
+        "output_per_1m": 0,
+        "hourly_rate": 0.067,
+        "currency": "USD",
+        "tier": "serverless",
+        "notes": "Faster than large models"
+      },
+      "context_window": null,
+      "capabilities": ["transcription"],
+      "default_in_cli": false
+    },
+    {
+      "id": "local:large-v3-turbo",
+      "name": "Local Whisper Large v3 Turbo",
+      "provider": "local",
+      "aliases": ["local:turbo"],
+      "description": "Local faster-whisper, best quality, optimized speed",
+      "pricing": {
+        "input_per_1m": 0,
+        "output_per_1m": 0,
+        "currency": "USD",
+        "tier": "free",
+        "notes": "Runs on your CPU/GPU, no API costs"
+      },
+      "context_window": null,
+      "capabilities": ["transcription"],
+      "default_in_cli": true
+    },
+    {
+      "id": "local:large-v3",
+      "name": "Local Whisper Large v3",
+      "provider": "local",
+      "aliases": [],
+      "description": "Local faster-whisper large-v3, highest accuracy",
+      "pricing": {
+        "input_per_1m": 0,
+        "output_per_1m": 0,
+        "currency": "USD",
+        "tier": "free"
+      },
+      "context_window": null,
+      "capabilities": ["transcription"],
+      "default_in_cli": true
+    },
+    {
+      "id": "local:medium",
+      "name": "Local Whisper Medium",
+      "provider": "local",
+      "aliases": [],
+      "description": "Local faster-whisper medium, balanced speed/quality",
+      "pricing": {
+        "input_per_1m": 0,
+        "output_per_1m": 0,
+        "currency": "USD",
+        "tier": "free"
+      },
+      "context_window": null,
+      "capabilities": ["transcription"],
+      "default_in_cli": false
+    },
+    {
+      "id": "local:small",
+      "name": "Local Whisper Small",
+      "provider": "local",
+      "aliases": [],
+      "description": "Local faster-whisper small, fast processing",
+      "pricing": {
+        "input_per_1m": 0,
+        "output_per_1m": 0,
+        "currency": "USD",
+        "tier": "free"
+      },
+      "context_window": null,
+      "capabilities": ["transcription"],
+      "default_in_cli": false
+    },
+    {
+      "id": "local:base",
+      "name": "Local Whisper Base",
+      "provider": "local",
+      "aliases": [],
+      "description": "Local faster-whisper base, fastest processing",
+      "pricing": {
+        "input_per_1m": 0,
+        "output_per_1m": 0,
+        "currency": "USD",
+        "tier": "free"
+      },
+      "context_window": null,
+      "capabilities": ["transcription"],
+      "default_in_cli": false
     }
   ]
 }

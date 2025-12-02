@@ -151,6 +151,31 @@ echo 'export OPENAI_API_KEY="sk-..."' >> ~/.zshrc
 source ~/.zshrc
 ```
 
+### ☁️ Cloud GPU Acceleration (NEW in v4.1.0!)
+
+For dramatically faster transcription (~20-30x speedup), set up RunPod cloud:
+
+```bash
+# Interactive setup wizard
+podx cloud setup
+```
+
+This will guide you through:
+1. Enter your RunPod API key (from [runpod.io/console](https://runpod.io/console/user/settings))
+2. Deploy a faster-whisper serverless endpoint
+3. Test the connection
+
+**Pricing:** ~$0.05-0.10 per hour of podcast audio
+
+**Usage after setup:**
+```bash
+# Use cloud transcription (20-30x faster!)
+podx transcribe --model runpod:large-v3-turbo ./episode/
+
+# Check cloud status
+podx cloud status
+```
+
 ---
 
 ## Your First Episode
@@ -374,7 +399,16 @@ Now that you've processed your first episode, explore more features:
 
 ### 🎯 Try These Features
 
-1. **🔍 Search & Analysis (NEW!)**: Search your transcript library
+1. **☁️ Cloud GPU Acceleration (NEW in v4.1.0!)**: 20-30x faster transcription
+   ```bash
+   # One-time setup
+   podx cloud setup
+
+   # Use cloud transcription
+   podx transcribe --model runpod:large-v3-turbo ./episode/
+   ```
+
+2. **🔍 Search & Analysis**: Search your transcript library
    ```bash
    # Index a transcript
    podx search index transcript.json --episode-id ep001

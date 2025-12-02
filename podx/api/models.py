@@ -314,7 +314,9 @@ class ModelInfo(BaseModel):
     )
     description: str = Field(..., description="Brief model description")
     pricing: ModelPricingInfo = Field(..., description="Pricing information")
-    context_window: int = Field(..., description="Maximum context length in tokens")
+    context_window: Optional[int] = Field(
+        None, description="Maximum context length in tokens (None for ASR models)"
+    )
     capabilities: list[str] = Field(
         default_factory=list, description="Model capabilities"
     )

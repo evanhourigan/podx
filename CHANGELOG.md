@@ -7,6 +7,468 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.0] - 2025-12-01
+
+### 🚀 Cloud GPU Acceleration
+
+A major feature release introducing **RunPod cloud transcription** for dramatically faster processing (~20-30x speedup).
+
+---
+
+### ✨ Added
+
+#### ☁️ RunPod Cloud Transcription (NEW!)
+- **Cloud GPU acceleration** - Offload transcription to RunPod serverless GPUs
+  - 1-hour podcast: ~60-90 minutes → ~2-4 minutes
+  - Cost: ~$0.05-0.10 per hour of audio (~$0.067/hr for A4000 GPU)
+  - Automatic fallback to local processing on cloud failure
+
+- **New `runpod:` ASR provider** - Use cloud models with familiar syntax:
+  - `runpod:large-v3-turbo` - Fastest cloud model (recommended)
+  - `runpod:large-v3` - Best accuracy
+  - `runpod:large-v2` - Previous generation
+  - `runpod:medium` - Smaller, faster
+
+- **New `podx cloud` command group**:
+  - `podx cloud setup` - Interactive wizard for RunPod configuration
+  - `podx cloud status` - Check cloud configuration and endpoint health
+
+- **CloudConfig** for programmatic configuration:
+  ```python
+  from podx.cloud import CloudConfig, RunPodClient
+
+  config = CloudConfig.from_env()  # Or pass api_key, endpoint_id
+  client = RunPodClient(config)
+  ```
+
+#### 🔧 Cloud Architecture
+- **New `podx/cloud/` module**:
+  - `CloudConfig` - Configuration with environment variable support
+  - `RunPodClient` - Full job lifecycle management (submit, poll, retrieve)
+  - `CloudError` hierarchy - Specific exceptions for error handling
+    - `CloudAuthError` - Invalid/missing API key
+    - `EndpointNotFoundError` - Endpoint not found
+    - `UploadError` - Upload failures
+    - `JobFailedError` - Transcription job failed
+    - `CloudTimeoutError` - Job timed out
+
+- **RunPodProvider** - Follows existing ASRProvider pattern:
+  - Automatic base64 encoding of audio
+  - Configurable timeout and polling
+  - Graceful fallback to LocalProvider on failure
+
+#### 📦 Model Catalog Updates
+- **ASR models added** to centralized catalog:
+  - RunPod models: `runpod:large-v3-turbo`, `runpod:large-v3`, `runpod:large-v2`, `runpod:medium`
+  - Local models: `local:large-v3-turbo`, `local:large-v3`, `local:medium`, `local:small`, `local:base`
+- **ASR model support** - `context_window` now optional for non-LLM models
+
+---
+
+### 🔧 Changed
+
+- **ModelInfo.context_window** is now `Optional[int]` to support ASR models
+
+---
+
+### 📚 Documentation
+
+- Updated README.md with Cloud GPU Acceleration section
+- Added cloud setup instructions to QUICKSTART.md
+- Updated CONTEXT.md for v4.1.0
+
+---
+
+### 🧪 Testing
+
+- ✅ All 882 tests pass
+- ✅ Cloud command verified: `podx cloud --help`
+- ✅ Model catalog includes ASR models
+
+---
+
+## [4.0.2] - 2025-12-01
+
+### 🔧 Type System Cleanup
+
+Comprehensive mypy type error cleanup across the entire codebase.
+
+---
+
+### 🐛 Fixed
+
+- **219 type errors fixed across 52 files**
+- Updated Pydantic model instantiations with proper type annotations
+- Fixed NotionEngine API calls (`upsert_page`, `md_to_blocks`)
+- Corrected `Optional` type hints for async subprocess streams
+- Fixed Anthropic provider client initialization
+- Removed buggy YAML constructor that broke template imports
+- Updated test mocks to match API changes
+- Added `continue-on-error` for remaining mypy warnings in CI
+
+---
+
+## [4.0.1] - 2025-12-01
+
+### 📤 Export Enhancements
+
+Improvements for transcript exports across markdown, HTML, and Notion formats.
+
+---
+
+### ✨ Added
+
+#### 🔗 Clickable Timestamps
+- **Markdown exports** - When `video_url` is available in episode-meta.json, timestamps become clickable links
+  - Format: `[[0:15]](https://youtube.com/watch?v=xxx&t=15s)`
+  - Automatically loads video URL from episode metadata
+
+#### 📄 HTML Improvements
+- **Collapsible transcript sections** - Large transcripts wrapped in `<details>` element
+  - Improves readability for long episodes
+  - Click to expand/collapse
+
+#### 📝 Notion Improvements
+- **Toggle blocks for transcripts** - Transcripts rendered as collapsible toggles
+- **Automatic chunking** - Transcripts exceeding Notion's 100-block limit are automatically split
+- **Video URL deep linking** - Timestamps link to video when available
+
+---
+
+## [4.0.0] - 2025-12-01
+
+### 🚀 Major Release - v4.0 Simplification
+
+A transformative release focused on **radical simplification**. This release removes the complex Textual TUI, eliminates rarely-used commands, and streamlines every CLI command to a minimal, directory-based workflow.
+
+**The philosophy:** Every command should be simple enough to use without reading docs.
+
+---
+
+### 📊 Stats
+
+| Metric | Value |
+|--------|-------|
+| Files changed | 112 |
+| Lines added | 6,305 |
+| Lines deleted | 15,123 |
+| **Net reduction** | **-8,818 lines** |
+
+---
+
+### ⚡ Breaking Changes
+
+#### 🔄 Command Renamed: `deepcast` → `analyze`
+
+The `podx deepcast` command has been renamed to `podx analyze` for clarity.
+
+**What changed:**
+- `DeepcastEngine` → `AnalyzeEngine`
+- `DeepcastError` → `AnalyzeError`
+- `DeepcastResponse` → `AnalyzeResponse`
+- `DeepcastStep` → `AnalyzeStep`
+- Output files: `deepcast-*.json` → `analysis-*.json`
+- 35 files updated, 1,077 insertions, 1,410 deletions
+
+**Backwards compatibility preserved:**
+- All old class/function names available as aliases
+- `client.deepcast()` still works (calls `analyze()` internally)
+- Legacy file patterns still supported in search
+
+#### 🗑️ Removed Commands (8 commands, -2,394 lines)
+
+The following CLI commands have been removed. Core modules are preserved for Python API use:
+
+| Command | Reason | Alternative |
+|---------|--------|-------------|
+| `podx batch` | Over-engineered | Shell loop: `for ep in */; do podx transcribe "$ep"; done` |
+| `podx search` | Low demand | Core module available via Python API |
+| `podx estimate` | Redundant | Cost/hr now shown in `podx models` output |
+| `podx info` | Redundant | Status shown in interactive episode selector |
+| `podx youtube` | Consolidated | Merged into `podx fetch --url` |
+| `podx analyze-audio` | Internal | Auto-detection happens internally |
+| `podx preprocess` | Internal | Auto-applied by pipeline |
+| `podx transcode` | Consolidated | Merged into `podx fetch` (always produces WAV) |
+
+#### 🗑️ Textual TUI Removed (-6,353 lines)
+
+All complex Textual TUI components removed in favor of simple stdin/stdout interactive selectors:
+
+**Removed (31 files):**
+- `podx/ui/apps/` - Textual application classes
+  - `episode_browser.py` (450 lines)
+  - `model_level_processing.py` (241 lines)
+  - `simple_processing.py` (344 lines)
+  - `standalone_fetch.py` (97 lines)
+- `podx/ui/modals/` - Textual modal dialogs
+  - `config_modal.py` (553 lines)
+  - `fetch_modal.py` (647 lines)
+- `podx/ui/widgets/` - Textual widget components
+  - `selection_browser.py` (215 lines)
+- Browser files: `analyze_browser.py`, `diarize_browser.py`, `fetch_browser.py`, `preprocess_browser.py`, `transcode_browser.py`, `transcribe_browser.py`, `two_phase_browser.py`
+- TUI files: `episode_browser_tui.py`, `execution_tui.py`, `transcribe_tui.py`
+
+**Kept and simplified:**
+- `analyze_selector.py` - Simple analysis type selector
+- `asr_selector.py` - Rewritten without Textual dependency
+- `episode_selector.py` - Simple episode selector with status indicators
+- `formatters.py` - Text formatting utilities
+- `live_timer.py` - Progress timer
+
+---
+
+### ✨ Added
+
+#### 🧹 New `podx cleanup` Command
+
+New command for transcript text cleanup, improving readability and LLM analysis quality:
+
+```bash
+podx cleanup ./episode/           # Full cleanup with LLM restoration
+podx cleanup ./episode/ --no-restore  # Skip LLM (free, local only)
+```
+
+**Features:**
+- **Segment merging** - Combines consecutive segments from same speaker
+- **Text normalization** - Fixes spacing, removes repeated punctuation
+- **LLM restoration** - Uses gpt-4o-mini to restore truncated words (~$0.02/hr of audio)
+- **State tracking** - Sets `cleaned=True` and `restored=True/False` in transcript.json
+
+**Files added:**
+- `podx/cli/cleanup.py` (227 lines)
+- `podx/cli/commands/cleanup.py` (24 lines)
+
+#### 📊 Workflow State Tracking
+
+transcript.json now tracks processing state with boolean flags:
+
+```json
+{
+  "diarized": true,
+  "cleaned": true,
+  "restored": true
+}
+```
+
+**Behaviors:**
+- `podx diarize` blocked if transcript already cleaned (word alignment would fail)
+- Episode selector shows state: `[T]` transcribed, `[D]` diarized, `[C]` cleaned, `[A]` analyzed
+
+#### 📤 Export Improvements
+
+- `podx export analysis --include-transcript` - Appends formatted transcript to analysis export
+- `podx notion` - Now always includes transcript with timestamps and speaker labels
+
+#### 🔧 Python API Updates
+
+New methods added to `PodxClient` and `AsyncPodxClient`:
+
+```python
+from podx.api import PodxClient
+
+client = PodxClient()
+result = client.cleanup("./episode/", restore=True)
+```
+
+- `sync_client.cleanup()` - Synchronous cleanup
+- `async_client.cleanup()` - Async cleanup
+- `podx run` pipeline now includes cleanup step between diarize and analyze
+
+#### 🎨 Display Improvements
+
+- `podx models` shows "< $0.01" instead of "$0.00" for very cheap models
+- Status indicators in episode selector: `[transcribed]` `[diarized]` `[analyzed]`
+
+---
+
+### 🔄 Changed
+
+#### 🎯 Massive CLI Simplification
+
+Every command rewritten for simplicity. Directory-based workflow, minimal flags, interactive prompts when arguments not provided.
+
+##### `podx transcribe` (-730 lines net)
+
+**Before:** 10+ options including `--preset`, `--device`, `--compute-type`, `--batch-size`, `--beam-size`, `--vad-filter`, `--word-timestamps`, `--output`, `--format`
+
+**After:**
+```bash
+podx transcribe                    # Interactive episode selection
+podx transcribe ./episode/         # Transcribe specific episode
+podx transcribe ./ep/ --model local:large-v3-turbo
+podx transcribe ./ep/ --language es
+```
+
+- PATH argument for directory-based workflow
+- Only 2 options: `--model`, `--language`
+- Output always to `transcript.json` in episode directory
+
+##### `podx diarize`
+
+**Before:** Multiple options for speaker count, device, clustering
+
+**After:**
+```bash
+podx diarize ./episode/            # Auto-detect speakers
+podx diarize ./episode/ --speakers 3
+```
+
+- PATH argument for directory-based workflow
+- Single option: `--speakers`
+- Updates existing `transcript.json` in place
+
+##### `podx fetch` (+260 lines, major rewrite)
+
+**Before:** Separate `podx youtube` command, many output options
+
+**After:**
+```bash
+podx fetch                         # Interactive show/episode browser
+podx fetch --show "Lex Fridman"    # Browse show episodes
+podx fetch --url "youtube.com/..." # Download from URL
+podx fetch --rss "https://..."     # Direct RSS feed
+```
+
+- Merged `podx youtube` functionality via `--url`
+- Interactive episode browsing with arrow keys
+- Auto-transcodes to WAV after download
+- Simplified to: `--show`, `--rss`, `--url`, `--date`, `--title`
+- Removed: `--interactive`, `--json`, `--output`
+
+##### `podx models` (-483 lines)
+
+**Before:** Many flags: `--refresh`, `--provider`, `--filter`, `--json`, `--verbose`, `--capabilities`
+
+**After:**
+```bash
+podx models                        # Simple table, that's it
+```
+
+- No options - just shows the table
+- Clean output with $/hr cost estimates
+- Shows both ASR and LLM models
+- Wider columns to prevent truncation
+
+##### `podx run` (rewritten as wizard)
+
+**Before:** Many pipeline options
+
+**After:**
+```bash
+podx run                           # Interactive wizard
+podx run ./episode/                # Run full pipeline on episode
+```
+
+- Rewritten as interactive wizard when no PATH provided
+- Guides through: fetch → transcribe → diarize → cleanup → analyze
+- Shows progress and status at each step
+
+##### `podx init` (+282 lines, complete rewrite)
+
+**Before:** Complex profile system with import/export
+
+**After:**
+```bash
+podx init                          # Step-by-step setup wizard
+```
+
+- Checks system requirements (Python, FFmpeg, yt-dlp)
+- Configures output directory
+- Sets up API keys interactively
+- Creates `~/.config/podx/config.yaml` and `env.sh`
+- Clean, step-by-step wizard without complex profiles
+
+##### `podx config` (simplified)
+
+**Before:** Complex profile management: save, load, import, export, delete
+
+**After:**
+```bash
+podx config                        # List all settings
+podx config get KEY                # Get a value
+podx config set KEY VALUE          # Set a value
+```
+
+- Simple `defaults`-style interface (like macOS)
+- Supports both regular settings and API keys
+- API keys stored securely in `env.sh` with 0600 permissions
+- Removed: profile management (save/load/import/export/delete)
+- Removed: built-in profiles (quick, standard, high-quality)
+
+##### `podx templates` (simplified)
+
+**Before:** Full CRUD: list, show, preview, export, import, delete
+
+**After:**
+```bash
+podx templates list                # List available templates
+podx templates show <name>         # Show template details
+```
+
+- Reduced to list/show subcommands only
+- Removed: preview, export, import, delete
+
+##### `podx export` (split into subcommands)
+
+**Before:** Single command with format flags
+
+**After:**
+```bash
+podx export transcript ./ep/ -f txt,srt,vtt
+podx export analysis ./ep/ --include-transcript
+```
+
+- Split into `transcript` and `analysis` subcommands
+- Clearer separation of concerns
+
+##### `podx notion` (simplified)
+
+**Before:** Many options for formatting and selection
+
+**After:**
+```bash
+podx notion ./episode/             # Publish to Notion
+podx notion ./episode/ --dry-run   # Preview without publishing
+```
+
+- Reduced to PATH + `--dry-run` only
+- Always includes transcript with timestamps/speakers
+
+##### `podx analyze` (templates integrated)
+
+- Replaced `--type` option with `--template`
+- Added `general` template as default (works for any podcast format)
+- Shows top 5 templates in help with hint to run `podx templates list`
+
+---
+
+### 🐛 Fixed
+
+- **Help text formatting** - Preserved with `\b` markers in Click
+- **Model column width** - No more truncation in `podx models` output
+- **Config display** - Brackets properly escaped in Rich tables
+- **Package data files** - Included correctly in CI builds with MANIFEST.in
+- **Analyze test mocks** - Updated for renamed API
+
+---
+
+### 📚 Documentation
+
+- **README.md** - Comprehensive rewrite for v4.0 (-558 lines, major restructure)
+- **docs/QUICKSTART.md** - Updated for directory-based workflow
+- **docs/TEMPLATES.md** - Updated for simplified templates CLI
+- All docs updated for `podx verb` syntax
+
+---
+
+### 🧪 Testing
+
+- ✅ All 794 unit tests pass
+- ✅ Renamed test files: `test_core_deepcast.py` → `test_core_analyze.py`
+- ✅ Removed obsolete: `test_cli_completion.py` (81 lines)
+
+---
+
 ## [3.2.2] - 2025-11-25
 
 ### ✨ Added

@@ -10,6 +10,7 @@ from ...logging import get_logger
 from .base import ASRProvider, ProviderConfig, TranscriptionError
 from .local_provider import LocalProvider
 from .openai_provider import OpenAIProvider
+from .runpod_provider import RunPodProvider
 
 logger = get_logger(__name__)
 
@@ -17,6 +18,7 @@ logger = get_logger(__name__)
 _PROVIDER_REGISTRY: Dict[str, Type[ASRProvider]] = {
     "local": LocalProvider,
     "openai": OpenAIProvider,
+    "runpod": RunPodProvider,
 }
 
 

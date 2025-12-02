@@ -1,32 +1,69 @@
 # PodX Development Context
 
-**Last Updated**: 2025-12-02 02:17:07 UTC
+**Last Updated**: 2025-12-02 05:45:29 UTC
 **Current Branch**: `main`
-**Current Phase**: v3.2.0 Development - Phase 1 (Template Design) ⏳
-**Latest Commits**: daa385b (context updates), 078978c (completion refactor), d10ad3d (init fixes)
-**Active Work**: `.ai-docs/V3.2.0_PROGRESS.md` - Complete progress tracker
+**Current Version**: v4.1.0
+**Current Phase**: v4.1.0 Cloud GPU Acceleration - COMPLETE ✨
+**Active Work**: Cloud transcription with RunPod serverless GPUs
 
 ---
 
 ## 🎯 Current State
 
-### Phase 11: v3.1.0 Development - 100% COMPLETE ✨
+### v4.1.0: Cloud GPU Acceleration - 100% COMPLETE ✨
 
-**Status:** 4/4 features complete + bug fixes
+**Status:** Feature complete, tests passing, documentation updated
 
-**Recently Completed:**
-- ✅ YouTube URL Processing Documentation (100% - e594020)
-- ✅ Webhook Notifications (100% - e84ab38)
-- ✅ Custom Deepcast Templates (100% - 9713737)
-- ✅ Cloud Storage Integration (100% - 785f6de)
+**New Features:**
+- ✅ **RunPod Cloud Transcription** - 20-30x faster transcription via cloud GPUs
+  - New `runpod:` ASR provider (runpod:large-v3-turbo, runpod:large-v3, etc.)
+  - Automatic fallback to local processing on cloud failure
+  - Cost: ~$0.05-0.10 per hour of podcast audio
 
-**Bug Fixes (Post-Release):**
-- ✅ Fixed ProfileManager.install_builtin_profiles() missing method (d10ad3d)
-- ✅ Fixed podx completion entry point registration (d10ad3d)
-- ✅ Refactored to Click's native shell completion (078978c)
-  - Removed 287 lines of custom completion code
-  - Now uses Click's built-in _PODX_COMPLETE mechanism
-  - Auto-updates with CLI structure changes
+- ✅ **`podx cloud` command group**
+  - `podx cloud setup` - Interactive wizard for RunPod configuration
+  - `podx cloud status` - Check cloud configuration and endpoint health
+
+- ✅ **Cloud module** (`podx/cloud/`)
+  - `CloudConfig` - Configuration with environment variable support
+  - `RunPodClient` - Full job lifecycle management
+  - `CloudError` hierarchy - Specific exceptions for error handling
+
+- ✅ **RunPodProvider** - ASRProvider implementation with fallback
+
+- ✅ **Model catalog updates** - ASR models added (runpod:*, local:*)
+
+**Files Created:**
+- `podx/cloud/__init__.py`
+- `podx/cloud/config.py`
+- `podx/cloud/exceptions.py`
+- `podx/cloud/runpod_client.py`
+- `podx/core/transcription/runpod_provider.py`
+- `podx/cli/cloud.py`
+
+**Files Modified:**
+- `podx/__init__.py` - Version 4.1.0
+- `podx/core/transcription/factory.py` - Register RunPodProvider
+- `podx/cli/orchestrate.py` - Register cloud command
+- `podx/cli/config.py` - Add runpod config keys
+- `podx/models/models.json` - Add runpod/local providers and ASR models
+- `podx/api/models.py` - Make context_window Optional for ASR models
+
+**Documentation:**
+- ✅ README.md - Cloud GPU Acceleration section
+- ✅ CHANGELOG.md - v4.1.0 release notes
+- ✅ docs/QUICKSTART.md - Cloud setup instructions
+- ✅ .claude/CONTEXT.md - Updated for v4.1.0
+
+**Testing:**
+- ✅ All 882 tests pass
+- ✅ `podx cloud --help` verified
+
+---
+
+### Previous: v3.2.0 - Template System Enhancement
+
+**Status:** Complete
 
 ### Phase 10: Feature Enhancements - 100% COMPLETE ✨
 

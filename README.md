@@ -15,25 +15,31 @@ Transform podcast audio into structured insights with AI-powered transcription, 
 
 ---
 
-## 🆕 v4.0.0 - Simplified CLI
+## 🆕 v4.1.0 - Cloud GPU Acceleration
 
-**Breaking Changes:**
+**New Feature: RunPod Cloud Transcription (~20-30x faster!)**
+
+Offload transcription to cloud GPUs for dramatically faster processing:
+- 1-hour podcast: ~60-90 minutes → ~2-4 minutes
+- Cost: ~$0.05-0.10 per hour of audio
+- Automatic fallback to local if cloud fails
+
+```bash
+# One-time setup
+podx cloud setup
+
+# Transcribe with cloud GPU
+podx transcribe --model runpod:large-v3-turbo ./episode/
+
+# Full pipeline with cloud
+podx run --model runpod:large-v3-turbo ./episode/
+```
+
+**v4.0.0 Changes:**
 - Directory-based workflow (no more stdin/stdout JSON piping)
 - `deepcast` renamed to `analyze`
 - Interactive mode when no arguments provided
 - Simplified file naming: `transcript.json`, `analysis.json`
-
-```bash
-# Interactive mode (recommended for new users)
-podx fetch                    # Browse podcasts, select episode
-podx transcribe               # Select episode to transcribe
-podx run                      # Full pipeline wizard
-
-# Direct mode (for scripting)
-podx fetch --show "Lex Fridman" --date 2024-11-24
-podx transcribe ./Show/2024-11-24-ep/
-podx analyze ./Show/2024-11-24-ep/
-```
 
 **Migrating from v3.x?** Key changes: directory-based workflow, `deepcast` → `analyze`, simplified CLI options.
 
