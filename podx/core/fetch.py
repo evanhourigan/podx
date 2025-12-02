@@ -17,7 +17,6 @@ from dateutil import parser as dtparse
 from ..errors import NetworkError, ValidationError, with_retries
 from ..logging import get_logger
 from ..schemas import EpisodeMeta
-from ..utils import sanitize_filename
 
 logger = get_logger(__name__)
 
@@ -244,7 +243,7 @@ class PodcastFetcher:
         clean_path = parsed_url.path
         extension = Path(clean_path).suffix or ".mp3"  # Default to .mp3
 
-        name = sanitize_filename(entry.get("title", "episode")) + extension
+        name = "audio" + extension
         dest = output_dir / name
 
         # Download with retries and backoff

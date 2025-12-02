@@ -13,7 +13,12 @@ from typing import Optional
 import click
 from rich.console import Console
 
-from podx.core.diarize import DiarizationEngine, DiarizationError
+from podx.core.diarize import (
+    DiarizationEngine,
+    DiarizationError,
+    calculate_embedding_batch_size,
+    get_memory_info,
+)
 from podx.domain.exit_codes import ExitCode
 from podx.logging import get_logger
 from podx.ui import LiveTimer, select_episode_interactive
@@ -149,30 +154,45 @@ def main(path: Optional[Path], speakers: Optional[int]):
     # Get language from transcript
     language = transcript.get("language", "en")
 
-    # Show what we're doing
+    # Check memory and show what we're doing
+    available_gb, total_gb = get_memory_info()
+    batch_size = calculate_embedding_batch_size(available_gb)
+
     console.print(f"[cyan]Diarizing:[/cyan] {audio_file.name}")
     console.print(f"[cyan]Transcript:[/cyan] {transcript_path.name}")
     if speakers:
         console.print(f"[cyan]Expected speakers:[/cyan] {speakers}")
     else:
         console.print("[cyan]Expected speakers:[/cyan] auto-detect")
+    console.print(
+        f"[cyan]Memory:[/cyan] {available_gb:.1f} GB available / {total_gb:.1f} GB total"
+    )
+    if batch_size < 32:
+        console.print(
+            f"[dim]Using reduced batch size ({batch_size}) for memory efficiency[/dim]"
+        )
 
     # Start timer
     timer = LiveTimer("Diarizing")
     timer.start()
 
+    def progress_callback(msg: str) -> None:
+        """Update the timer message for step transitions."""
+        timer.message = msg
+
     try:
-        # Suppress WhisperX debug output
+        engine = DiarizationEngine(
+            language=language,
+            device=None,  # Auto-detect
+            hf_token=os.getenv("HUGGINGFACE_TOKEN"),
+            num_speakers=speakers,
+            progress_callback=progress_callback,
+        )
+        # Suppress WhisperX debug output during diarization
         with (
             redirect_stdout(open(os.devnull, "w")),
             redirect_stderr(open(os.devnull, "w")),
         ):
-            engine = DiarizationEngine(
-                language=language,
-                device=None,  # Auto-detect
-                hf_token=os.getenv("HUGGINGFACE_TOKEN"),
-                num_speakers=speakers,
-            )
             result = engine.diarize(audio_file, transcript["segments"])
 
     except DiarizationError as e:

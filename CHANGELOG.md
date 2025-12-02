@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.1] - 2025-12-02
+
+### 🐛 Fixed
+
+- **Diarization `num_speakers` parameter** - Fixed `TypeError: DiarizationEngine.__init__() got an unexpected keyword argument 'num_speakers'` when using `podx diarize --speakers N`
+- **LiveTimer display during diarization** - Timer now correctly displays during diarization even when stdout is redirected to suppress WhisperX debug output
+- **LiveTimer leftover text** - Fixed issue where switching to shorter status messages left residual characters on screen (e.g., "Short msg-v3-turbo")
+
+### ✨ Added
+
+- **Memory-aware diarization** - Automatically adjusts pyannote's `embedding_batch_size` based on available RAM to prevent system freezes:
+  - `< 4 GB` available: batch_size=1 (minimum memory)
+  - `4-8 GB`: batch_size=8
+  - `8-12 GB`: batch_size=16
+  - `≥ 12 GB`: batch_size=32 (default)
+- **Memory display at startup** - `podx diarize` now shows available/total RAM and batch size
+- **Step progress updates** - Diarization now shows detailed progress: "Loading alignment model", "Aligning transcript", "Loading diarization model (batch=N)", "Identifying speakers"
+
+### 🔧 Changed
+
+- **Simplified audio filenames** - Downloaded audio files now use `audio.ext` instead of sanitized episode titles for consistency
+
 ## [4.1.0] - 2025-12-01
 
 ### 🚀 Cloud GPU Acceleration

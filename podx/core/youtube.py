@@ -253,10 +253,7 @@ class YouTubeEngine:
 
         # Determine filename
         if not filename:
-            # Sanitize title for filename
-            safe_title = re.sub(r"[^\w\s-]", "", metadata["title"])
-            safe_title = re.sub(r"[-\s]+", "_", safe_title)
-            filename = f"{safe_title}.%(ext)s"
+            filename = "audio.%(ext)s"
 
         # Configure yt-dlp options
         ydl_opts = {

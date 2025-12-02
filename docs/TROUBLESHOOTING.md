@@ -470,6 +470,35 @@ Having issues with PodX? This guide covers common problems and their solutions. 
    torch.cuda.empty_cache()
    ```
 
+### "System freezes during diarization"
+
+**Problem**: System becomes unresponsive during `podx diarize` due to high memory usage.
+
+**Background**: PyAnnote speaker diarization can use 10-14GB+ of RAM, especially with `speaker-diarization-3.1`. The memory usage depends on audio length and the `embedding_batch_size` parameter.
+
+**Solutions**:
+
+1. **Automatic (v4.1.1+)**: PodX now automatically adjusts batch size based on available RAM:
+   - `< 4 GB` available: batch_size=1
+   - `4-8 GB`: batch_size=8
+   - `8-12 GB`: batch_size=16
+   - `≥ 12 GB`: batch_size=32 (default)
+
+   Check output at start of diarization:
+   ```
+   Memory: 4.2 GB available / 16.0 GB total
+   Using reduced batch size (8) for memory efficiency
+   ```
+
+2. **Close other applications** before diarizing to free up RAM.
+
+3. **Split long audio files** - Processing 30-minute chunks uses less memory than 3-hour files.
+
+4. **Use cloud transcription** - Consider `runpod:large-v3-turbo` to offload heavy processing:
+   ```bash
+   podx run --model runpod:large-v3-turbo
+   ```
+
 ---
 
 ## Diarization Problems

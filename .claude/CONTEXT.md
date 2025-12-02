@@ -1,10 +1,10 @@
 # PodX Development Context
 
-**Last Updated**: 2025-12-02 05:45:29 UTC
+**Last Updated**: 2025-12-02 20:34:33 UTC
 **Current Branch**: `main`
-**Current Version**: v4.1.0
-**Current Phase**: v4.1.0 Cloud GPU Acceleration - COMPLETE ✨
-**Active Work**: Cloud transcription with RunPod serverless GPUs
+**Current Version**: v4.1.1
+**Current Phase**: v4.1.1 Bug Fixes - COMPLETE ✨
+**Active Work**: Diarization improvements and memory management
 
 ---
 
