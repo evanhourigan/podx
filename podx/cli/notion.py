@@ -52,25 +52,56 @@ def _find_transcript(directory: Path) -> Optional[Path]:
     return None
 
 
-def _format_timestamp_readable(seconds: float) -> str:
-    """Format seconds as readable timestamp [HH:MM:SS]."""
+def _format_timestamp_readable(seconds: float, video_url: Optional[str] = None) -> str:
+    """Format seconds as readable timestamp, optionally as clickable link.
+
+    Args:
+        seconds: Time in seconds
+        video_url: Optional YouTube URL to create deep link
+
+    Returns:
+        Formatted timestamp like [0:15] or [[0:15]](url&t=15s)
+    """
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
     secs = int(seconds % 60)
+
     if hours > 0:
-        return f"[{hours}:{minutes:02d}:{secs:02d}]"
-    return f"[{minutes}:{secs:02d}]"
+        ts_text = f"{hours}:{minutes:02d}:{secs:02d}"
+    else:
+        ts_text = f"{minutes}:{secs:02d}"
+
+    # Make clickable if YouTube URL available
+    if video_url and ("youtube.com" in video_url or "youtu.be" in video_url):
+        # Handle both watch?v=xxx and youtu.be/xxx formats
+        if "?" in video_url:
+            linked_url = f"{video_url}&t={int(seconds)}s"
+        else:
+            linked_url = f"{video_url}?t={int(seconds)}s"
+        return f"[[{ts_text}]]({linked_url})"
+
+    return f"[{ts_text}]"
 
 
-def _format_transcript_as_markdown(transcript: dict) -> str:
-    """Format transcript as markdown with timestamps and speakers."""
-    lines = ["# Transcript\n"]
+def _format_transcript_as_markdown(
+    transcript: dict, video_url: Optional[str] = None
+) -> str:
+    """Format transcript as markdown with timestamps and speakers.
+
+    Args:
+        transcript: Transcript dict with segments
+        video_url: Optional YouTube URL for clickable timestamps
+
+    Returns:
+        Markdown formatted transcript (without header, for toggle block)
+    """
+    lines = []
     for seg in transcript.get("segments", []):
         start = seg.get("start", 0)
         speaker = seg.get("speaker", "")
         text = seg.get("text", "").strip()
 
-        timestamp = _format_timestamp_readable(start)
+        timestamp = _format_timestamp_readable(start, video_url)
         if speaker:
             lines.append(f"**{timestamp} {speaker}:** {text}\n")
         else:
@@ -116,22 +147,24 @@ def _publish_to_notion(episode_dir: Path, dry_run: bool = False) -> bool:
         console.print("[red]Error:[/red] Analysis has no markdown content")
         return False
 
-    # Always append transcript if available
-    transcript_path = _find_transcript(episode_dir)
-    if transcript_path:
-        try:
-            transcript = json.loads(transcript_path.read_text())
-            transcript_md = _format_transcript_as_markdown(transcript)
-            md = md + "\n\n---\n\n" + transcript_md
-        except Exception:
-            pass  # Continue without transcript on error
-
-    # Load episode metadata
+    # Load episode metadata first (for video_url)
     meta_path = episode_dir / "episode-meta.json"
     if meta_path.exists():
         meta = json.loads(meta_path.read_text())
     else:
         meta = {}
+
+    video_url = meta.get("video_url")
+
+    # Load transcript if available (will be added as toggle block)
+    transcript_md = None
+    transcript_path = _find_transcript(episode_dir)
+    if transcript_path:
+        try:
+            transcript = json.loads(transcript_path.read_text())
+            transcript_md = _format_transcript_as_markdown(transcript, video_url)
+        except Exception:
+            pass  # Continue without transcript on error
 
     # Extract info
     show_name = meta.get("show", "Unknown Podcast")
@@ -163,6 +196,52 @@ def _publish_to_notion(episode_dir: Path, dry_run: bool = False) -> bool:
     from podx.core.notion import md_to_blocks
 
     blocks = md_to_blocks(md)
+
+    # Add transcript as a toggle (collapsible) block if available
+    if transcript_md:
+        # Convert transcript markdown to blocks for toggle children
+        transcript_blocks = md_to_blocks(transcript_md)
+
+        # Create a divider first
+        blocks.append({"type": "divider", "divider": {}})
+
+        # Create toggle block with transcript inside
+        # Note: Notion toggle children are limited to 100 blocks
+        # For very long transcripts, we split into multiple toggles
+        TOGGLE_CHILD_LIMIT = 100
+        if len(transcript_blocks) <= TOGGLE_CHILD_LIMIT:
+            blocks.append(
+                {
+                    "type": "toggle",
+                    "toggle": {
+                        "rich_text": [
+                            {"type": "text", "text": {"content": "📜 Full Transcript"}}
+                        ],
+                        "children": transcript_blocks,
+                    },
+                }
+            )
+        else:
+            # Split into multiple toggles for very long transcripts
+            for i in range(0, len(transcript_blocks), TOGGLE_CHILD_LIMIT):
+                chunk = transcript_blocks[i : i + TOGGLE_CHILD_LIMIT]
+                part_num = (i // TOGGLE_CHILD_LIMIT) + 1
+                blocks.append(
+                    {
+                        "type": "toggle",
+                        "toggle": {
+                            "rich_text": [
+                                {
+                                    "type": "text",
+                                    "text": {
+                                        "content": f"📜 Transcript (Part {part_num})"
+                                    },
+                                }
+                            ],
+                            "children": chunk,
+                        },
+                    }
+                )
 
     # Notion API limits blocks to 100 per request
     NOTION_BLOCK_LIMIT = 100

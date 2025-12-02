@@ -149,25 +149,56 @@ def _export_transcript_vtt(transcript: dict, output_path: Path):
     output_path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def _format_timestamp_readable(seconds: float) -> str:
-    """Format seconds as readable timestamp [HH:MM:SS]."""
+def _format_timestamp_readable(seconds: float, video_url: Optional[str] = None) -> str:
+    """Format seconds as readable timestamp, optionally as clickable link.
+
+    Args:
+        seconds: Time in seconds
+        video_url: Optional YouTube URL to create deep link
+
+    Returns:
+        Formatted timestamp like [0:15] or [[0:15]](url&t=15s)
+    """
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
     secs = int(seconds % 60)
+
     if hours > 0:
-        return f"[{hours}:{minutes:02d}:{secs:02d}]"
-    return f"[{minutes}:{secs:02d}]"
+        ts_text = f"{hours}:{minutes:02d}:{secs:02d}"
+    else:
+        ts_text = f"{minutes}:{secs:02d}"
+
+    # Make clickable if YouTube URL available
+    if video_url and ("youtube.com" in video_url or "youtu.be" in video_url):
+        # Handle both watch?v=xxx and youtu.be/xxx formats
+        if "?" in video_url:
+            linked_url = f"{video_url}&t={int(seconds)}s"
+        else:
+            linked_url = f"{video_url}?t={int(seconds)}s"
+        return f"[[{ts_text}]]({linked_url})"
+
+    return f"[{ts_text}]"
 
 
-def _format_transcript_as_markdown(transcript: dict) -> str:
-    """Format transcript as markdown with timestamps and speakers."""
+def _format_transcript_as_markdown(
+    transcript: dict, video_url: Optional[str] = None
+) -> str:
+    """Format transcript as markdown with timestamps and speakers.
+
+    Args:
+        transcript: Transcript dict with segments
+        video_url: Optional YouTube URL for clickable timestamps
+
+    Returns:
+        Markdown formatted transcript
+    """
     lines = ["# Transcript\n"]
     for seg in transcript.get("segments", []):
         start = seg.get("start", 0)
         speaker = seg.get("speaker", "")
         text = seg.get("text", "").strip()
 
-        timestamp = _format_timestamp_readable(start)
+        timestamp = _format_timestamp_readable(start, video_url)
         if speaker:
             lines.append(f"**{timestamp} {speaker}:** {text}\n")
         else:
@@ -368,12 +399,23 @@ def export_analysis(
         console.print("[red]Error:[/red] Analysis has no markdown content")
         sys.exit(ExitCode.USER_ERROR)
 
+    # Load video_url from episode metadata (for clickable timestamps)
+    video_url = None
+    meta_path = episode_dir / "episode-meta.json"
+    if meta_path.exists():
+        try:
+            meta = json.loads(meta_path.read_text())
+            video_url = meta.get("video_url")
+        except Exception:
+            pass
+
     # Optionally append transcript
+    transcript_md = None
     if include_transcript:
         transcript_path = _find_transcript(episode_dir)
         if transcript_path:
             transcript = json.loads(transcript_path.read_text())
-            transcript_md = _format_transcript_as_markdown(transcript)
+            transcript_md = _format_transcript_as_markdown(transcript, video_url)
             md_content = md_content + "\n\n---\n\n" + transcript_md
         else:
             console.print(
@@ -412,7 +454,20 @@ def export_analysis(
             try:
                 import markdown
 
-                html = markdown.markdown(md_content)
+                # For HTML, render analysis and transcript separately
+                # so we can wrap transcript in collapsible <details>
+                analysis_html = markdown.markdown(analysis.get("markdown", ""))
+
+                transcript_html = ""
+                if transcript_md:
+                    transcript_body = markdown.markdown(transcript_md)
+                    transcript_html = f"""
+<hr>
+<details>
+  <summary><strong>📜 Full Transcript</strong> (click to expand)</summary>
+  {transcript_body}
+</details>"""
+
                 html_doc = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -422,10 +477,14 @@ def export_analysis(
         body {{ font-family: -apple-system, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }}
         h1, h2, h3 {{ color: #333; }}
         blockquote {{ border-left: 3px solid #ccc; padding-left: 1rem; color: #666; }}
+        details {{ margin-top: 2rem; }}
+        details summary {{ cursor: pointer; padding: 0.5rem; background: #f5f5f5; border-radius: 4px; }}
+        details summary:hover {{ background: #e8e8e8; }}
     </style>
 </head>
 <body>
-{html}
+{analysis_html}
+{transcript_html}
 </body>
 </html>"""
                 output_path.write_text(html_doc, encoding="utf-8")
