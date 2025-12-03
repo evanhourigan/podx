@@ -2,6 +2,26 @@
 
 Project-specific instructions for Claude Code when working on the PodX codebase.
 
+## Planning Multi-Step Features
+
+For non-trivial features (more than a few file edits):
+
+1. **Create a plan file** with implementation checklist in `~/.claude/plans/` or `.ai-docs/`
+2. **Include progress tracking** - checkboxes to survive context compaction
+3. **Add recovery instructions** - "If context compacts, read this file and X for full context"
+4. **Update the plan file** as you complete steps (check off items)
+
+Example checklist format:
+```markdown
+## Implementation Progress
+- [x] 1. Completed step
+- [ ] 2. Current step  <-- mark "Current step: 2" below
+- [ ] 3. Next step
+
+**Current step**: 2
+**If context compacts**: Read this file and `.ai-docs/RELEVANT_RESEARCH.md`
+```
+
 ## Pre-commit Checklist
 
 Before committing any changes, always run these checks:
@@ -75,3 +95,17 @@ If CI fails after pushing:
 - Keep CHANGELOG.md up to date with user-facing changes
 - Update TROUBLESHOOTING.md for new error scenarios
 - Update .claude/CONTEXT.md to reflect current state
+
+## Release Workflow
+
+After all checks pass and changes are committed:
+
+1. **Push to main**: `git push`
+2. **Watch CI**: `gh run watch` - wait for all checks to pass
+3. **Tag the release** (after CI passes):
+   ```bash
+   git tag vX.Y.Z
+   git push origin vX.Y.Z
+   ```
+
+Always tag releases so users can reference specific versions.

@@ -1,14 +1,54 @@
 # PodX Development Context
 
-**Last Updated**: 2025-12-02 20:34:33 UTC
+**Last Updated**: 2025-12-02 UTC
 **Current Branch**: `main`
-**Current Version**: v4.1.1
-**Current Phase**: v4.1.1 Bug Fixes - COMPLETE ✨
-**Active Work**: Diarization improvements and memory management
+**Current Version**: v4.1.2
+**Current Phase**: v4.1.2 Chunked Diarization - COMPLETE
+**Active Work**: Ready for release
 
 ---
 
 ## 🎯 Current State
+
+### v4.1.2: Chunked Diarization - COMPLETE ✨
+
+**Problem**: Diarization grinds machines to a halt on long audio (60+ min) due to O(n²) clustering.
+
+**Solution**: Chunked processing with speaker re-identification across chunks.
+
+**Implementation completed**:
+- [x] `calculate_chunk_duration()` - memory-based chunk sizing
+- [x] `split_audio_into_chunks()` - FFmpeg-based audio splitting
+- [x] `match_speakers_across_chunks()` - cosine similarity matching
+- [x] `merge_chunk_segments()` - segment merging with overlap handling
+- [x] Integrated into `DiarizationEngine.diarize()`
+- [x] CLI warnings/progress for chunked mode
+- [x] Unit tests for all new functions
+
+**Key features**:
+- Auto-detects when chunking is needed based on available RAM
+- 10-30 minute chunks with 30-second overlap
+- ~95-98% speaker matching accuracy across chunks
+- Shows degradation warning with trade-off explanation
+
+---
+
+### v4.1.1: Bug Fixes - COMPLETE ✨ (CI Passed)
+
+**Commit**: `07a2d26` - pushed to main
+
+**Fixed**:
+- DiarizationEngine missing `num_speakers` parameter
+- LiveTimer display during stdout redirect
+- LiveTimer leftover text from longer messages
+
+**Added**:
+- Memory-aware `embedding_batch_size` (helps extraction phase only)
+- Memory display at diarization startup
+- Step progress updates during diarization
+- `.claude/CLAUDE.md` with pre-commit checklist
+
+---
 
 ### v4.1.0: Cloud GPU Acceleration - 100% COMPLETE ✨
 

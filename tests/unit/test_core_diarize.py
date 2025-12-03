@@ -8,9 +8,18 @@ import os
 import sys
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 
-from podx.core.diarize import DiarizationEngine, DiarizationError, diarize_transcript
+from podx.core.diarize import (
+    DiarizationEngine,
+    DiarizationError,
+    calculate_chunk_duration,
+    diarize_transcript,
+    estimate_memory_required,
+    match_speakers_across_chunks,
+    merge_chunk_segments,
+)
 
 
 @pytest.fixture
@@ -106,6 +115,20 @@ def sample_diarized_result():
             },
         ]
     }
+
+
+@pytest.fixture(autouse=True)
+def mock_memory_and_duration():
+    """Fixture to mock memory and duration functions for all diarize tests.
+
+    This prevents tests from requiring ffprobe and real memory checks.
+    Returns 16GB available memory and 5 minute audio duration.
+    """
+    with (
+        patch("podx.core.diarize.get_memory_info", return_value=(16.0, 32.0)),
+        patch("podx.core.diarize.get_audio_duration", return_value=5.0),
+    ):
+        yield
 
 
 class TestDiarizationEngineInit:
@@ -577,3 +600,254 @@ class TestEdgeCases:
         assert len(speakers) == 2
         assert "SPEAKER_00" in speakers
         assert "SPEAKER_01" in speakers
+
+
+# =============================================================================
+# Tests for v4.1.2 Chunked Diarization Functions
+# =============================================================================
+
+
+class TestEstimateMemoryRequired:
+    """Test memory estimation function."""
+
+    def test_short_audio(self):
+        """Test memory estimate for short audio."""
+        # 10 minutes should need: 2.0 + (10 * 0.15) = 3.5 GB
+        result = estimate_memory_required(10.0)
+        assert result == pytest.approx(3.5, rel=0.01)
+
+    def test_long_audio(self):
+        """Test memory estimate for long audio."""
+        # 60 minutes should need: 2.0 + (60 * 0.15) = 11.0 GB
+        result = estimate_memory_required(60.0)
+        assert result == pytest.approx(11.0, rel=0.01)
+
+    def test_zero_duration(self):
+        """Test memory estimate for zero duration."""
+        # 0 minutes should just be base overhead
+        result = estimate_memory_required(0.0)
+        assert result == pytest.approx(2.0, rel=0.01)
+
+
+class TestCalculateChunkDuration:
+    """Test chunk duration calculation."""
+
+    def test_enough_memory_no_chunking(self):
+        """Test that chunking is not needed when memory is sufficient."""
+        # 16 GB available, 30 min audio
+        # Processable: (16 * 0.8 - 2) / 0.15 = 72 min
+        chunk_duration, needs_chunking = calculate_chunk_duration(16.0, 30.0)
+        assert needs_chunking is False
+        assert chunk_duration == pytest.approx(30.0, rel=0.01)
+
+    def test_low_memory_needs_chunking(self):
+        """Test that chunking is needed when memory is limited."""
+        # 6 GB available, 60 min audio
+        # Processable: (6 * 0.8 - 2) / 0.15 = 18.67 min
+        chunk_duration, needs_chunking = calculate_chunk_duration(6.0, 60.0)
+        assert needs_chunking is True
+        # Should be clamped to processable minutes (18.67)
+        assert chunk_duration >= 10.0  # Minimum
+        assert chunk_duration <= 30.0  # Maximum
+
+    def test_very_low_memory_minimum_chunk(self):
+        """Test minimum chunk size is enforced."""
+        # 4 GB available, 90 min audio
+        # Processable: (4 * 0.8 - 2) / 0.15 = 8 min (below minimum)
+        chunk_duration, needs_chunking = calculate_chunk_duration(4.0, 90.0)
+        assert needs_chunking is True
+        assert chunk_duration == pytest.approx(10.0, rel=0.01)  # Minimum enforced
+
+    def test_high_memory_no_chunking_long_audio(self):
+        """Test no chunking needed with high memory even for long audio."""
+        # 24 GB available, 90 min audio
+        # Processable: (24 * 0.8 - 2) / 0.15 = 114.67 min
+        chunk_duration, needs_chunking = calculate_chunk_duration(24.0, 90.0)
+        assert needs_chunking is False
+
+
+class TestMatchSpeakersAcrossChunks:
+    """Test speaker matching across chunks."""
+
+    def test_first_chunk_identity_mapping(self):
+        """Test that first chunk returns identity mapping."""
+        embeddings_curr = {
+            "SPEAKER_00": np.array([1.0, 0.0, 0.0]),
+            "SPEAKER_01": np.array([0.0, 1.0, 0.0]),
+        }
+        mapping = match_speakers_across_chunks({}, embeddings_curr)
+
+        assert mapping == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
+
+    def test_matching_same_speakers(self):
+        """Test matching identical speakers across chunks."""
+        embeddings_prev = {
+            "SPEAKER_00": np.array([1.0, 0.0, 0.0]),
+            "SPEAKER_01": np.array([0.0, 1.0, 0.0]),
+        }
+        # Same embeddings in different chunk
+        embeddings_curr = {
+            "SPEAKER_00": np.array([1.0, 0.0, 0.0]),  # Should match prev SPEAKER_00
+            "SPEAKER_01": np.array([0.0, 1.0, 0.0]),  # Should match prev SPEAKER_01
+        }
+        mapping = match_speakers_across_chunks(embeddings_prev, embeddings_curr)
+
+        assert mapping["SPEAKER_00"] == "SPEAKER_00"
+        assert mapping["SPEAKER_01"] == "SPEAKER_01"
+
+    def test_matching_swapped_speakers(self):
+        """Test matching when speaker IDs are swapped in new chunk."""
+        embeddings_prev = {
+            "SPEAKER_00": np.array([1.0, 0.0, 0.0]),
+            "SPEAKER_01": np.array([0.0, 1.0, 0.0]),
+        }
+        # Embeddings swapped in new chunk
+        embeddings_curr = {
+            "SPEAKER_00": np.array([0.0, 1.0, 0.0]),  # Matches prev SPEAKER_01
+            "SPEAKER_01": np.array([1.0, 0.0, 0.0]),  # Matches prev SPEAKER_00
+        }
+        mapping = match_speakers_across_chunks(embeddings_prev, embeddings_curr)
+
+        assert mapping["SPEAKER_00"] == "SPEAKER_01"
+        assert mapping["SPEAKER_01"] == "SPEAKER_00"
+
+    def test_new_speaker_detected(self):
+        """Test detection of new speaker not in previous chunk."""
+        embeddings_prev = {
+            "SPEAKER_00": np.array([1.0, 0.0, 0.0]),
+        }
+        embeddings_curr = {
+            "SPEAKER_00": np.array([1.0, 0.0, 0.0]),  # Matches prev
+            "SPEAKER_01": np.array([0.0, 0.0, 1.0]),  # New speaker (orthogonal)
+        }
+        mapping = match_speakers_across_chunks(embeddings_prev, embeddings_curr)
+
+        assert mapping["SPEAKER_00"] == "SPEAKER_00"
+        # New speaker should get a new ID
+        assert mapping["SPEAKER_01"].startswith("SPEAKER_")
+        assert mapping["SPEAKER_01"] != "SPEAKER_00"
+
+    def test_threshold_respects_distance(self):
+        """Test that threshold correctly filters poor matches."""
+        embeddings_prev = {
+            "SPEAKER_00": np.array([1.0, 0.0, 0.0]),
+        }
+        # Very different embedding should not match
+        embeddings_curr = {
+            "SPEAKER_00": np.array([-1.0, 0.0, 0.0]),  # Opposite direction
+        }
+        mapping = match_speakers_across_chunks(
+            embeddings_prev, embeddings_curr, threshold=0.4
+        )
+
+        # Should be treated as new speaker due to high distance
+        assert mapping["SPEAKER_00"] != "SPEAKER_00"
+
+
+class TestMergeChunkSegments:
+    """Test segment merging across chunks."""
+
+    def test_simple_merge(self):
+        """Test basic segment merging."""
+        chunk1_result = {
+            "segments": [
+                {"text": "Hello", "start": 0.0, "end": 1.0, "speaker": "SPEAKER_00"}
+            ]
+        }
+        chunk2_result = {
+            "segments": [
+                {"text": "World", "start": 0.0, "end": 1.0, "speaker": "SPEAKER_00"}
+            ]
+        }
+
+        chunk_times = [(0.0, 60.0), (55.0, 120.0)]  # 5 sec overlap
+        speaker_mappings = [
+            {"SPEAKER_00": "SPEAKER_00"},
+            {"SPEAKER_00": "SPEAKER_00"},
+        ]
+
+        merged = merge_chunk_segments(
+            [chunk1_result, chunk2_result], chunk_times, speaker_mappings
+        )
+
+        assert len(merged) >= 1
+        # First segment should have absolute timestamp
+        assert merged[0]["start"] == pytest.approx(0.0, rel=0.01)
+
+    def test_speaker_remapping(self):
+        """Test that speakers are correctly remapped."""
+        chunk1_result = {
+            "segments": [
+                {"text": "Hi", "start": 0.0, "end": 1.0, "speaker": "SPEAKER_00"}
+            ]
+        }
+        chunk2_result = {
+            "segments": [
+                {
+                    "text": "Hey",
+                    "start": 0.0,
+                    "end": 1.0,
+                    "speaker": "SPEAKER_01",  # Different ID
+                }
+            ]
+        }
+
+        chunk_times = [(0.0, 60.0), (55.0, 120.0)]
+        # Mapping says chunk2's SPEAKER_01 is actually chunk1's SPEAKER_00
+        speaker_mappings = [
+            {"SPEAKER_00": "SPEAKER_00"},
+            {"SPEAKER_01": "SPEAKER_00"},  # Remap
+        ]
+
+        merged = merge_chunk_segments(
+            [chunk1_result, chunk2_result], chunk_times, speaker_mappings
+        )
+
+        # Second segment should be remapped to SPEAKER_00
+        if len(merged) > 1:
+            assert merged[1]["speaker"] == "SPEAKER_00"
+
+    def test_overlap_handling(self):
+        """Test that overlap regions are handled correctly."""
+        # Segment at 58 seconds in chunk1
+        chunk1_result = {
+            "segments": [
+                {
+                    "text": "End of first",
+                    "start": 58.0,
+                    "end": 59.0,
+                    "speaker": "SPEAKER_00",
+                }
+            ]
+        }
+        # Same segment appears at 3 seconds in chunk2 (due to overlap)
+        chunk2_result = {
+            "segments": [
+                {
+                    "text": "End of first",
+                    "start": 3.0,
+                    "end": 4.0,
+                    "speaker": "SPEAKER_00",
+                },
+                {
+                    "text": "Start of second",
+                    "start": 10.0,
+                    "end": 11.0,
+                    "speaker": "SPEAKER_00",
+                },
+            ]
+        }
+
+        chunk_times = [(0.0, 60.0), (55.0, 120.0)]  # 5 sec overlap
+        speaker_mappings = [
+            {"SPEAKER_00": "SPEAKER_00"},
+            {"SPEAKER_00": "SPEAKER_00"},
+        ]
+
+        merged = merge_chunk_segments(
+            [chunk1_result, chunk2_result], chunk_times, speaker_mappings
+        )
+
+        # Should not have duplicate segments from overlap
+        texts = [seg["text"] for seg in merged]
+        assert texts.count("End of first") <= 1

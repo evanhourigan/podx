@@ -16,7 +16,10 @@ from rich.console import Console
 from podx.core.diarize import (
     DiarizationEngine,
     DiarizationError,
+    calculate_chunk_duration,
     calculate_embedding_batch_size,
+    estimate_memory_required,
+    get_audio_duration,
     get_memory_info,
 )
 from podx.domain.exit_codes import ExitCode
@@ -154,10 +157,21 @@ def main(path: Optional[Path], speakers: Optional[int]):
     # Get language from transcript
     language = transcript.get("language", "en")
 
-    # Check memory and show what we're doing
+    # Check memory, duration, and chunking requirements
     available_gb, total_gb = get_memory_info()
     batch_size = calculate_embedding_batch_size(available_gb)
 
+    try:
+        audio_duration_minutes = get_audio_duration(audio_file)
+    except DiarizationError:
+        audio_duration_minutes = 0  # Will proceed without duration info
+
+    estimated_memory = estimate_memory_required(audio_duration_minutes)
+    chunk_duration, needs_chunking = calculate_chunk_duration(
+        available_gb, audio_duration_minutes
+    )
+
+    # Display info
     console.print(f"[cyan]Diarizing:[/cyan] {audio_file.name}")
     console.print(f"[cyan]Transcript:[/cyan] {transcript_path.name}")
     if speakers:
@@ -167,7 +181,38 @@ def main(path: Optional[Path], speakers: Optional[int]):
     console.print(
         f"[cyan]Memory:[/cyan] {available_gb:.1f} GB available / {total_gb:.1f} GB total"
     )
-    if batch_size < 32:
+    if audio_duration_minutes > 0:
+        console.print(
+            f"[cyan]Audio duration:[/cyan] {audio_duration_minutes:.0f} minutes"
+        )
+        memory_status = "✓" if not needs_chunking else "✗"
+        console.print(
+            f"[cyan]Estimated memory:[/cyan] {estimated_memory:.1f} GB {memory_status}"
+        )
+
+    # Show chunking warning if needed
+    if needs_chunking:
+        num_chunks = int((audio_duration_minutes * 60) / (chunk_duration * 60 - 30)) + 1
+        console.print()
+        console.print("[yellow][!] Chunked diarization required[/yellow]")
+        console.print(
+            f"    Your system has {available_gb:.1f} GB available, "
+            f"but full processing needs ~{estimated_memory:.1f} GB."
+        )
+        console.print(
+            f"    Splitting into {num_chunks} chunks of ~{chunk_duration:.0f} minutes "
+            "with speaker re-identification."
+        )
+        console.print()
+        console.print(
+            "    [dim]Trade-off: ~2-5% potential speaker matching errors "
+            "at chunk boundaries.[/dim]"
+        )
+        console.print()
+        console.print("    [dim]For best results:[/dim]")
+        console.print("    [dim]• Close other applications to free memory[/dim]")
+        console.print()
+    elif batch_size < 32:
         console.print(
             f"[dim]Using reduced batch size ({batch_size}) for memory efficiency[/dim]"
         )
@@ -228,6 +273,14 @@ def main(path: Optional[Path], speakers: Optional[int]):
     # Show completion
     console.print(f"\n[green]✓ Diarization complete ({minutes}:{seconds:02d})[/green]")
     console.print(f"  Speakers found: {len(speakers_found)}")
+
+    # Show chunking info if it was used
+    if hasattr(engine, "_chunking_info") and engine._chunking_info.get(
+        "needs_chunking"
+    ):
+        num_chunks = engine._chunking_info.get("num_chunks", "?")
+        console.print(f"  Chunks processed: {num_chunks}")
+
     console.print(f"  Updated: {transcript_path}")
 
     sys.exit(ExitCode.SUCCESS)

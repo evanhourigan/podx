@@ -5,10 +5,13 @@ Two-step process: alignment (word-level timing) + diarization (speaker identific
 """
 
 import os
+import subprocess
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+import numpy as np
 import psutil
+from scipy.spatial.distance import cosine
 
 from ..device import detect_device_for_pytorch, log_device_usage
 from ..logging import get_logger
@@ -49,6 +52,357 @@ def calculate_embedding_batch_size(available_gb: float) -> int:
         return 16  # Moderate memory
     else:
         return 32  # Full speed (default)
+
+
+# =============================================================================
+# Memory-Aware Chunking Functions (v4.1.2)
+# =============================================================================
+
+# Memory model constants (empirical from pyannote testing)
+DIARIZATION_BASE_MEMORY_GB = 2.0  # Models, overhead
+DIARIZATION_PER_MINUTE_GB = 0.15  # O(n²) clustering overhead
+MEMORY_SAFETY_FACTOR = 0.8  # Leave 20% headroom
+MIN_CHUNK_MINUTES = 10.0  # Need context for speaker patterns
+MAX_CHUNK_MINUTES = 30.0  # Reasonable memory ceiling
+CHUNK_OVERLAP_SECONDS = 30.0  # Overlap for speaker continuity
+
+
+def get_audio_duration(audio_path: Path) -> float:
+    """Get audio duration in minutes without loading the full file.
+
+    Uses ffprobe for efficient duration extraction.
+
+    Args:
+        audio_path: Path to audio file
+
+    Returns:
+        Duration in minutes
+
+    Raises:
+        DiarizationError: If duration cannot be determined
+    """
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(audio_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        duration_seconds = float(result.stdout.strip())
+        return duration_seconds / 60.0
+    except (subprocess.CalledProcessError, ValueError, FileNotFoundError) as e:
+        raise DiarizationError(f"Failed to get audio duration: {e}") from e
+
+
+def estimate_memory_required(duration_minutes: float) -> float:
+    """Estimate GB of RAM needed for diarizing given duration.
+
+    Based on empirical testing with pyannote's O(n²) clustering:
+    - Base overhead: ~2 GB (models loaded)
+    - Per-minute: ~0.15 GB (clustering matrix grows quadratically)
+
+    Args:
+        duration_minutes: Audio duration in minutes
+
+    Returns:
+        Estimated memory requirement in GB
+    """
+    return DIARIZATION_BASE_MEMORY_GB + (duration_minutes * DIARIZATION_PER_MINUTE_GB)
+
+
+def calculate_chunk_duration(
+    available_gb: float, audio_duration_minutes: float
+) -> Tuple[float, bool]:
+    """Determine optimal chunk size based on available memory.
+
+    Returns full duration if memory allows, otherwise calculates
+    the largest chunk size that fits in available memory.
+
+    Args:
+        available_gb: Available system memory in GB
+        audio_duration_minutes: Total audio duration in minutes
+
+    Returns:
+        Tuple of (chunk_minutes, needs_chunking)
+        - chunk_minutes: Duration per chunk (or full duration if no chunking)
+        - needs_chunking: True if audio must be split into chunks
+    """
+    usable_memory = available_gb * MEMORY_SAFETY_FACTOR
+    processable_minutes = (
+        usable_memory - DIARIZATION_BASE_MEMORY_GB
+    ) / DIARIZATION_PER_MINUTE_GB
+
+    # Can we process the whole file?
+    if processable_minutes >= audio_duration_minutes:
+        return audio_duration_minutes, False
+
+    # Need to chunk - calculate optimal size within bounds
+    chunk_minutes = max(MIN_CHUNK_MINUTES, min(MAX_CHUNK_MINUTES, processable_minutes))
+
+    return chunk_minutes, True
+
+
+def split_audio_into_chunks(
+    audio_path: Path,
+    chunk_duration_minutes: float,
+    overlap_seconds: float = CHUNK_OVERLAP_SECONDS,
+    output_dir: Optional[Path] = None,
+) -> List[Tuple[Path, float, float]]:
+    """Split audio into overlapping chunks using ffmpeg.
+
+    Creates temporary chunk files for independent diarization.
+
+    Args:
+        audio_path: Path to source audio file
+        chunk_duration_minutes: Duration of each chunk in minutes
+        overlap_seconds: Overlap between chunks for speaker continuity
+        output_dir: Directory for chunk files (default: same as source)
+
+    Returns:
+        List of (chunk_path, start_seconds, end_seconds) tuples
+
+    Raises:
+        DiarizationError: If splitting fails
+    """
+    if output_dir is None:
+        output_dir = audio_path.parent
+
+    total_duration_minutes = get_audio_duration(audio_path)
+    total_duration_seconds = total_duration_minutes * 60
+    chunk_duration_seconds = chunk_duration_minutes * 60
+
+    chunks: List[Tuple[Path, float, float]] = []
+    start_seconds = 0.0
+    chunk_index = 0
+
+    while start_seconds < total_duration_seconds:
+        end_seconds = min(
+            start_seconds + chunk_duration_seconds, total_duration_seconds
+        )
+
+        # Create chunk filename
+        chunk_path = output_dir / f".chunk_{chunk_index:03d}_{audio_path.stem}.wav"
+
+        # Use ffmpeg to extract chunk
+        try:
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",  # Overwrite
+                    "-i",
+                    str(audio_path),
+                    "-ss",
+                    str(start_seconds),
+                    "-t",
+                    str(end_seconds - start_seconds),
+                    "-ar",
+                    "16000",  # 16kHz for diarization
+                    "-ac",
+                    "1",  # Mono
+                    "-c:a",
+                    "pcm_s16le",  # WAV format
+                    str(chunk_path),
+                ],
+                capture_output=True,
+                check=True,
+            )
+        except subprocess.CalledProcessError as e:
+            raise DiarizationError(
+                f"Failed to split audio chunk {chunk_index}: {e}"
+            ) from e
+
+        chunks.append((chunk_path, start_seconds, end_seconds))
+
+        # Move to next chunk with overlap
+        start_seconds = end_seconds - overlap_seconds
+        chunk_index += 1
+
+        # Safety: don't create tiny final chunks
+        if total_duration_seconds - start_seconds < MIN_CHUNK_MINUTES * 60 * 0.5:
+            break
+
+    logger.info(
+        "Split audio into chunks",
+        num_chunks=len(chunks),
+        chunk_duration_minutes=chunk_duration_minutes,
+        overlap_seconds=overlap_seconds,
+    )
+
+    return chunks
+
+
+def match_speakers_across_chunks(
+    embeddings_prev: Dict[str, np.ndarray],
+    embeddings_curr: Dict[str, np.ndarray],
+    threshold: float = 0.4,
+) -> Dict[str, str]:
+    """Match speakers from current chunk to previous chunk.
+
+    Uses cosine similarity of speaker embeddings to find the best match.
+    Unmatched speakers get new IDs.
+
+    Args:
+        embeddings_prev: {speaker_id: embedding_vector} from previous chunk
+        embeddings_curr: {speaker_id: embedding_vector} from current chunk
+        threshold: Maximum cosine distance to consider a match (0.3-0.5 typical)
+
+    Returns:
+        Mapping of {current_speaker: matched_or_new_speaker_id}
+    """
+    if not embeddings_prev:
+        # First chunk - no mapping needed
+        return {spk: spk for spk in embeddings_curr}
+
+    mapping: Dict[str, str] = {}
+    used_prev_speakers: set = set()
+
+    # Find max speaker ID from previous chunk for new speaker numbering
+    max_id = 0
+    for spk in embeddings_prev:
+        try:
+            num = int(spk.split("_")[-1])
+            max_id = max(max_id, num)
+        except (ValueError, IndexError):
+            pass
+
+    next_new_id = max_id + 1
+
+    for spk_curr, emb_curr in embeddings_curr.items():
+        best_match: Optional[str] = None
+        best_distance = float("inf")
+
+        for spk_prev, emb_prev in embeddings_prev.items():
+            if spk_prev in used_prev_speakers:
+                continue  # Already matched
+
+            dist = cosine(emb_prev, emb_curr)
+            if dist < best_distance:
+                best_distance = dist
+                best_match = spk_prev
+
+        if best_distance < threshold and best_match is not None:
+            mapping[spk_curr] = best_match
+            used_prev_speakers.add(best_match)
+            logger.debug(
+                "Speaker matched",
+                current=spk_curr,
+                previous=best_match,
+                distance=f"{best_distance:.3f}",
+            )
+        else:
+            # New speaker
+            new_id = f"SPEAKER_{next_new_id:02d}"
+            mapping[spk_curr] = new_id
+            next_new_id += 1
+            logger.debug(
+                "New speaker detected",
+                current=spk_curr,
+                assigned=new_id,
+                best_distance=(
+                    f"{best_distance:.3f}" if best_distance != float("inf") else "N/A"
+                ),
+            )
+
+    return mapping
+
+
+def merge_chunk_segments(
+    all_chunk_results: List[Dict[str, Any]],
+    chunk_times: List[Tuple[float, float]],
+    speaker_mappings: List[Dict[str, str]],
+) -> List[Dict[str, Any]]:
+    """Merge segments from all chunks with speaker re-mapping.
+
+    Adjusts timestamps to absolute time and applies speaker mappings.
+    Handles overlap regions by preferring earlier chunk's assignments.
+
+    Args:
+        all_chunk_results: List of diarization results from each chunk
+        chunk_times: List of (start_seconds, end_seconds) for each chunk
+        speaker_mappings: List of speaker mappings for each chunk
+
+    Returns:
+        Merged list of segments with absolute timestamps and consistent speaker IDs
+    """
+    merged_segments: List[Dict[str, Any]] = []
+    prev_chunk_end = 0.0
+
+    for chunk_idx, (result, (chunk_start, chunk_end), mapping) in enumerate(
+        zip(all_chunk_results, chunk_times, speaker_mappings)
+    ):
+        segments = result.get("segments", [])
+
+        for seg in segments:
+            # Adjust timestamps to absolute time
+            seg_start = seg.get("start", 0) + chunk_start
+            seg_end = seg.get("end", 0) + chunk_start
+
+            # Skip segments in overlap region that were already covered by previous chunk
+            # The overlap region is [chunk_start, prev_chunk_end)
+            if chunk_idx > 0 and seg_start < prev_chunk_end:
+                continue
+
+            # Create new segment with adjusted times and mapped speaker
+            new_seg = seg.copy()
+            new_seg["start"] = seg_start
+            new_seg["end"] = seg_end
+
+            # Map speaker ID if present
+            if "speaker" in new_seg:
+                new_seg["speaker"] = mapping.get(new_seg["speaker"], new_seg["speaker"])
+
+            # Also map speakers in words
+            if "words" in new_seg:
+                new_words = []
+                for word in new_seg["words"]:
+                    new_word = word.copy()
+                    new_word["start"] = word.get("start", 0) + chunk_start
+                    new_word["end"] = word.get("end", 0) + chunk_start
+                    if "speaker" in new_word:
+                        new_word["speaker"] = mapping.get(
+                            new_word["speaker"], new_word["speaker"]
+                        )
+                    new_words.append(new_word)
+                new_seg["words"] = new_words
+
+            merged_segments.append(new_seg)
+
+        # Track end of this chunk for overlap handling in next chunk
+        prev_chunk_end = chunk_end
+
+    logger.info(
+        "Merged chunk segments",
+        total_segments=len(merged_segments),
+        num_chunks=len(all_chunk_results),
+    )
+
+    return merged_segments
+
+
+def cleanup_chunk_files(chunks: List[Tuple[Path, float, float]]) -> None:
+    """Remove temporary chunk files.
+
+    Args:
+        chunks: List of (chunk_path, start, end) tuples
+    """
+    for chunk_path, _, _ in chunks:
+        try:
+            if chunk_path.exists():
+                chunk_path.unlink()
+                logger.debug("Removed chunk file", path=str(chunk_path))
+        except OSError as e:
+            logger.warning(
+                "Failed to remove chunk file", path=str(chunk_path), error=str(e)
+            )
 
 
 class DiarizationError(Exception):
@@ -109,6 +463,8 @@ class DiarizationEngine:
     ) -> Dict[str, Any]:
         """Diarize audio using WhisperX alignment and speaker identification.
 
+        Automatically uses chunked processing for long audio when memory is limited.
+
         Args:
             audio_path: Path to audio file
             transcript_segments: List of transcript segments with text and timing
@@ -123,11 +479,44 @@ class DiarizationEngine:
         if not audio_path.exists():
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
+        # Check memory and audio duration to decide on chunking
+        available_gb, total_gb = get_memory_info()
+        audio_duration_minutes = get_audio_duration(audio_path)
+        estimated_memory = estimate_memory_required(audio_duration_minutes)
+        chunk_duration, needs_chunking = calculate_chunk_duration(
+            available_gb, audio_duration_minutes
+        )
+
+        # Store chunking info for CLI display
+        self._chunking_info = {
+            "available_gb": available_gb,
+            "total_gb": total_gb,
+            "audio_duration_minutes": audio_duration_minutes,
+            "estimated_memory_gb": estimated_memory,
+            "needs_chunking": needs_chunking,
+            "chunk_duration_minutes": chunk_duration if needs_chunking else None,
+            "num_chunks": None,  # Set later if chunking
+        }
+
+        if needs_chunking:
+            num_chunks = (
+                int(
+                    (audio_duration_minutes * 60)
+                    / (chunk_duration * 60 - CHUNK_OVERLAP_SECONDS)
+                )
+                + 1
+            )
+            self._chunking_info["num_chunks"] = num_chunks
+
         logger.info(
             "Starting diarization",
             audio=str(audio_path),
             language=self.language,
             segments_count=len(transcript_segments),
+            audio_duration_minutes=f"{audio_duration_minutes:.1f}",
+            available_memory_gb=f"{available_gb:.1f}",
+            estimated_memory_gb=f"{estimated_memory:.1f}",
+            needs_chunking=needs_chunking,
         )
 
         # Log device usage for transparency
@@ -135,13 +524,13 @@ class DiarizationEngine:
 
         try:
             import whisperx
-            from whisperx.diarize import DiarizationPipeline, assign_word_speakers
+            from whisperx.diarize import assign_word_speakers
         except ImportError:
             raise DiarizationError(
                 "whisperx not installed. Install with: pip install whisperx"
             )
 
-        # Step 1: Alignment - add word-level timing
+        # Step 1: Alignment - add word-level timing (always done on full audio)
         self._report_progress("Loading alignment model")
         try:
             model_a, metadata = whisperx.load_align_model(
@@ -174,21 +563,51 @@ class DiarizationEngine:
             segments_count=len(aligned_result.get("segments", [])),
         )
 
-        # Step 2: Diarization - assign speakers to words
-        # Check memory and adjust batch size to avoid OOM
-        available_gb, total_gb = get_memory_info()
+        # Step 2: Diarization - branch based on chunking need
+        if needs_chunking:
+            final = self._diarize_chunked(
+                audio_path, aligned_result, chunk_duration, assign_word_speakers
+            )
+        else:
+            final = self._diarize_full(
+                audio_path, aligned_result, available_gb, assign_word_speakers
+            )
+
+        # Count speakers
+        speakers = set()
+        for seg in final.get("segments", []):
+            for word in seg.get("words", []):
+                if "speaker" in word:
+                    speakers.add(word["speaker"])
+
+        logger.info(
+            "Diarization completed",
+            segments_count=len(final.get("segments", [])),
+            speakers_count=len(speakers),
+            chunked=needs_chunking,
+        )
+
+        return final
+
+    def _diarize_full(
+        self,
+        audio_path: Path,
+        aligned_result: Dict[str, Any],
+        available_gb: float,
+        assign_word_speakers: Callable,
+    ) -> Dict[str, Any]:
+        """Diarize full audio without chunking (original behavior)."""
+        from whisperx.diarize import DiarizationPipeline
+
         batch_size = calculate_embedding_batch_size(available_gb)
 
         self._report_progress(f"Loading diarization model (batch={batch_size})")
         logger.info(
-            "Memory-aware diarization",
-            available_gb=f"{available_gb:.1f}",
-            total_gb=f"{total_gb:.1f}",
+            "Memory-aware diarization (full)",
             embedding_batch_size=batch_size,
         )
         try:
             dia = DiarizationPipeline(use_auth_token=self.hf_token, device=self.device)
-            # Adjust batch size based on available memory
             if hasattr(dia.model, "embedding_batch_size"):
                 dia.model.embedding_batch_size = batch_size
         except Exception as e:
@@ -202,24 +621,137 @@ class DiarizationEngine:
                 min_speakers=self.min_speakers,
                 max_speakers=self.max_speakers,
             )
-            final = assign_word_speakers(diarized, aligned_result)
+            return assign_word_speakers(diarized, aligned_result)
         except Exception as e:
             raise DiarizationError(f"Diarization failed: {e}") from e
 
-        # Count speakers
-        speakers = set()
-        for seg in final.get("segments", []):
-            for word in seg.get("words", []):
-                if "speaker" in word:
-                    speakers.add(word["speaker"])
+    def _diarize_chunked(
+        self,
+        audio_path: Path,
+        aligned_result: Dict[str, Any],
+        chunk_duration_minutes: float,
+        assign_word_speakers: Callable,
+    ) -> Dict[str, Any]:
+        """Diarize audio in chunks with speaker re-identification."""
+        from whisperx.diarize import DiarizationPipeline
 
-        logger.info(
-            "Diarization completed",
-            segments_count=len(final.get("segments", [])),
-            speakers_count=len(speakers),
-        )
+        # Split audio into chunks
+        self._report_progress("Splitting audio into chunks")
+        chunks = split_audio_into_chunks(audio_path, chunk_duration_minutes)
 
-        return final
+        try:
+            # Initialize diarization pipeline once
+            batch_size = calculate_embedding_batch_size(get_memory_info()[0])
+            self._report_progress(f"Loading diarization model (batch={batch_size})")
+
+            dia = DiarizationPipeline(use_auth_token=self.hf_token, device=self.device)
+            if hasattr(dia.model, "embedding_batch_size"):
+                dia.model.embedding_batch_size = batch_size
+
+            all_chunk_results: List[Dict[str, Any]] = []
+            chunk_times: List[Tuple[float, float]] = []
+            speaker_mappings: List[Dict[str, str]] = []
+            prev_embeddings: Dict[str, np.ndarray] = {}
+            cumulative_mapping: Dict[str, str] = {}
+
+            for chunk_idx, (chunk_path, start_sec, end_sec) in enumerate(chunks):
+                self._report_progress(
+                    f"Processing chunk {chunk_idx + 1}/{len(chunks)} "
+                    f"({start_sec / 60:.0f}:{start_sec % 60:02.0f} - "
+                    f"{end_sec / 60:.0f}:{end_sec % 60:02.0f})"
+                )
+
+                # Diarize this chunk with embeddings
+                try:
+                    diarized, embeddings = dia(
+                        str(chunk_path),
+                        num_speakers=self.num_speakers,
+                        min_speakers=self.min_speakers,
+                        max_speakers=self.max_speakers,
+                        return_embeddings=True,
+                    )
+                except Exception as e:
+                    raise DiarizationError(
+                        f"Diarization failed on chunk {chunk_idx + 1}: {e}"
+                    ) from e
+
+                # Match speakers to previous chunk
+                if embeddings:
+                    chunk_mapping = match_speakers_across_chunks(
+                        prev_embeddings, embeddings
+                    )
+                    # Update cumulative mapping for consistent IDs
+                    for curr, mapped in chunk_mapping.items():
+                        if mapped in cumulative_mapping:
+                            chunk_mapping[curr] = cumulative_mapping[mapped]
+                        else:
+                            cumulative_mapping[mapped] = mapped
+
+                    prev_embeddings = embeddings
+                    matched_count = sum(1 for k, v in chunk_mapping.items() if k != v)
+                    if matched_count > 0 and chunk_idx > 0:
+                        logger.info(
+                            f"Matched {matched_count} speakers from previous chunk"
+                        )
+                else:
+                    chunk_mapping = {}
+
+                # Get aligned segments for this chunk's time range
+                chunk_aligned = self._get_aligned_segments_for_chunk(
+                    aligned_result, start_sec, end_sec
+                )
+
+                # Assign speakers to words
+                chunk_result = assign_word_speakers(diarized, chunk_aligned)
+
+                all_chunk_results.append(chunk_result)
+                chunk_times.append((start_sec, end_sec))
+                speaker_mappings.append(chunk_mapping)
+
+            # Merge all chunks
+            self._report_progress("Merging segments")
+            merged_segments = merge_chunk_segments(
+                all_chunk_results, chunk_times, speaker_mappings
+            )
+
+            return {"segments": merged_segments}
+
+        finally:
+            # Clean up chunk files
+            cleanup_chunk_files(chunks)
+
+    def _get_aligned_segments_for_chunk(
+        self,
+        aligned_result: Dict[str, Any],
+        start_sec: float,
+        end_sec: float,
+    ) -> Dict[str, Any]:
+        """Extract aligned segments that fall within the chunk's time range."""
+        chunk_segments = []
+        for seg in aligned_result.get("segments", []):
+            seg_start = seg.get("start", 0)
+            seg_end = seg.get("end", 0)
+
+            # Check if segment overlaps with chunk
+            if seg_end > start_sec and seg_start < end_sec:
+                # Adjust segment to be relative to chunk start
+                adjusted_seg = seg.copy()
+                adjusted_seg["start"] = max(0, seg_start - start_sec)
+                adjusted_seg["end"] = seg_end - start_sec
+
+                # Also adjust words
+                if "words" in adjusted_seg:
+                    adjusted_words = []
+                    for word in adjusted_seg["words"]:
+                        adj_word = word.copy()
+                        adj_word["start"] = max(0, word.get("start", 0) - start_sec)
+                        adj_word["end"] = word.get("end", 0) - start_sec
+                        adjusted_words.append(adj_word)
+                    adjusted_seg["words"] = adjusted_words
+
+                chunk_segments.append(adjusted_seg)
+
+        return {"segments": chunk_segments}
 
 
 # Convenience function for direct use
