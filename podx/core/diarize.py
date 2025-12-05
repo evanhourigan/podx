@@ -81,6 +81,10 @@ def get_audio_duration(audio_path: Path) -> float:
     Raises:
         DiarizationError: If duration cannot be determined
     """
+    # Verify file exists first for clearer error messages
+    if not audio_path.exists():
+        raise DiarizationError(f"Audio file not found: {audio_path}")
+
     try:
         result = subprocess.run(
             [
@@ -99,7 +103,13 @@ def get_audio_duration(audio_path: Path) -> float:
         )
         duration_seconds = float(result.stdout.strip())
         return duration_seconds / 60.0
-    except (subprocess.CalledProcessError, ValueError, FileNotFoundError) as e:
+    except subprocess.CalledProcessError as e:
+        # Include stderr in error message for better debugging
+        stderr_msg = e.stderr.strip() if e.stderr else "unknown error"
+        raise DiarizationError(
+            f"Failed to get audio duration for {audio_path.name}: {stderr_msg}"
+        ) from e
+    except (ValueError, FileNotFoundError) as e:
         raise DiarizationError(f"Failed to get audio duration: {e}") from e
 
 
