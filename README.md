@@ -442,6 +442,7 @@ markdown, insights = analyzer.analyze(diarized, metadata)
 | `podx fetch` | Download podcast episodes |
 | `podx transcribe` | Convert audio to text |
 | `podx diarize` | Add speaker labels |
+| `podx cleanup` | Clean up transcript text |
 | `podx analyze` | Generate AI analysis |
 | `podx export` | Export to various formats |
 | `podx run` | Full pipeline wizard |
@@ -459,6 +460,7 @@ Run any command without arguments for interactive mode:
 podx fetch           # Search podcasts, browse episodes, download
 podx transcribe      # Select episode, transcribe audio
 podx diarize         # Select episode, add speaker labels
+podx cleanup         # Select episode, clean up transcript
 podx analyze         # Select episode, generate AI analysis
 podx run             # Full pipeline wizard
 ```

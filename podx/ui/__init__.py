@@ -51,6 +51,11 @@ from .prompts import (
     validate_llm_model,
     validate_template,
 )
+from .speaker_identify import (
+    apply_speaker_names,
+    has_generic_speaker_ids,
+    identify_speakers_interactive,
+)
 
 __all__ = [
     # From ui_styles.py
@@ -98,4 +103,8 @@ __all__ = [
     "validate_language",
     "validate_llm_model",
     "validate_template",
+    # Speaker identification
+    "apply_speaker_names",
+    "has_generic_speaker_ids",
+    "identify_speakers_interactive",
 ]

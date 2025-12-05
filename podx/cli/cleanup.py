@@ -14,7 +14,13 @@ from rich.console import Console
 from podx.core.preprocess import PreprocessError, TranscriptPreprocessor
 from podx.domain.exit_codes import ExitCode
 from podx.logging import get_logger
-from podx.ui import LiveTimer, select_episode_interactive
+from podx.ui import (
+    LiveTimer,
+    apply_speaker_names,
+    has_generic_speaker_ids,
+    identify_speakers_interactive,
+    select_episode_interactive,
+)
 
 logger = get_logger(__name__)
 console = Console()
@@ -49,6 +55,7 @@ def main(path: Optional[Path], no_restore: bool):
 
     \b
     Processing:
+      - Identifies speakers interactively (if diarized with SPEAKER_XX labels)
       - Merges short adjacent segments into readable paragraphs
       - Normalizes whitespace and punctuation spacing
       - Restores proper punctuation/capitalization via LLM (unless --no-restore)
@@ -65,9 +72,10 @@ def main(path: Optional[Path], no_restore: bool):
 
     \b
     Examples:
-      podx cleanup                        # Interactive selection
-      podx cleanup ./Show/2024-11-24-ep/  # Direct path, with restore
-      podx cleanup . --no-restore         # Current dir, skip LLM restore
+      podx cleanup                              # Interactive selection
+      podx cleanup ./Show/2024-11-24-ep/        # Direct path, with restore
+      podx cleanup . --no-restore               # Current dir, skip LLM restore
+      podx cleanup . --no-identify-speakers     # Skip speaker identification
     """
     # Track if we're in interactive mode
     interactive_mode = path is None
@@ -150,6 +158,44 @@ def main(path: Optional[Path], no_restore: bool):
     if "segments" not in transcript:
         console.print("[red]Error:[/red] transcript.json missing 'segments' field")
         sys.exit(ExitCode.USER_ERROR)
+
+    # Speaker identification for diarized transcripts
+    # Only prompt in interactive mode if transcript has generic SPEAKER_XX labels
+    do_identify_speakers = False
+    if (
+        interactive_mode
+        and transcript.get("diarized")
+        and has_generic_speaker_ids(transcript["segments"])
+    ):
+        try:
+            identify_choice = (
+                input(
+                    "Identify speakers? (recommended for diarized transcripts) [Y/n]: "
+                )
+                .strip()
+                .lower()
+            )
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[dim]Cancelled[/dim]")
+            sys.exit(0)
+        do_identify_speakers = identify_choice not in ("n", "no")
+
+    # Run speaker identification if requested
+    speaker_map: dict = {}
+    if do_identify_speakers:
+        try:
+            speaker_map = identify_speakers_interactive(transcript["segments"])
+            if speaker_map:
+                # Apply names to transcript
+                transcript["segments"] = apply_speaker_names(
+                    transcript["segments"], speaker_map
+                )
+                console.print(
+                    f"[green]✓ Identified {len(speaker_map)} speaker(s)[/green]"
+                )
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[dim]Speaker identification cancelled[/dim]")
+            # Continue with cleanup using original speaker IDs
 
     # Check for restore without API key (non-interactive mode)
     do_restore = not no_restore

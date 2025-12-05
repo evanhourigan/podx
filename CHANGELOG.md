@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ Added
+
+- **Speaker identification in `podx cleanup`** - Interactive mode now prompts to identify speakers when transcript has generic SPEAKER_XX labels
+  - Shows sample utterances per speaker
+  - Type `?` or `more` to see additional samples
+  - Speaker names are saved to transcript.json
+
+- **Claude Opus 4.5 model** - Added `anthropic:claude-opus-4-5` to available LLM models for analysis
+
+### 🐛 Fixed
+
+- **Notion config loading** - `notion-database-id` now correctly loads from config file when env var not set
+- **Notion publishing display** - Shows "Show Name (Date): Episode Title" instead of directory name
+- **Notion markdown rendering** - Improved list numbering and nested list support in `md_to_blocks()`
+- **Analysis template formatting** - Templates now use `## Heading` format for proper Notion rendering (instead of numbered lists)
+- **Analysis follow-up removal** - LLM no longer adds conversational follow-ups like "Would you like me to..."
+- **Rich markup escaping** - Fixed yellow highlighting on colons in model names
+- **Diarization error messages** - Better error messages when audio file not found
+
 ## [4.1.2] - 2025-12-02
 
 ### 🚀 Chunked Diarization
