@@ -119,12 +119,15 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
 
     Supports:
     - # ## ### headings
-    - - * + bullets
+    - - * + bullets (with 2-space indentation for nesting)
     - 1. numbered lists
     - > quote
     - ``` code fences
     - --- divider
     - paragraphs
+
+    Note: Notion auto-numbers consecutive numbered_list_item blocks.
+    Empty lines between list items are skipped to preserve numbering.
     """
     lines = md.replace("\r\n", "\n").split("\n")
     blocks: List[Dict[str, Any]] = []
@@ -147,7 +150,25 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
             )
             code_buf = []
 
-    for raw in lines:
+    def get_indent_level(line: str) -> int:
+        """Get indentation level (each 2 spaces = 1 level)."""
+        stripped = line.lstrip()
+        if not stripped:
+            return 0
+        indent = len(line) - len(stripped)
+        return indent // 2
+
+    def is_list_item(line: str) -> bool:
+        """Check if line is a bullet or numbered list item."""
+        stripped = line.strip()
+        return bool(
+            re.match(r"^[-*+]\s+", stripped) or re.match(r"^\d+\.\s+", stripped)
+        )
+
+    # First pass: collect all lines with metadata
+    i = 0
+    while i < len(lines):
+        raw = lines[i]
         line = raw.rstrip()
 
         # Code fence
@@ -158,15 +179,18 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
             else:
                 in_code = True
                 code_buf = []
+            i += 1
             continue
 
         if in_code:
             code_buf.append(line)
+            i += 1
             continue
 
         # Divider
         if re.match(r"^\s*[-*_]{3,}\s*$", line):
             blocks.append({"object": "block", "type": "divider", "divider": {}})
+            i += 1
             continue
 
         # Headings
@@ -182,6 +206,7 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
                     heading_type: {"rich_text": parse_inline_markdown(text)},
                 }
             )
+            i += 1
             continue
 
         # Quote
@@ -194,50 +219,97 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
                     "quote": {"rich_text": parse_inline_markdown(qm.group(1))},
                 }
             )
+            i += 1
             continue
 
-        # Bulleted list
-        bm = re.match(r"^\s*[-*+]\s+(.+)$", line)
+        # Bulleted list (check indentation for potential nesting)
+        bm = re.match(r"^(\s*)[-*+]\s+(.+)$", line)
         if bm:
-            blocks.append(
-                {
-                    "object": "block",
-                    "type": "bulleted_list_item",
-                    "bulleted_list_item": {
-                        "rich_text": parse_inline_markdown(bm.group(1))
-                    },
-                }
-            )
+            indent = len(bm.group(1))
+            text = bm.group(2)
+            block = {
+                "object": "block",
+                "type": "bulleted_list_item",
+                "bulleted_list_item": {"rich_text": parse_inline_markdown(text)},
+            }
+
+            # Handle nesting: if indented and previous block is a list item, nest it
+            if indent >= 2 and blocks:
+                parent = blocks[-1]
+                if parent["type"] in ("bulleted_list_item", "numbered_list_item"):
+                    # Add as child of parent
+                    parent_key = parent["type"]
+                    if "children" not in parent[parent_key]:
+                        parent[parent_key]["children"] = []
+                    parent[parent_key]["children"].append(block)
+                    i += 1
+                    continue
+
+            blocks.append(block)
+            i += 1
             continue
 
         # Numbered list
-        nm = re.match(r"^\s*(\d+)\.\s+(.+)$", line)
+        nm = re.match(r"^(\s*)(\d+)\.\s+(.+)$", line)
         if nm:
-            blocks.append(
-                {
-                    "object": "block",
-                    "type": "numbered_list_item",
-                    "numbered_list_item": {
-                        "rich_text": parse_inline_markdown(nm.group(2))
-                    },
-                }
-            )
+            indent = len(nm.group(1))
+            text = nm.group(3)
+            block = {
+                "object": "block",
+                "type": "numbered_list_item",
+                "numbered_list_item": {"rich_text": parse_inline_markdown(text)},
+            }
+
+            # Handle nesting
+            if indent >= 2 and blocks:
+                parent = blocks[-1]
+                if parent["type"] in ("bulleted_list_item", "numbered_list_item"):
+                    parent_key = parent["type"]
+                    if "children" not in parent[parent_key]:
+                        parent[parent_key]["children"] = []
+                    parent[parent_key]["children"].append(block)
+                    i += 1
+                    continue
+
+            blocks.append(block)
+            i += 1
             continue
 
-        # Paragraph / blank
+        # Blank line - skip if between list items to preserve Notion numbering
         if not line.strip():
+            # Look ahead to see if next non-blank line is a list item
+            # If so, skip this blank line to keep list contiguous
+            j = i + 1
+            while j < len(lines) and not lines[j].strip():
+                j += 1
+
+            if j < len(lines) and is_list_item(lines[j]):
+                # Check if we're currently in a list
+                if blocks and blocks[-1]["type"] in (
+                    "bulleted_list_item",
+                    "numbered_list_item",
+                ):
+                    # Skip blank line to keep list together
+                    i += 1
+                    continue
+
+            # Otherwise add blank paragraph
             blocks.append(
                 {"object": "block", "type": "paragraph", "paragraph": {"rich_text": []}}
             )
-        else:
-            rich_text = parse_inline_markdown(line)
-            blocks.append(
-                {
-                    "object": "block",
-                    "type": "paragraph",
-                    "paragraph": {"rich_text": rich_text},
-                }
-            )
+            i += 1
+            continue
+
+        # Regular paragraph
+        rich_text = parse_inline_markdown(line)
+        blocks.append(
+            {
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {"rich_text": rich_text},
+            }
+        )
+        i += 1
 
     if in_code:
         flush_code()
