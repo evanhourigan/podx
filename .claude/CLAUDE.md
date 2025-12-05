@@ -2,6 +2,52 @@
 
 Project-specific instructions for Claude Code when working on the PodX codebase.
 
+## Core Workflow Principles
+
+### 1. Commit Early and Often (But Don't Push)
+
+**ALWAYS commit changes as you complete them.** Create atomic commits for each logical change:
+- One commit per feature, bug fix, or improvement
+- Include relevant documentation updates IN THE SAME COMMIT as the code change
+- **DO NOT push** until user explicitly requests it or approves the commit history
+
+This allows the user to review, reorder, squash, or amend commits before pushing.
+
+### 2. Documentation Is Part of the Change
+
+**Every code change that affects user-facing behavior MUST include documentation updates in the same commit:**
+
+- **New features/commands**: Update README.md command table, add usage examples
+- **Bug fixes**: Update CHANGELOG.md (in Unreleased section)
+- **New options/flags**: Update command help text and README
+- **Breaking changes**: Update CHANGELOG.md, MIGRATION docs if needed
+- **Error handling changes**: Update TROUBLESHOOTING.md
+
+Ask yourself: "If a user reads only the docs, will they know about this change?"
+
+### 3. Pre-Push Verification (CI Simulation)
+
+**Before pushing, run the FULL CI pipeline locally:**
+
+```bash
+# 1. Run all tests
+pytest tests/
+
+# 2. Run linting
+ruff check podx/
+
+# 3. Run formatters (check mode)
+black --check podx/
+isort --check-only podx/
+
+# 4. Fix any issues if needed
+ruff check podx/ --fix
+black podx/
+isort podx/
+```
+
+**Only push after ALL checks pass locally.** This prevents CI failures and wasted iteration cycles.
+
 ## Planning Multi-Step Features
 
 For non-trivial features (more than a few file edits):
@@ -22,46 +68,47 @@ Example checklist format:
 **If context compacts**: Read this file and `.ai-docs/RELEVANT_RESEARCH.md`
 ```
 
+## Commit Message Format
+
+Use conventional commits:
+```
+type(scope): short description
+
+Longer description if needed.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+```
+
+Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`
+
 ## Pre-commit Checklist
 
-Before committing any changes, always run these checks:
+Before committing any changes:
 
-1. **Run tests**:
-   ```bash
-   pytest tests/
-   ```
-
-2. **Run linting**:
-   ```bash
-   ruff check podx/
-   ```
-
-3. **Run formatter checks**:
-   ```bash
-   black --check podx/
-   isort --check-only podx/
-   ```
-
-4. **Fix any issues** - If checks fail:
+1. **Run tests**: `pytest tests/`
+2. **Run linting**: `ruff check podx/`
+3. **Run formatter checks**: `black --check podx/ && isort --check-only podx/`
+4. **Fix any issues**:
    ```bash
    ruff check podx/ --fix
    black podx/
    isort podx/
    ```
+5. **Update documentation** (CHANGELOG.md, README.md, docs/) as needed
+6. **Version bump** if releasing (see below)
 
-5. **Evaluate documentation** - Consider if changes need:
-   - CHANGELOG.md updates
-   - README.md updates
-   - docs/ updates (TROUBLESHOOTING.md, etc.)
+## Version Bumping
 
-6. **Version bumping** - Follow semantic versioning:
-   - **Patch** (4.1.0 → 4.1.1): Bug fixes, minor improvements
-   - **Minor** (4.1.0 → 4.2.0): New features, backwards compatible
-   - **Major** (4.1.0 → 5.0.0): Breaking changes
+Follow semantic versioning:
+- **Patch** (4.1.0 → 4.1.1): Bug fixes, minor improvements
+- **Minor** (4.1.0 → 4.2.0): New features, backwards compatible
+- **Major** (4.1.0 → 5.0.0): Breaking changes
 
-   Update version in:
-   - `podx/__init__.py` (`__version__`)
-   - `CHANGELOG.md` (add new section)
+Update version in:
+- `podx/__init__.py` (`__version__`)
+- `CHANGELOG.md` (add new section with date)
 
 ## CI Failure Protocol
 
@@ -90,15 +137,19 @@ If CI fails after pushing:
 - Run specific tests during development: `pytest tests/ -k "keyword"`
 - Tests should pass locally before pushing
 
-## Documentation
+## Documentation Files
 
-- Keep CHANGELOG.md up to date with user-facing changes
-- Update TROUBLESHOOTING.md for new error scenarios
-- Update .claude/CONTEXT.md to reflect current state
+| File | Purpose |
+|------|---------|
+| `README.md` | User-facing docs, command reference, examples |
+| `CHANGELOG.md` | Release notes, what changed between versions |
+| `docs/TROUBLESHOOTING.md` | Common errors and solutions |
+| `docs/QUICKSTART.md` | Getting started guide |
+| `.claude/CONTEXT.md` | Internal context for Claude Code |
 
 ## Release Workflow
 
-After all checks pass and changes are committed:
+After all checks pass and user approves commits:
 
 1. **Push to main**: `git push`
 2. **Watch CI**: `gh run watch` - wait for all checks to pass
