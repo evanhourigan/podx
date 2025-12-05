@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Analysis follow-up removal** - LLM no longer adds conversational follow-ups like "Would you like me to..."
 - **Rich markup escaping** - Fixed yellow highlighting on colons in model names
 - **Diarization error messages** - Better error messages when audio file not found
+- **Cleanup preserves speaker labels** - `podx cleanup` no longer strips speaker labels when merging segments; also respects speaker boundaries when merging
 
 ## [4.1.2] - 2025-12-02
 

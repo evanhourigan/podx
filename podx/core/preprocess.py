@@ -74,13 +74,13 @@ class TranscriptPreprocessor:
             self.llm_provider = None
 
     def merge_segments(self, segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Merge adjacent segments based on timing gaps and length.
+        """Merge adjacent segments based on timing gaps, length, and speaker.
 
         Args:
-            segments: List of segment dictionaries with text, start, end
+            segments: List of segment dictionaries with text, start, end, and optionally speaker
 
         Returns:
-            List of merged segments
+            List of merged segments (preserving speaker labels)
         """
         if not segments:
             return []
@@ -91,12 +91,19 @@ class TranscriptPreprocessor:
             "start": segments[0]["start"],
             "end": segments[0]["end"],
         }
+        # Preserve speaker if present
+        if "speaker" in segments[0]:
+            current["speaker"] = segments[0]["speaker"]
 
         for seg in segments[1:]:
             gap = float(seg["start"]) - float(current["end"])
+            same_speaker = current.get("speaker") == seg.get("speaker")
+
+            # Only merge if: small gap, within length limit, AND same speaker (or both have no speaker)
             if (
                 gap < self.max_gap
                 and len(current["text"]) + len(seg["text"]) < self.max_len
+                and same_speaker
             ):
                 current["text"] += " " + seg["text"]
                 current["end"] = seg["end"]
@@ -107,6 +114,9 @@ class TranscriptPreprocessor:
                     "start": seg["start"],
                     "end": seg["end"],
                 }
+                # Preserve speaker if present
+                if "speaker" in seg:
+                    current["speaker"] = seg["speaker"]
 
         merged.append(current)
         return merged
