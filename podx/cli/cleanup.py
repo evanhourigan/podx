@@ -44,7 +44,12 @@ def _check_openai_key() -> bool:
     is_flag=True,
     help="Skip LLM restoration (free, local processing only)",
 )
-def main(path: Optional[Path], no_restore: bool):
+@click.option(
+    "--no-skip-ads",
+    is_flag=True,
+    help="Keep advertisement segments (default: filter them out)",
+)
+def main(path: Optional[Path], no_restore: bool, no_skip_ads: bool):
     """Clean up transcript text for readability and improved LLM analysis.
 
     \b
@@ -55,6 +60,7 @@ def main(path: Optional[Path], no_restore: bool):
 
     \b
     Processing:
+      - Filters out advertisement segments via LLM (unless --no-skip-ads)
       - Identifies speakers interactively (if diarized with SPEAKER_XX labels)
       - Merges short adjacent segments into readable paragraphs
       - Normalizes whitespace and punctuation spacing
@@ -63,19 +69,21 @@ def main(path: Optional[Path], no_restore: bool):
     \b
     Options:
       --no-restore    Skip LLM restoration (free, local processing only)
+      --no-skip-ads   Keep advertisement segments (default: filter them out)
 
     \b
     Notes:
       - Episode must have transcript.json (run 'podx transcribe' first)
       - Run after 'podx diarize' if you want speaker labels preserved
-      - Restore uses OpenAI API (~$0.02/hr), requires OPENAI_API_KEY
+      - LLM features use OpenAI API (~$0.03/hr), requires OPENAI_API_KEY
+      - Ad filtering is tied to restore (--no-restore also skips ad filtering)
 
     \b
     Examples:
       podx cleanup                              # Interactive selection
-      podx cleanup ./Show/2024-11-24-ep/        # Direct path, with restore
-      podx cleanup . --no-restore               # Current dir, skip LLM restore
-      podx cleanup . --no-identify-speakers     # Skip speaker identification
+      podx cleanup ./Show/2024-11-24-ep/        # Direct path, with restore + ad filtering
+      podx cleanup . --no-restore               # Current dir, skip all LLM features
+      podx cleanup . --no-skip-ads              # Keep ads, but still restore punctuation
     """
     # Track if we're in interactive mode
     interactive_mode = path is None
@@ -199,8 +207,13 @@ def main(path: Optional[Path], no_restore: bool):
 
     # Check for restore without API key (non-interactive mode)
     do_restore = not no_restore
+    # Ad filtering is tied to restore - only skip ads if restore is enabled and not explicitly disabled
+    do_skip_ads = do_restore and not no_skip_ads
+
     if do_restore and not _check_openai_key():
-        console.print("[red]Error:[/red] OPENAI_API_KEY not set (required for restore)")
+        console.print(
+            "[red]Error:[/red] OPENAI_API_KEY not set (required for LLM features)"
+        )
         console.print(
             "Run with --no-restore for local-only cleanup, or set your API key:"
         )
@@ -210,9 +223,10 @@ def main(path: Optional[Path], no_restore: bool):
     # Show what we're doing
     console.print(f"[cyan]Cleaning up:[/cyan] {transcript_path.name}")
     console.print(f"[cyan]Segments:[/cyan] {len(transcript['segments'])}")
+    console.print(f"[cyan]Skip ads:[/cyan] {'yes' if do_skip_ads else 'no'}")
     console.print("[cyan]Merge:[/cyan] yes")
     console.print("[cyan]Normalize:[/cyan] yes")
-    console.print(f"[cyan]Restore:[/cyan] {'yes (~$0.02/hr)' if do_restore else 'no'}")
+    console.print(f"[cyan]Restore:[/cyan] {'yes' if do_restore else 'no'}")
 
     # Start timer
     timer = LiveTimer("Cleaning up")
@@ -223,6 +237,7 @@ def main(path: Optional[Path], no_restore: bool):
             merge=True,
             normalize=True,
             restore=do_restore,
+            skip_ads=do_skip_ads,
             max_gap=1.0,
             max_len=800,
             restore_model="gpt-4o-mini",
@@ -264,8 +279,11 @@ def main(path: Optional[Path], no_restore: bool):
     # Show completion
     original_count = len(transcript["segments"])
     merged_count = len(result["segments"])
+    ads_removed = result.get("ads_removed", 0)
     console.print(f"\n[green]✓ Cleanup complete ({minutes}:{seconds:02d})[/green]")
     console.print(f"  Segments: {original_count} → {merged_count}")
+    if ads_removed > 0:
+        console.print(f"  Ads removed: {ads_removed}")
     console.print(f"  Updated: {transcript_path}")
 
 

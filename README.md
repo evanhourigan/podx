@@ -442,7 +442,7 @@ markdown, insights = analyzer.analyze(diarized, metadata)
 | `podx fetch` | Download podcast episodes |
 | `podx transcribe` | Convert audio to text |
 | `podx diarize` | Add speaker labels |
-| `podx cleanup` | Clean up transcript text |
+| `podx cleanup` | Clean up transcript, filter ads |
 | `podx analyze` | Generate AI analysis |
 | `podx export` | Export to various formats |
 | `podx run` | Full pipeline wizard |

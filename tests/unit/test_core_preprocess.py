@@ -299,3 +299,163 @@ class TestEdgeCases:
         assert result["asr_model"] == "base"
         assert result["asr_provider"] == "local"
         assert result["decoder_options"] == {"beam_size": 5}
+
+
+class TestAdFiltering:
+    """Test ad filtering functionality."""
+
+    def test_init_skip_ads_default(self):
+        """Test that skip_ads defaults to False."""
+        preprocessor = TranscriptPreprocessor()
+        assert preprocessor.skip_ads is False
+
+    @mock.patch("podx.core.preprocess.get_provider")
+    def test_init_with_skip_ads(self, mock_get_provider):
+        """Test initialization with skip_ads enabled."""
+        mock_get_provider.return_value = mock.Mock()
+
+        preprocessor = TranscriptPreprocessor(skip_ads=True)
+        assert preprocessor.skip_ads is True
+        assert preprocessor.llm_provider is not None
+
+    @mock.patch("podx.core.preprocess.get_provider")
+    def test_classify_ad_segments_all_content(self, mock_get_provider):
+        """Test classification when all segments are content."""
+        mock_provider = mock.Mock()
+        mock_response = mock.Mock()
+        mock_response.content = "CONTENT\nCONTENT\nCONTENT"
+        mock_provider.complete.return_value = mock_response
+        mock_get_provider.return_value = mock_provider
+
+        preprocessor = TranscriptPreprocessor(skip_ads=True)
+        segments = [
+            {"text": "Welcome to the show", "start": 0.0, "end": 5.0},
+            {"text": "Today we discuss AI", "start": 5.0, "end": 10.0},
+            {"text": "It's really interesting", "start": 10.0, "end": 15.0},
+        ]
+
+        result = preprocessor.classify_ad_segments(segments)
+
+        assert result == [False, False, False]
+
+    @mock.patch("podx.core.preprocess.get_provider")
+    def test_classify_ad_segments_mixed(self, mock_get_provider):
+        """Test classification with mixed content and ads."""
+        mock_provider = mock.Mock()
+        mock_response = mock.Mock()
+        mock_response.content = "CONTENT\nAD\nCONTENT"
+        mock_provider.complete.return_value = mock_response
+        mock_get_provider.return_value = mock_provider
+
+        preprocessor = TranscriptPreprocessor(skip_ads=True)
+        segments = [
+            {"text": "Welcome to the show", "start": 0.0, "end": 5.0},
+            {
+                "text": "This episode brought to you by Acme Corp",
+                "start": 5.0,
+                "end": 10.0,
+            },
+            {"text": "Now back to our discussion", "start": 10.0, "end": 15.0},
+        ]
+
+        result = preprocessor.classify_ad_segments(segments)
+
+        assert result == [False, True, False]
+
+    @mock.patch("podx.core.preprocess.get_provider")
+    def test_filter_ad_segments(self, mock_get_provider):
+        """Test filtering removes ad segments."""
+        mock_provider = mock.Mock()
+        mock_response = mock.Mock()
+        mock_response.content = "CONTENT\nAD\nCONTENT"
+        mock_provider.complete.return_value = mock_response
+        mock_get_provider.return_value = mock_provider
+
+        preprocessor = TranscriptPreprocessor(skip_ads=True)
+        segments = [
+            {"text": "Welcome to the show", "start": 0.0, "end": 5.0},
+            {
+                "text": "This episode brought to you by Acme Corp",
+                "start": 5.0,
+                "end": 10.0,
+            },
+            {"text": "Now back to our discussion", "start": 10.0, "end": 15.0},
+        ]
+
+        filtered, ads_removed = preprocessor.filter_ad_segments(segments)
+
+        assert len(filtered) == 2
+        assert ads_removed == 1
+        assert filtered[0]["text"] == "Welcome to the show"
+        assert filtered[1]["text"] == "Now back to our discussion"
+
+    @mock.patch("podx.core.preprocess.get_provider")
+    def test_preprocess_with_skip_ads(self, mock_get_provider):
+        """Test full preprocessing with ad filtering enabled."""
+        mock_provider = mock.Mock()
+        mock_response = mock.Mock()
+        mock_response.content = "CONTENT\nAD\nCONTENT"
+        mock_provider.complete.return_value = mock_response
+        mock_get_provider.return_value = mock_provider
+
+        preprocessor = TranscriptPreprocessor(skip_ads=True, merge=True, normalize=True)
+        transcript = {
+            "segments": [
+                {"text": "Welcome to the show", "start": 0.0, "end": 5.0},
+                {"text": "Use code PODCAST for 20% off", "start": 5.0, "end": 10.0},
+                {"text": "Now back to our discussion", "start": 10.0, "end": 15.0},
+            ],
+        }
+
+        result = preprocessor.preprocess(transcript)
+
+        # Ad should be removed
+        assert result["ads_removed"] == 1
+        # After ad removal, remaining 2 segments (gap is 5 seconds, won't merge with default max_gap=1.0)
+        assert len(result["segments"]) == 2
+
+    def test_preprocess_without_skip_ads(self):
+        """Test preprocessing without ad filtering preserves all segments."""
+        preprocessor = TranscriptPreprocessor(merge=False, normalize=False)
+        transcript = {
+            "segments": [
+                {"text": "Welcome to the show", "start": 0.0, "end": 5.0},
+                {"text": "Use code PODCAST for 20% off", "start": 5.0, "end": 10.0},
+                {"text": "Now back to our discussion", "start": 10.0, "end": 15.0},
+            ],
+        }
+
+        result = preprocessor.preprocess(transcript)
+
+        assert result["ads_removed"] == 0
+        assert len(result["segments"]) == 3
+
+    @mock.patch("podx.core.preprocess.get_provider")
+    def test_classify_conservative_unknown_response(self, mock_get_provider):
+        """Test that unknown responses are treated as content (conservative)."""
+        mock_provider = mock.Mock()
+        mock_response = mock.Mock()
+        # LLM returns unexpected format
+        mock_response.content = "MAYBE\nUNKNOWN\nPOSSIBLY_AD"
+        mock_provider.complete.return_value = mock_response
+        mock_get_provider.return_value = mock_provider
+
+        preprocessor = TranscriptPreprocessor(skip_ads=True)
+        segments = [
+            {"text": "Segment 1", "start": 0.0, "end": 5.0},
+            {"text": "Segment 2", "start": 5.0, "end": 10.0},
+            {"text": "Segment 3", "start": 10.0, "end": 15.0},
+        ]
+
+        result = preprocessor.classify_ad_segments(segments)
+
+        # All should be False (content) since none explicitly said "AD"
+        assert result == [False, False, False]
+
+    def test_filter_ad_segments_empty_list(self):
+        """Test filtering with empty segment list."""
+        preprocessor = TranscriptPreprocessor(skip_ads=False)
+        filtered, ads_removed = preprocessor.filter_ad_segments([])
+
+        assert filtered == []
+        assert ads_removed == 0

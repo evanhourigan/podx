@@ -7,7 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.2.0] - 2025-12-05
+
+### 🚀 Ad Filtering
+
+Automatic advertisement filtering in `podx cleanup` - removes sponsor reads, promo codes, and inserted ads from transcripts by default.
+
+---
+
 ### ✨ Added
+
+- **Automatic ad filtering** - `podx cleanup` now filters out advertisement segments by default
+  - Uses LLM classification to detect both inserted ads and host-read sponsorships
+  - Removes sponsor reads ("This episode is brought to you by...")
+  - Removes promo codes and discount offers
+  - Removes product pitches unrelated to episode topic
+  - `--no-skip-ads` flag to keep all segments if needed
+  - Ad filtering is tied to the `--no-restore` flag (both use LLM)
+  - Shows count of removed ad segments in output
 
 - **Speaker identification in `podx cleanup`** - Interactive mode now prompts to identify speakers when transcript has generic SPEAKER_XX labels
   - Shows sample utterances per speaker with timecodes for easy audio reference
@@ -26,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Rich markup escaping** - Fixed yellow highlighting on colons in model names
 - **Diarization error messages** - Better error messages when audio file not found
 - **Cleanup preserves speaker labels** - `podx cleanup` no longer strips speaker labels when merging segments; also respects speaker boundaries when merging
+- **Rich markup in input prompts** - Fixed `[dim]` tags showing literally instead of rendering in speaker identification prompts
 
 ## [4.1.2] - 2025-12-02
 

@@ -178,7 +178,10 @@ def identify_speakers_interactive(segments: List[Dict[str, Any]]) -> Dict[str, s
 
         while True:
             try:
-                name = input(f"\nWho is {speaker_id}? [dim](? for more)[/dim] ").strip()
+                console.print(
+                    f"\nWho is {speaker_id}? [dim](? for more)[/dim] ", end=""
+                )
+                name = input().strip()
             except (KeyboardInterrupt, EOFError):
                 console.print("\n[dim]Cancelled[/dim]")
                 # Return what we have so far, keeping remaining as original

@@ -30,9 +30,11 @@ class TranscriptPreprocessor:
         merge: bool = False,
         normalize: bool = False,
         restore: bool = False,
+        skip_ads: bool = False,
         max_gap: float = 1.0,
         max_len: int = 800,
         restore_model: str = "gpt-4o-mini",
+        ad_batch_size: int = 30,
         restore_batch_size: int = 20,
         llm_provider: Optional[LLMProvider] = None,
         provider_name: str = "openai",
@@ -44,10 +46,12 @@ class TranscriptPreprocessor:
             merge: Merge adjacent short segments
             normalize: Normalize whitespace and punctuation
             restore: Use LLM to restore punctuation/grammar
+            skip_ads: Filter out advertisement segments (requires LLM)
             max_gap: Maximum gap (seconds) between segments to merge
             max_len: Maximum merged text length (characters)
-            restore_model: Model for semantic restore
-            restore_batch_size: Segments per LLM request
+            restore_model: Model for LLM operations (restore and ad classification)
+            ad_batch_size: Segments per LLM request for ad classification
+            restore_batch_size: Segments per LLM request for restore
             llm_provider: Optional pre-configured LLM provider instance
             provider_name: Provider to use if llm_provider not provided (default: openai)
             progress: Optional progress reporter for status updates
@@ -55,17 +59,19 @@ class TranscriptPreprocessor:
         self.merge = merge
         self.normalize = normalize
         self.restore = restore
+        self.skip_ads = skip_ads
         self.max_gap = max_gap
         self.max_len = max_len
         self.restore_model = restore_model
+        self.ad_batch_size = ad_batch_size
         self.restore_batch_size = restore_batch_size
         self.progress = progress or SilentProgressReporter()
 
         # Use provided provider or create one
         if llm_provider:
             self.llm_provider = llm_provider
-        elif restore:
-            # Only create provider if restore is enabled
+        elif restore or skip_ads:
+            # Create provider if any LLM feature is enabled
             try:
                 self.llm_provider = get_provider(provider_name)
             except Exception as e:
@@ -150,6 +156,127 @@ class TranscriptPreprocessor:
         for s in segments:
             s["text"] = self.normalize_text(s.get("text", ""))
         return segments
+
+    def classify_ad_segments(self, segments: List[Dict[str, Any]]) -> List[bool]:
+        """Classify segments as advertisement or content using LLM.
+
+        Args:
+            segments: List of transcript segments
+
+        Returns:
+            List of booleans - True if segment is an ad, False if content
+
+        Raises:
+            PreprocessError: If LLM API fails
+        """
+        if not self.llm_provider:
+            raise PreprocessError(
+                "LLM provider not configured. Enable skip_ads in constructor."
+            )
+
+        system_prompt = (
+            "You are classifying podcast transcript segments as ADVERTISEMENT or CONTENT.\n\n"
+            "ADVERTISEMENT includes:\n"
+            '- Sponsor reads ("This episode is brought to you by...")\n'
+            '- Promo codes, discount offers ("Use code X for 20% off")\n'
+            "- Product/service pitches unrelated to episode topic\n"
+            "- Pre-roll/mid-roll/post-roll ads\n"
+            '- Calls to action for sponsors ("Check out example.com")\n\n'
+            "CONTENT includes:\n"
+            "- Main episode discussion\n"
+            "- Host introductions/outros about the show itself\n"
+            "- Guest introductions\n"
+            "- Topic discussion, even if mentioning products relevant to the topic\n\n"
+            'For each segment, output ONLY "AD" or "CONTENT" on a separate line.\n'
+            "Output one classification per line, in the same order as the input segments."
+        )
+
+        is_ad: List[bool] = []
+        total_batches = (len(segments) + self.ad_batch_size - 1) // self.ad_batch_size
+
+        for i in range(0, len(segments), self.ad_batch_size):
+            batch_num = i // self.ad_batch_size + 1
+            batch = segments[i : i + self.ad_batch_size]
+
+            # Report progress
+            self.progress.update_step(
+                f"Classifying ads batch {batch_num}/{total_batches}",
+                step=batch_num,
+                progress=batch_num / total_batches,
+            )
+
+            # Format segments for classification
+            delimiter = "\n---SEGMENT---\n"
+            batch_text = delimiter.join([s.get("text", "")[:500] for s in batch])
+            user_prompt = (
+                f"Classify these {len(batch)} transcript segments.\n"
+                f"Segments are separated by '---SEGMENT---'.\n\n"
+                f"{batch_text}"
+            )
+
+            try:
+                messages = [
+                    LLMMessage.system(system_prompt),
+                    LLMMessage.user(user_prompt),
+                ]
+                response = self.llm_provider.complete(
+                    messages=messages, model=self.restore_model
+                )
+                result = response.content.strip()
+            except Exception as e:
+                logger.error(
+                    f"LLM API request failed for ad classification batch {batch_num}: {e}"
+                )
+                raise PreprocessError(f"Ad classification failed: {e}") from e
+
+            # Parse response - each line should be AD or CONTENT
+            lines = [
+                line.strip().upper() for line in result.split("\n") if line.strip()
+            ]
+
+            # Map to booleans
+            batch_results = []
+            for j, line in enumerate(lines[: len(batch)]):
+                # Conservative: only mark as ad if explicitly "AD"
+                batch_results.append(line == "AD")
+
+            # If LLM returned fewer results, assume remaining are content
+            while len(batch_results) < len(batch):
+                logger.warning(
+                    f"Ad classification returned {len(lines)} results for {len(batch)} segments. "
+                    "Assuming remaining are content."
+                )
+                batch_results.append(False)
+
+            is_ad.extend(batch_results)
+
+        return is_ad
+
+    def filter_ad_segments(
+        self, segments: List[Dict[str, Any]]
+    ) -> tuple[List[Dict[str, Any]], int]:
+        """Filter out advertisement segments.
+
+        Args:
+            segments: List of transcript segments
+
+        Returns:
+            Tuple of (filtered segments, count of ads removed)
+        """
+        if not segments:
+            return [], 0
+
+        # Classify all segments
+        is_ad = self.classify_ad_segments(segments)
+
+        # Filter out ads
+        filtered = [seg for seg, ad in zip(segments, is_ad) if not ad]
+        ads_removed = len(segments) - len(filtered)
+
+        if ads_removed > 0:
+            logger.info(f"Filtered {ads_removed} advertisement segment(s)")
+
+        return filtered, ads_removed
 
     def semantic_restore(self, texts: List[str]) -> List[str]:
         """Use LLM to restore punctuation and grammar.
@@ -257,6 +384,16 @@ class TranscriptPreprocessor:
 
         # Process segments
         segs = transcript.get("segments", [])
+        ads_removed = 0
+
+        # Ad filtering first (before other processing)
+        if self.skip_ads and segs:
+            logger.debug(f"Filtering ads with {self.restore_model}")
+            try:
+                segs, ads_removed = self.filter_ad_segments(segs)
+            except PreprocessError as e:
+                logger.warning(f"Ad filtering failed: {e}")
+                raise
 
         if self.merge:
             logger.debug(
@@ -282,6 +419,7 @@ class TranscriptPreprocessor:
 
         out["segments"] = segs
         out["text"] = "\n".join([s.get("text", "") for s in segs]).strip()
+        out["ads_removed"] = ads_removed
 
         return out
 
