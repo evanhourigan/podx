@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ✨ Added
 
 - **Speaker identification in `podx cleanup`** - Interactive mode now prompts to identify speakers when transcript has generic SPEAKER_XX labels
-  - Shows sample utterances per speaker
+  - Shows sample utterances per speaker with timecodes for easy audio reference
   - Type `?` or `more` to see additional samples
   - Speaker names are saved to transcript.json
 

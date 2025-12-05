@@ -87,24 +87,42 @@ def get_all_speaker_utterances(
     return utterances
 
 
+def _format_timecode(seconds: float) -> str:
+    """Format seconds as MM:SS or HH:MM:SS timecode."""
+    total_seconds = int(seconds)
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    secs = total_seconds % 60
+
+    if hours > 0:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    return f"{minutes}:{secs:02d}"
+
+
 def _display_utterances(
     utterances: List[Tuple[str, int]],
+    segments: List[Dict[str, Any]],
     start_num: int = 1,
 ) -> None:
-    """Display a list of utterances with numbering.
+    """Display a list of utterances with numbering and timecodes.
 
     Args:
         utterances: List of (text, segment_index) tuples
+        segments: Full segments list to look up timecodes
         start_num: Starting number for display
     """
-    for i, (text, _) in enumerate(utterances, start_num):
+    for i, (text, seg_idx) in enumerate(utterances, start_num):
+        # Get timecode from segment
+        start_time = segments[seg_idx].get("start", 0)
+        timecode = _format_timecode(start_time)
+
         # Truncate for display but show more than before
         display_text = (
             text
             if len(text) <= MAX_DISPLAY_LENGTH
             else text[:MAX_DISPLAY_LENGTH] + "..."
         )
-        console.print(f'  {i}. [dim]"{display_text}"[/dim]')
+        console.print(f'  {i}. [cyan]{timecode}[/cyan] [dim]"{display_text}"[/dim]')
 
 
 def identify_speakers_interactive(segments: List[Dict[str, Any]]) -> Dict[str, str]:
@@ -152,7 +170,7 @@ def identify_speakers_interactive(segments: List[Dict[str, Any]]) -> Dict[str, s
         shown_count = len(initial_utterances)
 
         console.print(f"[bold cyan]{speaker_id}[/bold cyan] said:")
-        _display_utterances(initial_utterances)
+        _display_utterances(initial_utterances, segments)
 
         # Track all utterances for this speaker (for "more" requests)
         all_utterances: List[Tuple[str, int]] = []
@@ -183,7 +201,7 @@ def identify_speakers_interactive(segments: List[Dict[str, Any]]) -> Dict[str, s
                     console.print(
                         f"\n[dim]Additional utterances for {speaker_id}:[/dim]"
                     )
-                    _display_utterances(next_batch, start_num=shown_count + 1)
+                    _display_utterances(next_batch, segments, start_num=shown_count + 1)
                     shown_count += len(next_batch)
 
                     if shown_count >= len(all_utterances):
