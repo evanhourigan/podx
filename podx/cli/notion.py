@@ -12,6 +12,7 @@ from typing import Optional
 import click
 from rich.console import Console
 
+from podx.cli.config import _get_value
 from podx.domain.exit_codes import ExitCode
 from podx.ui import select_episode_interactive
 
@@ -119,15 +120,15 @@ def _publish_to_notion(episode_dir: Path, dry_run: bool = False) -> bool:
         console.print("[dim]Install with: pip install notion-client[/dim]")
         return False
 
-    # Get token
-    token = os.getenv("NOTION_TOKEN")
+    # Get token (env var takes precedence over config)
+    token = os.getenv("NOTION_TOKEN") or _get_value("notion-token")
     if not token:
         console.print("[red]Error:[/red] NOTION_TOKEN not set")
         console.print("[dim]Run 'podx config set notion-token YOUR_TOKEN'[/dim]")
         return False
 
-    # Get database ID
-    db_id = os.getenv("NOTION_DATABASE_ID")
+    # Get database ID (env var takes precedence over config)
+    db_id = os.getenv("NOTION_DATABASE_ID") or _get_value("notion-database-id")
     if not db_id:
         console.print("[red]Error:[/red] NOTION_DATABASE_ID not set")
         console.print("[dim]Run 'podx config set notion-database-id YOUR_DB_ID'[/dim]")
@@ -406,8 +407,42 @@ def main(path: Optional[Path], dry_run: bool):
     if episode_dir.is_file():
         episode_dir = episode_dir.parent
 
+    # Load episode metadata for display
+    meta_path = episode_dir / "episode-meta.json"
+    if meta_path.exists():
+        try:
+            meta = json.loads(meta_path.read_text())
+            show_name = meta.get("show", "")
+            episode_title = meta.get("episode_title", meta.get("title", ""))
+            episode_date = meta.get("episode_published", meta.get("date", ""))
+
+            # Parse date to YYYY-MM-DD format
+            date_str = ""
+            if episode_date:
+                try:
+                    from dateutil import parser as dtparse
+
+                    parsed_date = dtparse.parse(episode_date)
+                    date_str = parsed_date.strftime("%Y-%m-%d")
+                except Exception:
+                    date_str = episode_date[:10] if len(episode_date) >= 10 else ""
+
+            # Build display string: "Show Name (YYYY-MM-DD): Episode Title"
+            if show_name and date_str and episode_title:
+                display_name = f"{show_name} ({date_str}): {episode_title}"
+            elif show_name and episode_title:
+                display_name = f"{show_name}: {episode_title}"
+            elif episode_title:
+                display_name = episode_title
+            else:
+                display_name = episode_dir.name
+        except Exception:
+            display_name = episode_dir.name
+    else:
+        display_name = episode_dir.name
+
     # Show what we're doing
-    console.print(f"[cyan]Publishing:[/cyan] {episode_dir.name}")
+    console.print(f"[cyan]Publishing:[/cyan] {display_name}")
     if dry_run:
         console.print("[cyan]Dry run:[/cyan] yes")
 

@@ -71,6 +71,7 @@ CONFIG_KEYS: Dict[str, Dict[str, Any]] = {
         "description": "Notion database ID",
         "secret": False,
         "default": "",
+        "env_var": "NOTION_DATABASE_ID",
         "validator": None,  # No validation needed
     },
     # RunPod cloud settings
