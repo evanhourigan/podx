@@ -260,12 +260,12 @@ def get_languages_help() -> str:
 def get_llm_models_help() -> str:
     """Get help text for LLM models."""
     return """Models (use 'podx models' for full list):
-  openai\:gpt-5.1               Latest, highest quality
-  openai\:gpt-5-mini            Fast and affordable
-  openai\:gpt-4.1               Previous generation
-  openai\:gpt-4o                Multimodal capable
-  anthropic\:claude-opus-4-5    Anthropic highest quality
-  anthropic\:claude-sonnet-4-5  Anthropic alternative"""
+  openai:gpt-5.1               Latest, highest quality
+  openai:gpt-5-mini            Fast and affordable
+  openai:gpt-4.1               Previous generation
+  openai:gpt-4o                Multimodal capable
+  anthropic:claude-opus-4-5    Anthropic highest quality
+  anthropic:claude-sonnet-4-5  Anthropic alternative"""
 
 
 def get_templates_help() -> str:
