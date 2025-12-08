@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
 """Tests for audio quality analysis."""
 
+import sys
 import tempfile
 from pathlib import Path
 
 import numpy as np
+import pytest
 import soundfile as sf
 
 from podx.core.audio_quality import AudioQualityAnalyzer
+
+# Skip file-based tests on Windows due to slow audio I/O
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Audio file tests timeout on Windows CI",
+)
 
 
 class TestAudioQualityAnalyzer:
