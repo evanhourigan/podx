@@ -419,9 +419,7 @@ class TestExportEngineExport:
         }
 
         engine = ExportEngine()
-        result = engine.export(
-            transcript, ["txt", "srt", "vtt", "md"], tmp_path, "test"
-        )
+        result = engine.export(transcript, ["txt", "srt", "vtt", "md"], tmp_path, "test")
 
         assert result["formats"] == ["txt", "srt", "vtt", "md"]
         assert result["files_written"] == 4
@@ -469,9 +467,7 @@ class TestExportEngineExport:
         (tmp_path / "test.srt").write_text("Old content")
 
         engine = ExportEngine()
-        result = engine.export(
-            transcript, ["txt", "srt"], tmp_path, "test", replace=False
-        )
+        result = engine.export(transcript, ["txt", "srt"], tmp_path, "test", replace=False)
 
         # Both files should be written (replace=False ignores existing)
         assert result["files_written"] == 2

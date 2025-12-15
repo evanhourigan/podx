@@ -13,25 +13,15 @@ class JobResponse(BaseModel):
     status: str = Field(
         ..., description="Job status (queued, running, completed, failed, cancelled)"
     )
-    job_type: str = Field(
-        ..., description="Job type (transcribe, diarize, deepcast, pipeline)"
-    )
-    input_params: Optional[Dict[str, Any]] = Field(
-        None, description="Job input parameters"
-    )
-    progress: Optional[Dict[str, Any]] = Field(
-        None, description="Current progress information"
-    )
-    result: Optional[Dict[str, Any]] = Field(
-        None, description="Job result (when completed)"
-    )
+    job_type: str = Field(..., description="Job type (transcribe, diarize, deepcast, pipeline)")
+    input_params: Optional[Dict[str, Any]] = Field(None, description="Job input parameters")
+    progress: Optional[Dict[str, Any]] = Field(None, description="Current progress information")
+    result: Optional[Dict[str, Any]] = Field(None, description="Job result (when completed)")
     error: Optional[str] = Field(None, description="Error message (when failed)")
     created_at: datetime = Field(..., description="Job creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
     started_at: Optional[datetime] = Field(None, description="Job start timestamp")
-    completed_at: Optional[datetime] = Field(
-        None, description="Job completion timestamp"
-    )
+    completed_at: Optional[datetime] = Field(None, description="Job completion timestamp")
 
     model_config = ConfigDict(from_attributes=True)  # Allow creation from ORM models
 
@@ -51,9 +41,7 @@ class ProgressEvent(BaseModel):
     percentage: float = Field(..., description="Progress percentage (0.0 to 1.0)")
     step: Optional[str] = Field(None, description="Current processing step")
     message: Optional[str] = Field(None, description="Progress message")
-    eta_seconds: Optional[int] = Field(
-        None, description="Estimated time remaining in seconds"
-    )
+    eta_seconds: Optional[int] = Field(None, description="Estimated time remaining in seconds")
 
 
 class JobCreateResponse(BaseModel):

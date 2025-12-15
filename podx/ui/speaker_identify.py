@@ -35,9 +35,7 @@ def get_speaker_samples(
         Dict mapping speaker ID to list of (utterance, segment_index) tuples
     """
     # Collect all candidate utterances per speaker with their lengths
-    candidates: Dict[str, List[Tuple[str, int, int]]] = (
-        {}
-    )  # speaker -> [(text, length, idx)]
+    candidates: Dict[str, List[Tuple[str, int, int]]] = {}  # speaker -> [(text, length, idx)]
 
     for idx, seg in enumerate(segments):
         speaker = seg.get("speaker", "")
@@ -118,9 +116,7 @@ def _display_utterances(
 
         # Truncate for display but show more than before
         display_text = (
-            text
-            if len(text) <= MAX_DISPLAY_LENGTH
-            else text[:MAX_DISPLAY_LENGTH] + "..."
+            text if len(text) <= MAX_DISPLAY_LENGTH else text[:MAX_DISPLAY_LENGTH] + "..."
         )
         console.print(f'  {i}. [cyan]{timecode}[/cyan] [dim]"{display_text}"[/dim]')
 
@@ -161,9 +157,7 @@ def identify_speakers_interactive(segments: List[Dict[str, Any]]) -> Dict[str, s
 
         # Skip speakers with no displayable utterances
         if not initial_utterances:
-            console.print(
-                f"[dim]Skipping {speaker_id} (no utterances to display)[/dim]"
-            )
+            console.print(f"[dim]Skipping {speaker_id} (no utterances to display)[/dim]")
             speaker_names[speaker_id] = speaker_id  # Keep original ID
             continue
 
@@ -178,9 +172,7 @@ def identify_speakers_interactive(segments: List[Dict[str, Any]]) -> Dict[str, s
 
         while True:
             try:
-                console.print(
-                    f"\nWho is {speaker_id}? [dim](? for more)[/dim] ", end=""
-                )
+                console.print(f"\nWho is {speaker_id}? [dim](? for more)[/dim] ", end="")
                 name = input().strip()
             except (KeyboardInterrupt, EOFError):
                 console.print("\n[dim]Cancelled[/dim]")
@@ -201,9 +193,7 @@ def identify_speakers_interactive(segments: List[Dict[str, Any]]) -> Dict[str, s
                 remaining = all_utterances[shown_count:]
                 if remaining:
                     next_batch = remaining[:EXTRA_SAMPLES]
-                    console.print(
-                        f"\n[dim]Additional utterances for {speaker_id}:[/dim]"
-                    )
+                    console.print(f"\n[dim]Additional utterances for {speaker_id}:[/dim]")
                     _display_utterances(next_batch, segments, start_num=shown_count + 1)
                     shown_count += len(next_batch)
 

@@ -321,9 +321,7 @@ def test_missing_source_raises_error():
             verbose=False,
         )
 
-    assert "Either --show, --rss-url, or --youtube-url must be provided" in str(
-        exc_info.value
-    )
+    assert "Either --show, --rss-url, or --youtube-url must be provided" in str(exc_info.value)
 
 
 @patch("podx.youtube.is_youtube_url")
@@ -367,9 +365,7 @@ def test_invalid_youtube_url_raises_error(mock_is_youtube):
 @patch("podx.utils.generate_workdir")
 @patch("podx.utils.apply_podcast_config")
 @patch("podx.orchestrate._run")
-def test_workdir_generation_from_metadata(
-    mock_run, mock_apply_config, mock_generate_workdir
-):
+def test_workdir_generation_from_metadata(mock_run, mock_apply_config, mock_generate_workdir):
     """Test that workdir is generated from show name and episode date."""
     config = {
         "show": "Amazing Podcast",

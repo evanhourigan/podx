@@ -133,13 +133,7 @@ def _format_episode(ep: Dict[str, Any], max_width: int = 80) -> str:
         single_line = f"{show} [dim]({date})[/dim] - {title}{status_str}"
         # Check length without markup
         plain_len = (
-            len(show)
-            + len(date)
-            + 3
-            + 3
-            + len(title)
-            + sum(len(s) for s in status_parts)
-            + 4
+            len(show) + len(date) + 3 + 3 + len(title) + sum(len(s) for s in status_parts) + 4
         )
     else:
         single_line = f"{show} - {title}{status_str}"
@@ -241,9 +235,7 @@ def select_episode_interactive(
         start = page * ITEMS_PER_PAGE
         end = min(start + ITEMS_PER_PAGE, len(eps_sorted))
 
-        console.print(
-            f"\n[bold cyan]{title}[/bold cyan] (page {page + 1}/{total_pages})\n"
-        )
+        console.print(f"\n[bold cyan]{title}[/bold cyan] (page {page + 1}/{total_pages})\n")
 
         for idx, ep in enumerate(eps_sorted[start:end], start=start + 1):
             formatted = _format_episode(ep, max_width=term_width)

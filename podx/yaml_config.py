@@ -59,15 +59,9 @@ class NotionDatabase(BaseModel):
     name: str = Field(..., description="Friendly name for this database")
     database_id: str = Field(..., description="Notion database ID")
     token: str = Field(..., description="Notion integration token")
-    podcast_property: str = Field(
-        default="Podcast", description="Property name for podcast name"
-    )
-    date_property: str = Field(
-        default="Date", description="Property name for episode date"
-    )
-    episode_property: str = Field(
-        default="Episode", description="Property name for episode title"
-    )
+    podcast_property: str = Field(default="Podcast", description="Property name for podcast name")
+    date_property: str = Field(default="Date", description="Property name for episode date")
+    episode_property: str = Field(default="Episode", description="Property name for episode title")
     tags_property: Optional[str] = Field(
         default="Tags", description="Property name for tags/keywords"
     )
@@ -90,13 +84,9 @@ class AnalysisConfig(BaseModel):
 
     type: PodcastType = Field(default=PodcastType.GENERAL, description="Analysis type")
     model: Optional[str] = Field(default=None, description="OpenAI model override")
-    temperature: Optional[float] = Field(
-        default=None, description="Temperature override"
-    )
+    temperature: Optional[float] = Field(default=None, description="Temperature override")
     chunk_size: Optional[int] = Field(default=None, description="Chunk size override")
-    custom_prompts: Optional[str] = Field(
-        default=None, description="Custom prompt additions"
-    )
+    custom_prompts: Optional[str] = Field(default=None, description="Custom prompt additions")
 
     @field_validator("temperature")
     @classmethod
@@ -114,13 +104,9 @@ class PipelineDefaults(BaseModel):
     align: bool = Field(default=False, description="Enable alignment by default")
     diarize: bool = Field(default=False, description="Enable diarization by default")
     deepcast: bool = Field(default=False, description="Enable AI analysis by default")
-    extract_markdown: bool = Field(
-        default=False, description="Extract markdown by default"
-    )
+    extract_markdown: bool = Field(default=False, description="Extract markdown by default")
     notion: bool = Field(default=False, description="Upload to Notion by default")
-    clean: bool = Field(
-        default=False, description="Clean intermediate files by default"
-    )
+    clean: bool = Field(default=False, description="Clean intermediate files by default")
 
 
 class PodcastMapping(BaseModel):
@@ -132,25 +118,17 @@ class PodcastMapping(BaseModel):
     names: List[str] = Field(..., description="Show names and aliases")
 
     # Analysis settings
-    analysis: Optional[AnalysisConfig] = Field(
-        default=None, description="Analysis configuration"
-    )
+    analysis: Optional[AnalysisConfig] = Field(default=None, description="Analysis configuration")
 
     # Pipeline settings
-    pipeline: Optional[PipelineDefaults] = Field(
-        default=None, description="Pipeline defaults"
-    )
+    pipeline: Optional[PipelineDefaults] = Field(default=None, description="Pipeline defaults")
 
     # Notion settings
-    notion_database: Optional[str] = Field(
-        default=None, description="Notion database name to use"
-    )
+    notion_database: Optional[str] = Field(default=None, description="Notion database name to use")
 
     # Custom settings
     description: Optional[str] = Field(default=None, description="Mapping description")
-    tags: Optional[List[str]] = Field(
-        default=None, description="Custom tags for this podcast"
-    )
+    tags: Optional[List[str]] = Field(default=None, description="Custom tags for this podcast")
 
 
 class PodxYamlConfig(BaseModel):
@@ -172,9 +150,7 @@ class PodxYamlConfig(BaseModel):
     )
 
     # Analysis defaults
-    analysis: Optional[AnalysisConfig] = Field(
-        default=None, description="Global analysis defaults"
-    )
+    analysis: Optional[AnalysisConfig] = Field(default=None, description="Global analysis defaults")
 
     # Notion databases
     notion_databases: Optional[Dict[str, NotionDatabase]] = Field(
@@ -233,9 +209,7 @@ class YamlConfigManager:
         with open(self.config_file, "w") as f:
             # Convert to dict and remove None values for cleaner output
             config_dict = config.model_dump(exclude_none=True, mode="json")
-            yaml.dump(
-                config_dict, f, default_flow_style=False, sort_keys=False, indent=2
-            )
+            yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False, indent=2)
 
         # Invalidate cache
         self._config = None

@@ -34,8 +34,7 @@ def deepcast_cmd(ctx, args):
 
     console = Console()
     console.print(
-        "[yellow]Warning:[/yellow] 'podx deepcast' is deprecated. "
-        "Use 'podx analyze' instead."
+        "[yellow]Warning:[/yellow] 'podx deepcast' is deprecated. " "Use 'podx analyze' instead."
     )
     console.print()
 

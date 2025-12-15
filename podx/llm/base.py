@@ -61,6 +61,22 @@ class LLMProvider(ABC):
     consistent behavior across different backends.
     """
 
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize provider.
+
+        Args:
+            api_key: API key for authentication
+            base_url: Optional base URL override
+            **kwargs: Provider-specific arguments
+        """
+        # Concrete implementations handle these
+        pass
+
     @abstractmethod
     def complete(
         self,

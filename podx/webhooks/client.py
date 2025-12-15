@@ -31,9 +31,7 @@ class WebhookPayload(BaseModel):
     """Webhook payload structure."""
 
     event: WebhookEvent
-    timestamp: str = Field(
-        default_factory=lambda: datetime.now().astimezone().isoformat()
-    )
+    timestamp: str = Field(default_factory=lambda: datetime.now().astimezone().isoformat())
     job_id: Optional[str] = None
     data: Dict[str, Any] = Field(default_factory=dict)
 
@@ -133,7 +131,7 @@ class WebhookClient:
             headers["X-Webhook-Signature"] = signature
 
         # Retry with exponential backoff
-        last_error = None
+        last_error: Optional[Exception] = None
         for attempt in range(self.max_retries):
             try:
                 response = httpx.post(
@@ -229,7 +227,7 @@ class WebhookClient:
             signature = self._generate_signature(payload_json)
             headers["X-Webhook-Signature"] = signature
 
-        last_error = None
+        last_error: Optional[Exception] = None
         async with httpx.AsyncClient() as client:
             for attempt in range(self.max_retries):
                 try:

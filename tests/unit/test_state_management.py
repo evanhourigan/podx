@@ -333,9 +333,7 @@ class TestArtifactDetector:
 
     def test_detect_completed_steps_preprocess(self, tmp_path):
         """Test detect_completed_steps detects PREPROCESS step."""
-        (tmp_path / "transcript-preprocessed-base.json").write_text(
-            "{}", encoding="utf-8"
-        )
+        (tmp_path / "transcript-preprocessed-base.json").write_text("{}", encoding="utf-8")
 
         detector = ArtifactDetector(tmp_path)
         completed = detector.detect_completed_steps()

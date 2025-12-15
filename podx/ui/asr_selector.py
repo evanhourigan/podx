@@ -31,9 +31,7 @@ def get_most_sophisticated_model(models: List[str]) -> str:
     return models[0] if models else "base"
 
 
-def select_asr_model(
-    episode: Dict[str, Any], console: Optional[Any] = None
-) -> Optional[str]:
+def select_asr_model(episode: Dict[str, Any], console: Optional[Any] = None) -> Optional[str]:
     """Prompt user to select ASR model with helpful context.
 
     Args:

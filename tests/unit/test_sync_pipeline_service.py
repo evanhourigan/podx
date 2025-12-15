@@ -182,9 +182,7 @@ class TestExecuteTranscribe:
         """Test _execute_transcribe calls executor when no existing transcript."""
         # Create audio-meta.json
         audio_meta = {"audio_path": "/path/to/audio.wav"}
-        (tmp_path / "audio-meta.json").write_text(
-            json.dumps(audio_meta), encoding="utf-8"
-        )
+        (tmp_path / "audio-meta.json").write_text(json.dumps(audio_meta), encoding="utf-8")
 
         config = PipelineConfig(show="Test Show", model="medium", preset="balanced")
         executor = Mock(spec=StepExecutor)
@@ -210,15 +208,11 @@ class TestExecuteTranscribe:
         """Test _execute_transcribe skips if transcript exists and skip_completed=True."""
         # Create audio-meta.json
         audio_meta = {"audio_path": "/path/to/audio.wav"}
-        (tmp_path / "audio-meta.json").write_text(
-            json.dumps(audio_meta), encoding="utf-8"
-        )
+        (tmp_path / "audio-meta.json").write_text(json.dumps(audio_meta), encoding="utf-8")
 
         # Create existing transcript
         transcript = {"text": "Existing transcript"}
-        (tmp_path / "transcript-base.json").write_text(
-            json.dumps(transcript), encoding="utf-8"
-        )
+        (tmp_path / "transcript-base.json").write_text(json.dumps(transcript), encoding="utf-8")
 
         config = PipelineConfig(show="Test Show", model="base")
         executor = Mock(spec=StepExecutor)
@@ -584,9 +578,7 @@ class TestExecuteDeepcast:
         md_file = tmp_path / "deepcast-gpt_4o.md"
         md_file.write_text("# Deepcast Analysis", encoding="utf-8")
 
-        config = PipelineConfig(
-            show="Test Show", deepcast=True, deepcast_model="gpt-4o"
-        )
+        config = PipelineConfig(show="Test Show", deepcast=True, deepcast_model="gpt-4o")
         executor = Mock(spec=StepExecutor)
 
         service = PipelineService(config, executor=executor)

@@ -20,9 +20,7 @@ def _run_fetch_step() -> Optional[Path]:
     """Run fetch step interactively. Returns episode directory or None."""
     from podx.cli.fetch import PodcastFetcher, _run_interactive
 
-    console.print(
-        "\n[bold cyan]── Fetch ──────────────────────────────────────────[/bold cyan]"
-    )
+    console.print("\n[bold cyan]── Fetch ──────────────────────────────────────────[/bold cyan]")
 
     fetcher = PodcastFetcher()
     result = _run_interactive(fetcher)
@@ -42,9 +40,7 @@ def _run_transcribe_step(episode_dir: Path) -> bool:
     from podx.core.transcribe import TranscriptionEngine, TranscriptionError
     from podx.ui import LiveTimer
 
-    console.print(
-        "\n[bold cyan]── Transcribe ─────────────────────────────────────[/bold cyan]"
-    )
+    console.print("\n[bold cyan]── Transcribe ─────────────────────────────────────[/bold cyan]")
 
     # Check if already transcribed
     transcript_path = episode_dir / "transcript.json"
@@ -77,9 +73,7 @@ def _run_transcribe_step(episode_dir: Path) -> bool:
     seconds = int(elapsed % 60)
 
     result["audio_path"] = str(audio_file)
-    transcript_path.write_text(
-        json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    transcript_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
 
     console.print(f"[green]✓ Transcription complete ({minutes}:{seconds:02d})[/green]")
     return True
@@ -95,9 +89,7 @@ def _run_diarize_step(episode_dir: Path) -> bool:
     from podx.core.diarize import DiarizationEngine, DiarizationError
     from podx.ui import LiveTimer
 
-    console.print(
-        "\n[bold cyan]── Diarize ────────────────────────────────────────[/bold cyan]"
-    )
+    console.print("\n[bold cyan]── Diarize ────────────────────────────────────────[/bold cyan]")
 
     # Load transcript
     transcript_path = episode_dir / "transcript.json"
@@ -164,9 +156,7 @@ def _run_cleanup_step(episode_dir: Path) -> bool:
     from podx.core.preprocess import PreprocessError, TranscriptPreprocessor
     from podx.ui import LiveTimer
 
-    console.print(
-        "\n[bold cyan]── Cleanup ────────────────────────────────────────[/bold cyan]"
-    )
+    console.print("\n[bold cyan]── Cleanup ────────────────────────────────────────[/bold cyan]")
 
     # Load transcript
     transcript_path = episode_dir / "transcript.json"
@@ -228,9 +218,7 @@ def _run_cleanup_step(episode_dir: Path) -> bool:
     result["restored"] = do_restore
 
     # Save updated transcript
-    transcript_path.write_text(
-        json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    transcript_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
 
     original_count = len(transcript["segments"])
     merged_count = len(result["segments"])
@@ -248,9 +236,7 @@ def _run_analyze_step(episode_dir: Path) -> bool:
     from podx.templates.manager import TemplateManager
     from podx.ui import LiveTimer
 
-    console.print(
-        "\n[bold cyan]── Analyze ────────────────────────────────────────[/bold cyan]"
-    )
+    console.print("\n[bold cyan]── Analyze ────────────────────────────────────────[/bold cyan]")
 
     # Load transcript
     transcript_path = episode_dir / "transcript.json"
@@ -325,9 +311,7 @@ def _run_analyze_step(episode_dir: Path) -> bool:
     if json_data:
         result.update(json_data)
 
-    analysis_path.write_text(
-        json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    analysis_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
 
     console.print(f"[green]✓ Analysis complete ({minutes}:{seconds:02d})[/green]")
     return True
@@ -335,9 +319,7 @@ def _run_analyze_step(episode_dir: Path) -> bool:
 
 def _run_export_step(episode_dir: Path) -> bool:
     """Run export step. Returns True on success."""
-    console.print(
-        "\n[bold cyan]── Export ─────────────────────────────────────────[/bold cyan]"
-    )
+    console.print("\n[bold cyan]── Export ─────────────────────────────────────────[/bold cyan]")
 
     # Export transcript to markdown
     transcript_path = episode_dir / "transcript.json"

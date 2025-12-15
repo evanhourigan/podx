@@ -180,7 +180,7 @@ class BackgroundWorker:
             from podx.api import AsyncPodxClient
 
             # Create client with progress callback
-            async with AsyncPodxClient(progress_callback=progress_callback) as client:
+            async with AsyncPodxClient(progress_callback=progress_callback) as client:  # type: ignore[call-arg, attr-defined]
                 # Extract params
                 audio_url = params.get("audio_url")
                 model = params.get("model", "base")

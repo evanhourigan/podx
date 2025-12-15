@@ -42,12 +42,8 @@ def _list_templates_output() -> None:
 
     console.print("\n[bold]Available Templates[/bold]\n")
     console.print(table)
-    console.print(
-        "\n[dim]Run 'podx templates show NAME' to view template details.[/dim]"
-    )
-    console.print(
-        "[dim]For custom templates: add YAML files to ~/.podx/templates/[/dim]\n"
-    )
+    console.print("\n[dim]Run 'podx templates show NAME' to view template details.[/dim]")
+    console.print("[dim]For custom templates: add YAML files to ~/.podx/templates/[/dim]\n")
 
 
 @click.group(

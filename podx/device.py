@@ -115,7 +115,7 @@ def detect_device() -> DeviceType:
     return detect_device_for_pytorch()
 
 
-def get_optimal_compute_type(device: Literal["cuda", "cpu"]) -> str:
+def get_optimal_compute_type(device: str) -> str:
     """Get optimal compute type for faster-whisper (CTranslate2) based on device.
 
     Args:
@@ -156,9 +156,7 @@ def get_device_info() -> Tuple[DeviceType, str]:
     return device, compute_type
 
 
-def log_device_usage(
-    device: DeviceType, compute_type: str, operation: str = "processing"
-):
+def log_device_usage(device: str, compute_type: str, operation: str = "processing") -> None:
     """Log device usage information for transparency.
 
     Args:

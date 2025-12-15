@@ -71,9 +71,7 @@ def test_quote_scoring(sample_transcript: Transcript) -> None:
 def test_speaker_filter(sample_transcript: Transcript) -> None:
     """Test filtering by speaker."""
     extractor = QuoteExtractor()
-    quotes = extractor.extract_quotes(
-        sample_transcript, max_quotes=10, speaker_filter="Alice"
-    )
+    quotes = extractor.extract_quotes(sample_transcript, max_quotes=10, speaker_filter="Alice")
 
     assert len(quotes) > 0
     assert all(q["speaker"] == "Alice" for q in quotes)

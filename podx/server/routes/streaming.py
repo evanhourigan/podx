@@ -62,7 +62,7 @@ async def generate_job_progress_events(
             if event.status:
                 event_data["status"] = event.status
 
-            if event.progress is not None or event.percentage is not None:
+            if event.percentage is not None:
                 event_data["progress"] = {
                     "percentage": event.percentage,
                     "message": event.message,

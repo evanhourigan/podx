@@ -28,15 +28,9 @@ class PodcastAnalysisConfig(BaseModel):
     podcast_type: PodcastType = Field(
         default=PodcastType.GENERAL, description="Podcast type for analysis"
     )
-    deepcast_model: Optional[str] = Field(
-        default=None, description="Preferred OpenAI model"
-    )
-    temperature: Optional[float] = Field(
-        default=None, description="Analysis temperature"
-    )
-    chunk_chars: Optional[int] = Field(
-        default=None, description="Chunk size for analysis"
-    )
+    deepcast_model: Optional[str] = Field(default=None, description="Preferred OpenAI model")
+    temperature: Optional[float] = Field(default=None, description="Analysis temperature")
+    chunk_chars: Optional[int] = Field(default=None, description="Chunk size for analysis")
 
     # Pipeline preferences
     default_flags: Dict[str, bool] = Field(
@@ -54,12 +48,8 @@ class PodcastAnalysisConfig(BaseModel):
     )
 
     # Metadata
-    description: Optional[str] = Field(
-        default=None, description="Notes about this configuration"
-    )
-    created_at: Optional[str] = Field(
-        default=None, description="Configuration creation date"
-    )
+    description: Optional[str] = Field(default=None, description="Notes about this configuration")
+    created_at: Optional[str] = Field(default=None, description="Configuration creation date")
 
     @field_validator("temperature")
     @classmethod

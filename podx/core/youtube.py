@@ -151,9 +151,7 @@ class YouTubeEngine:
                     "webpage_url": info.get("webpage_url"),
                 }
         except ImportError:
-            raise YouTubeError(
-                "yt-dlp library not installed. Install with: pip install yt-dlp"
-            )
+            raise YouTubeError("yt-dlp library not installed. Install with: pip install yt-dlp")
         except Exception as e:
             raise YouTubeError(f"Failed to extract YouTube metadata: {e}") from e
 
@@ -214,9 +212,7 @@ class YouTubeEngine:
                 return videos
 
         except ImportError:
-            raise YouTubeError(
-                "yt-dlp library not installed. Install with: pip install yt-dlp"
-            )
+            raise YouTubeError("yt-dlp library not installed. Install with: pip install yt-dlp")
         except Exception as e:
             raise YouTubeError(f"Failed to extract playlist: {e}") from e
 
@@ -225,9 +221,7 @@ class YouTubeEngine:
         url: str,
         output_dir: Path,
         filename: Optional[str] = None,
-        download_progress_callback: Optional[
-            Callable[[int, Optional[int]], None]
-        ] = None,
+        download_progress_callback: Optional[Callable[[int, Optional[int]], None]] = None,
     ) -> Dict[str, Any]:
         """Download audio from YouTube video and return metadata.
 
@@ -327,9 +321,7 @@ class YouTubeEngine:
             return episode_meta
 
         except ImportError:
-            raise YouTubeError(
-                "yt-dlp library not installed. Install with: pip install yt-dlp"
-            )
+            raise YouTubeError("yt-dlp library not installed. Install with: pip install yt-dlp")
         except Exception as e:
             raise YouTubeError(f"Failed to download YouTube audio: {e}") from e
 
@@ -337,9 +329,7 @@ class YouTubeEngine:
         self,
         url: str,
         workdir: Path,
-        download_progress_callback: Optional[
-            Callable[[int, Optional[int]], None]
-        ] = None,
+        download_progress_callback: Optional[Callable[[int, Optional[int]], None]] = None,
     ) -> Dict[str, Any]:
         """Fetch a YouTube video as an episode.
 
@@ -433,6 +423,4 @@ def fetch_youtube_episode(
         Dict containing episode metadata
     """
     engine = YouTubeEngine(progress_callback=progress_callback)
-    return engine.fetch_episode(
-        url, workdir, download_progress_callback=download_progress_callback
-    )
+    return engine.fetch_episode(url, workdir, download_progress_callback=download_progress_callback)

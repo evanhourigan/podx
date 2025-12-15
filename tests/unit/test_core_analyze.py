@@ -191,9 +191,7 @@ class TestAnalyzeEngineGetClient:
 
             with patch("builtins.__import__", side_effect=mock_import):
                 # Should fail during provider initialization
-                with pytest.raises(
-                    AnalyzeError, match="Failed to initialize LLM provider"
-                ):
+                with pytest.raises(AnalyzeError, match="Failed to initialize LLM provider"):
                     AnalyzeEngine()
 
 
@@ -230,7 +228,9 @@ class TestAnalyzeEngineDeepcast:
     def test_deepcast_with_json_extraction(self, sample_transcript):
         """Test deepcast with JSON extraction."""
         json_output = {"key": "value"}
-        response_with_json = f"Here is the analysis\n\n---JSON---\n```json\n{json.dumps(json_output)}\n```"
+        response_with_json = (
+            f"Here is the analysis\n\n---JSON---\n```json\n{json.dumps(json_output)}\n```"
+        )
 
         # Use MockLLMProvider with JSON response
         mock_llm = MockLLMProvider(responses=["Map result", response_with_json])
@@ -281,9 +281,7 @@ class TestAnalyzeEngineDeepcast:
         def progress_callback(msg):
             progress_messages.append(msg)
 
-        engine = AnalyzeEngine(
-            llm_provider=mock_llm, progress_callback=progress_callback
-        )
+        engine = AnalyzeEngine(llm_provider=mock_llm, progress_callback=progress_callback)
         engine.analyze(sample_transcript, "system", "map", "reduce")
 
         # Should have progress messages
@@ -319,9 +317,7 @@ class TestAnalyzeEngineDeepcast:
 
             def complete(self, *args, **kwargs):
                 self.sync_call_count += 1
-                if (
-                    self.sync_call_count > 1
-                ):  # First call is from async (map), second is reduce
+                if self.sync_call_count > 1:  # First call is from async (map), second is reduce
                     raise LLMAPIError("Reduce API error")
                 return super().complete(*args, **kwargs)
 
@@ -427,9 +423,7 @@ class TestEdgeCases:
 
         # Need many responses for multiple chunks + reduce
         mock_llm = MockLLMProvider(responses=["Chunk 1"] * 50 + ["Final analysis"])
-        engine = AnalyzeEngine(
-            llm_provider=mock_llm, max_chars_per_chunk=1000
-        )  # Small chunks
+        engine = AnalyzeEngine(llm_provider=mock_llm, max_chars_per_chunk=1000)  # Small chunks
         markdown, _ = engine.analyze(transcript, "system", "map", "reduce")
 
         # Should have called complete_async multiple times (map calls) + reduce

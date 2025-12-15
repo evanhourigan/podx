@@ -96,8 +96,7 @@ class StorageManager:
             return BlobServiceClient(account_url=account_url, credential=credential)
         except ImportError:
             raise StorageError(
-                "azure-storage-blob not installed. "
-                "Install with: pip install azure-storage-blob"
+                "azure-storage-blob not installed. " "Install with: pip install azure-storage-blob"
             )
 
     def _detect_backend_from_url(self, url: str) -> StorageBackend:
@@ -332,9 +331,7 @@ class StorageManager:
                 return blob.exists()
             elif self.backend == StorageBackend.AZURE:
                 client = self._get_azure_client()
-                blob_client = client.get_blob_client(
-                    container=self.bucket, blob=remote_path
-                )
+                blob_client = client.get_blob_client(container=self.bucket, blob=remote_path)
                 return blob_client.exists()
             else:
                 return False

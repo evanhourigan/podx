@@ -118,9 +118,7 @@ class TranscriptDatabase:
 
         # Delete existing segments for this episode
         cursor.execute("DELETE FROM segments WHERE episode_id = ?", (episode_id,))
-        cursor.execute(
-            "DELETE FROM transcripts_fts WHERE episode_id = ?", (episode_id,)
-        )
+        cursor.execute("DELETE FROM transcripts_fts WHERE episode_id = ?", (episode_id,))
 
         # Index segments
         for segment in transcript.segments:
@@ -323,9 +321,7 @@ class TranscriptDatabase:
 
         cursor.execute("DELETE FROM episodes WHERE episode_id = ?", (episode_id,))
         cursor.execute("DELETE FROM segments WHERE episode_id = ?", (episode_id,))
-        cursor.execute(
-            "DELETE FROM transcripts_fts WHERE episode_id = ?", (episode_id,)
-        )
+        cursor.execute("DELETE FROM transcripts_fts WHERE episode_id = ?", (episode_id,))
 
         conn.commit()
         conn.close()

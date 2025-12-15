@@ -20,9 +20,7 @@ class Word(BaseModel):
         """Validate that end time is after start time if both present."""
         if v is not None and "start" in info.data and info.data["start"] is not None:
             if v < info.data["start"]:
-                raise ValueError(
-                    f"End time ({v}) must be after start time ({info.data['start']})"
-                )
+                raise ValueError(f"End time ({v}) must be after start time ({info.data['start']})")
         return v
 
     model_config = {"extra": "forbid"}
@@ -40,9 +38,7 @@ class Segment(BaseModel):
     def end_after_start(cls, v: float, info: Any) -> float:
         """Validate that end time is after start time."""
         if "start" in info.data and v < info.data["start"]:
-            raise ValueError(
-                f"End time ({v}) must be after start time ({info.data['start']})"
-            )
+            raise ValueError(f"End time ({v}) must be after start time ({info.data['start']})")
         return v
 
     @field_validator("start", "end")
@@ -77,12 +73,8 @@ class Transcript(BaseModel):
 
     audio_path: Optional[str] = Field(None, description="Path to source audio")
     language: Optional[str] = Field(None, description="Detected language")
-    asr_model: Optional[str] = Field(
-        None, description="ASR model used for transcription"
-    )
-    asr_provider: Optional[ASRProvider] = Field(
-        None, description="ASR provider backend"
-    )
+    asr_model: Optional[str] = Field(None, description="ASR model used for transcription")
+    asr_provider: Optional[ASRProvider] = Field(None, description="ASR provider backend")
     preset: Optional[ASRPreset] = Field(
         None, description="High-level preset guiding decoder options"
     )
@@ -90,9 +82,7 @@ class Transcript(BaseModel):
         default=None, description="Advanced decoder/provider options"
     )
     text: Optional[str] = Field(None, description="Full transcript text")
-    segments: List[Segment] = Field(
-        default_factory=list, description="Transcript segments"
-    )
+    segments: List[Segment] = Field(default_factory=list, description="Transcript segments")
 
     @field_validator("audio_path")
     @classmethod

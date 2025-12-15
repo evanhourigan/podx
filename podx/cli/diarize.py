@@ -8,7 +8,7 @@ import os
 import sys
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import click
 from rich.console import Console
@@ -96,12 +96,8 @@ def main(path: Optional[Path], speakers: Optional[int]):
 
             # Warn if already diarized
             if selected.get("diarized"):
-                console.print(
-                    "\n[yellow]This episode already has speaker labels.[/yellow]"
-                )
-                console.print(
-                    "[dim]Re-diarizing will overwrite the existing labels.[/dim]"
-                )
+                console.print("\n[yellow]This episode already has speaker labels.[/yellow]")
+                console.print("[dim]Re-diarizing will overwrite the existing labels.[/dim]")
                 try:
                     confirm = input("Continue? [y/N] ").strip().lower()
                 except (KeyboardInterrupt, EOFError):
@@ -146,9 +142,7 @@ def main(path: Optional[Path], speakers: Optional[int]):
     # Block if transcript has been cleaned
     if transcript.get("cleaned"):
         console.print("[red]Error:[/red] This transcript has already been cleaned up.")
-        console.print(
-            "Diarization requires the raw ASR output to align with the audio."
-        )
+        console.print("Diarization requires the raw ASR output to align with the audio.")
         console.print(
             "[dim]Re-run 'podx transcribe' first, then 'podx diarize', then 'podx cleanup'.[/dim]"
         )
@@ -167,9 +161,7 @@ def main(path: Optional[Path], speakers: Optional[int]):
         audio_duration_minutes = 0  # Will proceed without duration info
 
     estimated_memory = estimate_memory_required(audio_duration_minutes)
-    chunk_duration, needs_chunking = calculate_chunk_duration(
-        available_gb, audio_duration_minutes
-    )
+    chunk_duration, needs_chunking = calculate_chunk_duration(available_gb, audio_duration_minutes)
 
     # Display info
     console.print(f"[cyan]Diarizing:[/cyan] {audio_file.name}")
@@ -178,17 +170,11 @@ def main(path: Optional[Path], speakers: Optional[int]):
         console.print(f"[cyan]Expected speakers:[/cyan] {speakers}")
     else:
         console.print("[cyan]Expected speakers:[/cyan] auto-detect")
-    console.print(
-        f"[cyan]Memory:[/cyan] {available_gb:.1f} GB available / {total_gb:.1f} GB total"
-    )
+    console.print(f"[cyan]Memory:[/cyan] {available_gb:.1f} GB available / {total_gb:.1f} GB total")
     if audio_duration_minutes > 0:
-        console.print(
-            f"[cyan]Audio duration:[/cyan] {audio_duration_minutes:.0f} minutes"
-        )
+        console.print(f"[cyan]Audio duration:[/cyan] {audio_duration_minutes:.0f} minutes")
         memory_status = "✓" if not needs_chunking else "✗"
-        console.print(
-            f"[cyan]Estimated memory:[/cyan] {estimated_memory:.1f} GB {memory_status}"
-        )
+        console.print(f"[cyan]Estimated memory:[/cyan] {estimated_memory:.1f} GB {memory_status}")
 
     # Show chunking warning if needed
     if needs_chunking:
@@ -213,9 +199,7 @@ def main(path: Optional[Path], speakers: Optional[int]):
         console.print("    [dim]• Close other applications to free memory[/dim]")
         console.print()
     elif batch_size < 32:
-        console.print(
-            f"[dim]Using reduced batch size ({batch_size}) for memory efficiency[/dim]"
-        )
+        console.print(f"[dim]Using reduced batch size ({batch_size}) for memory efficiency[/dim]")
 
     # Start timer
     timer = LiveTimer("Diarizing")
@@ -275,11 +259,9 @@ def main(path: Optional[Path], speakers: Optional[int]):
     console.print(f"  Speakers found: {len(speakers_found)}")
 
     # Show chunking info if it was used
-    if hasattr(engine, "_chunking_info") and engine._chunking_info.get(
-        "needs_chunking"
-    ):
-        num_chunks = engine._chunking_info.get("num_chunks", "?")
-        console.print(f"  Chunks processed: {num_chunks}")
+    if hasattr(engine, "_chunking_info") and engine._chunking_info.get("needs_chunking"):
+        chunk_count: Any = engine._chunking_info.get("num_chunks")
+        console.print(f"  Chunks processed: {chunk_count if chunk_count else '?'}")
 
     console.print(f"  Updated: {transcript_path}")
 

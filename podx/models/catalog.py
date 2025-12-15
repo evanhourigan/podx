@@ -250,8 +250,7 @@ class ModelCatalog:
         if provider_lower not in self._providers:
             available = ", ".join(sorted(self._providers.keys()))
             raise KeyError(
-                f"Provider not found: '{provider_name}'\n"
-                f"Available providers: {available}"
+                f"Provider not found: '{provider_name}'\n" f"Available providers: {available}"
             )
 
         return self._providers[provider_lower]

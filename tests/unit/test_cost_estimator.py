@@ -198,9 +198,7 @@ class TestCostEstimator:
 
     def test_unknown_model_fallback(self, estimator):
         """Test that unknown models fall back gracefully."""
-        result = estimator.estimate_deepcast(
-            10_000, model="unknown-model-xyz", provider="openai"
-        )
+        result = estimator.estimate_deepcast(10_000, model="unknown-model-xyz", provider="openai")
 
         # Should fall back to gpt-4o-mini
         assert result["total_cost"] >= 0

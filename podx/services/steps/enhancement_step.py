@@ -56,9 +56,7 @@ class EnhancementStep(PipelineStep):
             return True, "No enhancement steps enabled"
         return False, None
 
-    def execute(
-        self, context: StepContext, progress: Any, verbose: bool = False
-    ) -> StepResult:
+    def execute(self, context: StepContext, progress: Any, verbose: bool = False) -> StepResult:
         """Execute enhancement step."""
         if not self.preprocess and not self.diarize:
             return StepResult.skip("No enhancement steps enabled")
@@ -107,13 +105,9 @@ class EnhancementStep(PipelineStep):
 
         # Preprocess the latest transcript
         used_model = (
-            (latest or {}).get("asr_model", self.model)
-            if isinstance(latest, dict)
-            else self.model
+            (latest or {}).get("asr_model", self.model) if isinstance(latest, dict) else self.model
         )
-        pre_file = (
-            wd / f"transcript-preprocessed-{sanitize_model_name(used_model)}.json"
-        )
+        pre_file = wd / f"transcript-preprocessed-{sanitize_model_name(used_model)}.json"
         latest = run_command(
             build_preprocess_command(pre_file, self.restore),
             stdin_payload=latest,
@@ -141,28 +135,20 @@ class EnhancementStep(PipelineStep):
 
         # Get model from latest transcript
         used_model = latest.get("asr_model", self.model)
-        diarized_file = (
-            wd / f"transcript-diarized-{sanitize_model_name(used_model)}.json"
-        )
+        diarized_file = wd / f"transcript-diarized-{sanitize_model_name(used_model)}.json"
 
         # Check if already exists (also check legacy filenames)
         legacy_diarized_new = wd / f"diarized-transcript-{used_model}.json"
         legacy_diarized = wd / "diarized-transcript.json"
 
         if diarized_file.exists():
-            logger.info(
-                f"Found existing diarized transcript ({used_model}), skipping diarization"
-            )
+            logger.info(f"Found existing diarized transcript ({used_model}), skipping diarization")
             diar = json.loads(diarized_file.read_text())
-            progress.complete_step(
-                f"Using existing diarized transcript ({used_model})", 0
-            )
+            progress.complete_step(f"Using existing diarized transcript ({used_model})", 0)
             return diar, f"transcript-diarized-{used_model}"
 
         elif legacy_diarized_new.exists():
-            logger.info(
-                f"Found existing legacy diarized transcript ({used_model}), using it"
-            )
+            logger.info(f"Found existing legacy diarized transcript ({used_model}), using it")
             diar = json.loads(legacy_diarized_new.read_text())
             progress.complete_step("Using existing diarized transcript", 0)
             return diar, f"transcript-diarized-{used_model}"

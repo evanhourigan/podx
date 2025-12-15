@@ -28,19 +28,13 @@ class TranscribeResponse(BaseModel):
         error: Error message if transcription failed
     """
 
-    transcript_path: str = Field(
-        ..., description="Path to the generated transcript JSON file"
-    )
+    transcript_path: str = Field(..., description="Path to the generated transcript JSON file")
     duration_seconds: int = Field(ge=0, description="Duration of the audio in seconds")
-    model_used: Optional[str] = Field(
-        None, description="ASR model used for transcription"
-    )
+    model_used: Optional[str] = Field(None, description="ASR model used for transcription")
     segments_count: Optional[int] = Field(
         None, ge=0, description="Number of segments in the transcript"
     )
-    audio_path: Optional[str] = Field(
-        None, description="Path to the processed audio file"
-    )
+    audio_path: Optional[str] = Field(None, description="Path to the processed audio file")
     success: bool = Field(True, description="Whether the transcription was successful")
     error: Optional[str] = Field(None, description="Error message if failed")
 
@@ -67,13 +61,9 @@ class AnalyzeResponse(BaseModel):
     """
 
     markdown_path: str = Field(..., description="Path to the generated markdown file")
-    json_path: Optional[str] = Field(
-        None, description="Path to the generated JSON file"
-    )
+    json_path: Optional[str] = Field(None, description="Path to the generated JSON file")
     usage: Optional[Dict[str, int]] = Field(None, description="Token usage statistics")
-    prompt_used: Optional[str] = Field(
-        None, description="The prompt that was used for analysis"
-    )
+    prompt_used: Optional[str] = Field(None, description="The prompt that was used for analysis")
     model_used: Optional[str] = Field(None, description="LLM model used for analysis")
     analysis_type: Optional[str] = Field(None, description="Type of analysis performed")
     success: bool = Field(True, description="Whether the analysis was successful")
@@ -189,9 +179,7 @@ class FetchResponse(BaseModel):
     """
 
     episode_meta: Dict[str, Any] = Field(..., description="Episode metadata")
-    audio_meta: Optional[Dict[str, Any]] = Field(
-        None, description="Audio file metadata"
-    )
+    audio_meta: Optional[Dict[str, Any]] = Field(None, description="Audio file metadata")
     audio_path: str = Field(..., description="Path to the downloaded audio file")
     metadata_path: Optional[str] = Field(None, description="Path to metadata JSON")
     success: bool = Field(True, description="Whether the fetch was successful")
@@ -214,12 +202,8 @@ class DiarizeResponse(BaseModel):
     """
 
     transcript_path: str = Field(..., description="Path to diarized transcript JSON")
-    speakers_found: int = Field(
-        ge=0, description="Number of unique speakers identified"
-    )
-    transcript: Optional[Dict[str, Any]] = Field(
-        None, description="Full transcript data"
-    )
+    speakers_found: int = Field(ge=0, description="Number of unique speakers identified")
+    transcript: Optional[Dict[str, Any]] = Field(None, description="Full transcript data")
     success: bool = Field(True, description="Whether diarization was successful")
     error: Optional[str] = Field(None, description="Error message if failed")
 
@@ -309,17 +293,13 @@ class ModelInfo(BaseModel):
     id: str = Field(..., description="Canonical model identifier")
     name: str = Field(..., description="Human-readable model name")
     provider: str = Field(..., description="Provider key")
-    aliases: list[str] = Field(
-        default_factory=list, description="Alternative identifiers"
-    )
+    aliases: list[str] = Field(default_factory=list, description="Alternative identifiers")
     description: str = Field(..., description="Brief model description")
     pricing: ModelPricingInfo = Field(..., description="Pricing information")
     context_window: Optional[int] = Field(
         None, description="Maximum context length in tokens (None for ASR models)"
     )
-    capabilities: list[str] = Field(
-        default_factory=list, description="Model capabilities"
-    )
+    capabilities: list[str] = Field(default_factory=list, description="Model capabilities")
     default_in_cli: bool = Field(False, description="Appears in default CLI listings")
 
     def to_dict(self) -> Dict[str, Any]:

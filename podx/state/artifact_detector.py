@@ -221,17 +221,9 @@ class ArtifactDetector:
         elif step == PipelineStep.TRANSCRIBE:
             return artifacts.transcripts[0] if artifacts.transcripts else None
         elif step == PipelineStep.ALIGN:
-            return (
-                artifacts.aligned_transcripts[0]
-                if artifacts.aligned_transcripts
-                else None
-            )
+            return artifacts.aligned_transcripts[0] if artifacts.aligned_transcripts else None
         elif step == PipelineStep.DIARIZE:
-            return (
-                artifacts.diarized_transcripts[0]
-                if artifacts.diarized_transcripts
-                else None
-            )
+            return artifacts.diarized_transcripts[0] if artifacts.diarized_transcripts else None
         elif step == PipelineStep.PREPROCESS:
             return (
                 artifacts.preprocessed_transcripts[0]

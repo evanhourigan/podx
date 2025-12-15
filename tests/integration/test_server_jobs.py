@@ -26,9 +26,7 @@ async def test_create_job(client: AsyncClient):
 async def test_get_job(client: AsyncClient):
     """Test getting a job by ID."""
     # Create a job first
-    create_response = await client.post(
-        "/api/v1/jobs", params={"job_type": "diarize"}, json={}
-    )
+    create_response = await client.post("/api/v1/jobs", params={"job_type": "diarize"}, json={})
     job_id = create_response.json()["job_id"]
 
     # Get the job
@@ -130,9 +128,7 @@ async def test_list_jobs_filter_by_type(client: AsyncClient):
 async def test_cancel_queued_job(client: AsyncClient):
     """Test cancelling a queued job."""
     # Create a job
-    create_response = await client.post(
-        "/api/v1/jobs", params={"job_type": "transcribe"}, json={}
-    )
+    create_response = await client.post("/api/v1/jobs", params={"job_type": "transcribe"}, json={})
     job_id = create_response.json()["job_id"]
 
     # Cancel it
@@ -149,9 +145,7 @@ async def test_cancel_queued_job(client: AsyncClient):
 async def test_delete_completed_job(client: AsyncClient):
     """Test deleting a completed job."""
     # Create a job
-    create_response = await client.post(
-        "/api/v1/jobs", params={"job_type": "transcribe"}, json={}
-    )
+    create_response = await client.post("/api/v1/jobs", params={"job_type": "transcribe"}, json={})
     job_id = create_response.json()["job_id"]
 
     # Manually mark it as completed (would normally be done by worker)

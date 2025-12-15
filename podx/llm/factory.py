@@ -135,9 +135,7 @@ def _register_builtin_providers():
 
         register_provider("anthropic", AnthropicProvider)
     except ImportError:
-        logger.debug(
-            "Anthropic provider not available (anthropic library not installed)"
-        )
+        logger.debug("Anthropic provider not available (anthropic library not installed)")
 
     try:
         from .openrouter_provider import OpenRouterProvider

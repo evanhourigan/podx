@@ -174,9 +174,7 @@ class PodxClient:
         """
         # Validate inputs
         if self.config.validate_inputs:
-            validation = self._validate_analyze_inputs(
-                transcript_path, llm_model, out_dir
-            )
+            validation = self._validate_analyze_inputs(transcript_path, llm_model, out_dir)
             if not validation.valid:
                 raise ValidationError(f"Invalid inputs: {', '.join(validation.errors)}")
 
@@ -337,9 +335,7 @@ class PodxClient:
             if not audio_path:
                 audio_path_str = transcript_data.get("audio_path")
                 if not audio_path_str:
-                    raise ValidationError(
-                        "audio_path must be provided or exist in transcript JSON"
-                    )
+                    raise ValidationError("audio_path must be provided or exist in transcript JSON")
                 audio_path = Path(audio_path_str)
 
             if not audio_path.exists():
@@ -579,9 +575,7 @@ class PodxClient:
         # Get Notion token
         token = notion_token or os.getenv("NOTION_TOKEN")
         if not token:
-            raise ValidationError(
-                "NOTION_TOKEN must be provided or set as environment variable"
-            )
+            raise ValidationError("NOTION_TOKEN must be provided or set as environment variable")
 
         try:
             # Load deepcast data
@@ -591,9 +585,7 @@ class PodxClient:
 
             # Extract episode info
             episode_title = (
-                metadata.get("episode_title")
-                or metadata.get("title")
-                or "Podcast Notes"
+                metadata.get("episode_title") or metadata.get("title") or "Podcast Notes"
             )
             podcast_name = metadata.get("show") or "Unknown Podcast"
             date_iso = metadata.get("episode_published") or metadata.get("date")
@@ -879,13 +871,9 @@ class PodxClient:
             [transcript_path is not None, text is not None, token_count is not None]
         )
         if inputs_provided == 0:
-            raise ValueError(
-                "Must provide one of: transcript_path, text, or token_count"
-            )
+            raise ValueError("Must provide one of: transcript_path, text, or token_count")
         if inputs_provided > 1:
-            raise ValueError(
-                "Provide only one of: transcript_path, text, or token_count"
-            )
+            raise ValueError("Provide only one of: transcript_path, text, or token_count")
 
         # Get model info
         catalog_model = _get_model(model)

@@ -180,9 +180,7 @@ def _format_timestamp_readable(seconds: float, video_url: Optional[str] = None) 
     return f"[{ts_text}]"
 
 
-def _format_transcript_as_markdown(
-    transcript: dict, video_url: Optional[str] = None
-) -> str:
+def _format_transcript_as_markdown(transcript: dict, video_url: Optional[str] = None) -> str:
     """Format transcript as markdown with timestamps and speakers.
 
     Args:
@@ -426,9 +424,7 @@ def export_analysis(
             transcript_md = _format_transcript_as_markdown(transcript, video_url)
             md_content = md_content + "\n\n---\n\n" + transcript_md
         else:
-            console.print(
-                "[yellow]Warning:[/yellow] No transcript.json found, skipping transcript"
-            )
+            console.print("[yellow]Warning:[/yellow] No transcript.json found, skipping transcript")
 
     # Interactive prompts for format (only in interactive mode)
     if interactive_mode:
@@ -498,9 +494,7 @@ def export_analysis(
                 output_path.write_text(html_doc, encoding="utf-8")
                 exported.append(output_path.name)
             except ImportError:
-                console.print(
-                    "[yellow]HTML export requires 'markdown' package[/yellow]"
-                )
+                console.print("[yellow]HTML export requires 'markdown' package[/yellow]")
 
         elif fmt == "pdf":
             import subprocess

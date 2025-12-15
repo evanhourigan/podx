@@ -34,9 +34,7 @@ class SilentProgressReporter(ProgressReporter):
     ) -> None:
         """Update progress for current step (no-op)."""
         if self.track_calls:
-            self.calls.append(
-                ("update_step", message, {"step": step, "progress": progress})
-            )
+            self.calls.append(("update_step", message, {"step": step, "progress": progress}))
 
     def complete_step(self, message: str, duration: Optional[float] = None) -> None:
         """Mark current step as complete (no-op)."""

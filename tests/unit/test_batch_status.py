@@ -50,9 +50,7 @@ class TestBatchStatus:
             key = batch_status.add_episode(episode)
 
             # Mark as failed with error
-            batch_status.update_episode(
-                key, "transcribe", ProcessingState.FAILED, "API error"
-            )
+            batch_status.update_episode(key, "transcribe", ProcessingState.FAILED, "API error")
 
             assert batch_status.episodes[key].transcribe == ProcessingState.FAILED
             assert batch_status.episodes[key].error_message == "API error"

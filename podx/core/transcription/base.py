@@ -5,8 +5,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from ...domain import TranscriptResult
-
 
 @dataclass
 class ProviderConfig:
@@ -81,14 +79,14 @@ class ASRProvider(ABC):
         self.config = config
 
     @abstractmethod
-    def transcribe(self, audio_path: Path) -> TranscriptResult:
+    def transcribe(self, audio_path: Path) -> TranscriptionResult:
         """Transcribe audio file.
 
         Args:
             audio_path: Path to audio file
 
         Returns:
-            TranscriptResult with transcript data
+            TranscriptionResult with transcript data
 
         Raises:
             TranscriptionError: If transcription fails

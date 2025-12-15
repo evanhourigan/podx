@@ -36,9 +36,7 @@ class EventBroadcaster:
     def __init__(self) -> None:
         """Initialize the event broadcaster."""
         # Map of job_id -> list of queues for subscribers
-        self._subscribers: Dict[str, List[asyncio.Queue[ProgressEvent]]] = defaultdict(
-            list
-        )
+        self._subscribers: Dict[str, List[asyncio.Queue[ProgressEvent]]] = defaultdict(list)
         self._lock = asyncio.Lock()
 
     async def subscribe(self, job_id: str) -> AsyncIterator[ProgressEvent]:
@@ -93,9 +91,7 @@ class EventBroadcaster:
             subscribers = self._subscribers.get(event.job_id, [])
 
             if not subscribers:
-                logger.debug(
-                    f"No subscribers for job {event.job_id}, event not broadcasted"
-                )
+                logger.debug(f"No subscribers for job {event.job_id}, event not broadcasted")
                 return
 
             logger.debug(
@@ -107,9 +103,7 @@ class EventBroadcaster:
                 try:
                     queue.put_nowait(event)
                 except asyncio.QueueFull:
-                    logger.warning(
-                        f"Subscriber queue full for job {event.job_id}, dropping event"
-                    )
+                    logger.warning(f"Subscriber queue full for job {event.job_id}, dropping event")
 
     def has_subscribers(self, job_id: str) -> bool:
         """Check if a job has any active subscribers.

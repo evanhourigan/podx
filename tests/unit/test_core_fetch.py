@@ -9,12 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from podx.core.fetch import (
-    PodcastFetcher,
-    fetch_episode,
-    find_feed_url,
-    search_podcasts,
-)
+from podx.core.fetch import PodcastFetcher, fetch_episode, find_feed_url, search_podcasts
 from podx.errors import ValidationError
 
 
@@ -37,9 +32,7 @@ class TestPodcastFetcher:
         # Mock iTunes API response
         mock_response = Mock()
         mock_response.json.return_value = {
-            "results": [
-                {"collectionName": "Test Podcast", "feedUrl": "http://feed.url"}
-            ]
+            "results": [{"collectionName": "Test Podcast", "feedUrl": "http://feed.url"}]
         }
         mock_session.return_value.get.return_value = mock_response
 
@@ -154,9 +147,7 @@ class TestPodcastFetcher:
         """Test successful audio download."""
         entry = {
             "title": "Test Episode",
-            "links": [
-                {"rel": "enclosure", "type": "audio/mpeg", "href": "http://audio.url"}
-            ],
+            "links": [{"rel": "enclosure", "type": "audio/mpeg", "href": "http://audio.url"}],
         }
 
         # Mock streaming response
@@ -185,9 +176,7 @@ class TestPodcastFetcher:
         """Test download retries on failure."""
         entry = {
             "title": "Test Episode",
-            "links": [
-                {"rel": "enclosure", "type": "audio/mpeg", "href": "http://audio.url"}
-            ],
+            "links": [{"rel": "enclosure", "type": "audio/mpeg", "href": "http://audio.url"}],
         }
 
         # First attempt fails, second succeeds
@@ -313,9 +302,7 @@ class TestPodcastFetcher:
     @patch("podx.core.fetch.PodcastFetcher.download_audio")
     @patch("podx.core.fetch.PodcastFetcher.choose_episode")
     @patch("podx.core.fetch.PodcastFetcher.parse_feed")
-    def test_fetch_episode_by_rss_url(
-        self, mock_parse, mock_choose, mock_download, tmp_path
-    ):
+    def test_fetch_episode_by_rss_url(self, mock_parse, mock_choose, mock_download, tmp_path):
         """Test fetching episode by direct RSS URL."""
         # Mock feed parsing
         mock_feed = Mock()
@@ -342,26 +329,20 @@ class TestPodcastFetcher:
         """Test error when neither show nor RSS provided."""
         fetcher = PodcastFetcher()
 
-        with pytest.raises(
-            ValidationError, match="show_name or rss_url must be provided"
-        ):
+        with pytest.raises(ValidationError, match="show_name or rss_url must be provided"):
             fetcher.fetch_episode()
 
     def test_fetch_episode_both_show_and_rss(self):
         """Test error when both show and RSS provided."""
         fetcher = PodcastFetcher()
 
-        with pytest.raises(
-            ValidationError, match="either show_name or rss_url, not both"
-        ):
+        with pytest.raises(ValidationError, match="either show_name or rss_url, not both"):
             fetcher.fetch_episode(show_name="Test", rss_url="http://feed.url")
 
     @patch("podx.core.fetch.PodcastFetcher.download_audio")
     @patch("podx.core.fetch.PodcastFetcher.choose_episode")
     @patch("podx.core.fetch.PodcastFetcher.parse_feed")
-    def test_fetch_episode_no_matching_episode(
-        self, mock_parse, mock_choose, mock_download
-    ):
+    def test_fetch_episode_no_matching_episode(self, mock_parse, mock_choose, mock_download):
         """Test error when no episode matches criteria."""
         mock_feed = Mock()
         mock_feed.feed = {"title": "Test Podcast"}
@@ -378,9 +359,7 @@ class TestPodcastFetcher:
     @patch("podx.core.fetch.PodcastFetcher.download_audio")
     @patch("podx.core.fetch.PodcastFetcher.choose_episode")
     @patch("podx.core.fetch.PodcastFetcher.parse_feed")
-    def test_fetch_episode_saves_metadata(
-        self, mock_parse, mock_choose, mock_download, tmp_path
-    ):
+    def test_fetch_episode_saves_metadata(self, mock_parse, mock_choose, mock_download, tmp_path):
         """Test that episode metadata is saved to JSON file."""
         mock_feed = Mock()
         mock_feed.feed = {
@@ -470,9 +449,7 @@ class TestEdgeCases:
         """Test that download creates output directory if missing."""
         entry = {
             "title": "Test Episode",
-            "links": [
-                {"rel": "enclosure", "type": "audio/mpeg", "href": "http://audio.url"}
-            ],
+            "links": [{"rel": "enclosure", "type": "audio/mpeg", "href": "http://audio.url"}],
         }
 
         output_dir = tmp_path / "nested" / "dir"

@@ -245,9 +245,7 @@ class StepExecutor:
         """
         cmd = CommandBuilder("podx-diarize").build()
 
-        return self._run(
-            cmd, stdin_payload=transcript, save_to=save_to, label="diarize"
-        )
+        return self._run(cmd, stdin_payload=transcript, save_to=save_to, label="diarize")
 
     def preprocess(
         self,
@@ -269,9 +267,7 @@ class StepExecutor:
         if restore:
             cmd.add_flag("--restore")
 
-        return self._run(
-            cmd.build(), stdin_payload=transcript, save_to=save_to, label="preprocess"
-        )
+        return self._run(cmd.build(), stdin_payload=transcript, save_to=save_to, label="preprocess")
 
     def deepcast(
         self,
@@ -348,9 +344,7 @@ class StepExecutor:
         if replace:
             cmd.add_flag("--replace")
 
-        return self._run(
-            cmd.build(), stdin_payload=transcript, save_to=save_to, label="export"
-        )
+        return self._run(cmd.build(), stdin_payload=transcript, save_to=save_to, label="export")
 
     def notion(
         self,

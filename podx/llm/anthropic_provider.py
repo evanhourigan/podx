@@ -57,9 +57,7 @@ class AnthropicProvider(LLMProvider):
         # Initialize both sync and async clients
         if self.base_url:
             self._sync_client = Anthropic(api_key=self.api_key, base_url=self.base_url)
-            self._async_client = AsyncAnthropic(
-                api_key=self.api_key, base_url=self.base_url
-            )
+            self._async_client = AsyncAnthropic(api_key=self.api_key, base_url=self.base_url)
         else:
             self._sync_client = Anthropic(api_key=self.api_key)
             self._async_client = AsyncAnthropic(api_key=self.api_key)
@@ -132,8 +130,7 @@ class AnthropicProvider(LLMProvider):
                     {
                         "prompt_tokens": response.usage.input_tokens,
                         "completion_tokens": response.usage.output_tokens,
-                        "total_tokens": response.usage.input_tokens
-                        + response.usage.output_tokens,
+                        "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
                     }
                     if response.usage
                     else None
@@ -210,8 +207,7 @@ class AnthropicProvider(LLMProvider):
                     {
                         "prompt_tokens": response.usage.input_tokens,
                         "completion_tokens": response.usage.output_tokens,
-                        "total_tokens": response.usage.input_tokens
-                        + response.usage.output_tokens,
+                        "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
                     }
                     if response.usage
                     else None

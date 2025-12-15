@@ -201,11 +201,7 @@ class EpisodeDiscovery:
 
         # Filter by show
         if filters.show:
-            filtered = [
-                ep
-                for ep in filtered
-                if filters.show.lower() in ep.get("show", "").lower()
-            ]
+            filtered = [ep for ep in filtered if filters.show.lower() in ep.get("show", "").lower()]
 
         # Filter by date (since)
         if filters.since:
@@ -223,28 +219,21 @@ class EpisodeDiscovery:
             filtered = [
                 ep
                 for ep in filtered
-                if ep.get("date")
-                and start_date <= datetime.fromisoformat(ep["date"]) <= end_date
+                if ep.get("date") and start_date <= datetime.fromisoformat(ep["date"]) <= end_date
             ]
 
         # Filter by duration
         if filters.min_duration is not None:
-            filtered = [
-                ep for ep in filtered if ep.get("duration", 0) >= filters.min_duration
-            ]
+            filtered = [ep for ep in filtered if ep.get("duration", 0) >= filters.min_duration]
 
         if filters.max_duration is not None:
             filtered = [
-                ep
-                for ep in filtered
-                if ep.get("duration", float("inf")) <= filters.max_duration
+                ep for ep in filtered if ep.get("duration", float("inf")) <= filters.max_duration
             ]
 
         # Filter by status
         if filters.status:
-            filtered = [
-                ep for ep in filtered if self._get_episode_status(ep) == filters.status
-            ]
+            filtered = [ep for ep in filtered if self._get_episode_status(ep) == filters.status]
 
         return filtered
 
@@ -272,9 +261,7 @@ class EpisodeDiscovery:
         else:
             return "new"
 
-    def filter_by_audio_path(
-        self, episodes: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def filter_by_audio_path(self, episodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Filter episodes to only those with valid audio paths.
 
         Args:
@@ -290,8 +277,6 @@ class EpisodeDiscovery:
             if audio_path and Path(audio_path).exists():
                 filtered.append(ep)
             else:
-                logger.warning(
-                    f"Skipping episode (missing audio): {ep.get('title', 'unknown')}"
-                )
+                logger.warning(f"Skipping episode (missing audio): {ep.get('title', 'unknown')}")
 
         return filtered

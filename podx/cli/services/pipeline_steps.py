@@ -117,7 +117,7 @@ def execute_transcribe(
     if not result.success:
         raise RuntimeError(result.error or "Transcription failed")
 
-    return context.latest_transcript, context.latest_transcript_name
+    return context.latest_transcript, context.latest_transcript_name  # type: ignore[return-value]
 
 
 def execute_enhancement(
@@ -161,7 +161,7 @@ def execute_enhancement(
     if not result.success:
         raise RuntimeError(result.error or "Enhancement failed")
 
-    return context.latest_transcript, context.latest_transcript_name
+    return context.latest_transcript, context.latest_transcript_name  # type: ignore[return-value]
 
 
 def execute_deepcast(
@@ -186,11 +186,11 @@ def execute_deepcast(
 
     # Create step executor
     step = DeepcastStep(
-        deepcast_model=deepcast_model,
-        deepcast_temp=deepcast_temp,
+        analyze_model=deepcast_model,
+        analyze_temp=deepcast_temp,
         yaml_analysis_type=yaml_analysis_type,
         extract_markdown=extract_markdown,
-        deepcast_pdf=deepcast_pdf,
+        analyze_pdf=deepcast_pdf,
     )
 
     # Create context

@@ -45,7 +45,9 @@ def handle_interactive_mode(
     # 3. Episode metadata display
     from podx.services.orchestration.display import build_episode_metadata_display
 
-    episode_metadata = build_episode_metadata_display(selected, meta, config)
+    episode_metadata = build_episode_metadata_display(
+        selected, meta, config  # type: ignore[arg-type]
+    )
     console.print(Panel(episode_metadata, title="Episode", border_style="cyan"))
 
     # 4. Pipeline preview
@@ -98,5 +100,5 @@ def handle_interactive_mode(
     config["yaml_analysis_type"] = chosen_type
 
     # Return metadata and working directory
-    workdir = selected["directory"]
-    return meta, workdir
+    workdir = selected["directory"]  # type: ignore[index]
+    return meta, workdir  # type: ignore[return-value]

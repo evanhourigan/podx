@@ -31,9 +31,7 @@ async def test_basic_pipeline_execution():
     mock_transcript = {"text": "Hello world", "segments": []}
 
     with patch.object(service.executor, "fetch", new_callable=AsyncMock) as mock_fetch:
-        with patch.object(
-            service.executor, "transcode", new_callable=AsyncMock
-        ) as mock_transcode:
+        with patch.object(service.executor, "transcode", new_callable=AsyncMock) as mock_transcode:
             with patch.object(
                 service.executor, "transcribe", new_callable=AsyncMock
             ) as mock_transcribe:
@@ -78,22 +76,16 @@ async def test_concurrent_align_and_diarize():
     mock_diarized = {"text": "Hello", "segments": [], "speakers": ["SPEAKER_00"]}
 
     with patch.object(service.executor, "fetch", new_callable=AsyncMock) as mock_fetch:
-        with patch.object(
-            service.executor, "transcode", new_callable=AsyncMock
-        ) as mock_transcode:
+        with patch.object(service.executor, "transcode", new_callable=AsyncMock) as mock_transcode:
             with patch.object(
                 service.executor, "transcribe", new_callable=AsyncMock
             ) as mock_transcribe:
-                with patch.object(
-                    service.executor, "align", new_callable=AsyncMock
-                ) as mock_align:
+                with patch.object(service.executor, "align", new_callable=AsyncMock) as mock_align:
                     with patch.object(
                         service.executor, "diarize", new_callable=AsyncMock
                     ) as mock_diarize:
                         with patch("podx.services.async_pipeline_service.Path.mkdir"):
-                            with patch(
-                                "podx.services.async_pipeline_service.Path.write_text"
-                            ):
+                            with patch("podx.services.async_pipeline_service.Path.write_text"):
                                 with patch(
                                     "podx.services.async_pipeline_service.Path.exists",
                                     return_value=False,
@@ -138,9 +130,7 @@ async def test_pipeline_with_deepcast():
     mock_deepcast = {"brief": "Test brief", "quotes": []}
 
     with patch.object(service.executor, "fetch", new_callable=AsyncMock) as mock_fetch:
-        with patch.object(
-            service.executor, "transcode", new_callable=AsyncMock
-        ) as mock_transcode:
+        with patch.object(service.executor, "transcode", new_callable=AsyncMock) as mock_transcode:
             with patch.object(
                 service.executor, "transcribe", new_callable=AsyncMock
             ) as mock_transcribe:
@@ -148,9 +138,7 @@ async def test_pipeline_with_deepcast():
                     service.executor, "deepcast", new_callable=AsyncMock
                 ) as mock_deepcast_call:
                     with patch("podx.services.async_pipeline_service.Path.mkdir"):
-                        with patch(
-                            "podx.services.async_pipeline_service.Path.write_text"
-                        ):
+                        with patch("podx.services.async_pipeline_service.Path.write_text"):
                             with patch(
                                 "podx.services.async_pipeline_service.Path.exists",
                                 return_value=False,
@@ -194,9 +182,7 @@ async def test_progress_callback():
         progress_updates.append((step, status))
 
     with patch.object(service.executor, "fetch", new_callable=AsyncMock) as mock_fetch:
-        with patch.object(
-            service.executor, "transcode", new_callable=AsyncMock
-        ) as mock_transcode:
+        with patch.object(service.executor, "transcode", new_callable=AsyncMock) as mock_transcode:
             with patch.object(
                 service.executor, "transcribe", new_callable=AsyncMock
             ) as mock_transcribe:
@@ -236,9 +222,7 @@ async def test_batch_processing():
     mock_transcript = {"text": "Hello", "segments": []}
 
     with patch.object(AsyncStepExecutor, "fetch", new_callable=AsyncMock) as mock_fetch:
-        with patch.object(
-            AsyncStepExecutor, "transcode", new_callable=AsyncMock
-        ) as mock_transcode:
+        with patch.object(AsyncStepExecutor, "transcode", new_callable=AsyncMock) as mock_transcode:
             with patch.object(
                 AsyncStepExecutor, "transcribe", new_callable=AsyncMock
             ) as mock_transcribe:
@@ -284,9 +268,7 @@ async def test_batch_processing_with_progress():
         progress_updates.append((idx, step, status))
 
     with patch.object(AsyncStepExecutor, "fetch", new_callable=AsyncMock) as mock_fetch:
-        with patch.object(
-            AsyncStepExecutor, "transcode", new_callable=AsyncMock
-        ) as mock_transcode:
+        with patch.object(AsyncStepExecutor, "transcode", new_callable=AsyncMock) as mock_transcode:
             with patch.object(
                 AsyncStepExecutor, "transcribe", new_callable=AsyncMock
             ) as mock_transcribe:
@@ -348,9 +330,7 @@ async def test_graceful_cancellation():
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(
-    reason="Feature not implemented - see .ai-docs/unimplemented-features.md"
-)
+@pytest.mark.skip(reason="Feature not implemented - see .ai-docs/unimplemented-features.md")
 async def test_youtube_url_mode():
     """Test YouTube URL processing mode."""
     config = PipelineConfig(
@@ -373,9 +353,7 @@ async def test_youtube_url_mode():
                     service.executor, "transcribe", new_callable=AsyncMock
                 ) as mock_transcribe:
                     with patch("podx.services.async_pipeline_service.Path.mkdir"):
-                        with patch(
-                            "podx.services.async_pipeline_service.Path.write_text"
-                        ):
+                        with patch("podx.services.async_pipeline_service.Path.write_text"):
                             with patch(
                                 "podx.services.async_pipeline_service.Path.exists",
                                 return_value=False,
@@ -437,9 +415,7 @@ async def test_preprocess_step():
     mock_preprocessed = {"text": "Hello!", "segments": [], "preprocessed": True}
 
     with patch.object(service.executor, "fetch", new_callable=AsyncMock) as mock_fetch:
-        with patch.object(
-            service.executor, "transcode", new_callable=AsyncMock
-        ) as mock_transcode:
+        with patch.object(service.executor, "transcode", new_callable=AsyncMock) as mock_transcode:
             with patch.object(
                 service.executor, "transcribe", new_callable=AsyncMock
             ) as mock_transcribe:
@@ -447,9 +423,7 @@ async def test_preprocess_step():
                     service.executor, "preprocess", new_callable=AsyncMock
                 ) as mock_preprocess:
                     with patch("podx.services.async_pipeline_service.Path.mkdir"):
-                        with patch(
-                            "podx.services.async_pipeline_service.Path.write_text"
-                        ):
+                        with patch("podx.services.async_pipeline_service.Path.write_text"):
                             with patch(
                                 "podx.services.async_pipeline_service.Path.exists",
                                 return_value=False,
@@ -487,9 +461,7 @@ async def test_reuse_existing_transcript():
     mock_transcript = {"text": "Hello", "segments": []}
 
     with patch.object(service.executor, "fetch", new_callable=AsyncMock) as mock_fetch:
-        with patch.object(
-            service.executor, "transcode", new_callable=AsyncMock
-        ) as mock_transcode:
+        with patch.object(service.executor, "transcode", new_callable=AsyncMock) as mock_transcode:
             with patch.object(
                 service.executor, "transcribe", new_callable=AsyncMock
             ) as mock_transcribe:
@@ -536,9 +508,7 @@ async def test_custom_workdir():
     mock_transcript = {"text": "Hello", "segments": []}
 
     with patch.object(service.executor, "fetch", new_callable=AsyncMock) as mock_fetch:
-        with patch.object(
-            service.executor, "transcode", new_callable=AsyncMock
-        ) as mock_transcode:
+        with patch.object(service.executor, "transcode", new_callable=AsyncMock) as mock_transcode:
             with patch.object(
                 service.executor, "transcribe", new_callable=AsyncMock
             ) as mock_transcribe:

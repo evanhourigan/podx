@@ -47,8 +47,7 @@ def start(host: str, port: int, reload: bool, workers: int) -> None:
         import uvicorn
     except ImportError:
         console.print(
-            "[red]Error:[/red] uvicorn not installed. "
-            "Install with: pip install podx[server]"
+            "[red]Error:[/red] uvicorn not installed. " "Install with: pip install podx[server]"
         )
         raise click.Abort()
 

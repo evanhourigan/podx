@@ -42,9 +42,7 @@ def register_provider(name: str, provider_class: Type[ASRProvider]) -> None:
         >>> provider = get_provider("custom", model="my-model")
     """
     if not issubclass(provider_class, ASRProvider):
-        raise ValueError(
-            f"Provider class {provider_class} must inherit from ASRProvider"
-        )
+        raise ValueError(f"Provider class {provider_class} must inherit from ASRProvider")
 
     _PROVIDER_REGISTRY[name] = provider_class
     logger.info(f"Registered ASR provider: {name}")
@@ -86,9 +84,7 @@ def get_provider(
 
     if provider_class is None:
         available = ", ".join(_PROVIDER_REGISTRY.keys())
-        raise TranscriptionError(
-            f"Unknown ASR provider: {provider_name}. Available: {available}"
-        )
+        raise TranscriptionError(f"Unknown ASR provider: {provider_name}. Available: {available}")
 
     config = ProviderConfig(
         model=model,

@@ -60,9 +60,7 @@ class SRTFormatter(ExportFormatter):
                 text = f"[{speaker}] {text}"
 
             lines.append(str(i))
-            lines.append(
-                f"{format_timestamp(s['start'])} --> {format_timestamp(s['end'])}"
-            )
+            lines.append(f"{format_timestamp(s['start'])} --> {format_timestamp(s['end'])}")
             lines.append(text)
             lines.append("")  # Blank line between entries
 

@@ -69,38 +69,22 @@ class OpenAIProvider(ASRProvider):
         self._report_progress(f"Using OpenAI API: {normalized_model}")
 
         try:
-            # Try new SDK first
-            try:
-                from openai import OpenAI
+            from openai import OpenAI
 
-                client = OpenAI()
-                use_new_sdk = True
-            except Exception:
-                import openai  # type: ignore[import-untyped]
-
-                use_new_sdk = False
+            client = OpenAI()
 
             with open(str(audio_path), "rb") as f:
-                if use_new_sdk:
-                    resp = client.audio.transcriptions.create(
-                        model=normalized_model,
-                        file=f,
-                        response_format="verbose_json",
-                    )
-                    text = getattr(resp, "text", None) or (
-                        resp.get("text") if isinstance(resp, dict) else None
-                    )
-                    segs_raw = getattr(resp, "segments", None) or (
-                        resp.get("segments") if isinstance(resp, dict) else None
-                    )
-                else:
-                    resp = openai.Audio.transcriptions.create(
-                        model=normalized_model,
-                        file=f,
-                        response_format="verbose_json",
-                    )
-                    text = resp.get("text")
-                    segs_raw = resp.get("segments")
+                resp = client.audio.transcriptions.create(
+                    model=normalized_model,
+                    file=f,
+                    response_format="verbose_json",
+                )
+                text = getattr(resp, "text", None) or (
+                    resp.get("text") if isinstance(resp, dict) else None
+                )
+                segs_raw = getattr(resp, "segments", None) or (
+                    resp.get("segments") if isinstance(resp, dict) else None
+                )
 
             # Parse segments
             segments: List[Dict[str, Any]] = []

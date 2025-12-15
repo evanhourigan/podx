@@ -7,9 +7,7 @@ import click
 from podx.config import get_config
 
 
-def register_deprecated_commands(
-    main_group: click.Group, run_command: Callable[..., Any]
-) -> None:
+def register_deprecated_commands(main_group: click.Group, run_command: Callable[..., Any]) -> None:
     """Register deprecated workflow commands.
 
     Args:
@@ -20,14 +18,10 @@ def register_deprecated_commands(
     @main_group.command("quick", hidden=True)
     @click.option("--show", help="Podcast show name (iTunes search)")
     @click.option("--rss-url", help="Direct RSS feed URL (alternative to --show)")
-    @click.option(
-        "--youtube-url", help="YouTube video URL (alternative to --show and --rss-url)"
-    )
+    @click.option("--youtube-url", help="YouTube video URL (alternative to --show and --rss-url)")
     @click.option("--date", help="Episode date (YYYY-MM-DD)")
     @click.option("--title-contains", help="Substring to match in episode title")
-    @click.option(
-        "--model", default=lambda: get_config().default_asr_model, help="ASR model"
-    )
+    @click.option("--model", default=lambda: get_config().default_asr_model, help="ASR model")
     @click.option(
         "--asr-provider",
         type=click.Choice(["auto", "local", "openai", "hf"]),
@@ -81,14 +75,10 @@ def register_deprecated_commands(
     @main_group.command("analyze", hidden=True)
     @click.option("--show", help="Podcast show name (iTunes search)")
     @click.option("--rss-url", help="Direct RSS feed URL (alternative to --show)")
-    @click.option(
-        "--youtube-url", help="YouTube video URL (alternative to --show and --rss-url)"
-    )
+    @click.option("--youtube-url", help="YouTube video URL (alternative to --show and --rss-url)")
     @click.option("--date", help="Episode date (YYYY-MM-DD)")
     @click.option("--title-contains", help="Substring to match in episode title")
-    @click.option(
-        "--model", default=lambda: get_config().default_asr_model, help="ASR model"
-    )
+    @click.option("--model", default=lambda: get_config().default_asr_model, help="ASR model")
     @click.option(
         "--asr-provider",
         type=click.Choice(["auto", "local", "openai", "hf"]),
@@ -167,9 +157,7 @@ def register_deprecated_commands(
     @main_group.command("publish", hidden=True)
     @click.option("--show", help="Podcast show name (iTunes search)")
     @click.option("--rss-url", help="Direct RSS feed URL (alternative to --show)")
-    @click.option(
-        "--youtube-url", help="YouTube video URL (alternative to --show and --rss-url)"
-    )
+    @click.option("--youtube-url", help="YouTube video URL (alternative to --show and --rss-url)")
     @click.option("--date", help="Episode date (YYYY-MM-DD)")
     @click.option("--title-contains", help="Substring to match in episode title")
     @click.option(

@@ -204,11 +204,7 @@ class PipelineService:
             progress_callback("transcode", "started")
 
         # Convert fmt enum to string value if needed
-        fmt_value = (
-            self.config.fmt.value
-            if hasattr(self.config.fmt, "value")
-            else self.config.fmt
-        )
+        fmt_value = self.config.fmt.value if hasattr(self.config.fmt, "value") else self.config.fmt
 
         audio = self.executor.transcode(
             meta=meta,
@@ -463,9 +459,7 @@ class PipelineService:
         result.steps_completed.append("export")
 
         # Extract file paths from export result
-        exported_files = (
-            export_result.get("files", {}) if isinstance(export_result, dict) else {}
-        )
+        exported_files = export_result.get("files", {}) if isinstance(export_result, dict) else {}
         if "txt" in exported_files:
             result.artifacts["txt"] = exported_files["txt"]
         if "srt" in exported_files:
@@ -499,9 +493,7 @@ class PipelineService:
         meta_path = workdir / "episode-meta.json"
 
         # Convert analysis_type enum to string value if needed
-        analysis_type_value = getattr(
-            self.config.analysis_type, "value", self.config.analysis_type
-        )
+        analysis_type_value = getattr(self.config.analysis_type, "value", self.config.analysis_type)
 
         self.executor.deepcast(
             input_path=latest_path,
@@ -542,9 +534,7 @@ class PipelineService:
             SystemExit: If notion_db is not configured
         """
         if not self.config.notion_db:
-            raise SystemExit(
-                "Please pass --db or set NOTION_DB_ID environment variable"
-            )
+            raise SystemExit("Please pass --db or set NOTION_DB_ID environment variable")
 
         if progress_callback:
             progress_callback("notion", "started")
@@ -622,9 +612,7 @@ class PipelineService:
                         cleaned_files += 1
                         logger.debug("Cleaned intermediate file", file=str(p))
                     except Exception as e:
-                        logger.warning(
-                            "Failed to clean file", file=str(p), error=str(e)
-                        )
+                        logger.warning("Failed to clean file", file=str(p), error=str(e))
 
         result.steps_completed.append("cleanup")
         logger.info("Cleanup completed", files_removed=cleaned_files)

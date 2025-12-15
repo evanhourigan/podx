@@ -3,11 +3,7 @@
 from pathlib import Path
 from typing import Any, Dict, List
 
-from ...device import (
-    detect_device_for_ctranslate2,
-    get_optimal_compute_type,
-    log_device_usage,
-)
+from ...device import detect_device_for_ctranslate2, get_optimal_compute_type, log_device_usage
 from ...logging import get_logger
 from .base import ASRProvider, ProviderConfig, TranscriptionError, TranscriptionResult
 
@@ -101,7 +97,11 @@ class LocalProvider(ASRProvider):
         self._report_progress(f"Loading model: {self.normalized_model}")
 
         # Log device usage for transparency
-        log_device_usage(self.config.device, self.config.compute_type, "transcription")
+        log_device_usage(
+            self.config.device or "cpu",
+            self.config.compute_type or "int8",
+            "transcription",
+        )
 
         try:
             asr = WhisperModel(

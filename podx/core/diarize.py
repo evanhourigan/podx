@@ -147,9 +147,7 @@ def calculate_chunk_duration(
         - needs_chunking: True if audio must be split into chunks
     """
     usable_memory = available_gb * MEMORY_SAFETY_FACTOR
-    processable_minutes = (
-        usable_memory - DIARIZATION_BASE_MEMORY_GB
-    ) / DIARIZATION_PER_MINUTE_GB
+    processable_minutes = (usable_memory - DIARIZATION_BASE_MEMORY_GB) / DIARIZATION_PER_MINUTE_GB
 
     # Can we process the whole file?
     if processable_minutes >= audio_duration_minutes:
@@ -195,9 +193,7 @@ def split_audio_into_chunks(
     chunk_index = 0
 
     while start_seconds < total_duration_seconds:
-        end_seconds = min(
-            start_seconds + chunk_duration_seconds, total_duration_seconds
-        )
+        end_seconds = min(start_seconds + chunk_duration_seconds, total_duration_seconds)
 
         # Create chunk filename
         chunk_path = output_dir / f".chunk_{chunk_index:03d}_{audio_path.stem}.wav"
@@ -226,9 +222,7 @@ def split_audio_into_chunks(
                 check=True,
             )
         except subprocess.CalledProcessError as e:
-            raise DiarizationError(
-                f"Failed to split audio chunk {chunk_index}: {e}"
-            ) from e
+            raise DiarizationError(f"Failed to split audio chunk {chunk_index}: {e}") from e
 
         chunks.append((chunk_path, start_seconds, end_seconds))
 
@@ -317,9 +311,7 @@ def match_speakers_across_chunks(
                 "New speaker detected",
                 current=spk_curr,
                 assigned=new_id,
-                best_distance=(
-                    f"{best_distance:.3f}" if best_distance != float("inf") else "N/A"
-                ),
+                best_distance=(f"{best_distance:.3f}" if best_distance != float("inf") else "N/A"),
             )
 
     return mapping
@@ -378,9 +370,7 @@ def merge_chunk_segments(
                     new_word["start"] = word.get("start", 0) + chunk_start
                     new_word["end"] = word.get("end", 0) + chunk_start
                     if "speaker" in new_word:
-                        new_word["speaker"] = mapping.get(
-                            new_word["speaker"], new_word["speaker"]
-                        )
+                        new_word["speaker"] = mapping.get(new_word["speaker"], new_word["speaker"])
                     new_words.append(new_word)
                 new_seg["words"] = new_words
 
@@ -410,9 +400,7 @@ def cleanup_chunk_files(chunks: List[Tuple[Path, float, float]]) -> None:
                 chunk_path.unlink()
                 logger.debug("Removed chunk file", path=str(chunk_path))
         except OSError as e:
-            logger.warning(
-                "Failed to remove chunk file", path=str(chunk_path), error=str(e)
-            )
+            logger.warning("Failed to remove chunk file", path=str(chunk_path), error=str(e))
 
 
 class DiarizationError(Exception):
@@ -510,10 +498,7 @@ class DiarizationEngine:
 
         if needs_chunking:
             num_chunks = (
-                int(
-                    (audio_duration_minutes * 60)
-                    / (chunk_duration * 60 - CHUNK_OVERLAP_SECONDS)
-                )
+                int((audio_duration_minutes * 60) / (chunk_duration * 60 - CHUNK_OVERLAP_SECONDS))
                 + 1
             )
             self._chunking_info["num_chunks"] = num_chunks
@@ -536,9 +521,7 @@ class DiarizationEngine:
             import whisperx
             from whisperx.diarize import assign_word_speakers
         except ImportError:
-            raise DiarizationError(
-                "whisperx not installed. Install with: pip install whisperx"
-            )
+            raise DiarizationError("whisperx not installed. Install with: pip install whisperx")
 
         # Step 1: Alignment - add word-level timing (always done on full audio)
         self._report_progress("Loading alignment model")
@@ -687,9 +670,7 @@ class DiarizationEngine:
 
                 # Match speakers to previous chunk
                 if embeddings:
-                    chunk_mapping = match_speakers_across_chunks(
-                        prev_embeddings, embeddings
-                    )
+                    chunk_mapping = match_speakers_across_chunks(prev_embeddings, embeddings)
                     # Update cumulative mapping for consistent IDs
                     for curr, mapped in chunk_mapping.items():
                         if mapped in cumulative_mapping:
@@ -700,9 +681,7 @@ class DiarizationEngine:
                     prev_embeddings = embeddings
                     matched_count = sum(1 for k, v in chunk_mapping.items() if k != v)
                     if matched_count > 0 and chunk_idx > 0:
-                        logger.info(
-                            f"Matched {matched_count} speakers from previous chunk"
-                        )
+                        logger.info(f"Matched {matched_count} speakers from previous chunk")
                 else:
                     chunk_mapping = {}
 
@@ -720,9 +699,7 @@ class DiarizationEngine:
 
             # Merge all chunks
             self._report_progress("Merging segments")
-            merged_segments = merge_chunk_segments(
-                all_chunk_results, chunk_times, speaker_mappings
-            )
+            merged_segments = merge_chunk_segments(all_chunk_results, chunk_times, speaker_mappings)
 
             return {"segments": merged_segments}
 

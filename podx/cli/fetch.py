@@ -26,9 +26,7 @@ console = Console()
 ITEMS_PER_PAGE = 10
 
 
-def _make_download_progress() -> (
-    Tuple[DownloadProgress, Callable[[int, Optional[int]], None]]
-):
+def _make_download_progress() -> Tuple[DownloadProgress, Callable[[int, Optional[int]], None]]:
     """Create a download progress tracker and callback.
 
     Returns:
@@ -91,9 +89,7 @@ def _display_list(
         console.print(f"  [bold]{idx:3}[/bold]  {formatted}")
 
     console.print()
-    console.print(
-        "[dim]Enter number to select • n next • p prev • b back • q quit[/dim]"
-    )
+    console.print("[dim]Enter number to select • n next • p prev • b back • q quit[/dim]")
 
     return total_pages
 
@@ -263,9 +259,7 @@ def _interactive_episode_selection(
     page = 0
 
     while True:
-        total_pages = _display_list(
-            episodes, page, _format_episode, f"Episodes from {show_name}"
-        )
+        total_pages = _display_list(episodes, page, _format_episode, f"Episodes from {show_name}")
 
         try:
             choice = input("\n> ").strip().lower()
@@ -301,9 +295,7 @@ def _interactive_video_selection(
     page = 0
 
     while True:
-        total_pages = _display_list(
-            videos, page, _format_video, f"Videos from {playlist_title}"
-        )
+        total_pages = _display_list(videos, page, _format_video, f"Videos from {playlist_title}")
 
         try:
             choice = input("\n> ").strip().lower()
@@ -361,18 +353,14 @@ def _run_interactive(fetcher: PodcastFetcher) -> Optional[Dict[str, Any]]:
             # Step 3: Download
             # episode is Dict[str, Any] at this point
             episode_dict: Dict[str, Any] = episode
-            console.print(
-                f"\n[cyan]Downloading:[/cyan] {episode_dict.get('title', 'Unknown')}"
-            )
+            console.print(f"\n[cyan]Downloading:[/cyan] {episode_dict.get('title', 'Unknown')}")
 
             try:
                 # Download audio
                 from podx.utils import generate_workdir
 
                 episode_date = (
-                    episode_dict.get("published")
-                    or episode_dict.get("updated")
-                    or "unknown"
+                    episode_dict.get("published") or episode_dict.get("updated") or "unknown"
                 )
                 episode_title = episode_dict.get("title", "")
                 output_dir = generate_workdir(show_name, episode_date, episode_title)
@@ -469,9 +457,7 @@ def main(
                 sys.exit(0)
 
             meta = result.get("meta", {})
-            console.print(
-                f"\n[green]✓ Downloaded:[/green] {meta.get('episode_title', 'Unknown')}"
-            )
+            console.print(f"\n[green]✓ Downloaded:[/green] {meta.get('episode_title', 'Unknown')}")
             console.print(f"  Show: {meta.get('show', 'Unknown')}")
             console.print(f"  Audio: {result.get('audio_path')}")
             console.print(f"  Directory: {result.get('directory')}")
@@ -614,18 +600,14 @@ def main(
                 try:
                     shows = fetcher.search_podcasts(show or "")
                     if not shows:
-                        console.print(
-                            f"[red]Error:[/red] No podcasts found for '{show}'"
-                        )
+                        console.print(f"[red]Error:[/red] No podcasts found for '{show}'")
                         sys.exit(ExitCode.USER_ERROR)
                     # Use first result
                     selected_show = shows[0]
                     feed_url = selected_show.get("feedUrl")  # type: ignore[assignment]
                     show_name = str(selected_show.get("collectionName", show) or "")
                     if not feed_url:
-                        console.print(
-                            "[red]Error:[/red] No RSS feed found for this podcast"
-                        )
+                        console.print("[red]Error:[/red] No RSS feed found for this podcast")
                         sys.exit(ExitCode.USER_ERROR)
                 except ValidationError as e:
                     console.print(f"[red]Error:[/red] {e}")
@@ -635,9 +617,7 @@ def main(
                     sys.exit(ExitCode.SYSTEM_ERROR)
 
             # Show interactive episode browser
-            episode = _interactive_episode_selection(
-                fetcher, feed_url, show_name or show or ""
-            )
+            episode = _interactive_episode_selection(fetcher, feed_url, show_name or show or "")
 
             if episode is None:
                 console.print("[dim]Cancelled[/dim]")
@@ -651,23 +631,15 @@ def main(
             episode_dict: Dict[str, Any] = episode
 
             # Download selected episode
-            console.print(
-                f"\n[cyan]Downloading:[/cyan] {episode_dict.get('title', 'Unknown')}"
-            )
+            console.print(f"\n[cyan]Downloading:[/cyan] {episode_dict.get('title', 'Unknown')}")
 
             import json
 
             from podx.utils import generate_workdir
 
-            episode_date = (
-                episode_dict.get("published")
-                or episode_dict.get("updated")
-                or "unknown"
-            )
+            episode_date = episode_dict.get("published") or episode_dict.get("updated") or "unknown"
             episode_title = episode_dict.get("title", "")
-            output_dir = generate_workdir(
-                show_name or show or "", episode_date, episode_title
-            )
+            output_dir = generate_workdir(show_name or show or "", episode_date, episode_title)
 
             progress, progress_callback = _make_download_progress()
             audio_path = fetcher.download_audio(
@@ -687,9 +659,7 @@ def main(
             }
 
             meta_file = output_dir / "episode-meta.json"
-            meta_file.write_text(
-                json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8"
-            )
+            meta_file.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
 
             result = {
                 "meta": meta,
@@ -708,9 +678,7 @@ def main(
     episode_dir = Path(audio_path).parent if audio_path else None
 
     # Show completion
-    console.print(
-        f"\n[green]✓ Downloaded:[/green] {meta.get('episode_title', 'Unknown')}"
-    )
+    console.print(f"\n[green]✓ Downloaded:[/green] {meta.get('episode_title', 'Unknown')}")
     console.print(f"  Show: {meta.get('show', 'Unknown')}")
     if audio_path:
         console.print(f"  Audio: {audio_path}")

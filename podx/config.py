@@ -26,32 +26,20 @@ class PodxConfig(BaseSettings):
     default_asr_model: str = Field(
         default="local:large-v3-turbo", validation_alias="PODX_DEFAULT_MODEL"
     )
-    default_compute: str = Field(
-        default="auto", validation_alias="PODX_DEFAULT_COMPUTE"
-    )
+    default_compute: str = Field(default="auto", validation_alias="PODX_DEFAULT_COMPUTE")
 
     # OpenAI Configuration
-    openai_api_key: Optional[str] = Field(
-        default=None, validation_alias="OPENAI_API_KEY"
-    )
+    openai_api_key: Optional[str] = Field(default=None, validation_alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-4.1", validation_alias="OPENAI_MODEL")
-    openai_temperature: float = Field(
-        default=0.2, validation_alias="OPENAI_TEMPERATURE"
-    )
-    openai_base_url: Optional[str] = Field(
-        default=None, validation_alias="OPENAI_BASE_URL"
-    )
+    openai_temperature: float = Field(default=0.2, validation_alias="OPENAI_TEMPERATURE")
+    openai_base_url: Optional[str] = Field(default=None, validation_alias="OPENAI_BASE_URL")
 
     # Notion Configuration
     notion_token: Optional[str] = Field(default=None, validation_alias="NOTION_TOKEN")
     notion_db_id: Optional[str] = Field(default=None, validation_alias="NOTION_DB_ID")
-    notion_podcast_prop: str = Field(
-        default="Podcast", validation_alias="NOTION_PODCAST_PROP"
-    )
+    notion_podcast_prop: str = Field(default="Podcast", validation_alias="NOTION_PODCAST_PROP")
     notion_date_prop: str = Field(default="Date", validation_alias="NOTION_DATE_PROP")
-    notion_episode_prop: str = Field(
-        default="Episode", validation_alias="NOTION_EPISODE_PROP"
-    )
+    notion_episode_prop: str = Field(default="Episode", validation_alias="NOTION_EPISODE_PROP")
 
     # Pipeline Configuration
     max_retries: int = Field(default=3, validation_alias="PODX_MAX_RETRIES")
@@ -60,12 +48,8 @@ class PodxConfig(BaseSettings):
 
     # Pipeline Defaults (can be overridden by podcast-specific configs)
     default_align: bool = Field(default=False, validation_alias="PODX_DEFAULT_ALIGN")
-    default_diarize: bool = Field(
-        default=False, validation_alias="PODX_DEFAULT_DIARIZE"
-    )
-    default_deepcast: bool = Field(
-        default=False, validation_alias="PODX_DEFAULT_DEEPCAST"
-    )
+    default_diarize: bool = Field(default=False, validation_alias="PODX_DEFAULT_DIARIZE")
+    default_deepcast: bool = Field(default=False, validation_alias="PODX_DEFAULT_DEEPCAST")
     default_extract_markdown: bool = Field(
         default=False, validation_alias="PODX_DEFAULT_EXTRACT_MARKDOWN"
     )
@@ -79,12 +63,8 @@ class PodxConfig(BaseSettings):
     log_format: str = Field(default="console", validation_alias="PODX_LOG_FORMAT")
 
     # Webhook Configuration
-    webhook_url: Optional[str] = Field(
-        default=None, validation_alias="PODX_WEBHOOK_URL"
-    )
-    webhook_secret: Optional[str] = Field(
-        default=None, validation_alias="PODX_WEBHOOK_SECRET"
-    )
+    webhook_url: Optional[str] = Field(default=None, validation_alias="PODX_WEBHOOK_URL")
+    webhook_secret: Optional[str] = Field(default=None, validation_alias="PODX_WEBHOOK_SECRET")
 
     @field_validator("openai_temperature")
     @classmethod

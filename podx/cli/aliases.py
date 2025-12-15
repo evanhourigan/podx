@@ -76,9 +76,7 @@ def quick(audio_file: Path, output: Optional[Path]) -> None:
         sys.exit(ExitCode.PROCESSING_ERROR)
 
 
-@main.command(
-    name="full", help="Complete pipeline (transcribe → diarize → preprocess → analyze)"
-)
+@main.command(name="full", help="Complete pipeline (transcribe → diarize → preprocess → analyze)")
 @click.argument("audio_file", type=click.Path(exists=True, path_type=Path))
 @click.option(
     "--model",
@@ -173,9 +171,7 @@ def full(
 
             console.print("[green]✓[/green] Analysis complete")
         except ImportError:
-            console.print(
-                "[yellow]⚠ Warning:[/yellow] Analysis requires LLM dependencies"
-            )
+            console.print("[yellow]⚠ Warning:[/yellow] Analysis requires LLM dependencies")
             console.print("Install with: pip install podx[llm]")
         except Exception as e:
             console.print(f"[yellow]⚠ Warning:[/yellow] Analysis failed: {e}")

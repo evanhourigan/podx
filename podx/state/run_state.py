@@ -57,9 +57,7 @@ class RunState:
 
             # Load completed steps
             if "completed_steps" in data:
-                state.completed_steps = {
-                    PipelineStep(step) for step in data["completed_steps"]
-                }
+                state.completed_steps = {PipelineStep(step) for step in data["completed_steps"]}
 
             # Load metadata
             if "metadata" in data:

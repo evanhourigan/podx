@@ -108,9 +108,7 @@ class JobProcessingException(PodXAPIException):
 # Exception handlers for FastAPI
 
 
-async def podx_exception_handler(
-    request: Request, exc: PodXAPIException
-) -> JSONResponse:
+async def podx_exception_handler(request: Request, exc: PodXAPIException) -> JSONResponse:
     """Handle PodX custom exceptions.
 
     Args:

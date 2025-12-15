@@ -9,11 +9,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from podx.server.models.database import Job
-from podx.server.tasks.cleanup import (
-    cleanup_old_jobs,
-    cleanup_orphaned_files,
-    get_cleanup_config,
-)
+from podx.server.tasks.cleanup import cleanup_old_jobs, cleanup_orphaned_files, get_cleanup_config
 
 
 def test_get_cleanup_config_defaults():
@@ -91,9 +87,7 @@ async def test_cleanup_old_jobs_with_local_files():
 
     # Mock both get_upload_dir and delete_upload_file
     mock_delete = MagicMock()
-    with patch(
-        "podx.server.tasks.cleanup.get_upload_dir", return_value=Path(upload_dir)
-    ):
+    with patch("podx.server.tasks.cleanup.get_upload_dir", return_value=Path(upload_dir)):
         with patch("podx.server.tasks.cleanup.delete_upload_file", mock_delete):
             cleaned = await cleanup_old_jobs(session, max_age_days=7)
 
@@ -176,9 +170,7 @@ async def test_cleanup_orphaned_files_all_referenced():
     mock_upload_dir.exists.return_value = True
     mock_upload_dir.glob.return_value = [file1, file2]
 
-    with patch(
-        "podx.server.tasks.cleanup.get_upload_dir", return_value=mock_upload_dir
-    ):
+    with patch("podx.server.tasks.cleanup.get_upload_dir", return_value=mock_upload_dir):
         # Mock database query returning jobs that reference these files
         with patch("podx.server.tasks.cleanup.async_session_factory") as mock_factory:
             mock_session = MagicMock()
@@ -219,9 +211,7 @@ async def test_cleanup_orphaned_files_with_orphans():
     mock_upload_dir.exists.return_value = True
     mock_upload_dir.glob.return_value = [file1, file2]
 
-    with patch(
-        "podx.server.tasks.cleanup.get_upload_dir", return_value=mock_upload_dir
-    ):
+    with patch("podx.server.tasks.cleanup.get_upload_dir", return_value=mock_upload_dir):
         # Mock database query returning only one referenced file
         with patch("podx.server.tasks.cleanup.async_session_factory") as mock_factory:
             mock_session = MagicMock()

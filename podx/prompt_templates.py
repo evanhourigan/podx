@@ -159,9 +159,7 @@ def get_content_scaling(episode_duration_minutes: Optional[int]) -> str:
         return "- Episode length unknown; use standard content density"
 
     if episode_duration_minutes < 30:
-        return (
-            "- Short episode (<30min): Focus on the most essential insights, be concise"
-        )
+        return "- Short episode (<30min): Focus on the most essential insights, be concise"
     elif episode_duration_minutes < 60:
         return "- Medium episode (30-60min): Standard analysis depth with comprehensive coverage"
     elif episode_duration_minutes < 90:
@@ -541,37 +539,29 @@ def detect_podcast_type(transcript: Dict[str, Any]) -> PodcastType:
 
     # Check show name for obvious indicators
     show_name = (transcript.get("show") or transcript.get("show_name", "")).lower()
-    episode_title = (
-        transcript.get("episode_title") or transcript.get("title", "")
-    ).lower()
+    episode_title = (transcript.get("episode_title") or transcript.get("title", "")).lower()
 
     combined_text = f"{show_name} {episode_title}"
 
     # Simple keyword-based detection
-    if any(
-        word in combined_text for word in ["interview", "talk", "conversation", "chat"]
-    ):
+    if any(word in combined_text for word in ["interview", "talk", "conversation", "chat"]):
         return PodcastType.INTERVIEW
     elif any(word in combined_text for word in ["news", "update", "daily", "weekly"]):
         return PodcastType.NEWS
     elif any(
-        word in combined_text
-        for word in ["tech", "startup", "coding", "dev", "ai", "software"]
+        word in combined_text for word in ["tech", "startup", "coding", "dev", "ai", "software"]
     ):
         return PodcastType.TECH
     elif any(
-        word in combined_text
-        for word in ["business", "entrepreneur", "ceo", "strategy", "growth"]
+        word in combined_text for word in ["business", "entrepreneur", "ceo", "strategy", "growth"]
     ):
         return PodcastType.BUSINESS
     elif any(
-        word in combined_text
-        for word in ["learn", "education", "course", "tutorial", "guide"]
+        word in combined_text for word in ["learn", "education", "course", "tutorial", "guide"]
     ):
         return PodcastType.EDUCATIONAL
     elif any(
-        word in combined_text
-        for word in ["story", "investigation", "documentary", "narrative"]
+        word in combined_text for word in ["story", "investigation", "documentary", "narrative"]
     ):
         return PodcastType.NARRATIVE
     elif any(word in combined_text for word in ["comedy", "humor", "funny", "laugh"]):

@@ -55,9 +55,7 @@ class AnalyzeStep(PipelineStep):
             return True, f"Found existing analysis for {self.analyze_model}"
         return False, None
 
-    def execute(
-        self, context: StepContext, progress: Any, verbose: bool = False
-    ) -> StepResult:
+    def execute(self, context: StepContext, progress: Any, verbose: bool = False) -> StepResult:
         """Execute analyze step."""
         from podx.utils import build_analyze_command
 

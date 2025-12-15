@@ -56,9 +56,7 @@ class PodxProgress:
             return
 
         def update_spinner():
-            with Live(
-                self.spinner, console=console, refresh_per_second=1, transient=True
-            ) as live:
+            with Live(self.spinner, console=console, refresh_per_second=1, transient=True) as live:
                 self.live = live
                 self.spinner_running = True
                 while self.running and self.spinner_running:

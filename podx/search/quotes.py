@@ -175,9 +175,7 @@ class QuoteExtractor:
 
         results: Dict[str, List[Dict[str, Any]]] = {}
         for speaker in speakers:
-            quotes = self.extract_quotes(
-                transcript, max_quotes=top_n, speaker_filter=speaker
-            )
+            quotes = self.extract_quotes(transcript, max_quotes=top_n, speaker_filter=speaker)
             if quotes:
                 results[speaker] = quotes
 

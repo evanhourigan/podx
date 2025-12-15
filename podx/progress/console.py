@@ -35,9 +35,7 @@ class ConsoleProgressReporter(ProgressReporter):
         self.total_steps = total_steps
 
         if total_steps:
-            self.console.print(
-                f"[bold blue]▶[/bold blue] {task_name} ({total_steps} steps)"
-            )
+            self.console.print(f"[bold blue]▶[/bold blue] {task_name} ({total_steps} steps)")
         else:
             self.console.print(f"[bold blue]▶[/bold blue] {task_name}")
 
@@ -80,18 +78,14 @@ class ConsoleProgressReporter(ProgressReporter):
     def complete_task(self, message: str, duration: Optional[float] = None) -> None:
         """Mark entire task as complete."""
         if duration is not None:
-            self.console.print(
-                f"[bold green]✓[/bold green] {message} ({duration:.2f}s)"
-            )
+            self.console.print(f"[bold green]✓[/bold green] {message} ({duration:.2f}s)")
         else:
             self.console.print(f"[bold green]✓[/bold green] {message}")
 
     def fail_task(self, message: str, error: Optional[Exception] = None) -> None:
         """Mark entire task as failed."""
         if error:
-            self.console.print(
-                f"[bold red]✗[/bold red] {message}: {error}", style="bold red"
-            )
+            self.console.print(f"[bold red]✗[/bold red] {message}: {error}", style="bold red")
         else:
             self.console.print(f"[bold red]✗[/bold red] {message}", style="bold red")
 

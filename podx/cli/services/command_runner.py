@@ -65,9 +65,7 @@ def run_command(
 
     if verbose:
         # Show a compact preview of the JSON output
-        preview = (
-            out[:PREVIEW_MAX_LENGTH] + "..." if len(out) > PREVIEW_MAX_LENGTH else out
-        )
+        preview = out[:PREVIEW_MAX_LENGTH] + "..." if len(out) > PREVIEW_MAX_LENGTH else out
         click.secho(preview, fg="white")
 
     try:

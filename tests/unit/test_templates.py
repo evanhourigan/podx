@@ -287,8 +287,7 @@ output_format: markdown
         for name, template in builtins.items():
             # Check that system prompt contains scaling guidance
             assert (
-                "Adapt your analysis depth based on episode length"
-                in template.system_prompt
+                "Adapt your analysis depth based on episode length" in template.system_prompt
             ), f"Template {name} missing scaling guidance"
             assert (
                 "<30 minutes" in template.system_prompt

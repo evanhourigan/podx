@@ -23,9 +23,7 @@ def _split_blocks_for_notion(
         # Check if we need to split
         if len(current_chunk) >= 100:
             # Find optimal split point
-            optimal_split = _find_optimal_split_point(
-                blocks, i - len(current_chunk) + 1, i + 1
-            )
+            optimal_split = _find_optimal_split_point(blocks, i - len(current_chunk) + 1, i + 1)
 
             # Split at the optimal point
             if optimal_split < len(current_chunk):
@@ -47,9 +45,7 @@ def _split_blocks_for_notion(
     return chunks
 
 
-def _find_optimal_split_point(
-    blocks: List[Dict[str, Any]], start_pos: int, target_end: int
-) -> int:
+def _find_optimal_split_point(blocks: List[Dict[str, Any]], start_pos: int, target_end: int) -> int:
     """Find the optimal split point that keeps content together."""
     # Start from the target end and work backwards to find the best split
     best_split_pos = min(target_end, len(blocks))
@@ -90,8 +86,7 @@ def _is_optimal_split_point(blocks: List[Dict[str, Any]], pos: int) -> bool:
 
             # Check if this looks like a speaker label or section break
             is_section_break = any(
-                marker in content.upper()
-                for marker in ["##", "###", "SPEAKER", ":", "---"]
+                marker in content.upper() for marker in ["##", "###", "SPEAKER", ":", "---"]
             )
 
             if is_section_break:

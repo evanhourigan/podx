@@ -42,9 +42,7 @@ class TestPipelineValidation:
             "episode_published": "2024-01-01",
             "audio_path": "/nonexistent/file.mp3",
         }
-        with pytest.raises(
-            ValueError
-        ):  # Pydantic raises ValueError for validation errors
+        with pytest.raises(ValueError):  # Pydantic raises ValueError for validation errors
             EpisodeMeta.parse_obj(invalid_data)
 
     def test_audio_meta_validation(self):
@@ -114,9 +112,7 @@ class TestFetchModule:
         """Test successful podcast feed lookup."""
         # Mock the requests response
         mock_response = Mock()
-        mock_response.json.return_value = {
-            "results": [{"feedUrl": "https://example.com/feed.xml"}]
-        }
+        mock_response.json.return_value = {"results": [{"feedUrl": "https://example.com/feed.xml"}]}
         mock_response.raise_for_status.return_value = None
         mock_session.return_value.get.return_value = mock_response
 

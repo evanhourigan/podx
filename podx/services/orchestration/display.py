@@ -94,11 +94,7 @@ def print_results_summary(
         - Prints key file paths with emojis
         - Prints full results as JSON
     """
-    from podx.cli.services.progress import (
-        format_duration,
-        print_podx_info,
-        print_podx_success,
-    )
+    from podx.cli.services.progress import format_duration, print_podx_info, print_podx_success
 
     # Final summary
     total_time = time.time() - start_time
@@ -157,9 +153,7 @@ def build_episode_metadata_display(
         latest_path = sel_dir / "latest.json"
         if latest_path.exists():
             try:
-                transcript_json = json.loads(
-                    latest_path.read_text(encoding=DEFAULT_ENCODING)
-                )
+                transcript_json = json.loads(latest_path.read_text(encoding=DEFAULT_ENCODING))
                 segments = transcript_json.get("segments", [])
                 if segments:
                     duration_seconds = int(max(s.get("end", 0) for s in segments))
@@ -204,17 +198,13 @@ def build_episode_metadata_display(
     # Build processing summary
     processing_parts = []
     if num_transcripts > 0:
-        processing_parts.append(
-            f"{num_transcripts} transcript{'s' if num_transcripts > 1 else ''}"
-        )
+        processing_parts.append(f"{num_transcripts} transcript{'s' if num_transcripts > 1 else ''}")
     if num_aligned > 0:
         processing_parts.append(f"{num_aligned} aligned")
     if num_diarized > 0:
         processing_parts.append(f"{num_diarized} diarized")
     if num_deepcasts > 0:
-        processing_parts.append(
-            f"{num_deepcasts} deepcast{'s' if num_deepcasts > 1 else ''}"
-        )
+        processing_parts.append(f"{num_deepcasts} deepcast{'s' if num_deepcasts > 1 else ''}")
     if has_consensus:
         processing_parts.append("consensus")
 

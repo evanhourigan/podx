@@ -77,9 +77,7 @@ class BatchProcessor:
             console.print("[yellow]No episodes to process[/yellow]")
             return []
 
-        console.print(
-            f"\n[bold blue]{operation_name}:[/bold blue] {len(episodes)} episodes"
-        )
+        console.print(f"\n[bold blue]{operation_name}:[/bold blue] {len(episodes)} episodes")
         console.print(f"[dim]Workers: {self.parallel_workers}[/dim]\n")
 
         results: List[BatchResult] = []
@@ -102,9 +100,7 @@ class BatchProcessor:
                 future_to_episode: Dict[Future, Dict[str, Any]] = {}
 
                 for episode in episodes:
-                    future = executor.submit(
-                        self._process_with_retry, episode, process_fn
-                    )
+                    future = executor.submit(self._process_with_retry, episode, process_fn)
                     future_to_episode[future] = episode
 
                 # Collect results as they complete
@@ -121,15 +117,11 @@ class BatchProcessor:
                     else:
                         status = f"✗ {episode.get('title', 'unknown')}"
                         progress.update(task, advance=1, description=status)
-                        logger.error(
-                            f"Failed to process {episode.get('title')}: {result.error}"
-                        )
+                        logger.error(f"Failed to process {episode.get('title')}: {result.error}")
 
                         # Stop on error if configured
                         if not self.continue_on_error:
-                            console.print(
-                                f"\n[red]Stopping batch: {result.error}[/red]"
-                            )
+                            console.print(f"\n[red]Stopping batch: {result.error}[/red]")
                             # Cancel remaining futures
                             for f in future_to_episode:
                                 f.cancel()
@@ -181,14 +173,10 @@ class BatchProcessor:
                     )
                     time.sleep(self.retry_delay)
                 else:
-                    logger.error(
-                        f"Failed after {retries} retries: {episode.get('title')}"
-                    )
+                    logger.error(f"Failed after {retries} retries: {episode.get('title')}")
 
         # All retries exhausted
-        return BatchResult(
-            episode=episode, success=False, error=last_error, retries=retries
-        )
+        return BatchResult(episode=episode, success=False, error=last_error, retries=retries)
 
     def _print_summary(self, results: List[BatchResult], operation_name: str) -> None:
         """Print batch processing summary.

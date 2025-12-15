@@ -56,9 +56,7 @@ class NotionStep(PipelineStep):
     def name(self) -> str:
         return "Upload to Notion"
 
-    def execute(
-        self, context: StepContext, progress: Any, verbose: bool = False
-    ) -> StepResult:
+    def execute(self, context: StepContext, progress: Any, verbose: bool = False) -> StepResult:
         """Execute Notion upload step."""
         progress.start_step("Uploading to Notion")
         step_start = time.time()
@@ -68,9 +66,7 @@ class NotionStep(PipelineStep):
 
         # Prefer exported.md if available, else model-specific deepcast outputs
         model_suffix = self.deepcast_model.replace(".", "_").replace("-", "_")
-        exported_md = (
-            Path(results.get("exported_md", "")) if results.get("exported_md") else None
-        )
+        exported_md = Path(results.get("exported_md", "")) if results.get("exported_md") else None
         model_specific_md = wd / f"deepcast-{model_suffix}.md"
         model_specific_json = wd / f"deepcast-{model_suffix}.json"
 
@@ -80,9 +76,7 @@ class NotionStep(PipelineStep):
         # If exported exists, use it directly
         if exported_md and exported_md.exists():
             md_path = str(exported_md)
-            json_path = (
-                str(model_specific_json) if model_specific_json.exists() else None
-            )
+            json_path = str(model_specific_json) if model_specific_json.exists() else None
             cmd.add_option("--markdown", md_path)
             cmd.add_option("--meta", str(wd / "episode-meta.json"))
             if json_path:
@@ -103,9 +97,7 @@ class NotionStep(PipelineStep):
                     if model_specific_md.exists()
                     else str(fallback_md) if fallback_md else str(wd / "latest.txt")
                 )
-                json_path = (
-                    str(model_specific_json) if model_specific_json.exists() else None
-                )
+                json_path = str(model_specific_json) if model_specific_json.exists() else None
 
                 cmd.add_option("--markdown", md_path)
                 cmd.add_option("--meta", str(wd / "episode-meta.json"))

@@ -66,9 +66,7 @@ def extract_episode_info(path: Path) -> Optional[tuple[str, str]]:
         return None
 
     except Exception as e:
-        logger.debug(
-            "Could not extract episode info from path", path=str(path), error=str(e)
-        )
+        logger.debug("Could not extract episode info from path", path=str(path), error=str(e))
         return None
 
 
@@ -114,9 +112,7 @@ def start_stage(
             model=model,
             metadata=metadata or {},
         )
-        logger.debug(
-            "Manifest updated: stage started", show=show, date=date, stage=stage
-        )
+        logger.debug("Manifest updated: stage started", show=show, date=date, stage=stage)
 
     except Exception as e:
         logger.debug("Failed to update manifest (start)", error=str(e))
@@ -164,9 +160,7 @@ def complete_stage(
             files=[str(f) for f in (files or [])],
             metadata=metadata or {},
         )
-        logger.debug(
-            "Manifest updated: stage completed", show=show, date=date, stage=stage
-        )
+        logger.debug("Manifest updated: stage completed", show=show, date=date, stage=stage)
 
     except Exception as e:
         logger.debug("Failed to update manifest (complete)", error=str(e))
@@ -256,9 +250,7 @@ def fail_stage(
             stage=stage,
             error=error,
         )
-        logger.debug(
-            "Manifest updated: stage failed", show=show, date=date, stage=stage
-        )
+        logger.debug("Manifest updated: stage failed", show=show, date=date, stage=stage)
 
     except Exception as e:
         logger.debug("Failed to update manifest (fail)", error=str(e))

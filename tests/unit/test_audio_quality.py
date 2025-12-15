@@ -115,9 +115,7 @@ class TestAudioQualityAnalyzer:
             samples = int(sr * duration)
 
             # First half: signal, second half: silence
-            signal = 0.5 * np.sin(
-                2 * np.pi * 440 * np.linspace(0, duration / 2, samples // 2)
-            )
+            signal = 0.5 * np.sin(2 * np.pi * 440 * np.linspace(0, duration / 2, samples // 2))
             silence = np.zeros(samples // 2)
             y = np.concatenate([signal, silence])
 
@@ -227,9 +225,7 @@ class TestAudioQualityAnalyzer:
         assert clipping_clean < 0.001
 
         # With clipping
-        clipped = np.clip(
-            1.5 * np.sin(2 * np.pi * 440 * np.linspace(0, 1, 16000)), -1.0, 1.0
-        )
+        clipped = np.clip(1.5 * np.sin(2 * np.pi * 440 * np.linspace(0, 1, 16000)), -1.0, 1.0)
         clipping_clipped = analyzer._detect_clipping(clipped)
         assert clipping_clipped > 0.01
 

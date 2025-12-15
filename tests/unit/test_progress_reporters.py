@@ -31,9 +31,7 @@ class TestProgressReporterInterface:
 
     def test_progress_step_dataclass(self):
         """ProgressStep dataclass works correctly."""
-        step = ProgressStep(
-            name="Test step", status="running", progress=0.5, message="In progress"
-        )
+        step = ProgressStep(name="Test step", status="running", progress=0.5, message="In progress")
         assert step.name == "Test step"
         assert step.status == "running"
         assert step.progress == 0.5
@@ -410,9 +408,7 @@ class TestProgressReporterIntegration:
         from podx.llm import MockLLMProvider
 
         reporter = SilentProgressReporter(track_calls=True)
-        mock_llm = MockLLMProvider(
-            responses=["Cleaned text 1", "Cleaned text 2", "Cleaned text 3"]
-        )
+        mock_llm = MockLLMProvider(responses=["Cleaned text 1", "Cleaned text 2", "Cleaned text 3"])
 
         preprocessor = TranscriptPreprocessor(
             restore=True,

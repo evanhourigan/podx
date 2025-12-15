@@ -153,12 +153,8 @@ def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
 
             # Warn if already analyzed
             if selected.get("analyzed"):
-                console.print(
-                    "\n[yellow]This episode already has an analysis.[/yellow]"
-                )
-                console.print(
-                    "[dim]Re-analyzing will overwrite the existing file.[/dim]"
-                )
+                console.print("\n[yellow]This episode already has an analysis.[/yellow]")
+                console.print("[dim]Re-analyzing will overwrite the existing file.[/dim]")
                 try:
                     confirm = input("Continue? [y/N] ").strip().lower()
                 except (KeyboardInterrupt, EOFError):
@@ -171,7 +167,8 @@ def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
             console.print("\n[dim]Cancelled[/dim]")
             sys.exit(0)
 
-    # Resolve path
+    # Resolve path (path is guaranteed to be set by now - either from arg or interactive)
+    assert path is not None
     episode_dir = path.resolve()
     if episode_dir.is_file():
         episode_dir = episode_dir.parent
@@ -342,9 +339,7 @@ def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
         result.update(json_data)
 
     # Save analysis
-    analysis_path.write_text(
-        json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    analysis_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
 
     # Show completion
     console.print(f"\n[green]✓ Analysis complete ({minutes}:{seconds:02d})[/green]")

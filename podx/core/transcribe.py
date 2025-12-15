@@ -6,11 +6,7 @@ No UI dependencies, no CLI concerns. Just audio transcription across multiple ba
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-from ..device import (
-    detect_device_for_ctranslate2,
-    get_optimal_compute_type,
-    log_device_usage,
-)
+from ..device import detect_device_for_ctranslate2, get_optimal_compute_type, log_device_usage
 from ..logging import get_logger
 from ..progress import ProgressReporter, SilentProgressReporter
 
@@ -46,9 +42,7 @@ class TranscriptionError(Exception):
     pass
 
 
-def parse_model_and_provider(
-    model_arg: str, provider_arg: Optional[str] = None
-) -> Tuple[str, str]:
+def parse_model_and_provider(model_arg: str, provider_arg: Optional[str] = None) -> Tuple[str, str]:
     """Parse model/provider from user input.
 
     Returns (provider, normalized_model_id).
@@ -134,9 +128,7 @@ class TranscriptionEngine:
 
         # Auto-select optimal compute type for device if not specified
         self.compute_type = (
-            compute_type
-            if compute_type is not None
-            else get_optimal_compute_type(self.device)
+            compute_type if compute_type is not None else get_optimal_compute_type(self.device)
         )
 
         self.vad_filter = vad_filter
@@ -144,22 +136,21 @@ class TranscriptionEngine:
         self.extra_decode_options = extra_decode_options or {}
 
         # Handle progress reporting (support both new and legacy APIs)
+        self.progress: Optional[ProgressReporter] = None
+        self.progress_callback: Optional[Callable[[str], None]] = None
+
         if progress is not None:
             if isinstance(progress, ProgressReporter):
                 self.progress = progress
-                self.progress_callback = None
             else:
                 # Legacy callback function
-                self.progress = None
                 self.progress_callback = progress
         elif progress_callback is not None:
             # Deprecated parameter
-            self.progress = None
             self.progress_callback = progress_callback
         else:
             # No progress reporting
             self.progress = SilentProgressReporter()
-            self.progress_callback = None
 
     def _report_progress(self, message: str):
         """Report progress via ProgressReporter or legacy callback."""
@@ -271,38 +262,22 @@ class TranscriptionEngine:
         self._report_progress(f"Using OpenAI API: {self.normalized_model}")
 
         try:
-            # Try new SDK first
-            try:
-                from openai import OpenAI
+            from openai import OpenAI
 
-                client = OpenAI()
-                use_new_sdk = True
-            except Exception:
-                import openai  # type: ignore[import-untyped]
-
-                use_new_sdk = False
+            client = OpenAI()
 
             with open(str(audio_path), "rb") as f:
-                if use_new_sdk:
-                    resp = client.audio.transcriptions.create(
-                        model=self.normalized_model,
-                        file=f,
-                        response_format="verbose_json",
-                    )
-                    text = getattr(resp, "text", None) or (
-                        resp.get("text") if isinstance(resp, dict) else None
-                    )
-                    segs_raw = getattr(resp, "segments", None) or (
-                        resp.get("segments") if isinstance(resp, dict) else None
-                    )
-                else:
-                    resp = openai.Audio.transcriptions.create(
-                        model=self.normalized_model,
-                        file=f,
-                        response_format="verbose_json",
-                    )
-                    text = resp.get("text")
-                    segs_raw = resp.get("segments")
+                resp = client.audio.transcriptions.create(
+                    model=self.normalized_model,
+                    file=f,
+                    response_format="verbose_json",
+                )
+                text = getattr(resp, "text", None) or (
+                    resp.get("text") if isinstance(resp, dict) else None
+                )
+                segs_raw = getattr(resp, "segments", None) or (
+                    resp.get("segments") if isinstance(resp, dict) else None
+                )
 
             # Parse segments
             segments: List[Dict[str, Any]] = []
@@ -320,9 +295,7 @@ class TranscriptionEngine:
                         start = 0.0
                     if end is None:
                         end = 0.0
-                    segments.append(
-                        {"start": float(start), "end": float(end), "text": txt}
-                    )
+                    segments.append({"start": float(start), "end": float(end), "text": txt})
             else:
                 # Fallback: single segment
                 txt = text or ""
@@ -348,11 +321,10 @@ class TranscriptionEngine:
         self._report_progress(f"Using Hugging Face: {self.normalized_model}")
 
         try:
-            from transformers import pipeline  # type: ignore[import-untyped]
+            from transformers import pipeline
         except ImportError:
             raise TranscriptionError(
-                "transformers not installed. "
-                "Install with: pip install transformers torchaudio"
+                "transformers not installed. " "Install with: pip install transformers torchaudio"
             )
 
         try:
@@ -388,9 +360,7 @@ class TranscriptionEngine:
                 text_val = result.get("text") if isinstance(result, dict) else ""
                 segments = [{"start": 0.0, "end": 0.0, "text": text_val}]
 
-            logger.info(
-                "Hugging Face transcription completed", segments_count=len(segments)
-            )
+            logger.info("Hugging Face transcription completed", segments_count=len(segments))
 
             return {
                 "audio_path": str(audio_path.resolve()),

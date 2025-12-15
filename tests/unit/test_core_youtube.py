@@ -255,9 +255,7 @@ class TestYouTubeEngineDownloadAudio:
         audio_file.write_text("fake audio content")
 
         engine = YouTubeEngine()
-        result = engine.download_audio(
-            "https://youtube.com/watch?v=dQw4w9WgXcQ", tmp_path
-        )
+        result = engine.download_audio("https://youtube.com/watch?v=dQw4w9WgXcQ", tmp_path)
 
         assert result["show"] == "Test Channel"
         assert result["episode_title"] == "Test Video"
@@ -436,9 +434,7 @@ class TestYouTubeEngineFetchEpisode:
         audio_file.write_text("fake audio")
 
         engine = YouTubeEngine()
-        result = engine.fetch_episode(
-            "https://youtube.com/watch?v=dQw4w9WgXcQ", tmp_path
-        )
+        result = engine.fetch_episode("https://youtube.com/watch?v=dQw4w9WgXcQ", tmp_path)
 
         # Verify episode metadata
         assert result["show"] == "Test Channel"

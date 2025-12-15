@@ -176,9 +176,7 @@ class TestTranscriptionEngineLocal:
             result = engine.transcribe(audio_path)
 
         # Verify model was initialized correctly
-        mock_whisper_model_class.assert_called_once_with(
-            "small", device="cpu", compute_type="int8"
-        )
+        mock_whisper_model_class.assert_called_once_with("small", device="cpu", compute_type="int8")
 
         # Verify transcribe was called with correct args
         mock_model.transcribe.assert_called_once()
@@ -244,9 +242,7 @@ class TestTranscriptionEngineLocal:
         mock_whisper_model_class.return_value = mock_model
         mock_model.transcribe.return_value = ([], MagicMock(language="en"))
 
-        engine = TranscriptionEngine(
-            extra_decode_options={"beam_size": 5, "best_of": 3}
-        )
+        engine = TranscriptionEngine(extra_decode_options={"beam_size": 5, "best_of": 3})
         audio_path = Path("/fake/audio.wav")
 
         with patch.object(Path, "exists", return_value=True):
@@ -273,9 +269,7 @@ class TestTranscriptionEngineLocal:
         audio_path = Path("/fake/audio.wav")
 
         with patch.object(Path, "exists", return_value=True):
-            with pytest.raises(
-                TranscriptionError, match="Failed to initialize Whisper model"
-            ):
+            with pytest.raises(TranscriptionError, match="Failed to initialize Whisper model"):
                 engine.transcribe(audio_path)
 
     @patch("faster_whisper.WhisperModel")
@@ -408,9 +402,7 @@ class TestTranscriptionEngineOpenAI:
 
         with patch.object(Path, "exists", return_value=True):
             with patch("builtins.open", MagicMock()):
-                with pytest.raises(
-                    TranscriptionError, match="OpenAI transcription failed"
-                ):
+                with pytest.raises(TranscriptionError, match="OpenAI transcription failed"):
                     engine.transcribe(audio_path)
 
 
@@ -436,9 +428,7 @@ class TestTranscriptionEngineHuggingFace:
         audio_path = Path("/fake/audio.wav")
 
         # Patch both the import and the function
-        with patch.dict(
-            "sys.modules", {"transformers": MagicMock(pipeline=mock_pipeline_func)}
-        ):
+        with patch.dict("sys.modules", {"transformers": MagicMock(pipeline=mock_pipeline_func)}):
             with patch.object(Path, "exists", return_value=True):
                 result = engine.transcribe(audio_path)
 
@@ -512,9 +502,7 @@ class TestTranscriptionEngineHuggingFace:
         audio_path = Path("/fake/audio.wav")
 
         with patch.object(Path, "exists", return_value=True):
-            with pytest.raises(
-                TranscriptionError, match="Hugging Face transcription failed"
-            ):
+            with pytest.raises(TranscriptionError, match="Hugging Face transcription failed"):
                 engine.transcribe(audio_path)
 
     @pytest.mark.skip("Complex import mocking - integration test instead")
@@ -655,9 +643,7 @@ class TestEdgeCases:
         audio_path = Path("relative/path/audio.wav")
 
         with patch.object(Path, "exists", return_value=True):
-            with patch.object(
-                Path, "resolve", return_value=Path("/absolute/path/audio.wav")
-            ):
+            with patch.object(Path, "resolve", return_value=Path("/absolute/path/audio.wav")):
                 result = engine.transcribe(audio_path)
 
         assert result["audio_path"] == "/absolute/path/audio.wav"

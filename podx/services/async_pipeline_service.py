@@ -101,9 +101,7 @@ class AsyncPipelineService:
 
         try:
             # 1. Fetch episode metadata
-            await self._call_progress(
-                progress_callback, "fetch", "Fetching episode metadata..."
-            )
+            await self._call_progress(progress_callback, "fetch", "Fetching episode metadata...")
 
             meta = await self._execute_fetch()
 
@@ -118,9 +116,7 @@ class AsyncPipelineService:
             result.steps_completed.append("fetch")
 
             # 3. Transcode audio
-            await self._call_progress(
-                progress_callback, "transcode", "Transcoding audio..."
-            )
+            await self._call_progress(progress_callback, "transcode", "Transcoding audio...")
 
             audio_meta_file = workdir / "audio-meta.json"
             if audio_meta_file.exists():
@@ -131,9 +127,7 @@ class AsyncPipelineService:
             else:
                 # Convert fmt enum to string value if needed
                 fmt_value = (
-                    self.config.fmt.value
-                    if hasattr(self.config.fmt, "value")
-                    else self.config.fmt
+                    self.config.fmt.value if hasattr(self.config.fmt, "value") else self.config.fmt
                 )
 
                 audio = await self.executor.transcode(
@@ -147,9 +141,7 @@ class AsyncPipelineService:
             result.steps_completed.append("transcode")
 
             # 4. Transcribe audio
-            await self._call_progress(
-                progress_callback, "transcribe", "Transcribing audio..."
-            )
+            await self._call_progress(progress_callback, "transcribe", "Transcribing audio...")
 
             # Convert preset enum to string value if needed
             preset_value = getattr(self.config.preset, "value", self.config.preset)
@@ -179,9 +171,7 @@ class AsyncPipelineService:
                     transcript=latest_transcript,
                     restore=self.config.restore,
                 )
-                preprocess_file = (
-                    workdir / f"transcript-preprocessed-{self.config.model}.json"
-                )
+                preprocess_file = workdir / f"transcript-preprocessed-{self.config.model}.json"
                 preprocess_file.write_text(json.dumps(latest_transcript, indent=2))
                 result.artifacts["preprocessed"] = str(preprocess_file)
                 result.steps_completed.append("preprocess")
@@ -205,9 +195,7 @@ class AsyncPipelineService:
                 aligned_file.write_text(json.dumps(aligned, indent=2))
                 result.artifacts["aligned"] = str(aligned_file)
 
-                diarized_file = (
-                    workdir / f"transcript-diarized-{self.config.model}.json"
-                )
+                diarized_file = workdir / f"transcript-diarized-{self.config.model}.json"
                 diarized_file.write_text(json.dumps(diarized, indent=2))
                 result.artifacts["diarized"] = str(diarized_file)
 
@@ -216,9 +204,7 @@ class AsyncPipelineService:
                 result.steps_completed.extend(["align", "diarize"])
 
             elif self.config.align:
-                await self._call_progress(
-                    progress_callback, "align", "Aligning transcript..."
-                )
+                await self._call_progress(progress_callback, "align", "Aligning transcript...")
 
                 latest_transcript = await self.executor.align(latest_transcript)
                 aligned_file = workdir / f"transcript-aligned-{self.config.model}.json"
@@ -227,29 +213,21 @@ class AsyncPipelineService:
                 result.steps_completed.append("align")
 
             elif self.config.diarize:
-                await self._call_progress(
-                    progress_callback, "diarize", "Diarizing transcript..."
-                )
+                await self._call_progress(progress_callback, "diarize", "Diarizing transcript...")
 
                 latest_transcript = await self.executor.diarize(latest_transcript)
-                diarized_file = (
-                    workdir / f"transcript-diarized-{self.config.model}.json"
-                )
+                diarized_file = workdir / f"transcript-diarized-{self.config.model}.json"
                 diarized_file.write_text(json.dumps(latest_transcript, indent=2))
                 result.artifacts["diarized"] = str(diarized_file)
                 result.steps_completed.append("diarize")
 
             # Save latest.json
-            (workdir / "latest.json").write_text(
-                json.dumps(latest_transcript, indent=2)
-            )
+            (workdir / "latest.json").write_text(json.dumps(latest_transcript, indent=2))
             result.artifacts["latest"] = str(workdir / "latest.json")
 
             # 6. Deepcast analysis
             if self.config.deepcast:
-                await self._call_progress(
-                    progress_callback, "deepcast", "Running AI analysis..."
-                )
+                await self._call_progress(progress_callback, "deepcast", "Running AI analysis...")
 
                 # Convert analysis_type enum to string value if needed
                 analysis_type_value = getattr(
@@ -263,9 +241,7 @@ class AsyncPipelineService:
                     analysis_type=analysis_type_value,
                 )
 
-                model_suffix = self.config.deepcast_model.replace(".", "_").replace(
-                    "-", "_"
-                )
+                model_suffix = self.config.deepcast_model.replace(".", "_").replace("-", "_")
                 deepcast_file = workdir / f"deepcast-{model_suffix}.json"
                 deepcast_file.write_text(json.dumps(deepcast_result, indent=2))
                 result.artifacts["deepcast"] = str(deepcast_file)
@@ -357,9 +333,7 @@ class AsyncPipelineService:
         """
         semaphore = asyncio.Semaphore(max_concurrent)
 
-        async def process_with_semaphore(
-            idx: int, config: PipelineConfig
-        ) -> PipelineResult:
+        async def process_with_semaphore(idx: int, config: PipelineConfig) -> PipelineResult:
             async with semaphore:
                 service = AsyncPipelineService(config)
 

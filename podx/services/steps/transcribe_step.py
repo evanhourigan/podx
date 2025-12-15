@@ -72,9 +72,7 @@ class TranscribeStep(PipelineStep):
 
         return False, None
 
-    def execute(
-        self, context: StepContext, progress: Any, verbose: bool = False
-    ) -> StepResult:
+    def execute(self, context: StepContext, progress: Any, verbose: bool = False) -> StepResult:
         """Execute transcription step."""
         from podx.utils import discover_transcripts, sanitize_model_name
 
@@ -96,18 +94,14 @@ class TranscribeStep(PipelineStep):
 
         if transcript_file.exists():
             # Use existing transcript for this specific model
-            logger.info(
-                f"Found existing transcript for model {self.model}, skipping transcription"
-            )
+            logger.info(f"Found existing transcript for model {self.model}, skipping transcription")
             base = json.loads(transcript_file.read_text())
             progress.complete_step(
                 f"Using existing transcript ({self.model}) - {len(base.get('segments', []))} segments",
                 0,
             )
             context.latest_transcript = base
-            context.latest_transcript_name = (
-                f"transcript-{base.get('asr_model', self.model)}"
-            )
+            context.latest_transcript_name = f"transcript-{base.get('asr_model', self.model)}"
             return StepResult.skip(f"Using existing transcript ({self.model})")
 
         elif existing_transcripts:
@@ -128,9 +122,7 @@ class TranscribeStep(PipelineStep):
                 0,
             )
             context.latest_transcript = base
-            context.latest_transcript_name = (
-                f"transcript-{base.get('asr_model', best_model)}"
-            )
+            context.latest_transcript_name = f"transcript-{base.get('asr_model', best_model)}"
             return StepResult.skip(f"Using existing transcript ({best_model})")
 
         else:
@@ -169,9 +161,7 @@ class TranscribeStep(PipelineStep):
 
             # Update context
             context.latest_transcript = base
-            context.latest_transcript_name = (
-                f"transcript-{base.get('asr_model', self.model)}"
-            )
+            context.latest_transcript_name = f"transcript-{base.get('asr_model', self.model)}"
 
             return StepResult.ok(
                 f"Transcription complete - {num_segments} segments",

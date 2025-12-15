@@ -84,9 +84,7 @@ def _format_timestamp_readable(seconds: float, video_url: Optional[str] = None) 
     return f"[{ts_text}]"
 
 
-def _format_transcript_as_markdown(
-    transcript: dict, video_url: Optional[str] = None
-) -> str:
+def _format_transcript_as_markdown(transcript: dict, video_url: Optional[str] = None) -> str:
     """Format transcript as markdown with timestamps and speakers.
 
     Args:
@@ -215,9 +213,7 @@ def _publish_to_notion(episode_dir: Path, dry_run: bool = False) -> bool:
                 {
                     "type": "toggle",
                     "toggle": {
-                        "rich_text": [
-                            {"type": "text", "text": {"content": "📜 Full Transcript"}}
-                        ],
+                        "rich_text": [{"type": "text", "text": {"content": "📜 Full Transcript"}}],
                         "children": transcript_blocks,
                     },
                 }
@@ -234,9 +230,7 @@ def _publish_to_notion(episode_dir: Path, dry_run: bool = False) -> bool:
                             "rich_text": [
                                 {
                                     "type": "text",
-                                    "text": {
-                                        "content": f"📜 Transcript (Part {part_num})"
-                                    },
+                                    "text": {"content": f"📜 Transcript (Part {part_num})"},
                                 }
                             ],
                             "children": chunk,
@@ -259,7 +253,7 @@ def _publish_to_notion(episode_dir: Path, dry_run: bool = False) -> bool:
     # Query database schema to find the title property
     try:
         db_info = client.databases.retrieve(database_id=db_id)
-        db_properties = db_info.get("properties", {})
+        db_properties = db_info.get("properties", {})  # type: ignore[union-attr]
     except Exception as e:
         console.print(f"[red]Error:[/red] Failed to retrieve database schema: {e}")
         return False
@@ -287,9 +281,7 @@ def _publish_to_notion(episode_dir: Path, dry_run: bool = False) -> bool:
         # Add show name to a rich_text property named "Show" or similar
         if prop_type == "rich_text" and prop_name.lower() in ("show", "podcast name"):
             if show_name:
-                properties[prop_name] = {
-                    "rich_text": [{"text": {"content": show_name}}]
-                }
+                properties[prop_name] = {"rich_text": [{"text": {"content": show_name}}]}
 
         # Add date to a date property
         if prop_type == "date" and prop_name.lower() in (
@@ -298,7 +290,7 @@ def _publish_to_notion(episode_dir: Path, dry_run: bool = False) -> bool:
             "episode date",
         ):
             if date_iso:
-                properties[prop_name] = {"date": {"start": date_iso}}
+                properties[prop_name] = {"date": {"start": date_iso}}  # type: ignore[dict-item]
 
     # Check if page exists (by title)
     try:
@@ -306,7 +298,7 @@ def _publish_to_notion(episode_dir: Path, dry_run: bool = False) -> bool:
             database_id=db_id,
             filter={"property": title_prop_name, "title": {"equals": episode_title}},
         )
-        existing = query.get("results", [])
+        existing = query.get("results", [])  # type: ignore[union-attr]
     except Exception:
         existing = []
 
@@ -317,7 +309,7 @@ def _publish_to_notion(episode_dir: Path, dry_run: bool = False) -> bool:
         # Clear existing content
         try:
             existing_blocks = client.blocks.children.list(block_id=page_id)
-            for block in existing_blocks.get("results", []):
+            for block in existing_blocks.get("results", []):  # type: ignore[union-attr]
                 try:
                     client.blocks.delete(block_id=block["id"])
                 except Exception:
@@ -338,7 +330,7 @@ def _publish_to_notion(episode_dir: Path, dry_run: bool = False) -> bool:
             properties=properties,
             children=first_chunk,
         )
-        page_id = page["id"]
+        page_id = page["id"]  # type: ignore[index]
 
         # Append remaining blocks if any
         if len(blocks) > NOTION_BLOCK_LIMIT:
@@ -357,9 +349,7 @@ def _publish_to_notion(episode_dir: Path, dry_run: bool = False) -> bool:
     type=click.Path(exists=True, path_type=Path),
     required=False,
 )
-@click.option(
-    "--dry-run", is_flag=True, help="Show what would be published without uploading"
-)
+@click.option("--dry-run", is_flag=True, help="Show what would be published without uploading")
 def main(path: Optional[Path], dry_run: bool):
     """Publish episode analysis to Notion.
 

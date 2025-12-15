@@ -97,9 +97,7 @@ def transcribe(audio_url: str, asr_model: str, out_dir: str) -> Dict[str, Any]:
     )
 
     # Transcribe → Transcript JSON (also write to file for consistency)
-    transcript = _run_cli(
-        ["podx", "transcribe", "--model", asr_model], stdin_payload=audio_meta
-    )
+    transcript = _run_cli(["podx", "transcribe", "--model", asr_model], stdin_payload=audio_meta)
     transcript_path = out_path / "transcript.json"
     transcript_path.write_text(json.dumps(transcript, indent=2), encoding="utf-8")
 
@@ -200,11 +198,7 @@ def analyze(
     # Reserve keys for future when CLI outputs usage/prompt fields
     if isinstance(unified, dict):
         if "usage" in unified and isinstance(unified["usage"], dict):
-            usage = {
-                k: int(v)
-                for k, v in unified["usage"].items()
-                if isinstance(v, (int, float))
-            }
+            usage = {k: int(v) for k, v in unified["usage"].items() if isinstance(v, (int, float))}
         if "prompt_used" in unified and isinstance(unified["prompt_used"], str):
             prompt_used = unified["prompt_used"]
 
@@ -234,9 +228,7 @@ def analyze(
 deepcast = analyze
 
 
-def has_transcript(
-    episode_id: int | str, asr_model: str, out_dir: str
-) -> Optional[str]:
+def has_transcript(episode_id: int | str, asr_model: str, out_dir: str) -> Optional[str]:
     """
     Minimal check for an existing transcript in out_dir.
     This will evolve once a centralized outputs layout helper is available.
@@ -273,23 +265,13 @@ def has_markdown(
     prompt_slug = _slug_with_hash(prompt_name)
 
     # New layout check
-    p = (
-        out_path
-        / "analysis"
-        / f"llm-{model_suffix}"
-        / f"prompt-{prompt_slug}"
-        / "analysis.md"
-    )
+    p = out_path / "analysis" / f"llm-{model_suffix}" / f"prompt-{prompt_slug}" / "analysis.md"
     if p.exists():
         return str(p)
 
     # Legacy layout check (deprecated)
     legacy_p = (
-        out_path
-        / "deepcast"
-        / f"llm-{model_suffix}"
-        / f"prompt-{prompt_slug}"
-        / "analysis.md"
+        out_path / "deepcast" / f"llm-{model_suffix}" / f"prompt-{prompt_slug}" / "analysis.md"
     )
     if legacy_p.exists():
         return str(legacy_p)

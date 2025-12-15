@@ -93,10 +93,7 @@ def apply_podcast_config(
             if not updated_flags.get("deepcast") and yaml_config.pipeline.deepcast:
                 updated_flags["deepcast"] = True
                 logger.info("Applied YAML config: deepcast = True")
-            if (
-                not updated_flags.get("extract_markdown")
-                and yaml_config.pipeline.extract_markdown
-            ):
+            if not updated_flags.get("extract_markdown") and yaml_config.pipeline.extract_markdown:
                 updated_flags["extract_markdown"] = True
                 logger.info("Applied YAML config: extract_markdown = True")
             if not updated_flags.get("notion") and yaml_config.pipeline.notion:
@@ -106,10 +103,7 @@ def apply_podcast_config(
         # Apply YAML analysis settings
         if yaml_config.analysis:
             base_config = get_config()
-            if (
-                deepcast_model == base_config.openai_model
-                and yaml_config.analysis.model
-            ):
+            if deepcast_model == base_config.openai_model and yaml_config.analysis.model:
                 deepcast_model = yaml_config.analysis.model
                 logger.info("Applied YAML config model", model=deepcast_model)
             if (
@@ -117,15 +111,11 @@ def apply_podcast_config(
                 and yaml_config.analysis.temperature
             ):
                 deepcast_temp = yaml_config.analysis.temperature
-                logger.info(
-                    "Applied YAML config temperature", temperature=deepcast_temp
-                )
+                logger.info("Applied YAML config temperature", temperature=deepcast_temp)
             # Store analysis type for later use in deepcast
             if yaml_config.analysis.type:
                 yaml_analysis_type = yaml_config.analysis.type.value
-                logger.info(
-                    "Applied YAML config analysis type", type=yaml_analysis_type
-                )
+                logger.info("Applied YAML config analysis type", type=yaml_analysis_type)
 
         # Handle Notion database selection
         if yaml_config.notion_database and notion:
@@ -178,10 +168,7 @@ def apply_podcast_config(
         if deepcast_model == base_config.openai_model and json_config.deepcast_model:
             deepcast_model = json_config.deepcast_model
             logger.info("Applied JSON config model", model=deepcast_model)
-        if (
-            abs(deepcast_temp - base_config.openai_temperature) < 0.001
-            and json_config.temperature
-        ):
+        if abs(deepcast_temp - base_config.openai_temperature) < 0.001 and json_config.temperature:
             deepcast_temp = json_config.temperature
             logger.info("Applied JSON config temperature", temperature=deepcast_temp)
 

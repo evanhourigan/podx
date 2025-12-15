@@ -46,9 +46,7 @@ class CostEstimator:
         },
     }
 
-    def estimate_transcription(
-        self, duration_minutes: float, provider: str = "openai"
-    ) -> float:
+    def estimate_transcription(self, duration_minutes: float, provider: str = "openai") -> float:
         """Estimate transcription cost.
 
         Args:
@@ -123,9 +121,7 @@ class CostEstimator:
             # Fallback to gpt-4o-mini if model not found
             fallback = self.PRICING["openai"]["gpt-4o-mini"]
             pricing = (
-                fallback
-                if isinstance(fallback, dict)
-                else {"input": 0.00015, "output": 0.0006}
+                fallback if isinstance(fallback, dict) else {"input": 0.00015, "output": 0.0006}
             )
 
         input_cost = (total_input_tokens / 1000) * pricing["input"]
@@ -164,16 +160,12 @@ class CostEstimator:
         costs = {}
 
         # Transcription
-        costs["transcription"] = self.estimate_transcription(
-            duration_minutes, asr_provider
-        )
+        costs["transcription"] = self.estimate_transcription(duration_minutes, asr_provider)
 
         # Preprocessing (optional LLM restore/cleanup)
         if include_preprocessing:
             # Use cheaper model for preprocessing
-            preprocessing_est = self.estimate_deepcast(
-                text_length, "gpt-4o-mini", "openai"
-            )
+            preprocessing_est = self.estimate_deepcast(text_length, "gpt-4o-mini", "openai")
             costs["preprocessing"] = preprocessing_est["total_cost"] * 0.3
         else:
             costs["preprocessing"] = 0.0

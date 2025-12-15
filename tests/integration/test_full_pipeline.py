@@ -440,9 +440,7 @@ class TestErrorPropagation:
         with pytest.raises(ValueError):  # Pydantic validation error
             EpisodeMeta.model_validate(episode_data)
 
-    @pytest.mark.skip(
-        reason="Feature not implemented - see .ai-docs/unimplemented-features.md"
-    )
+    @pytest.mark.skip(reason="Feature not implemented - see .ai-docs/unimplemented-features.md")
     def test_invalid_transcript_format(self):
         """Test error when transcript has invalid format."""
         from pydantic import ValidationError
@@ -552,8 +550,7 @@ class TestPerformanceCharacteristics:
 
         # Create transcript with 1000 segments
         segments = [
-            {"start": float(i), "end": float(i + 1), "text": f"Segment {i}"}
-            for i in range(1000)
+            {"start": float(i), "end": float(i + 1), "text": f"Segment {i}"} for i in range(1000)
         ]
 
         transcript_data = {
@@ -574,8 +571,7 @@ class TestPerformanceCharacteristics:
         # Create large JSON file (simulating transcript)
         large_data = {
             "segments": [
-                {"start": float(i), "end": float(i + 1), "text": f"Text {i}"}
-                for i in range(10000)
+                {"start": float(i), "end": float(i + 1), "text": f"Text {i}"} for i in range(10000)
             ]
         }
         large_file = tmp_path / "large_transcript.json"

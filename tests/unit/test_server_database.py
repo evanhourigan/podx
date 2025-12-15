@@ -26,9 +26,7 @@ async def async_session():
         await conn.run_sync(Base.metadata.create_all)
 
     # Create session factory
-    session_factory = async_sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
-    )
+    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     # Yield session
     async with session_factory() as session:

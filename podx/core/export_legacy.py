@@ -100,9 +100,7 @@ class ExportEngine:
                 text = f"[{speaker}] {text}"
 
             lines.append(str(i))
-            lines.append(
-                f"{format_timestamp(s['start'])} --> {format_timestamp(s['end'])}"
-            )
+            lines.append(f"{format_timestamp(s['start'])} --> {format_timestamp(s['end'])}")
             lines.append(text)
             lines.append("")
 
@@ -180,9 +178,7 @@ class ExportEngine:
         invalid = set(formats) - set(available_formats.keys())
         if invalid:
             valid_list = ", ".join(available_formats.keys())
-            raise ExportError(
-                f"Invalid formats: {', '.join(invalid)}. Valid: {valid_list}"
-            )
+            raise ExportError(f"Invalid formats: {', '.join(invalid)}. Valid: {valid_list}")
 
         output_files = {}
         files_written = 0

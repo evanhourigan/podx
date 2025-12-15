@@ -105,9 +105,7 @@ class HTMLFormatter(ExportFormatter):
                 f'    <span class="timestamp" data-seconds="{start}">{timestamp}</span>\n'
                 f"  </div>\n"
             )
-            html_parts.append(
-                f'  <div class="segment-text">{self._html_escape(text)}</div>\n'
-            )
+            html_parts.append(f'  <div class="segment-text">{self._html_escape(text)}</div>\n')
             html_parts.append("</div>\n")
 
         html_parts.append("</div>\n")

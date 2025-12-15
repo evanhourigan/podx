@@ -18,9 +18,7 @@ def clean_cell(text: str) -> str:
         import unicodedata
 
         # Remove zero-width and control characters
-        cleaned = "".join(
-            ch for ch in (text or "") if unicodedata.category(ch) not in {"Cf", "Cc"}
-        )
+        cleaned = "".join(ch for ch in (text or "") if unicodedata.category(ch) not in {"Cf", "Cc"})
     except Exception:
         cleaned = text or ""
 

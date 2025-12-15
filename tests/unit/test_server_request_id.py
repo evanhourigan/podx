@@ -4,11 +4,7 @@ import pytest
 from fastapi import FastAPI, Request
 from httpx import ASGITransport, AsyncClient
 
-from podx.server.middleware.request_id import (
-    REQUEST_ID_HEADER,
-    RequestIDMiddleware,
-    get_request_id,
-)
+from podx.server.middleware.request_id import REQUEST_ID_HEADER, RequestIDMiddleware, get_request_id
 
 
 @pytest.fixture

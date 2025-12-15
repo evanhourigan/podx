@@ -7,11 +7,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from podx.server.routes.health import (
-    get_uptime_seconds,
-    router,
-    set_server_start_time,
-)
+from podx.server.routes.health import get_uptime_seconds, router, set_server_start_time
 
 
 @pytest.fixture

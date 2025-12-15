@@ -11,12 +11,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
-from reportlab.platypus import (
-    PageBreak,
-    Paragraph,
-    SimpleDocTemplate,
-    Spacer,
-)
+from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer
 
 from .base import ExportFormatter
 
@@ -196,15 +191,11 @@ class PDFFormatter(ExportFormatter):
 
             # Transcript text (clean - no emojis!)
             # Remove any potentially problematic characters
-            clean_text = (
-                text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-            )
+            clean_text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
             story.append(Paragraph(clean_text, text_style))
 
         # Build PDF
-        doc.build(
-            story, onFirstPage=self._add_page_number, onLaterPages=self._add_page_number
-        )
+        doc.build(story, onFirstPage=self._add_page_number, onLaterPages=self._add_page_number)
 
     @staticmethod
     def _add_page_number(canvas_obj: canvas.Canvas, doc: SimpleDocTemplate) -> None:

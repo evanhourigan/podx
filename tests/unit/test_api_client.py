@@ -97,9 +97,7 @@ class TestTranscribeAPI:
         # Disable cache to ensure mock is called
         config = ClientConfig(cache_enabled=False)
         client = PodxClient(config=config)
-        result = client.transcribe(
-            "test_audio.mp3", model="base", out_dir=str(tmp_path)
-        )
+        result = client.transcribe("test_audio.mp3", model="base", out_dir=str(tmp_path))
 
         assert result.success is True
         assert result.transcript_path == str(transcript_path)
@@ -181,9 +179,7 @@ class TestTranscribeAPI:
         mock_transcribe.side_effect = NetworkError("Download failed")
 
         client = PodxClient()
-        result = client.transcribe(
-            "https://example.com/audio.mp3", out_dir=str(tmp_path)
-        )
+        result = client.transcribe("https://example.com/audio.mp3", out_dir=str(tmp_path))
 
         assert result.success is False
         assert result.error is not None
@@ -212,9 +208,7 @@ class TestDeepcastAPI:
         transcript_path.write_text("{}")
 
         client = PodxClient()
-        result = client.deepcast(
-            str(transcript_path), llm_model="gpt-4o", out_dir=str(tmp_path)
-        )
+        result = client.deepcast(str(transcript_path), llm_model="gpt-4o", out_dir=str(tmp_path))
 
         assert result.success is True
         assert result.markdown_path == str(markdown_path)
@@ -284,9 +278,7 @@ class TestTranscribeAndAnalyze:
 
     @patch("podx.api.sync_client._transcribe")
     @patch("podx.api.sync_client._analyze")
-    def test_transcribe_and_analyze_success(
-        self, mock_analyze, mock_transcribe, tmp_path
-    ):
+    def test_transcribe_and_analyze_success(self, mock_analyze, mock_transcribe, tmp_path):
         """Test successful combined transcription and analysis."""
         # Setup transcript
         transcript_path = tmp_path / "transcript.json"
@@ -374,9 +366,7 @@ class TestExistenceChecks:
         mock_has_markdown.return_value = str(markdown_path)
 
         client = PodxClient()
-        result = client.check_markdown_exists(
-            "ep123", "base", "gpt-4o", "default", str(tmp_path)
-        )
+        result = client.check_markdown_exists("ep123", "base", "gpt-4o", "default", str(tmp_path))
 
         assert result.exists is True
         assert result.path == str(markdown_path)
@@ -388,9 +378,7 @@ class TestExistenceChecks:
         mock_has_markdown.return_value = None
 
         client = PodxClient()
-        result = client.check_markdown_exists(
-            "ep123", "base", "gpt-4o", "default", "/tmp"
-        )
+        result = client.check_markdown_exists("ep123", "base", "gpt-4o", "default", "/tmp")
 
         assert result.exists is False
         assert result.path is None
@@ -403,9 +391,7 @@ class TestValidationHelpers:
         """Test validation passes for valid inputs."""
 
         client = PodxClient()
-        result = client._validate_transcribe_inputs(
-            "https://example.com/audio.mp3", "base", "/tmp"
-        )
+        result = client._validate_transcribe_inputs("https://example.com/audio.mp3", "base", "/tmp")
 
         assert result.valid is True
         assert len(result.errors) == 0
@@ -436,9 +422,7 @@ class TestValidationHelpers:
         transcript_path.write_text("{}")
 
         client = PodxClient()
-        result = client._validate_deepcast_inputs(
-            str(transcript_path), "gpt-4o", "/tmp"
-        )
+        result = client._validate_deepcast_inputs(str(transcript_path), "gpt-4o", "/tmp")
 
         assert result.valid is True
         assert len(result.errors) == 0
@@ -456,9 +440,7 @@ class TestValidationHelpers:
         """Test validation fails when transcript file doesn't exist."""
 
         client = PodxClient()
-        result = client._validate_deepcast_inputs(
-            "/nonexistent/transcript.json", "gpt-4o", "/tmp"
-        )
+        result = client._validate_deepcast_inputs("/nonexistent/transcript.json", "gpt-4o", "/tmp")
 
         assert result.valid is False
         assert any("not found" in err for err in result.errors)
@@ -536,9 +518,7 @@ class TestFetchEpisodeAPI:
         mock_fetcher_class.return_value = mock_fetcher
 
         client = PodxClient()
-        result = client.fetch_episode(
-            show_name="Test Show", date="latest", output_dir=tmp_path
-        )
+        result = client.fetch_episode(show_name="Test Show", date="latest", output_dir=tmp_path)
 
         assert result.success is True
         assert result.audio_path == str(audio_path)
@@ -558,9 +538,7 @@ class TestFetchEpisodeAPI:
         mock_fetcher_class.return_value = mock_fetcher
 
         client = PodxClient()
-        result = client.fetch_episode(
-            rss_url="https://example.com/feed.rss", output_dir=tmp_path
-        )
+        result = client.fetch_episode(rss_url="https://example.com/feed.rss", output_dir=tmp_path)
 
         assert result.success is True
         assert result.audio_path == str(audio_path)
@@ -570,9 +548,7 @@ class TestFetchEpisodeAPI:
         client = PodxClient()
 
         # Should raise validation error
-        with pytest.raises(
-            ValidationError, match="Either show_name or rss_url must be provided"
-        ):
+        with pytest.raises(ValidationError, match="Either show_name or rss_url must be provided"):
             client.fetch_episode()
 
     @patch("podx.core.fetch.PodcastFetcher")
@@ -776,9 +752,7 @@ class TestExportAPI:
         mock_engine_class.return_value = mock_engine
 
         client = PodxClient()
-        result = client.export(
-            transcript_path=transcript_path, formats=["md"], output_dir=tmp_path
-        )
+        result = client.export(transcript_path=transcript_path, formats=["md"], output_dir=tmp_path)
 
         assert result.success is True
         assert len(result.output_files) == 1
@@ -789,9 +763,7 @@ class TestExportAPI:
         client = PodxClient()
 
         with pytest.raises(ValidationError, match="Transcript file not found"):
-            client.export(
-                transcript_path=Path("/nonexistent/transcript.json"), formats=["txt"]
-            )
+            client.export(transcript_path=Path("/nonexistent/transcript.json"), formats=["txt"])
 
 
 class TestPublishToNotionAPI:
@@ -837,9 +809,7 @@ class TestPublishToNotionAPI:
         mock_engine_class.return_value = mock_engine
 
         client = PodxClient()
-        result = client.publish_to_notion(
-            deepcast_path=deepcast_path, database_id="db123"
-        )
+        result = client.publish_to_notion(deepcast_path=deepcast_path, database_id="db123")
 
         assert result.success is True
         # Verify engine was initialized with env token
@@ -857,9 +827,7 @@ class TestPublishToNotionAPI:
             )
 
     @patch("podx.core.notion.NotionEngine")
-    def test_publish_to_notion_handles_integration_error(
-        self, mock_engine_class, tmp_path
-    ):
+    def test_publish_to_notion_handles_integration_error(self, mock_engine_class, tmp_path):
         """Test Notion publish handles integration errors gracefully."""
         deepcast_path = tmp_path / "deepcast.json"
         deepcast_path.write_text('{"markdown": "test", "metadata": {}}')
@@ -1052,9 +1020,7 @@ class TestEstimateCostAPI:
         transcript_path.write_text(json.dumps(transcript_data))
 
         client = PodxClient()
-        estimate = client.estimate_cost(
-            model="gpt-5.1", transcript_path=str(transcript_path)
-        )
+        estimate = client.estimate_cost(model="gpt-5.1", transcript_path=str(transcript_path))
 
         assert estimate.input_tokens > 0
         assert estimate.transcript_path == str(transcript_path)
@@ -1062,9 +1028,7 @@ class TestEstimateCostAPI:
     def test_estimate_cost_custom_output_ratio(self):
         """Test cost estimation with custom output ratio."""
         client = PodxClient()
-        estimate = client.estimate_cost(
-            model="gpt-5.1", token_count=100000, output_ratio=0.5
-        )
+        estimate = client.estimate_cost(model="gpt-5.1", token_count=100000, output_ratio=0.5)
 
         assert estimate.output_tokens == 50000  # 50% of input
 
@@ -1101,9 +1065,7 @@ class TestEstimateCostAPI:
         client = PodxClient()
 
         with pytest.raises(FileNotFoundError, match="Transcript not found"):
-            client.estimate_cost(
-                model="gpt-5.1", transcript_path="/nonexistent/transcript.json"
-            )
+            client.estimate_cost(model="gpt-5.1", transcript_path="/nonexistent/transcript.json")
 
     def test_estimate_cost_invalid_transcript_json(self, tmp_path):
         """Test that invalid transcript JSON raises ValueError."""
@@ -1129,9 +1091,7 @@ class TestEstimateCostAPI:
         """Test that cost calculation is mathematically correct."""
         client = PodxClient()
         model = client.get_model_info("gpt-5.1")
-        estimate = client.estimate_cost(
-            model="gpt-5.1", token_count=1000000, output_ratio=0.3
-        )
+        estimate = client.estimate_cost(model="gpt-5.1", token_count=1000000, output_ratio=0.3)
 
         # Manually calculate expected cost
         expected_input_cost = model.pricing.input_per_1m  # 1M tokens

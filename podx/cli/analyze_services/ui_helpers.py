@@ -64,9 +64,7 @@ def select_analysis_type(row: Dict[str, Any], console: Console) -> Optional[str]
         marker = " ← Default" if dtype == default_type else ""
         console.print(f"  {idx:2}  {dtype}{marker}")
 
-    choice = input(
-        f"\n👉 Select analysis type (1-{len(all_types)}) or Q to cancel: "
-    ).strip()
+    choice = input(f"\n👉 Select analysis type (1-{len(all_types)}) or Q to cancel: ").strip()
 
     if choice.upper() in ["Q", "QUIT", "EXIT"]:
         return None

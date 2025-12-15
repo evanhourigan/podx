@@ -218,9 +218,7 @@ class TranscodeEngine:
 
 
 # Convenience functions for direct use
-def transcode_to_wav16(
-    source: Path, output_dir: Optional[Path] = None
-) -> Dict[str, Any]:
+def transcode_to_wav16(source: Path, output_dir: Optional[Path] = None) -> Dict[str, Any]:
     """Transcode audio to 16kHz mono WAV.
 
     Args:

@@ -10,9 +10,7 @@ from podx.orchestrate import _execute_transcribe
 @patch("podx.orchestrate._run")
 @patch("podx.utils.sanitize_model_name")
 @patch("podx.utils.discover_transcripts")
-def test_single_mode_existing_transcript(
-    mock_discover, mock_sanitize, mock_run, mock_logger
-):
+def test_single_mode_existing_transcript(mock_discover, mock_sanitize, mock_run, mock_logger):
     """Test single mode with existing transcript for the same model."""
     # Setup
     wd = Path("/tmp/test")
@@ -50,9 +48,7 @@ def test_single_mode_existing_transcript(
 @patch("podx.orchestrate._run")
 @patch("podx.utils.sanitize_model_name")
 @patch("podx.utils.discover_transcripts")
-def test_single_mode_fresh_transcription(
-    mock_discover, mock_sanitize, mock_run, mock_logger
-):
+def test_single_mode_fresh_transcription(mock_discover, mock_sanitize, mock_run, mock_logger):
     """Test single mode with no existing transcript (fresh transcription)."""
     # Setup
     wd = Path("/tmp/test")
@@ -98,9 +94,7 @@ def test_single_mode_fresh_transcription(
 @patch("podx.orchestrate._run")
 @patch("podx.utils.sanitize_model_name")
 @patch("podx.utils.discover_transcripts")
-def test_single_mode_with_asr_provider(
-    mock_discover, mock_sanitize, mock_run, mock_logger
-):
+def test_single_mode_with_asr_provider(mock_discover, mock_sanitize, mock_run, mock_logger):
     """Test single mode with specific ASR provider."""
     # Setup
     wd = Path("/tmp/test")
@@ -139,9 +133,7 @@ def test_single_mode_with_asr_provider(
 @patch("podx.orchestrate._run")
 @patch("podx.utils.sanitize_model_name")
 @patch("podx.utils.discover_transcripts")
-def test_single_mode_model_fallback(
-    mock_discover, mock_sanitize, mock_run, mock_logger
-):
+def test_single_mode_model_fallback(mock_discover, mock_sanitize, mock_run, mock_logger):
     """Test single mode falls back to best available model."""
     # Setup
     wd = Path("/tmp/test")
@@ -156,9 +148,7 @@ def test_single_mode_model_fallback(
     }
 
     # Mock reading the best available (large-v2)
-    with patch(
-        "pathlib.Path.exists", return_value=False
-    ):  # Requested model doesn't exist
+    with patch("pathlib.Path.exists", return_value=False):  # Requested model doesn't exist
         with patch(
             "pathlib.Path.read_text",
             return_value='{"asr_model": "large-v2", "segments": [{"text": "fallback"}]}',
@@ -187,9 +177,7 @@ def test_single_mode_model_fallback(
 @patch("podx.orchestrate._run")
 @patch("podx.utils.sanitize_model_name")
 @patch("podx.utils.discover_transcripts")
-def test_dual_mode_fresh_transcription(
-    mock_discover, mock_sanitize, mock_run, mock_logger
-):
+def test_dual_mode_fresh_transcription(mock_discover, mock_sanitize, mock_run, mock_logger):
     """Test dual mode with fresh precision + recall transcription."""
     # Setup
     wd = Path("/tmp/test")
@@ -239,9 +227,7 @@ def test_dual_mode_fresh_transcription(
 @patch("podx.orchestrate._run")
 @patch("podx.utils.sanitize_model_name")
 @patch("podx.utils.discover_transcripts")
-def test_dual_mode_resume_precision_only(
-    mock_discover, mock_sanitize, mock_run, mock_logger
-):
+def test_dual_mode_resume_precision_only(mock_discover, mock_sanitize, mock_run, mock_logger):
     """Test dual mode resumes when precision exists but recall missing."""
     # Setup
     wd = Path("/tmp/test")
@@ -319,9 +305,7 @@ def test_dual_mode_full_resume(mock_discover, mock_sanitize, mock_run, mock_logg
 @patch("podx.orchestrate._run")
 @patch("podx.utils.sanitize_model_name")
 @patch("podx.utils.discover_transcripts")
-def test_legacy_transcript_json_handling(
-    mock_discover, mock_sanitize, mock_run, mock_logger
-):
+def test_legacy_transcript_json_handling(mock_discover, mock_sanitize, mock_run, mock_logger):
     """Test handling of legacy transcript.json file."""
     # Setup
     wd = Path("/tmp/test")
@@ -358,9 +342,7 @@ def test_legacy_transcript_json_handling(
 @patch("podx.orchestrate._run")
 @patch("podx.utils.sanitize_model_name")
 @patch("podx.utils.discover_transcripts")
-def test_dual_mode_with_asr_provider(
-    mock_discover, mock_sanitize, mock_run, mock_logger
-):
+def test_dual_mode_with_asr_provider(mock_discover, mock_sanitize, mock_run, mock_logger):
     """Test dual mode with specific ASR provider."""
     # Setup
     wd = Path("/tmp/test")

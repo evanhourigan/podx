@@ -127,9 +127,7 @@ def fetch_provider_models(provider: str, api_key: Optional[str]) -> List[str]:
         return []
 
 
-def load_model_catalog(
-    ttl_seconds: int = 7 * 24 * 3600, refresh: bool = False
-) -> Dict[str, Any]:
+def load_model_catalog(ttl_seconds: int = 7 * 24 * 3600, refresh: bool = False) -> Dict[str, Any]:
     """Load cached catalog; optionally refresh from providers.
 
     Returns structure: {
@@ -152,9 +150,7 @@ def load_model_catalog(
         models: List[str] = cached.get("models") or []
         if should_refresh:
             api_key = (
-                os.getenv("OPENAI_API_KEY")
-                if prov == "openai"
-                else os.getenv("ANTHROPIC_API_KEY")
+                os.getenv("OPENAI_API_KEY") if prov == "openai" else os.getenv("ANTHROPIC_API_KEY")
             )
             fresh = fetch_provider_models(prov, api_key)
             if fresh:
@@ -186,9 +182,7 @@ def _chars_to_tokens(chars: int, provider: str) -> int:
     return max(1, int(chars / ratio))
 
 
-def _estimate_tokens_for_transcript_text(
-    text: str, chunk_chars: int
-) -> Tuple[int, int]:
+def _estimate_tokens_for_transcript_text(text: str, chunk_chars: int) -> Tuple[int, int]:
     """Return (map_input_tokens, reduce_input_tokens) based on chunking."""
     if not text:
         return (0, 0)

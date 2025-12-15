@@ -105,9 +105,7 @@ def main(path: Optional[Path], no_restore: bool, no_skip_ads: bool):
 
             # Warn if already cleaned
             if selected.get("cleaned"):
-                console.print(
-                    "\n[yellow]This transcript has already been cleaned.[/yellow]"
-                )
+                console.print("\n[yellow]This transcript has already been cleaned.[/yellow]")
                 console.print("[dim]Re-cleaning will overwrite the current text.[/dim]")
                 try:
                     confirm = input("Continue? [y/N] ").strip().lower()
@@ -144,7 +142,8 @@ def main(path: Optional[Path], no_restore: bool, no_skip_ads: bool):
             console.print("\n[dim]Cancelled[/dim]")
             sys.exit(0)
 
-    # Resolve path
+    # Resolve path (path is guaranteed to be set by now - either from arg or interactive)
+    assert path is not None
     episode_dir = path.resolve()
     if episode_dir.is_file():
         episode_dir = episode_dir.parent
@@ -177,9 +176,7 @@ def main(path: Optional[Path], no_restore: bool, no_skip_ads: bool):
     ):
         try:
             identify_choice = (
-                input(
-                    "Identify speakers? (recommended for diarized transcripts) [Y/n]: "
-                )
+                input("Identify speakers? (recommended for diarized transcripts) [Y/n]: ")
                 .strip()
                 .lower()
             )
@@ -195,12 +192,8 @@ def main(path: Optional[Path], no_restore: bool, no_skip_ads: bool):
             speaker_map = identify_speakers_interactive(transcript["segments"])
             if speaker_map:
                 # Apply names to transcript
-                transcript["segments"] = apply_speaker_names(
-                    transcript["segments"], speaker_map
-                )
-                console.print(
-                    f"[green]✓ Identified {len(speaker_map)} speaker(s)[/green]"
-                )
+                transcript["segments"] = apply_speaker_names(transcript["segments"], speaker_map)
+                console.print(f"[green]✓ Identified {len(speaker_map)} speaker(s)[/green]")
         except (KeyboardInterrupt, EOFError):
             console.print("\n[dim]Speaker identification cancelled[/dim]")
             # Continue with cleanup using original speaker IDs
@@ -211,12 +204,8 @@ def main(path: Optional[Path], no_restore: bool, no_skip_ads: bool):
     do_skip_ads = do_restore and not no_skip_ads
 
     if do_restore and not _check_openai_key():
-        console.print(
-            "[red]Error:[/red] OPENAI_API_KEY not set (required for LLM features)"
-        )
-        console.print(
-            "Run with --no-restore for local-only cleanup, or set your API key:"
-        )
+        console.print("[red]Error:[/red] OPENAI_API_KEY not set (required for LLM features)")
+        console.print("Run with --no-restore for local-only cleanup, or set your API key:")
         console.print("  export OPENAI_API_KEY=your-key-here")
         sys.exit(ExitCode.USER_ERROR)
 
@@ -272,9 +261,7 @@ def main(path: Optional[Path], no_restore: bool, no_skip_ads: bool):
     result["restored"] = do_restore
 
     # Save updated transcript
-    transcript_path.write_text(
-        json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    transcript_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
 
     # Show completion
     original_count = len(transcript["segments"])

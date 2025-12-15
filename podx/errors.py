@@ -82,9 +82,7 @@ def with_retries(
     def decorator(func: F) -> F:
         @retry(
             stop=stop_after_attempt(stop_after),
-            wait=wait_exponential(
-                multiplier=wait_multiplier, min=wait_min, max=wait_max
-            ),
+            wait=wait_exponential(multiplier=wait_multiplier, min=wait_min, max=wait_max),
             retry=retry_if_exception_type(retry_on),
             before_sleep=before_sleep_log(logger, logging.WARNING),  # type: ignore[arg-type]
         )
@@ -94,9 +92,7 @@ def with_retries(
                 return func(*args, **kwargs)
             except Exception as e:
                 if isinstance(e, retry_on):
-                    logger.warning(
-                        "Retryable error occurred", error=str(e), function=func.__name__
-                    )
+                    logger.warning("Retryable error occurred", error=str(e), function=func.__name__)
                     raise NetworkError(f"Network operation failed: {e}") from e
                 raise
 

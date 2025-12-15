@@ -42,9 +42,7 @@ class ModelCache:
 
         # Evict least recently used models if cache is full
         if len(self._cache) >= self._max_cache_size:
-            lru_key = min(
-                self._access_times.keys(), key=lambda k: self._access_times[k]
-            )
+            lru_key = min(self._access_times.keys(), key=lambda k: self._access_times[k])
             del self._cache[lru_key]
             del self._access_times[lru_key]
             logger.debug("Evicted model from cache", evicted_key=lru_key)
@@ -111,9 +109,7 @@ class MemoryMonitor:
                 threshold_mb=self.warning_threshold / (1024 * 1024),
             )
         else:
-            logger.debug(
-                "Memory usage check", operation=operation, memory_mb=round(memory_mb, 1)
-            )
+            logger.debug("Memory usage check", operation=operation, memory_mb=round(memory_mb, 1))
 
         return memory_mb
 
@@ -159,9 +155,7 @@ async def parallel_map_reduce(
     if max_workers is None:
         max_workers = min(len(items), 4)  # Don't overwhelm the system
 
-    logger.debug(
-        "Starting parallel map-reduce", items_count=len(items), max_workers=max_workers
-    )
+    logger.debug("Starting parallel map-reduce", items_count=len(items), max_workers=max_workers)
 
     start_time = time.time()
 
@@ -232,9 +226,7 @@ class StreamingProcessor:
     def __init__(self, chunk_size: int = 1024 * 1024):  # 1MB chunks
         self.chunk_size = chunk_size
 
-    def process_large_file(
-        self, file_path: Path, processor_func: Callable[[str], str]
-    ) -> Path:
+    def process_large_file(self, file_path: Path, processor_func: Callable[[str], str]) -> Path:
         """
         Process a large file in chunks to avoid loading it all into memory.
 

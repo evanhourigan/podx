@@ -32,9 +32,7 @@ class TestConfigProfile:
 
     def test_to_dict(self):
         """Test converting profile to dictionary."""
-        profile = ConfigProfile(
-            name="test", settings={"key": "value"}, description="desc"
-        )
+        profile = ConfigProfile(name="test", settings={"key": "value"}, description="desc")
 
         data = profile.to_dict()
 
@@ -150,9 +148,7 @@ class TestProfileManager:
 
     def test_export_profile(self, manager):
         """Test exporting profile as YAML."""
-        profile = ConfigProfile(
-            name="test", settings={"asr_model": "large-v3"}, description="Test"
-        )
+        profile = ConfigProfile(name="test", settings={"asr_model": "large-v3"}, description="Test")
         manager.save(profile)
 
         yaml_content = manager.export_profile("test")

@@ -8,13 +8,7 @@ import os
 from typing import Any, List, Optional
 
 from ..logging import get_logger
-from .base import (
-    LLMAPIError,
-    LLMMessage,
-    LLMProvider,
-    LLMProviderError,
-    LLMResponse,
-)
+from .base import LLMAPIError, LLMMessage, LLMProvider, LLMProviderError, LLMResponse
 
 logger = get_logger(__name__)
 
@@ -50,9 +44,7 @@ class OllamaProvider(LLMProvider):
         try:
             from ollama import AsyncClient, Client
         except ImportError:
-            raise LLMProviderError(
-                "ollama library not installed. Install with: pip install ollama"
-            )
+            raise LLMProviderError("ollama library not installed. Install with: pip install ollama")
 
         self.base_url = base_url or os.getenv("OLLAMA_BASE_URL", self.DEFAULT_BASE_URL)
 

@@ -56,14 +56,10 @@ class OpenRouterProvider(LLMProvider):
         try:
             from openai import AsyncOpenAI, OpenAI
         except ImportError:
-            raise LLMProviderError(
-                "openai library not installed. Install with: pip install openai"
-            )
+            raise LLMProviderError("openai library not installed. Install with: pip install openai")
 
         self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")
-        self.base_url = base_url or os.getenv(
-            "OPENROUTER_BASE_URL", self.OPENROUTER_BASE_URL
-        )
+        self.base_url = base_url or os.getenv("OPENROUTER_BASE_URL", self.OPENROUTER_BASE_URL)
         self.app_name = app_name or "PodX"
 
         if not self.api_key:
@@ -124,7 +120,7 @@ class OpenRouterProvider(LLMProvider):
         try:
             response = self._sync_client.chat.completions.create(
                 model=model,
-                messages=[msg.to_dict() for msg in messages],
+                messages=[msg.to_dict() for msg in messages],  # type: ignore[misc]
                 temperature=temperature,
                 max_tokens=max_tokens,
                 **kwargs,
@@ -176,7 +172,7 @@ class OpenRouterProvider(LLMProvider):
         try:
             response = await self._async_client.chat.completions.create(
                 model=model,
-                messages=[msg.to_dict() for msg in messages],
+                messages=[msg.to_dict() for msg in messages],  # type: ignore[misc]
                 temperature=temperature,
                 max_tokens=max_tokens,
                 **kwargs,
@@ -249,11 +245,7 @@ class OpenRouterProvider(LLMProvider):
         """
         error_str = str(error).lower()
 
-        if (
-            "authentication" in error_str
-            or "api key" in error_str
-            or "unauthorized" in error_str
-        ):
+        if "authentication" in error_str or "api key" in error_str or "unauthorized" in error_str:
             raise LLMAuthenticationError(
                 f"OpenRouter authentication failed: {error}. "
                 f"Get API key at: https://openrouter.ai/keys"

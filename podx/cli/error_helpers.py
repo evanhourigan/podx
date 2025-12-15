@@ -64,9 +64,7 @@ def format_error_message(
     return "\n".join(lines)
 
 
-def find_similar_files(
-    target_path: Path, pattern: str = "*", max_results: int = 5
-) -> List[Path]:
+def find_similar_files(target_path: Path, pattern: str = "*", max_results: int = 5) -> List[Path]:
     """Find files similar to the target path.
 
     Args:
@@ -135,9 +133,7 @@ def handle_file_not_found(
     sys.exit(ExitCode.USER_ERROR)
 
 
-def handle_missing_api_key(
-    service: str, env_var: str, config_file: str = "~/.podx/.env"
-) -> None:
+def handle_missing_api_key(service: str, env_var: str, config_file: str = "~/.podx/.env") -> None:
     """Handle missing API key errors with setup instructions.
 
     Args:
@@ -221,9 +217,7 @@ def handle_invalid_model(
         title=f"Invalid {model_type}",
         message=f"Model '[cyan]{model}[/cyan]' is not recognized.",
         suggestions=suggestions,
-        similar_files=(
-            [Path(m) for m in similar] if similar else None
-        ),  # Reuse file display
+        similar_files=([Path(m) for m in similar] if similar else None),  # Reuse file display
         docs_link="https://docs.podx.ai/models",
     )
 

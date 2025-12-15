@@ -21,12 +21,7 @@ setup_logging()
 # Import simplified config command
 # Import missing commands for v3.0 CLI restructure
 from podx.cli import config  # noqa: E402
-from podx.cli import (  # noqa: E402 - Must import after logging setup
-    analyze,
-    cloud,
-    init,
-    templates,
-)
+from podx.cli import analyze, cloud, init, templates  # noqa: E402
 
 # Import all command modules
 from podx.cli.commands import (  # noqa: E402 - Must import after logging setup
@@ -47,7 +42,7 @@ from podx.cli.commands import (  # noqa: E402 - Must import after logging setup
 class PodxGroup(BaseGroup):
     """Custom group to hide deprecated commands from help."""
 
-    def list_commands(self, ctx):  # type: ignore[override]
+    def list_commands(self, ctx):
         commands = super().list_commands(ctx)
         # Filter hidden and deprecated workflow aliases from help
         hidden_names = {"quick", "analyze", "publish"}

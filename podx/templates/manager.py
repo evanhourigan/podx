@@ -546,8 +546,7 @@ class TemplateManager:
         template_file = self.template_dir / f"{name}.yaml"
         if not template_file.exists():
             raise TemplateError(
-                f"Template '{name}' not found. "
-                f"Available: {', '.join(self.list_templates())}"
+                f"Template '{name}' not found. " f"Available: {', '.join(self.list_templates())}"
             )
 
         try:

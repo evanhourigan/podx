@@ -68,6 +68,7 @@ class TranscriptPreprocessor:
         self.progress = progress or SilentProgressReporter()
 
         # Use provided provider or create one
+        self.llm_provider: Optional[LLMProvider] = None
         if llm_provider:
             self.llm_provider = llm_provider
         elif restore or skip_ads:
@@ -76,8 +77,6 @@ class TranscriptPreprocessor:
                 self.llm_provider = get_provider(provider_name)
             except Exception as e:
                 raise PreprocessError(f"Failed to initialize LLM provider: {e}") from e
-        else:
-            self.llm_provider = None
 
     def merge_segments(self, segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Merge adjacent segments based on timing gaps, length, and speaker.
@@ -142,9 +141,7 @@ class TranscriptPreprocessor:
         text = re.sub(r"([.?!])([A-Za-z])", r"\1 \2", text)
         return text.strip()
 
-    def normalize_segments(
-        self, segments: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def normalize_segments(self, segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Apply text normalization to all segments.
 
         Args:
@@ -170,9 +167,7 @@ class TranscriptPreprocessor:
             PreprocessError: If LLM API fails
         """
         if not self.llm_provider:
-            raise PreprocessError(
-                "LLM provider not configured. Enable skip_ads in constructor."
-            )
+            raise PreprocessError("LLM provider not configured. Enable skip_ads in constructor.")
 
         system_prompt = (
             "You are classifying podcast transcript segments as ADVERTISEMENT or CONTENT.\n\n"
@@ -219,20 +214,14 @@ class TranscriptPreprocessor:
                     LLMMessage.system(system_prompt),
                     LLMMessage.user(user_prompt),
                 ]
-                response = self.llm_provider.complete(
-                    messages=messages, model=self.restore_model
-                )
+                response = self.llm_provider.complete(messages=messages, model=self.restore_model)
                 result = response.content.strip()
             except Exception as e:
-                logger.error(
-                    f"LLM API request failed for ad classification batch {batch_num}: {e}"
-                )
+                logger.error(f"LLM API request failed for ad classification batch {batch_num}: {e}")
                 raise PreprocessError(f"Ad classification failed: {e}") from e
 
             # Parse response - each line should be AD or CONTENT
-            lines = [
-                line.strip().upper() for line in result.split("\n") if line.strip()
-            ]
+            lines = [line.strip().upper() for line in result.split("\n") if line.strip()]
 
             # Map to booleans
             batch_results = []
@@ -291,9 +280,7 @@ class TranscriptPreprocessor:
             PreprocessError: If LLM API fails
         """
         if not self.llm_provider:
-            raise PreprocessError(
-                "LLM provider not configured. Enable restore in constructor."
-            )
+            raise PreprocessError("LLM provider not configured. Enable restore in constructor.")
 
         prompt = (
             "You are cleaning up noisy ASR transcript text.\n"
@@ -304,9 +291,7 @@ class TranscriptPreprocessor:
         )
 
         out: List[str] = []
-        total_batches = (
-            len(texts) + self.restore_batch_size - 1
-        ) // self.restore_batch_size
+        total_batches = (len(texts) + self.restore_batch_size - 1) // self.restore_batch_size
 
         for i in range(0, len(texts), self.restore_batch_size):
             batch_num = i // self.restore_batch_size + 1
@@ -333,9 +318,7 @@ class TranscriptPreprocessor:
                     LLMMessage.system(prompt),
                     LLMMessage.user(batch_prompt),
                 ]
-                response = self.llm_provider.complete(
-                    messages=messages, model=self.restore_model
-                )
+                response = self.llm_provider.complete(messages=messages, model=self.restore_model)
                 batch_result = response.content
             except Exception as e:
                 logger.error(f"LLM API request failed for batch {batch_num}: {e}")
@@ -396,9 +379,7 @@ class TranscriptPreprocessor:
                 raise
 
         if self.merge:
-            logger.debug(
-                f"Merging segments (max_gap={self.max_gap}s, max_len={self.max_len})"
-            )
+            logger.debug(f"Merging segments (max_gap={self.max_gap}s, max_len={self.max_len})")
             segs = self.merge_segments(segs)
 
         if self.normalize:
@@ -408,9 +389,7 @@ class TranscriptPreprocessor:
         if self.restore and segs:
             logger.debug(f"Semantic restore with {self.restore_model}")
             try:
-                restored_texts = self.semantic_restore(
-                    [s.get("text", "") for s in segs]
-                )
+                restored_texts = self.semantic_restore([s.get("text", "") for s in segs])
                 for i, txt in enumerate(restored_texts):
                     segs[i]["text"] = txt
             except PreprocessError as e:

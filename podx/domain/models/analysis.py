@@ -32,18 +32,12 @@ class DeepcastBrief(BaseModel):
     markdown: str = Field(..., description="Full markdown analysis")
     summary: Optional[str] = Field(None, description="Episode summary")
     key_points: List[str] = Field(default_factory=list, description="Key points")
-    gold_nuggets: List[str] = Field(
-        default_factory=list, description="Notable insights"
-    )
-    quotes: List[DeepcastQuote] = Field(
-        default_factory=list, description="Notable quotes"
-    )
+    gold_nuggets: List[str] = Field(default_factory=list, description="Notable insights")
+    quotes: List[DeepcastQuote] = Field(default_factory=list, description="Notable quotes")
     actions: List[str] = Field(default_factory=list, description="Action items")
     outline: List[DeepcastOutlineItem] = Field(
         default_factory=list, description="Timestamp outline"
     )
-    metadata: Optional[Transcript] = Field(
-        None, description="Source transcript metadata"
-    )
+    metadata: Optional[Transcript] = Field(None, description="Source transcript metadata")
 
     model_config = {"extra": "forbid"}

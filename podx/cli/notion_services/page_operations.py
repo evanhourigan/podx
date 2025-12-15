@@ -21,11 +21,11 @@ def _list_children_all(client: Client, page_id: str) -> List[Dict[str, Any]]:
         resp = client.blocks.children.list(
             block_id=page_id, start_cursor=start_cursor, page_size=100
         )
-        all_children.extend(resp.get("results", []))
+        all_children.extend(resp.get("results", []))  # type: ignore[union-attr]
 
-        if not resp.get("has_more"):
+        if not resp.get("has_more"):  # type: ignore[union-attr]
             break
-        start_cursor = resp.get("next_cursor")
+        start_cursor = resp.get("next_cursor")  # type: ignore[union-attr]
 
     return all_children
 
@@ -49,10 +49,10 @@ def upsert_page(
     episode_title: str,
     date_iso: Optional[str],
     podcast_prop: str = "Podcast",
-    episode_prop: str = "Episode",
-    date_prop: str = "Date",
-    model_prop: str = "Model",
-    asr_prop: str = "ASR Model",
+    episode_prop: Optional[str] = "Episode",
+    date_prop: Optional[str] = "Date",
+    model_prop: Optional[str] = "Model",
+    asr_prop: Optional[str] = "ASR Model",
     deepcast_model: Optional[str] = None,
     asr_model: Optional[str] = None,
     props_extra: Optional[Dict[str, Any]] = None,
@@ -64,7 +64,7 @@ def upsert_page(
     Returns the page ID.
     """
     db_schema = client.databases.retrieve(db_id)
-    db_props: Dict[str, Any] = db_schema.get("properties", {})
+    db_props: Dict[str, Any] = db_schema.get("properties", {})  # type: ignore[union-attr]
 
     def _prop_exists(name: Optional[str]) -> bool:
         return bool(name) and name in db_props
@@ -90,9 +90,7 @@ def upsert_page(
 
     # Episode property fallback (rich_text/title/select/multi_select)
     if not _prop_exists(episode_prop):
-        fallback_episode = _first_property_of_type(
-            ["rich_text", "title", "select", "multi_select"]
-        )
+        fallback_episode = _first_property_of_type(["rich_text", "title", "select", "multi_select"])
         if fallback_episode and fallback_episode != podcast_prop:
             click.echo(
                 f"[yellow]Episode property '{episode_prop}' not found; using '{fallback_episode}'.[/yellow]",
@@ -185,21 +183,13 @@ def upsert_page(
     if episode_prop:
         episode_type = db_props.get(episode_prop, {}).get("type")
         if episode_type == "title":
-            filters.append(
-                {"property": episode_prop, "title": {"equals": episode_title}}
-            )
+            filters.append({"property": episode_prop, "title": {"equals": episode_title}})
         elif episode_type == "rich_text":
-            filters.append(
-                {"property": episode_prop, "rich_text": {"equals": episode_title}}
-            )
+            filters.append({"property": episode_prop, "rich_text": {"equals": episode_title}})
         elif episode_type == "select":
-            filters.append(
-                {"property": episode_prop, "select": {"equals": episode_title}}
-            )
+            filters.append({"property": episode_prop, "select": {"equals": episode_title}})
         elif episode_type == "multi_select":
-            filters.append(
-                {"property": episode_prop, "multi_select": {"contains": episode_title}}
-            )
+            filters.append({"property": episode_prop, "multi_select": {"contains": episode_title}})
 
     if date_iso and date_prop:
         filters.append({"property": date_prop, "date": {"equals": date_iso}})
@@ -207,30 +197,22 @@ def upsert_page(
     if deepcast_model and model_prop:
         model_type = db_props.get(model_prop, {}).get("type")
         if model_type == "title":
-            filters.append(
-                {"property": model_prop, "title": {"equals": deepcast_model}}
-            )
+            filters.append({"property": model_prop, "title": {"equals": deepcast_model}})
         elif model_type == "rich_text":
-            filters.append(
-                {"property": model_prop, "rich_text": {"equals": deepcast_model}}
-            )
+            filters.append({"property": model_prop, "rich_text": {"equals": deepcast_model}})
         elif model_type == "select":
-            filters.append(
-                {"property": model_prop, "select": {"equals": deepcast_model}}
-            )
+            filters.append({"property": model_prop, "select": {"equals": deepcast_model}})
         elif model_type == "multi_select":
-            filters.append(
-                {"property": model_prop, "multi_select": {"contains": deepcast_model}}
-            )
+            filters.append({"property": model_prop, "multi_select": {"contains": deepcast_model}})
 
     if filters:
         q = client.databases.query(database_id=db_id, filter={"and": filters})
     else:
         q = client.databases.query(database_id=db_id)
 
-    if q.get("results"):
+    if q.get("results"):  # type: ignore[union-attr]
         # Update existing page
-        page_id = q["results"][0]["id"]
+        page_id = q["results"][0]["id"]  # type: ignore[index]
         client.pages.update(page_id=page_id, properties=props)
 
         if blocks is not None:
@@ -256,7 +238,7 @@ def upsert_page(
             resp = client.pages.create(
                 parent={"database_id": db_id}, properties=props, children=chunks[0]
             )
-            page_id = resp["id"]
+            page_id = resp["id"]  # type: ignore[index]
 
             # Append remaining chunks
             for chunk in chunks[1:]:
@@ -268,4 +250,4 @@ def upsert_page(
             resp = client.pages.create(
                 parent={"database_id": db_id}, properties=props, children=blocks or []
             )
-            return resp["id"]
+            return resp["id"]  # type: ignore[index]

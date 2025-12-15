@@ -85,9 +85,7 @@ class PodcastFetcher:
                     ["curl", "-s", url], capture_output=True, text=True, timeout=30
                 )
                 if result.returncode != 0:
-                    raise NetworkError(
-                        f"curl failed with return code {result.returncode}"
-                    )
+                    raise NetworkError(f"curl failed with return code {result.returncode}")
                 data = json.loads(result.stdout)
                 logger.debug(
                     "iTunes search via curl successful",
@@ -290,9 +288,7 @@ class PodcastFetcher:
                 break
             except Exception as e:
                 last_err = e
-                logger.warning(
-                    "Download attempt failed", attempt=attempt + 1, error=str(e)
-                )
+                logger.warning("Download attempt failed", attempt=attempt + 1, error=str(e))
                 continue
 
         if last_err is not None and not dest.exists():
@@ -326,8 +322,7 @@ class PodcastFetcher:
             except Exception as e:
                 reason = getattr(feed, "bozo_exception", None)
                 raise ValidationError(
-                    f"Failed to parse feed: {feed_url}"
-                    + (f" (reason: {reason})" if reason else "")
+                    f"Failed to parse feed: {feed_url}" + (f" (reason: {reason})" if reason else "")
                 ) from e
 
         if not feed.entries:
@@ -392,30 +387,22 @@ class PodcastFetcher:
         # Determine output directory
         if output_dir is None:
             # Use smart naming: show/date-title-slug/
-            episode_date = (
-                episode.get("published") or episode.get("updated") or "unknown"
-            )
+            episode_date = episode.get("published") or episode.get("updated") or "unknown"
             episode_title = episode.get("title", "")
             # Import here to avoid circular dependency
             from ..utils import generate_workdir
 
-            output_dir = generate_workdir(
-                extracted_show_name, episode_date, episode_title
-            )
+            output_dir = generate_workdir(extracted_show_name, episode_date, episode_title)
 
         # Download audio
-        audio_path = self.download_audio(
-            episode, output_dir, progress_callback=progress_callback
-        )
+        audio_path = self.download_audio(episode, output_dir, progress_callback=progress_callback)
 
         # Build metadata
         meta_dict: Dict[str, Any] = {
             "show": extracted_show_name,
             "feed": feed_url,
             "episode_title": episode.get("title", ""),
-            "episode_published": (
-                episode.get("published") or episode.get("updated") or ""
-            ),
+            "episode_published": (episode.get("published") or episode.get("updated") or ""),
             "audio_path": str(audio_path.resolve()),
         }
 

@@ -63,9 +63,7 @@ async def create_job(
 @router.get("/api/v1/jobs", response_model=JobListResponse)
 async def list_jobs(
     skip: int = Query(0, ge=0, description="Number of jobs to skip"),
-    limit: int = Query(
-        50, ge=1, le=100, description="Maximum number of jobs to return"
-    ),
+    limit: int = Query(50, ge=1, le=100, description="Maximum number of jobs to return"),
     status: Optional[str] = Query(None, description="Filter by status"),
     job_type: Optional[str] = Query(None, description="Filter by job type"),
     session: AsyncSession = Depends(get_session),
@@ -110,9 +108,7 @@ async def list_jobs(
 
 
 @router.get("/api/v1/jobs/{job_id}", response_model=JobResponse)
-async def get_job(
-    job_id: str, session: AsyncSession = Depends(get_session)
-) -> JobResponse:
+async def get_job(job_id: str, session: AsyncSession = Depends(get_session)) -> JobResponse:
     """Get job status and details.
 
     Args:

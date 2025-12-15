@@ -5,7 +5,7 @@ No UI dependencies, no CLI concerns. Just Notion API operations for publishing c
 
 import os
 import re
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Generator, List, Optional
 
 from ..logging import get_logger
 
@@ -18,7 +18,7 @@ class NotionError(Exception):
     pass
 
 
-def chunk_rich_text(s: str, chunk: int = 1800) -> List[Dict[str, Any]]:
+def chunk_rich_text(s: str, chunk: int = 1800) -> Generator[Dict[str, Any], None, None]:
     """Chunk rich text to respect Notion's size limits."""
     for i in range(0, len(s), chunk):
         yield {"type": "text", "text": {"content": s[i : i + chunk]}}
@@ -52,11 +52,7 @@ def parse_inline_markdown(text: str) -> List[Dict[str, Any]]:
         # Handle italic text: *text* (but not **)
         if text[i] == "*" and i + 1 < len(text) and text[i : i + 2] != "**":
             end_italic = text.find("*", i + 1)
-            while (
-                end_italic != -1
-                and end_italic + 1 < len(text)
-                and text[end_italic + 1] == "*"
-            ):
+            while end_italic != -1 and end_italic + 1 < len(text) and text[end_italic + 1] == "*":
                 end_italic = text.find("*", end_italic + 2)
             if end_italic != -1:
                 rich_text.append(
@@ -103,9 +99,7 @@ def parse_inline_markdown(text: str) -> List[Dict[str, Any]]:
         else:
             text_before_special = text[i:next_special]
             if text_before_special:
-                rich_text.append(
-                    {"type": "text", "text": {"content": text_before_special}}
-                )
+                rich_text.append({"type": "text", "text": {"content": text_before_special}})
             i = next_special
 
     if not rich_text:
@@ -161,9 +155,7 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
     def is_list_item(line: str) -> bool:
         """Check if line is a bullet or numbered list item."""
         stripped = line.strip()
-        return bool(
-            re.match(r"^[-*+]\s+", stripped) or re.match(r"^\d+\.\s+", stripped)
-        )
+        return bool(re.match(r"^[-*+]\s+", stripped) or re.match(r"^\d+\.\s+", stripped))
 
     # First pass: collect all lines with metadata
     i = 0
@@ -294,9 +286,7 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
                     continue
 
             # Otherwise add blank paragraph
-            blocks.append(
-                {"object": "block", "type": "paragraph", "paragraph": {"rich_text": []}}
-            )
+            blocks.append({"object": "block", "type": "paragraph", "paragraph": {"rich_text": []}})
             i += 1
             continue
 
@@ -391,9 +381,7 @@ class NotionEngine:
                 self._report_progress("Searching for existing page")
                 filters = filter_properties.get("filters", [])
                 if filters:
-                    q = client.databases.query(
-                        database_id=database_id, filter={"and": filters}
-                    )
+                    q = client.databases.query(database_id=database_id, filter={"and": filters})
                     if q.get("results"):
                         existing_page_id = q["results"][0]["id"]
             except Exception as e:

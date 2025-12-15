@@ -114,15 +114,11 @@ def _prompt_numbered_choice(title: str, items: List[str]) -> Optional[str]:
         if _HAS_RICH and _console is not None:
             tbl = Table(show_header=True, header_style="bold cyan", box=None)
             tbl.add_column("#", style="cyan dim", width=4)
-            tbl.add_column(
-                title + (f" {filter_note}" if filter_note else ""), style="white"
-            )
+            tbl.add_column(title + (f" {filter_note}" if filter_note else ""), style="white")
             for idx, item in enumerate(current, start=1):
                 tbl.add_row(str(idx), item)
             _console.print(tbl)
-            _console.print(
-                Panel.fit("1-9 select  •  /text filter  •  q quit", style="dim")
-            )
+            _console.print(Panel.fit("1-9 select  •  /text filter  •  q quit", style="dim"))
         else:
             click.echo("")
             click.echo(title + (f" {filter_note}" if filter_note else ""))
@@ -138,9 +134,7 @@ def _prompt_numbered_choice(title: str, items: List[str]) -> Optional[str]:
             if s.startswith("/"):
                 term = s[1:].strip()
                 if not term:
-                    term = click.prompt(
-                        "Filter contains", default="", show_default=False
-                    )
+                    term = click.prompt("Filter contains", default="", show_default=False)
                 term_l = term.lower()
                 current = [it for it in items if term_l in it.lower()]
                 filter_note = f"(filtered: '{term}')" if term else ""
@@ -185,9 +179,7 @@ def _scan_notion_rows(scan_dir: Path) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
 
     # Helper to push a row from paths and metadata
-    def add_row(
-        episode_dir: Path, analysis_path: Path, ai: str, asr: str, kind: str, track: str
-    ):
+    def add_row(episode_dir: Path, analysis_path: Path, ai: str, asr: str, kind: str, track: str):
         show = "Unknown"
         title = "Unknown"
         date = "Unknown"
@@ -357,18 +349,16 @@ def _interactive_table_flow(
             preset_token = preset.token
         else:
             manual = input(f"Notion DB ID [{default_db}]: ").strip()
-            db_val = manual or default_db
+            db_val = manual or default_db  # type: ignore[assignment]
             preset_token = None
     else:
         db_val = (
             input(f"Notion DB ID [{default_db}]: ").strip()
             if _HAS_RICH
-            else click.prompt(
-                "Notion DB ID", default=default_db, show_default=bool(default_db)
-            )
+            else click.prompt("Notion DB ID", default=default_db, show_default=bool(default_db))
         )
         if not db_val:
-            db_val = default_db
+            db_val = default_db  # type: ignore[assignment]
         preset_token = None
 
     # Determine effective dry-run setting for interactive mode:
@@ -393,29 +383,17 @@ def _interactive_table_flow(
         meta_for_hint = json.loads(
             (chosen["dir"] / "episode-meta.json").read_text(encoding="utf-8")
         )
-        episode_title = (
-            meta_for_hint.get("episode_title") or meta_for_hint.get("title") or ""
-        )
-        date_val = (
-            meta_for_hint.get("episode_published") or meta_for_hint.get("date") or ""
-        )
+        episode_title = meta_for_hint.get("episode_title") or meta_for_hint.get("title") or ""
+        date_val = meta_for_hint.get("episode_published") or meta_for_hint.get("date") or ""
         if episode_title and db_val and not effective_dry_run and Client is not None:
             if notion_client_from_env:
                 client = notion_client_from_env()
-                filt = {
-                    "and": [
-                        {"property": "Episode", "rich_text": {"equals": episode_title}}
-                    ]
-                }
+                filt = {"and": [{"property": "Episode", "rich_text": {"equals": episode_title}}]}
                 if isinstance(date_val, str) and len(date_val) >= 10:
-                    filt["and"].append(
-                        {"property": "Date", "date": {"equals": date_val[:10]}}
-                    )
+                    filt["and"].append({"property": "Date", "date": {"equals": date_val[:10]}})
                 q = client.databases.query(database_id=db_val, filter=filt)
                 if q.get("results"):
-                    print(
-                        "⚠️  Note: an existing Notion page with this title/date was found."
-                    )
+                    print("⚠️  Note: an existing Notion page with this title/date was found.")
     except Exception:
         pass
 

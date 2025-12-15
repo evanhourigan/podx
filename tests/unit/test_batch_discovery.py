@@ -69,9 +69,7 @@ class TestEpisodeDiscovery:
 
             # Create metadata in some episodes
             metadata = {"title": "Episode 0", "show": "Test"}
-            (tmpdir_path / "episode-0" / "episode-meta.json").write_text(
-                json.dumps(metadata)
-            )
+            (tmpdir_path / "episode-0" / "episode-meta.json").write_text(json.dumps(metadata))
 
             # Discover with pattern
             filters = EpisodeFilter(pattern="*/episode-meta.json")

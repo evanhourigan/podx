@@ -43,9 +43,7 @@ class OpenAIProvider(LLMProvider):
         try:
             from openai import AsyncOpenAI, OpenAI
         except ImportError:
-            raise LLMProviderError(
-                "openai library not installed. Install with: pip install openai"
-            )
+            raise LLMProviderError("openai library not installed. Install with: pip install openai")
 
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self.base_url = base_url

@@ -95,9 +95,7 @@ def validate_pipeline_step(
     return decorator
 
 
-def validate_pipeline_compatibility(
-    data: Dict[str, Any], expected_schema: Type[BaseModel]
-) -> bool:
+def validate_pipeline_compatibility(data: Dict[str, Any], expected_schema: Type[BaseModel]) -> bool:
     """
     Check if data is compatible with expected schema without raising exceptions.
 

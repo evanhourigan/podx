@@ -30,9 +30,7 @@ def get_cleanup_config() -> tuple[int, int]:
     max_age_days = int(os.getenv("PODX_CLEANUP_MAX_AGE_DAYS", "7"))
     interval_hours = int(os.getenv("PODX_CLEANUP_INTERVAL_HOURS", "24"))
 
-    logger.info(
-        f"Cleanup configured: max_age={max_age_days} days, interval={interval_hours} hours"
-    )
+    logger.info(f"Cleanup configured: max_age={max_age_days} days, interval={interval_hours} hours")
     return max_age_days, interval_hours
 
 
@@ -160,9 +158,7 @@ async def run_cleanup_task() -> None:
             # Clean up orphaned files
             files_cleaned = await cleanup_orphaned_files()
 
-            logger.info(
-                f"Cleanup completed: {jobs_cleaned} jobs, {files_cleaned} orphaned files"
-            )
+            logger.info(f"Cleanup completed: {jobs_cleaned} jobs, {files_cleaned} orphaned files")
 
         except Exception as e:
             logger.error(f"Cleanup task error: {e}", exc_info=True)

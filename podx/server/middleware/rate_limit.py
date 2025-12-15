@@ -26,9 +26,7 @@ def get_rate_limit_config() -> tuple[str, str]:
     general_limit = os.getenv("PODX_RATE_LIMIT_PER_MINUTE", "100/minute")
     upload_limit = os.getenv("PODX_UPLOAD_LIMIT_PER_HOUR", "10/hour")
 
-    logger.info(
-        f"Rate limiting configured: {general_limit} general, {upload_limit} uploads"
-    )
+    logger.info(f"Rate limiting configured: {general_limit} general, {upload_limit} uploads")
     return general_limit, upload_limit
 
 
@@ -48,9 +46,7 @@ def create_limiter() -> Limiter:
     return limiter
 
 
-def rate_limit_exceeded_handler(
-    request: Request, exc: RateLimitExceeded
-) -> JSONResponse:
+def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
     """Handle rate limit exceeded errors.
 
     Args:
@@ -60,9 +56,7 @@ def rate_limit_exceeded_handler(
     Returns:
         JSON response with 429 status code
     """
-    logger.warning(
-        f"Rate limit exceeded for {get_remote_address(request)} on {request.url.path}"
-    )
+    logger.warning(f"Rate limit exceeded for {get_remote_address(request)} on {request.url.path}")
 
     return JSONResponse(
         status_code=429,

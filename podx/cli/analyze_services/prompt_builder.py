@@ -12,13 +12,9 @@ def build_episode_header(transcript: Dict[str, Any]) -> str:
     Prefer pipeline metadata field names, fallback to older/alternative names.
     """
     show_name = transcript.get("show") or transcript.get("show_name", "Unknown Show")
-    episode_title = (
-        transcript.get("episode_title") or transcript.get("title") or "Unknown Episode"
-    )
+    episode_title = transcript.get("episode_title") or transcript.get("title") or "Unknown Episode"
     release_date = (
-        transcript.get("episode_published")
-        or transcript.get("release_date")
-        or "Unknown Date"
+        transcript.get("episode_published") or transcript.get("release_date") or "Unknown Date"
     )
 
     return f"""# {show_name}

@@ -32,9 +32,7 @@ class ExportStep(PipelineStep):
     def name(self) -> str:
         return "Export Transcript Files"
 
-    def execute(
-        self, context: StepContext, progress: Any, verbose: bool = False
-    ) -> StepResult:
+    def execute(self, context: StepContext, progress: Any, verbose: bool = False) -> StepResult:
         """Execute export step."""
         step_start = time.time()
 
@@ -62,9 +60,7 @@ class ExportStep(PipelineStep):
         progress.complete_step("Transcript files exported (TXT, SRT)", step_duration)
 
         # Build results using export output paths when available
-        exported_files = (
-            export_result.get("files", {}) if isinstance(export_result, dict) else {}
-        )
+        exported_files = export_result.get("files", {}) if isinstance(export_result, dict) else {}
         results = {
             "meta": str(wd / "episode-meta.json"),
             "audio": str(wd / "audio-meta.json"),
@@ -86,9 +82,7 @@ class ExportStep(PipelineStep):
         # Final export (deepcast markdown/PDF)
         self._execute_final_export(context)
 
-        return StepResult.ok(
-            "Transcript files exported", duration=step_duration, data=results
-        )
+        return StepResult.ok("Transcript files exported", duration=step_duration, data=results)
 
     def _execute_final_export(self, context: StepContext) -> None:
         """Execute final export of deepcast analysis to markdown/PDF."""
@@ -102,9 +96,7 @@ class ExportStep(PipelineStep):
                 export_source_path = Path(single)
                 export_track = (self.preset or "balanced") if self.preset else "single"
 
-                data = json.loads(
-                    export_source_path.read_text(encoding=DEFAULT_ENCODING)
-                )
+                data = json.loads(export_source_path.read_text(encoding=DEFAULT_ENCODING))
                 # Use unified exporter (handles deepcast JSON, and PDF auto-install)
                 try:
                     md_path, pdf_path = export_from_deepcast_json(

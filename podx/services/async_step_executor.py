@@ -263,9 +263,7 @@ class AsyncStepExecutor:
         if restore:
             cmd.add_flag("--restore")
 
-        return await self._run(
-            cmd.build(), stdin_payload=transcript, label="preprocess"
-        )
+        return await self._run(cmd.build(), stdin_payload=transcript, label="preprocess")
 
     async def deepcast(
         self,

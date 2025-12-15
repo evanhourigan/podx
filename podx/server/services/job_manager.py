@@ -24,9 +24,7 @@ class JobManager:
         """
         self.session = session
 
-    async def create_job(
-        self, job_type: str, input_params: Optional[dict] = None
-    ) -> Job:
+    async def create_job(self, job_type: str, input_params: Optional[dict] = None) -> Job:
         """Create a new job.
 
         Args:

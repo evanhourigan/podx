@@ -60,6 +60,8 @@ dev = [
   "mypy~=1.17.0",
   "types-requests~=2.32.4",
   "types-python-dateutil~=2.9.0",
+  "types-Markdown~=3.7.0",
+  "types-PyYAML~=6.0.0",
   "black~=25.1.0",
   "isort~=5.13.0",
   "tox~=4.0.0",
@@ -111,6 +113,9 @@ autosave = true
 compare = true
 # Columns to display
 columns = "min, max, mean, stddev, median, iqr, outliers, rounds, iterations"
+
+[tool.black]
+line-length = 100
 
 [tool.isort]
 profile = "black"

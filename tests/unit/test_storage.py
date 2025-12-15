@@ -31,9 +31,7 @@ class TestStorageManager:
         assert manager._detect_backend_from_url("s3://bucket/key") == StorageBackend.S3
         assert manager._detect_backend_from_url("gs://bucket/key") == StorageBackend.GCS
         assert (
-            manager._detect_backend_from_url(
-                "https://account.blob.core.windows.net/container/blob"
-            )
+            manager._detect_backend_from_url("https://account.blob.core.windows.net/container/blob")
             == StorageBackend.AZURE
         )
         assert manager._detect_backend_from_url("/local/path") == StorageBackend.LOCAL

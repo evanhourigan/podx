@@ -82,9 +82,7 @@ async def test_transcode():
     with patch.object(executor, "_run", new_callable=AsyncMock) as mock_run:
         mock_run.return_value = mock_result
 
-        result = await executor.transcode(
-            meta=meta, fmt="wav16", outdir=Path("/tmp/output")
-        )
+        result = await executor.transcode(meta=meta, fmt="wav16", outdir=Path("/tmp/output"))
 
         assert result == mock_result
 

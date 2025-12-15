@@ -44,38 +44,27 @@ class FetchStep(PipelineStep):
     def name(self) -> str:
         return "Fetch Episode Metadata"
 
-    def execute(
-        self, context: StepContext, progress: Any, verbose: bool = False
-    ) -> StepResult:
+    def execute(self, context: StepContext, progress: Any, verbose: bool = False) -> StepResult:
         """Execute fetch step."""
         step_start = time.time()
 
         try:
             # 1. Interactive mode: metadata and workdir already determined
-            if (
-                self.interactive_mode_meta is not None
-                and self.interactive_mode_wd is not None
-            ):
+            if self.interactive_mode_meta is not None and self.interactive_mode_wd is not None:
                 # Check if audio file exists; if not, need to fetch
                 audio_path = self.interactive_mode_meta.get("audio_path")
                 if audio_path and Path(audio_path).exists():
                     context.metadata = self.interactive_mode_meta
                     context.working_dir = self.interactive_mode_wd
-                    return StepResult.skip(
-                        "Using pre-selected episode from interactive mode"
-                    )
+                    return StepResult.skip("Using pre-selected episode from interactive mode")
 
                 # Audio missing - populate config from metadata and fall through to fetch
                 if self.interactive_mode_meta.get("show"):
                     context.config["show"] = self.interactive_mode_meta["show"]
                 if self.interactive_mode_meta.get("episode_published"):
-                    context.config["date"] = self.interactive_mode_meta[
-                        "episode_published"
-                    ]
+                    context.config["date"] = self.interactive_mode_meta["episode_published"]
                 if self.interactive_mode_meta.get("episode_title"):
-                    context.config["title_contains"] = self.interactive_mode_meta[
-                        "episode_title"
-                    ]
+                    context.config["title_contains"] = self.interactive_mode_meta["episode_title"]
                 if self.interactive_mode_meta.get("feed"):
                     context.config["rss_url"] = self.interactive_mode_meta["feed"]
 
@@ -101,9 +90,7 @@ class FetchStep(PipelineStep):
 
                 show = meta.get("show", "Unknown Show")
                 episode_date = (
-                    meta.get("episode_published")
-                    or context.config.get("date")
-                    or "unknown"
+                    meta.get("episode_published") or context.config.get("date") or "unknown"
                 )
                 wd = generate_workdir(show, episode_date)
 
@@ -126,9 +113,7 @@ class FetchStep(PipelineStep):
             duration = time.time() - step_start
             return StepResult.fail("Fetch failed", str(e), duration=duration)
 
-    def _fetch_youtube(
-        self, context: StepContext, progress: Any, verbose: bool
-    ) -> Dict[str, Any]:
+    def _fetch_youtube(self, context: StepContext, progress: Any, verbose: bool) -> Dict[str, Any]:
         """Fetch YouTube video metadata."""
         from podx.cli.youtube import get_youtube_metadata, is_youtube_url
 
@@ -154,9 +139,7 @@ class FetchStep(PipelineStep):
 
         return meta
 
-    def _fetch_podcast(
-        self, context: StepContext, progress: Any, verbose: bool
-    ) -> Dict[str, Any]:
+    def _fetch_podcast(self, context: StepContext, progress: Any, verbose: bool) -> Dict[str, Any]:
         """Fetch podcast episode metadata from RSS/iTunes."""
         fetch_cmd = CommandBuilder("podx-fetch")
         if context.config.get("show"):
@@ -164,9 +147,7 @@ class FetchStep(PipelineStep):
         elif context.config.get("rss_url"):
             fetch_cmd.add_option("--rss-url", context.config["rss_url"])
         else:
-            raise ValidationError(
-                "Either --show, --rss-url, or --youtube-url must be provided."
-            )
+            raise ValidationError("Either --show, --rss-url, or --youtube-url must be provided.")
 
         if context.config.get("date"):
             fetch_cmd.add_option("--date", context.config["date"])
@@ -183,9 +164,7 @@ class FetchStep(PipelineStep):
             save_to=None,  # Don't save yet, we'll save after determining workdir
             label=None,  # Progress handles the display
         )
-        progress.complete_step(
-            f"Episode fetched: {meta.get('episode_title', 'Unknown')}"
-        )
+        progress.complete_step(f"Episode fetched: {meta.get('episode_title', 'Unknown')}")
 
         return meta
 

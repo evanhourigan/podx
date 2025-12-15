@@ -4,7 +4,7 @@ Provides endpoints for transcribe, diarize, deepcast, and pipeline operations.
 Each endpoint creates a job and returns the job ID for tracking.
 """
 
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from pydantic import BaseModel, Field, field_validator
@@ -35,9 +35,7 @@ class TranscribeRequest(BaseModel):
         """Validate Whisper model name."""
         valid_models = {"tiny", "base", "small", "medium", "large"}
         if v not in valid_models:
-            raise ValueError(
-                f"Invalid model '{v}'. Must be one of: {', '.join(valid_models)}"
-            )
+            raise ValueError(f"Invalid model '{v}'. Must be one of: {', '.join(valid_models)}")
         return v
 
     @field_validator("audio_url")
@@ -87,9 +85,7 @@ class PipelineRequest(BaseModel):
         """Validate Whisper model name."""
         valid_models = {"tiny", "base", "small", "medium", "large"}
         if v not in valid_models:
-            raise ValueError(
-                f"Invalid model '{v}'. Must be one of: {', '.join(valid_models)}"
-            )
+            raise ValueError(f"Invalid model '{v}'. Must be one of: {', '.join(valid_models)}")
         return v
 
     @field_validator("audio_url")
@@ -155,7 +151,7 @@ async def diarize(
         Job ID and status
     """
     job_manager = JobManager(session)
-    params = {"audio_url": body.audio_url}
+    params: Dict[str, Any] = {"audio_url": body.audio_url}
     if body.num_speakers is not None:
         params["num_speakers"] = body.num_speakers
 
@@ -211,7 +207,7 @@ async def pipeline(
         Job ID and status
     """
     job_manager = JobManager(session)
-    params = {
+    params: Dict[str, Any] = {
         "audio_url": body.audio_url,
         "model": body.model,
     }
@@ -229,9 +225,7 @@ async def pipeline(
 # File upload endpoints
 
 
-@router.post(
-    "/api/v1/transcribe/upload", response_model=ProcessingResponse, status_code=202
-)
+@router.post("/api/v1/transcribe/upload", response_model=ProcessingResponse, status_code=202)
 @limiter.limit(upload_limit)
 async def transcribe_upload(
     request: Request,
@@ -265,9 +259,7 @@ async def transcribe_upload(
     return ProcessingResponse(job_id=job.id, status=job.status)
 
 
-@router.post(
-    "/api/v1/diarize/upload", response_model=ProcessingResponse, status_code=202
-)
+@router.post("/api/v1/diarize/upload", response_model=ProcessingResponse, status_code=202)
 @limiter.limit(upload_limit)
 async def diarize_upload(
     request: Request,
@@ -290,7 +282,7 @@ async def diarize_upload(
 
     # Create job
     job_manager = JobManager(session)
-    params = {"audio_url": file_path}
+    params: Dict[str, Any] = {"audio_url": file_path}
     if num_speakers is not None:
         params["num_speakers"] = num_speakers
 
@@ -302,9 +294,7 @@ async def diarize_upload(
     return ProcessingResponse(job_id=job.id, status=job.status)
 
 
-@router.post(
-    "/api/v1/pipeline/upload", response_model=ProcessingResponse, status_code=202
-)
+@router.post("/api/v1/pipeline/upload", response_model=ProcessingResponse, status_code=202)
 @limiter.limit(upload_limit)
 async def pipeline_upload(
     request: Request,
@@ -329,7 +319,7 @@ async def pipeline_upload(
 
     # Create job
     job_manager = JobManager(session)
-    params = {
+    params: Dict[str, Any] = {
         "audio_url": file_path,
         "model": model,
     }

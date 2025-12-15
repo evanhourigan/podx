@@ -86,9 +86,7 @@ def _setup_api_key() -> Optional[str]:
     existing_key = _get_value("runpod-api-key")
     if existing_key:
         masked = (
-            existing_key[:8] + "..." + existing_key[-4:]
-            if len(existing_key) > 12
-            else "[hidden]"
+            existing_key[:8] + "..." + existing_key[-4:] if len(existing_key) > 12 else "[hidden]"
         )
         console.print(f"[dim]Found existing API key: {masked}[/dim]")
         if Confirm.ask("Use existing key?", default=True):
@@ -97,9 +95,7 @@ def _setup_api_key() -> Optional[str]:
                 console.print("[green]API key valid[/green]")
                 return existing_key
             else:
-                console.print(
-                    "[yellow]Existing key is invalid. Please enter a new one.[/yellow]"
-                )
+                console.print("[yellow]Existing key is invalid. Please enter a new one.[/yellow]")
 
     # Get new key
     console.print("\n[bold]Step 1: API Key[/bold]")
@@ -155,9 +151,7 @@ def _setup_endpoint_id(api_key: str) -> Optional[str]:
     # Validate
     console.print("[dim]Testing endpoint...[/dim]")
     if not _validate_endpoint(api_key, endpoint_id):
-        console.print(
-            "[red]Error: Endpoint not responding. Please verify the endpoint ID.[/red]"
-        )
+        console.print("[red]Error: Endpoint not responding. Please verify the endpoint ID.[/red]")
         if not Confirm.ask("Save anyway?", default=False):
             return None
 

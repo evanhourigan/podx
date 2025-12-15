@@ -103,16 +103,14 @@ def _validate_value(key: str, value: str) -> tuple[bool, str]:
 
         if not validate_asr_model(value):
             return False, (
-                f"Invalid ASR model '{value}'. "
-                "Run 'podx models' to see available models."
+                f"Invalid ASR model '{value}'. " "Run 'podx models' to see available models."
             )
     elif validator == "llm_model":
         from podx.ui.prompts import validate_llm_model
 
         if not validate_llm_model(value):
             return False, (
-                f"Invalid LLM model '{value}'. "
-                "Run 'podx models' to see available models."
+                f"Invalid LLM model '{value}'. " "Run 'podx models' to see available models."
             )
     elif validator == "language":
         from podx.ui.prompts import validate_language

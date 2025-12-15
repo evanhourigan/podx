@@ -214,10 +214,7 @@ class SemanticSearch:
         ref_segment = None
         ref_idx = None
         for i, seg in enumerate(self.segments):
-            if (
-                seg["episode_id"] == episode_id
-                and abs(seg["timestamp"] - timestamp) < 1.0
-            ):
+            if seg["episode_id"] == episode_id and abs(seg["timestamp"] - timestamp) < 1.0:
                 ref_segment = seg
                 ref_idx = i
                 break
@@ -275,9 +272,7 @@ class SemanticSearch:
         # Filter segments
         filtered_segments = self.segments
         if episode_filter:
-            filtered_segments = [
-                s for s in self.segments if s["episode_id"] == episode_filter
-            ]
+            filtered_segments = [s for s in self.segments if s["episode_id"] == episode_filter]
 
         if len(filtered_segments) < n_clusters:
             n_clusters = max(1, len(filtered_segments) // 2)
@@ -293,9 +288,7 @@ class SemanticSearch:
         # Build cluster results
         clusters = []
         for cluster_id in range(n_clusters):
-            cluster_indices = [
-                i for i, label in enumerate(labels) if label == cluster_id
-            ]
+            cluster_indices = [i for i, label in enumerate(labels) if label == cluster_id]
             cluster_segments = [filtered_segments[i] for i in cluster_indices]
 
             # Find representative segment (closest to centroid)

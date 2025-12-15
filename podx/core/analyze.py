@@ -33,9 +33,7 @@ def hhmmss(sec: float) -> str:
     return f"{int(h):02}:{int(m):02}:{int(s):02}"
 
 
-def segments_to_plain_text(
-    segs: List[Dict[str, Any]], with_time: bool, with_speaker: bool
-) -> str:
+def segments_to_plain_text(segs: List[Dict[str, Any]], with_time: bool, with_speaker: bool) -> str:
     """Convert segments to plain text with optional timecodes and speaker labels."""
     lines = []
     for s in segs:
@@ -53,8 +51,8 @@ def split_into_chunks(text: str, approx_chars: int) -> List[str]:
         return [text]
 
     paras = text.split("\n")
-    chunks = []
-    cur = []
+    chunks: List[str] = []
+    cur: List[str] = []
     cur_len = 0
 
     for p in paras:
@@ -118,31 +116,28 @@ class AnalyzeEngine:
         self.base_url = base_url
 
         # Handle progress reporting (support both new and legacy APIs)
+        self.progress: Optional[ProgressReporter] = None
+        self.progress_callback: Optional[Callable[[str], None]] = None
+
         if progress is not None:
             if isinstance(progress, ProgressReporter):
                 self.progress = progress
-                self.progress_callback = None
             else:
                 # Legacy callback function
-                self.progress = None
                 self.progress_callback = progress
         elif progress_callback is not None:
             # Deprecated parameter
-            self.progress = None
             self.progress_callback = progress_callback
         else:
             # No progress reporting
             self.progress = SilentProgressReporter()
-            self.progress_callback = None
 
         # Use provided provider or create one
         if llm_provider:
             self.llm_provider = llm_provider
         else:
             try:
-                self.llm_provider = get_provider(
-                    provider_name, api_key=api_key, base_url=base_url
-                )
+                self.llm_provider = get_provider(provider_name, api_key=api_key, base_url=base_url)
             except Exception as e:
                 raise AnalyzeError(f"Failed to initialize LLM provider: {e}") from e
 
@@ -243,9 +238,7 @@ class AnalyzeEngine:
 
             async def process_chunk(i: int, chunk: str) -> str:
                 async with semaphore:
-                    prompt = (
-                        f"{map_instructions}\n\nChunk {i+1}/{len(chunks)}:\n\n{chunk}"
-                    )
+                    prompt = f"{map_instructions}\n\nChunk {i+1}/{len(chunks)}:\n\n{chunk}"
                     self._report_progress(f"Processing chunk {i+1}/{len(chunks)}")
                     note = await self._chat_once_async(system_prompt, prompt)
                     return note
@@ -264,9 +257,7 @@ class AnalyzeEngine:
         # Reduce phase: synthesize results
         self._report_progress("Synthesizing results")
 
-        reduce_prompt = (
-            f"{reduce_instructions}\n\nChunk notes:\n\n" + "\n\n---\n\n".join(map_notes)
-        )
+        reduce_prompt = f"{reduce_instructions}\n\nChunk notes:\n\n" + "\n\n---\n\n".join(map_notes)
         if want_json and json_schema:
             reduce_prompt += f"\n\n{json_schema}"
 

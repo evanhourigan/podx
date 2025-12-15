@@ -152,12 +152,8 @@ def main(path: Optional[Path], model: Optional[str], language: Optional[str]):
 
             # Warn if already transcribed
             if selected.get("transcribed"):
-                console.print(
-                    "\n[yellow]This episode already has a transcript.[/yellow]"
-                )
-                console.print(
-                    "[dim]Re-transcribing will overwrite the existing file.[/dim]"
-                )
+                console.print("\n[yellow]This episode already has a transcript.[/yellow]")
+                console.print("[dim]Re-transcribing will overwrite the existing file.[/dim]")
                 try:
                     confirm = input("Continue? [y/N] ").strip().lower()
                 except (KeyboardInterrupt, EOFError):
@@ -170,7 +166,8 @@ def main(path: Optional[Path], model: Optional[str], language: Optional[str]):
             console.print("\n[dim]Cancelled[/dim]")
             sys.exit(0)
 
-    # Resolve path
+    # Resolve path (path is guaranteed to be set by now - either from arg or interactive)
+    assert path is not None
     episode_dir = path.resolve()
     if episode_dir.is_file():
         episode_dir = episode_dir.parent
@@ -271,14 +268,10 @@ def main(path: Optional[Path], model: Optional[str], language: Optional[str]):
     result["restored"] = False
 
     # Save transcript
-    transcript_path.write_text(
-        json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    transcript_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
 
     # Show completion
-    console.print(
-        f"\n[green]✓ Transcription complete ({minutes}:{seconds:02d})[/green]"
-    )
+    console.print(f"\n[green]✓ Transcription complete ({minutes}:{seconds:02d})[/green]")
     console.print(f"  Segments: {len(result.get('segments', []))}")
     console.print(f"  Language: {result.get('language', 'unknown')}")
     console.print(f"  Output: {transcript_path}")

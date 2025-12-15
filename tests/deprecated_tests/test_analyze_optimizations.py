@@ -44,10 +44,7 @@ class TestAsyncWrapper:
         mock_chat_once.return_value = "Response"
 
         # Run multiple calls in parallel
-        tasks = [
-            chat_once_async(mock_client, "gpt-4.1", "sys", f"user {i}", 0.2)
-            for i in range(3)
-        ]
+        tasks = [chat_once_async(mock_client, "gpt-4.1", "sys", f"user {i}", 0.2) for i in range(3)]
         results = await asyncio.gather(*tasks)
 
         assert len(results) == 3
@@ -80,9 +77,7 @@ class TestParallelChunkProcessing:
 
             async def process_chunk(i: int, chunk: str) -> str:
                 async with semaphore:
-                    prompt = (
-                        f"Map instructions\n\nChunk {i+1}/{len(chunks)}:\n\n{chunk}"
-                    )
+                    prompt = f"Map instructions\n\nChunk {i+1}/{len(chunks)}:\n\n{chunk}"
                     note = await chat_once_async(
                         mock_client,
                         model="gpt-4.1",
@@ -164,10 +159,7 @@ class TestPerformanceCharacteristics:
 
         # Parallel execution
         start_par = time.time()
-        tasks = [
-            chat_once_async(mock_client, "gpt-4.1", "sys", f"user {i}", 0.2)
-            for i in range(4)
-        ]
+        tasks = [chat_once_async(mock_client, "gpt-4.1", "sys", f"user {i}", 0.2) for i in range(4)]
         await asyncio.gather(*tasks)
         par_time = time.time() - start_par
 

@@ -155,9 +155,7 @@ class TestTranscodeEngine:
         source.write_text("fake audio")
 
         # Mock ffmpeg failure
-        mock_run.side_effect = subprocess.CalledProcessError(
-            1, ["ffmpeg"], stderr="ffmpeg error"
-        )
+        mock_run.side_effect = subprocess.CalledProcessError(1, ["ffmpeg"], stderr="ffmpeg error")
 
         # Execute
         engine = TranscodeEngine(format="wav16")
@@ -223,9 +221,7 @@ class TestTranscodeEngine:
         audio_file = tmp_path / "test.mp3"
         audio_file.write_text("fake audio")
 
-        mock_run.side_effect = subprocess.CalledProcessError(
-            1, ["ffprobe"], stderr="probe error"
-        )
+        mock_run.side_effect = subprocess.CalledProcessError(1, ["ffprobe"], stderr="probe error")
 
         # Execute
         engine = TranscodeEngine()
@@ -329,8 +325,7 @@ class TestEdgeCases:
 
         assert "audio_path" in result
         assert (
-            Path(result["audio_path"]).exists()
-            or not Path(result["audio_path"]).exists()
+            Path(result["audio_path"]).exists() or not Path(result["audio_path"]).exists()
         )  # May or may not exist since mocked
 
     @patch("podx.core.transcode.subprocess.run")

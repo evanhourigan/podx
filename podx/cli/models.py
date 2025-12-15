@@ -101,9 +101,7 @@ def main():
                 cost_str = "< $0.01"
             else:
                 cost_str = f"${hourly_cost:.2f}"
-            llm_table.add_row(
-                f"{model.provider}:{model.id}", cost_str, model.description or ""
-            )
+            llm_table.add_row(f"{model.provider}:{model.id}", cost_str, model.description or "")
     except Exception:
         # Fallback if catalog fails
         llm_table.add_row("openai:gpt-4o", "$0.08", "Best quality (default)")

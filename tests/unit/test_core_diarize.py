@@ -207,17 +207,13 @@ class TestDiarizationEngineDiarize:
         assert len(result["segments"]) == 2
 
         # Verify whisperx was called correctly
-        mock_whisperx.load_align_model.assert_called_once_with(
-            language_code="en", device="cpu"
-        )
+        mock_whisperx.load_align_model.assert_called_once_with(language_code="en", device="cpu")
         mock_whisperx.load_audio.assert_called_once_with(str(audio_file))
         mock_whisperx.align.assert_called_once()
         mock_whisperx.diarize.DiarizationPipeline.assert_called_once()
         mock_whisperx.diarize.assign_word_speakers.assert_called_once()
 
-    def test_diarize_missing_audio_file(
-        self, mock_whisperx, sample_transcript_segments, tmp_path
-    ):
+    def test_diarize_missing_audio_file(self, mock_whisperx, sample_transcript_segments, tmp_path):
         """Test that missing audio file raises error."""
         audio_file = tmp_path / "nonexistent.wav"
 
@@ -260,9 +256,7 @@ class TestDiarizationEngineDiarize:
         with pytest.raises(DiarizationError, match="Failed to load alignment model"):
             engine.diarize(audio_file, sample_transcript_segments)
 
-    def test_diarize_audio_load_failure(
-        self, mock_whisperx, sample_transcript_segments, tmp_path
-    ):
+    def test_diarize_audio_load_failure(self, mock_whisperx, sample_transcript_segments, tmp_path):
         """Test handling of audio loading failure."""
         audio_file = tmp_path / "test.wav"
         audio_file.write_text("fake audio")
@@ -276,9 +270,7 @@ class TestDiarizationEngineDiarize:
         with pytest.raises(DiarizationError, match="Failed to load audio"):
             engine.diarize(audio_file, sample_transcript_segments)
 
-    def test_diarize_alignment_failure(
-        self, mock_whisperx, sample_transcript_segments, tmp_path
-    ):
+    def test_diarize_alignment_failure(self, mock_whisperx, sample_transcript_segments, tmp_path):
         """Test handling of alignment failure."""
         audio_file = tmp_path / "test.wav"
         audio_file.write_text("fake audio")
@@ -304,9 +296,7 @@ class TestDiarizationEngineDiarize:
         mock_whisperx.load_align_model.return_value = (MagicMock(), MagicMock())
         mock_whisperx.load_audio.return_value = MagicMock()
         mock_whisperx.align.return_value = sample_aligned_result
-        mock_whisperx.diarize.DiarizationPipeline.side_effect = Exception(
-            "Pipeline load failed"
-        )
+        mock_whisperx.diarize.DiarizationPipeline.side_effect = Exception("Pipeline load failed")
 
         engine = DiarizationEngine()
 
@@ -400,9 +390,7 @@ class TestDiarizationEngineDiarize:
         engine.diarize(audio_file, sample_transcript_segments)
 
         # Verify device was used correctly
-        mock_whisperx.load_align_model.assert_called_once_with(
-            language_code="en", device="cuda"
-        )
+        mock_whisperx.load_align_model.assert_called_once_with(language_code="en", device="cuda")
         call_kwargs = mock_whisperx.align.call_args[1]
         assert call_kwargs["device"] == "cuda"
 
@@ -507,9 +495,7 @@ class TestConvenienceFunction:
         assert len(progress_messages) >= 4
 
         # Verify custom params were used
-        mock_whisperx.load_align_model.assert_called_once_with(
-            language_code="es", device="cuda"
-        )
+        mock_whisperx.load_align_model.assert_called_once_with(language_code="es", device="cuda")
 
 
 class TestEdgeCases:
@@ -736,9 +722,7 @@ class TestMatchSpeakersAcrossChunks:
         embeddings_curr = {
             "SPEAKER_00": np.array([-1.0, 0.0, 0.0]),  # Opposite direction
         }
-        mapping = match_speakers_across_chunks(
-            embeddings_prev, embeddings_curr, threshold=0.4
-        )
+        mapping = match_speakers_across_chunks(embeddings_prev, embeddings_curr, threshold=0.4)
 
         # Should be treated as new speaker due to high distance
         assert mapping["SPEAKER_00"] != "SPEAKER_00"
@@ -750,14 +734,10 @@ class TestMergeChunkSegments:
     def test_simple_merge(self):
         """Test basic segment merging."""
         chunk1_result = {
-            "segments": [
-                {"text": "Hello", "start": 0.0, "end": 1.0, "speaker": "SPEAKER_00"}
-            ]
+            "segments": [{"text": "Hello", "start": 0.0, "end": 1.0, "speaker": "SPEAKER_00"}]
         }
         chunk2_result = {
-            "segments": [
-                {"text": "World", "start": 0.0, "end": 1.0, "speaker": "SPEAKER_00"}
-            ]
+            "segments": [{"text": "World", "start": 0.0, "end": 1.0, "speaker": "SPEAKER_00"}]
         }
 
         chunk_times = [(0.0, 60.0), (55.0, 120.0)]  # 5 sec overlap
@@ -766,9 +746,7 @@ class TestMergeChunkSegments:
             {"SPEAKER_00": "SPEAKER_00"},
         ]
 
-        merged = merge_chunk_segments(
-            [chunk1_result, chunk2_result], chunk_times, speaker_mappings
-        )
+        merged = merge_chunk_segments([chunk1_result, chunk2_result], chunk_times, speaker_mappings)
 
         assert len(merged) >= 1
         # First segment should have absolute timestamp
@@ -777,9 +755,7 @@ class TestMergeChunkSegments:
     def test_speaker_remapping(self):
         """Test that speakers are correctly remapped."""
         chunk1_result = {
-            "segments": [
-                {"text": "Hi", "start": 0.0, "end": 1.0, "speaker": "SPEAKER_00"}
-            ]
+            "segments": [{"text": "Hi", "start": 0.0, "end": 1.0, "speaker": "SPEAKER_00"}]
         }
         chunk2_result = {
             "segments": [
@@ -799,9 +775,7 @@ class TestMergeChunkSegments:
             {"SPEAKER_01": "SPEAKER_00"},  # Remap
         ]
 
-        merged = merge_chunk_segments(
-            [chunk1_result, chunk2_result], chunk_times, speaker_mappings
-        )
+        merged = merge_chunk_segments([chunk1_result, chunk2_result], chunk_times, speaker_mappings)
 
         # Second segment should be remapped to SPEAKER_00
         if len(merged) > 1:
@@ -844,9 +818,7 @@ class TestMergeChunkSegments:
             {"SPEAKER_00": "SPEAKER_00"},
         ]
 
-        merged = merge_chunk_segments(
-            [chunk1_result, chunk2_result], chunk_times, speaker_mappings
-        )
+        merged = merge_chunk_segments([chunk1_result, chunk2_result], chunk_times, speaker_mappings)
 
         # Should not have duplicate segments from overlap
         texts = [seg["text"] for seg in merged]

@@ -82,9 +82,7 @@ class FormatRegistry:
         """
         if format_id not in cls._formats:
             available = ", ".join(cls._formats.keys())
-            raise KeyError(
-                f"Unknown export format: {format_id}. Available: {available}"
-            )
+            raise KeyError(f"Unknown export format: {format_id}. Available: {available}")
         return cls._formats[format_id]
 
     @classmethod

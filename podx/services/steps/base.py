@@ -85,9 +85,7 @@ class PipelineStep(ABC):
         pass
 
     @abstractmethod
-    def execute(
-        self, context: StepContext, progress: Any, verbose: bool = False
-    ) -> StepResult:
+    def execute(self, context: StepContext, progress: Any, verbose: bool = False) -> StepResult:
         """Execute this pipeline step.
 
         Args:

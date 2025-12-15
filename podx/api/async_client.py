@@ -262,9 +262,7 @@ class AsyncPodxClient:
         # Load transcript to get audio path if needed
         resolved_audio_path: Path
         if audio_path is None:
-            transcript = Transcript.model_validate(
-                json.loads(transcript_path.read_text())
-            )
+            transcript = Transcript.model_validate(json.loads(transcript_path.read_text()))
             if not transcript.audio_path:
                 raise ValidationError("Transcript missing audio_path")
             resolved_audio_path = Path(transcript.audio_path)
@@ -562,9 +560,7 @@ class AsyncPodxClient:
             if process.stderr:
                 stderr_bytes = await process.stderr.read()
                 stderr_output = stderr_bytes.decode()
-            raise subprocess.CalledProcessError(
-                process.returncode or 1, cmd, stderr=stderr_output
-            )
+            raise subprocess.CalledProcessError(process.returncode or 1, cmd, stderr=stderr_output)
 
         # Return final result or joined output
         if final_result:
@@ -681,13 +677,9 @@ class AsyncPodxClient:
             [transcript_path is not None, text is not None, token_count is not None]
         )
         if inputs_provided == 0:
-            raise ValueError(
-                "Must provide one of: transcript_path, text, or token_count"
-            )
+            raise ValueError("Must provide one of: transcript_path, text, or token_count")
         if inputs_provided > 1:
-            raise ValueError(
-                "Provide only one of: transcript_path, text, or token_count"
-            )
+            raise ValueError("Provide only one of: transcript_path, text, or token_count")
 
         # Get model info
         catalog_model = _get_model(model)

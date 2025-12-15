@@ -205,9 +205,7 @@ class TestBatchProcessor:
         """Test batch result with error."""
         episode = {"title": "Test Episode"}
 
-        result = BatchResult(
-            episode=episode, success=False, error="Something failed", retries=2
-        )
+        result = BatchResult(episode=episode, success=False, error="Something failed", retries=2)
 
         assert result.success is False
         assert result.error == "Something failed"

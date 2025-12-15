@@ -227,9 +227,7 @@ class RunPodProvider(ASRProvider):
             decoder_options={"vad_filter": self.config.vad_filter},
         )
 
-    def _handle_cloud_error(
-        self, error: CloudError, audio_path: Path
-    ) -> TranscriptionResult:
+    def _handle_cloud_error(self, error: CloudError, audio_path: Path) -> TranscriptionResult:
         """Handle cloud error with optional fallback.
 
         Args:

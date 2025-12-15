@@ -157,9 +157,7 @@ def test_preprocess_with_restore(mock_run, mock_sanitize, mock_build_cmd):
     )
 
     # Verify restore flag was passed
-    mock_build_cmd.assert_called_with(
-        Path("/tmp/test/transcript-preprocessed-base.json"), True
-    )
+    mock_build_cmd.assert_called_with(Path("/tmp/test/transcript-preprocessed-base.json"), True)
     assert latest == preprocessed
 
 
@@ -248,9 +246,7 @@ def test_align_resume_legacy_file(mock_logger):
         return False
 
     with patch("pathlib.Path.exists", new=exists_side_effect):
-        with patch(
-            "pathlib.Path.read_text", return_value='{"asr_model": "base", "words": []}'
-        ):
+        with patch("pathlib.Path.read_text", return_value='{"asr_model": "base", "words": []}'):
             progress = MagicMock()
 
             latest, latest_name = _execute_enhancement(
