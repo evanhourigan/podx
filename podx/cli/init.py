@@ -8,12 +8,26 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
 import click
 from rich.console import Console
 from rich.panel import Panel
 
 console = Console()
+
+# Shell completion commands for each shell
+COMPLETION_COMMANDS = {
+    "bash": 'eval "$(_PODX_COMPLETE=bash_source podx)"',
+    "zsh": 'eval "$(_PODX_COMPLETE=zsh_source podx)"',
+    "fish": "_PODX_COMPLETE=fish_source podx | source",
+}
+
+SHELL_RC_FILES = {
+    "bash": "~/.bashrc",
+    "zsh": "~/.zshrc",
+    "fish": "~/.config/fish/config.fish",
+}
 
 
 def _check_command(cmd: str) -> tuple[bool, str]:
@@ -154,6 +168,76 @@ def _configure_api_keys() -> dict[str, str]:
     return keys
 
 
+def _detect_shell() -> Optional[str]:
+    """Detect the current shell."""
+    shell = os.environ.get("SHELL", "")
+    if "zsh" in shell:
+        return "zsh"
+    elif "bash" in shell:
+        return "bash"
+    elif "fish" in shell:
+        return "fish"
+    return None
+
+
+def _configure_completions() -> Optional[str]:
+    """Configure shell completions. Returns the shell configured, or None if skipped."""
+    console.print("\n[bold]Shell Completions[/bold]\n")
+    console.print("Enable tab-completion for podx commands and options.")
+    console.print()
+
+    detected = _detect_shell()
+    if detected:
+        console.print(f"  Detected shell: [cyan]{detected}[/cyan]")
+
+    console.print("\n  [cyan]1[/cyan]) bash")
+    console.print("  [cyan]2[/cyan]) zsh")
+    console.print("  [cyan]3[/cyan]) fish")
+    console.print("  [cyan]s[/cyan]) Skip")
+    console.print()
+
+    default = {"bash": "1", "zsh": "2", "fish": "3"}.get(detected or "", "s")
+    choice = input(f"Choice [{default}]: ").strip().lower() or default
+
+    shell_map = {"1": "bash", "2": "zsh", "3": "fish"}
+    if choice == "s":
+        console.print("  [dim]Skipped[/dim]")
+        return None
+
+    shell = shell_map.get(choice)
+    if not shell:
+        console.print("  [dim]Skipped[/dim]")
+        return None
+
+    # Get the RC file path
+    rc_file = Path(os.path.expanduser(SHELL_RC_FILES[shell]))
+    completion_cmd = COMPLETION_COMMANDS[shell]
+
+    # Check if already configured
+    if rc_file.exists():
+        content = rc_file.read_text()
+        if "_PODX_COMPLETE" in content:
+            console.print(f"  [green]✓[/green] Already configured in {rc_file}")
+            return shell
+
+    # Add completion to shell rc file
+    try:
+        # Create parent directories if needed (for fish)
+        rc_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Append the completion command
+        with open(rc_file, "a") as f:
+            f.write(f"\n# PodX shell completion\n{completion_cmd}\n")
+
+        console.print(f"  [green]✓[/green] Added to {rc_file}")
+        console.print(f"  [dim]Run 'source {rc_file}' or restart your shell to activate[/dim]")
+        return shell
+    except OSError as e:
+        console.print(f"  [red]✗[/red] Failed to write to {rc_file}: {e}")
+        console.print(f"  [dim]Add manually: {completion_cmd}[/dim]")
+        return None
+
+
 def _save_config(output_dir: str, api_keys: dict[str, str]) -> Path:
     """Save configuration to config file."""
     config_dir = Path.home() / ".config" / "podx"
@@ -199,20 +283,44 @@ def _save_config(output_dir: str, api_keys: dict[str, str]) -> Path:
 
 
 @click.command(context_settings={"max_content_width": 120})
-def main() -> None:
+@click.option(
+    "--completions",
+    is_flag=True,
+    help="Only configure shell completions (skip other setup steps).",
+)
+def main(completions: bool) -> None:
     """Setup wizard for new PodX users.
 
     Interactive setup that:
       1. Checks system requirements
       2. Configures output directory
       3. Sets up API keys (optional)
+      4. Configures shell completions
 
-    No options - purely interactive.
+    \b
+    Options:
+      --completions    Only configure shell completions
 
     \b
     Examples:
-      podx init
+      podx init              # Full setup wizard
+      podx init --completions  # Only set up shell completions
     """
+    # Completions-only mode
+    if completions:
+        console.print(
+            Panel.fit(
+                "[bold cyan]PodX Shell Completions[/bold cyan]",
+                border_style="cyan",
+            )
+        )
+        shell = _configure_completions()
+        if shell:
+            console.print(f"\n[green]✓[/green] Shell completions configured for {shell}")
+        else:
+            console.print("\n[dim]Shell completions not configured[/dim]")
+        return
+
     # Welcome
     console.print(
         Panel.fit(
@@ -230,6 +338,9 @@ def main() -> None:
 
     # Step 3: API keys
     api_keys = _configure_api_keys()
+
+    # Step 4: Shell completions
+    shell_configured = _configure_completions()
 
     # Save configuration
     config_file = _save_config(output_dir, api_keys)
@@ -263,6 +374,10 @@ def main() -> None:
         console.print(f"API keys: {', '.join(configured)} [green]✓[/green]")
     if not_configured:
         console.print(f"Not configured: {', '.join(not_configured)} [dim](optional)[/dim]")
+
+    # Shell completions status
+    if shell_configured:
+        console.print(f"Shell completions: {shell_configured} [green]✓[/green]")
 
     # Load API keys instruction
     if api_keys:

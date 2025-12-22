@@ -109,6 +109,17 @@ main.add_command(analyze.main, name="analyze")
 main.add_command(templates.main, name="templates")
 main.add_command(cloud.main, name="cloud")
 
+
+# Help command (alias for --help)
+@click.command()
+@click.pass_context
+def help_cmd(ctx):
+    """Show this help message and exit."""
+    click.echo(ctx.parent.get_help())
+
+
+main.add_command(help_cmd, name="help")
+
 # Register server command group (v3.0 - Web API Server)
 main.add_command(server, name="server")
 

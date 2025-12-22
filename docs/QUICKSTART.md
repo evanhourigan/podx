@@ -112,11 +112,10 @@ podx init
 ```
 
 This will guide you through:
-- API key configuration (OpenAI, Anthropic, OpenRouter, Notion)
-- Default transcription settings
-- Default AI model selection
-- Output preferences
-- Optional features (shell completion, profiles)
+- Checking system requirements
+- Configuring output directory
+- API key configuration (OpenAI, Anthropic, HuggingFace, Notion)
+- Shell completion setup
 
 ### Manual API Key Setup (Alternative)
 
@@ -150,6 +149,34 @@ Add to your shell profile (`~/.bashrc`, `~/.zshrc`, etc.):
 echo 'export OPENAI_API_KEY="sk-..."' >> ~/.zshrc
 source ~/.zshrc
 ```
+
+### Shell Completions (Optional)
+
+Enable tab-completion for podx commands, options, and arguments:
+
+```bash
+# Set up completions interactively
+podx init --completions
+```
+
+Or add manually to your shell configuration:
+
+**Bash** (`~/.bashrc`):
+```bash
+eval "$(_PODX_COMPLETE=bash_source podx)"
+```
+
+**Zsh** (`~/.zshrc`):
+```bash
+eval "$(_PODX_COMPLETE=zsh_source podx)"
+```
+
+**Fish** (`~/.config/fish/config.fish`):
+```fish
+_PODX_COMPLETE=fish_source podx | source
+```
+
+After adding, restart your shell or run `source ~/.bashrc` (or equivalent).
 
 ### ☁️ Cloud GPU Acceleration (NEW in v4.1.0!)
 
