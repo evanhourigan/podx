@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.2.2] - 2025-12-22
+
+### ✨ Added
+
+- **Shell completions setup** - `podx init` now configures tab-completion for bash/zsh/fish
+  - Auto-detects current shell
+  - Adds completion command to appropriate rc file (~/.bashrc, ~/.zshrc, etc.)
+  - `podx init --completions` to only configure completions (skip other setup)
+- **`podx help` command** - Alias for `podx --help` for discoverability
+
+### 📝 Documentation
+
+- Added shell completions section to QUICKSTART.md with manual setup instructions
+
+## [4.2.1] - 2025-12-22
+
+### 🐛 Fixed
+
+- **Comprehensive mypy cleanup** - Reduced type errors from 73 to 0
+  - Fixed return type mismatches (TranscriptionResult vs TranscriptResult)
+  - Relaxed Literal types to str for device/compute type flexibility
+  - Added proper Optional type annotations throughout
+  - Fixed streaming route bug (removed reference to non-existent event.progress)
+- **CI improvements** - Lint job now installs full dev dependencies for accurate mypy checks
+- **Standardized line length** - All tools (black, isort, ruff) now use 100 char line length
+
+### 📦 Dependencies
+
+- Added type stubs: types-Markdown, types-PyYAML
+
 ## [4.2.0] - 2025-12-05
 
 ### 🚀 Ad Filtering
