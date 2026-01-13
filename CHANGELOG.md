@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ Added
+
+- **Spotify Creators support** - `podx fetch --rss` now accepts Spotify Creators URLs
+  - Automatically detects `creators.spotify.com/pod/` URLs
+  - First tries the Anchor RSS feed URL (if still working)
+  - Falls back to searching iTunes by podcast name
+  - Note: Spotify-only podcasts not on iTunes may use a fallback match
+
 ## [4.2.2] - 2025-12-22
 
 ### ✨ Added

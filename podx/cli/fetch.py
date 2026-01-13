@@ -448,6 +448,16 @@ def main(
     """
     fetcher = PodcastFetcher()
 
+    # Handle Spotify Creators URLs - extract the underlying RSS feed
+    if rss and fetcher.is_spotify_creators_url(rss):
+        console.print("[dim]Detected Spotify Creators URL, extracting RSS feed...[/dim]")
+        try:
+            rss = fetcher.extract_rss_from_spotify_creators(rss)
+            console.print(f"[dim]Found RSS feed: {rss}[/dim]")
+        except FetchError as e:
+            console.print(f"[red]Error:[/red] {e}")
+            sys.exit(ExitCode.PROCESSING_ERROR)
+
     # No options = interactive mode
     if not any([show, rss, url]):
         try:

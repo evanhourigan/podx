@@ -4,6 +4,7 @@ No UI dependencies, no CLI concerns. Just podcast discovery and downloading.
 """
 
 import json
+import re
 import subprocess
 from pathlib import Path
 from time import sleep
@@ -43,6 +44,120 @@ class PodcastFetcher:
             user_agent: User agent string for HTTP requests
         """
         self.user_agent = user_agent
+
+    def is_spotify_creators_url(self, url: str) -> bool:
+        """Check if URL is a Spotify Creators page.
+
+        Args:
+            url: URL to check
+
+        Returns:
+            True if URL is a Spotify Creators page
+        """
+        return "creators.spotify.com/pod/" in url
+
+    def extract_rss_from_spotify_creators(self, url: str) -> str:
+        """Extract RSS feed URL from Spotify Creators page.
+
+        Spotify has deprecated direct Anchor RSS feeds. This method extracts
+        the podcast name and searches iTunes to find a working RSS feed.
+
+        Args:
+            url: Spotify Creators URL
+
+        Returns:
+            RSS feed URL for the podcast (from iTunes)
+
+        Raises:
+            FetchError: If RSS feed URL cannot be found
+        """
+        logger.debug("Extracting podcast info from Spotify Creators page", url=url)
+
+        try:
+            response = requests.get(
+                url,
+                headers={"User-Agent": self.user_agent},
+                timeout=30,
+            )
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            raise FetchError(f"Failed to fetch Spotify Creators page: {e}") from e
+
+        # Extract podcast name from page (look for rssFeedTitle or podcastName)
+        podcast_name = None
+        name_match = re.search(r'"rssFeedTitle":"([^"]+)"', response.text)
+        if name_match:
+            # Decode unicode escapes
+            podcast_name = name_match.group(1).encode().decode("unicode_escape")
+            logger.debug("Found podcast name", name=podcast_name)
+
+        if not podcast_name:
+            # Try podcastName field
+            name_match = re.search(r'"podcastName":"([^"]+)"', response.text)
+            if name_match:
+                podcast_name = name_match.group(1).encode().decode("unicode_escape")
+
+        if not podcast_name:
+            raise FetchError(f"Could not extract podcast name from Spotify Creators page: {url}")
+
+        # First try the Anchor RSS URL if available (some still work)
+        anchor_match = re.search(r"https://anchor\.fm/[a-z0-9]+/podcast/rss", response.text)
+        if anchor_match:
+            anchor_url = anchor_match.group(0)
+            logger.debug("Found Anchor RSS URL, testing if it works", url=anchor_url)
+            try:
+                # Test if the URL returns valid RSS (not HTML)
+                test_response = requests.get(
+                    anchor_url,
+                    headers={"User-Agent": self.user_agent},
+                    timeout=15,
+                    allow_redirects=True,
+                )
+                if test_response.ok and "xml" in test_response.headers.get("content-type", ""):
+                    logger.info("Anchor RSS feed is working", url=anchor_url)
+                    return anchor_url
+                logger.debug("Anchor RSS URL redirects to HTML, trying iTunes fallback")
+            except Exception as e:
+                logger.debug("Anchor RSS URL failed", error=str(e))
+
+        # Search iTunes for the podcast to get a working RSS feed
+        logger.info("Searching iTunes for podcast", name=podcast_name)
+        try:
+            results = self.search_podcasts(podcast_name)
+            if results:
+                # Try to find an exact or close match by name
+                podcast_name_lower = podcast_name.lower()
+                for result in results:
+                    result_name = result.get("collectionName", "").lower()
+                    # Check for exact match or if names are very similar
+                    if result_name == podcast_name_lower or podcast_name_lower in result_name:
+                        feed_url = result.get("feedUrl")
+                        if feed_url:
+                            logger.info(
+                                "Found RSS feed via iTunes",
+                                podcast=podcast_name,
+                                matched=result.get("collectionName"),
+                                feed_url=feed_url,
+                            )
+                            return feed_url
+
+                # If no exact match, use first result but warn
+                feed_url = results[0].get("feedUrl")
+                if feed_url:
+                    logger.warning(
+                        "No exact match found, using closest result",
+                        search_term=podcast_name,
+                        matched=results[0].get("collectionName"),
+                    )
+                    return feed_url
+        except Exception as e:
+            logger.warning("iTunes search failed", error=str(e))
+
+        raise FetchError(
+            f"Could not find RSS feed for podcast '{podcast_name}'. "
+            f"Spotify's Anchor RSS feeds have been deprecated. "
+            f'Try searching for the podcast by name: podx fetch --show "{podcast_name}"'
+        )
 
     def search_podcasts(self, show_name: str) -> List[Dict[str, Any]]:
         """Search for podcasts using iTunes API.

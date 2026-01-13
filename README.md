@@ -550,6 +550,9 @@ podx fetch --rss 'https://feeds.example.com/podcast.xml'
 
 # Direct download with date filter
 podx fetch --rss 'https://feeds.example.com/podcast.xml' --date 2024-01-15
+
+# Spotify Creators URLs are automatically converted to RSS feeds
+podx fetch --rss 'https://creators.spotify.com/pod/profile/showname/episodes/episode-title'
 ```
 
 ### YouTube Videos
