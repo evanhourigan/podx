@@ -141,15 +141,12 @@ class PodcastFetcher:
                             )
                             return feed_url
 
-                # If no exact match, use first result but warn
-                feed_url = results[0].get("feedUrl")
-                if feed_url:
-                    logger.warning(
-                        "No exact match found, using closest result",
-                        search_term=podcast_name,
-                        matched=results[0].get("collectionName"),
-                    )
-                    return feed_url
+                # No exact match - don't use a random fallback, it's confusing
+                logger.warning(
+                    "No exact match found on iTunes",
+                    search_term=podcast_name,
+                    closest_match=results[0].get("collectionName"),
+                )
         except Exception as e:
             logger.warning("iTunes search failed", error=str(e))
 
