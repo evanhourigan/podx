@@ -21,7 +21,7 @@ setup_logging()
 # Import simplified config command
 # Import missing commands for v3.0 CLI restructure
 from podx.cli import config  # noqa: E402
-from podx.cli import analyze, cloud, init, templates  # noqa: E402
+from podx.cli import analyze, cloud, init, templates, transcode  # noqa: E402
 
 # Import all command modules
 from podx.cli.commands import (  # noqa: E402 - Must import after logging setup
@@ -108,6 +108,7 @@ main.add_command(init.main, name="init")
 main.add_command(analyze.main, name="analyze")
 main.add_command(templates.main, name="templates")
 main.add_command(cloud.main, name="cloud")
+main.add_command(transcode.main, name="transcode")
 
 
 # Help command (alias for --help)

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ Added
 
+- **`podx transcode` command** - Extract and convert audio from video/audio files
+  - Converts video files (mp4, mkv, mov, etc.) to audio for transcription
+  - Default WAV output (16kHz mono) is optimal for Whisper
+  - Also supports mp3 and aac output formats
+  - Example: `podx transcode video.mp4 -o ./episode/`
+
 - **Spotify Creators support** - `podx fetch --rss` now accepts Spotify Creators URLs
   - Automatically detects `creators.spotify.com/pod/` URLs
   - First tries the Anchor RSS feed URL (if still working)

@@ -440,6 +440,7 @@ markdown, insights = analyzer.analyze(diarized, metadata)
 | Command | Purpose |
 |---------|---------|
 | `podx fetch` | Download podcast episodes |
+| `podx transcode` | Extract audio from video/audio files |
 | `podx transcribe` | Convert audio to text |
 | `podx diarize` | Add speaker labels |
 | `podx cleanup` | Clean up transcript, filter ads |
