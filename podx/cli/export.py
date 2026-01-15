@@ -71,29 +71,49 @@ def _find_analysis(directory: Path) -> Optional[Path]:
     return None
 
 
-def _export_transcript_txt(transcript: dict, output_path: Path) -> None:
+def _export_transcript_txt(transcript: dict, output_path: Path, timestamps: bool = False) -> None:
     """Export transcript to plain text."""
     lines = []
     for seg in transcript.get("segments", []):
         speaker = seg.get("speaker", "")
         text = seg.get("text", "").strip()
-        if speaker:
-            lines.append(f"{speaker}: {text}")
+        start = seg.get("start", 0)
+
+        if timestamps:
+            ts = _format_timestamp_readable(start)
+            if speaker:
+                lines.append(f"{ts} {speaker}: {text}")
+            else:
+                lines.append(f"{ts} {text}")
         else:
-            lines.append(text)
+            if speaker:
+                lines.append(f"{speaker}: {text}")
+            else:
+                lines.append(text)
     output_path.write_text("\n\n".join(lines), encoding="utf-8")
 
 
-def _export_transcript_md(transcript: dict, output_path: Path) -> None:
+def _export_transcript_md(
+    transcript: dict, output_path: Path, timestamps: bool = False, video_url: str = None
+) -> None:
     """Export transcript to markdown."""
     lines = ["# Transcript\n"]
     for seg in transcript.get("segments", []):
         speaker = seg.get("speaker", "")
         text = seg.get("text", "").strip()
-        if speaker:
-            lines.append(f"**{speaker}:** {text}\n")
+        start = seg.get("start", 0)
+
+        if timestamps:
+            ts = _format_timestamp_readable(start, video_url)
+            if speaker:
+                lines.append(f"**{ts} {speaker}:** {text}\n")
+            else:
+                lines.append(f"**{ts}** {text}\n")
         else:
-            lines.append(f"{text}\n")
+            if speaker:
+                lines.append(f"**{speaker}:** {text}\n")
+            else:
+                lines.append(f"{text}\n")
     output_path.write_text("\n".join(lines), encoding="utf-8")
 
 
@@ -217,7 +237,13 @@ def _format_transcript_as_markdown(transcript: dict, video_url: Optional[str] = 
     default=None,
     help=f"Output format(s), comma-separated (default: {DEFAULT_TRANSCRIPT_FORMAT})",
 )
-def export_transcript(path: Optional[Path], format_opt: Optional[str]) -> None:
+@click.option(
+    "--timestamps/--no-timestamps",
+    "-t/-T",
+    default=False,
+    help="Include timestamps in txt/md output",
+)
+def export_transcript(path: Optional[Path], format_opt: Optional[str], timestamps: bool) -> None:
     """Export transcript to text and subtitle formats.
 
     \b
@@ -232,10 +258,16 @@ def export_transcript(path: Optional[Path], format_opt: Optional[str]) -> None:
       vtt    WebVTT subtitles (for web players)
 
     \b
+    Options:
+      -t, --timestamps    Include timestamps in txt/md output (e.g., [1:23])
+                          For YouTube videos, timestamps become clickable links
+
+    \b
     Examples:
       podx export transcript ./ep/                       # Export to markdown
+      podx export transcript ./ep/ -t                    # With timestamps
       podx export transcript ./ep/ --format srt,vtt      # Export subtitles
-      podx export transcript ./ep/ --format txt,md,srt,vtt  # All formats
+      podx export transcript ./ep/ --format txt -t       # Text with timestamps
     """
     # Track if we're in interactive mode (no PATH provided)
     interactive_mode = path is None
@@ -274,6 +306,17 @@ def export_transcript(path: Optional[Path], format_opt: Optional[str]) -> None:
 
     transcript = json.loads(transcript_path.read_text())
 
+    # Load video_url from episode metadata (for clickable timestamps in markdown)
+    video_url = None
+    if timestamps:
+        meta_path = episode_dir / "episode-meta.json"
+        if meta_path.exists():
+            try:
+                meta = json.loads(meta_path.read_text())
+                video_url = meta.get("video_url")
+            except Exception:
+                pass
+
     # Interactive prompts for format (only in interactive mode)
     if interactive_mode:
         if format_opt is not None:
@@ -299,9 +342,11 @@ def export_transcript(path: Optional[Path], format_opt: Optional[str]) -> None:
         output_path = episode_dir / f"transcript.{fmt}"
 
         if fmt == "txt":
-            _export_transcript_txt(transcript, output_path)
+            _export_transcript_txt(transcript, output_path, timestamps=timestamps)
         elif fmt == "md":
-            _export_transcript_md(transcript, output_path)
+            _export_transcript_md(
+                transcript, output_path, timestamps=timestamps, video_url=video_url
+            )
         elif fmt == "srt":
             _export_transcript_srt(transcript, output_path)
         elif fmt == "vtt":
