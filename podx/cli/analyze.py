@@ -15,8 +15,11 @@ import click
 from rich.console import Console
 
 from podx.core.analyze import AnalyzeEngine, AnalyzeError
+from podx.core.classify import classify_episode
+from podx.core.quotes import generate_quote_id, render_quotes_markdown, validate_quotes_verbatim
 from podx.domain.exit_codes import ExitCode
 from podx.logging import get_logger
+from podx.prompt_templates import ENHANCED_JSON_SCHEMA
 from podx.templates.manager import TemplateError, TemplateManager
 from podx.ui import (
     LiveTimer,
@@ -35,6 +38,7 @@ console = Console()
 # Default model for analysis
 DEFAULT_MODEL = "openai:gpt-5.1"
 DEFAULT_TEMPLATE = "general"
+DEFAULT_MAP_INSTRUCTIONS = "Extract key points, notable quotes, and insights from this section."
 
 
 def _find_transcript(directory: Path) -> Optional[Path]:
@@ -312,9 +316,10 @@ def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
         md, json_data = engine.analyze(
             transcript=transcript,
             system_prompt=system_prompt,
-            map_instructions="Extract key points, notable quotes, and insights from this section.",
+            map_instructions=(tmpl.map_instructions or DEFAULT_MAP_INSTRUCTIONS),
             reduce_instructions=user_prompt,
             want_json=True,
+            json_schema=(tmpl.json_schema or ENHANCED_JSON_SCHEMA),
         )
 
     except AnalyzeError as e:
@@ -327,25 +332,56 @@ def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
     minutes = int(elapsed // 60)
     seconds = int(elapsed % 60)
 
-    # Build output
+    # Post-processing for quote-miner: verbatim validation + quote_id
+    if tmpl.wants_json_only and json_data and "quotes" in json_data:
+        json_data["quotes"] = validate_quotes_verbatim(json_data["quotes"], transcript_text)
+        for q in json_data["quotes"]:
+            q["quote_id"] = generate_quote_id(q)
+
+    # For wants_json_only templates, render markdown from JSON
+    if tmpl.wants_json_only and json_data:
+        md = render_quotes_markdown(json_data, episode_meta)
+
+    # Build structured output with episode metadata
+    duration_minutes = int(segments[-1].get("end", 0) // 60) if segments else 0
     result = {
-        "markdown": md,
+        "episode": {
+            "title": episode_meta.get("episode_title", episode_dir.name),
+            "show": episode_meta.get("show", "Unknown"),
+            "published": episode_meta.get("episode_published", ""),
+            "description": episode_meta.get("episode_description", ""),
+            "duration_minutes": duration_minutes,
+        },
         "template": template,
         "model": model,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "transcript_path": str(transcript_path),
+        "results": json_data or {},
+        "markdown": md,
     }
-    if json_data:
-        result.update(json_data)
 
     # Save analysis
     analysis_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
 
+    # Write episode classification artifact
+    try:
+        classification = classify_episode(transcript, episode_meta)
+        classification_path = episode_dir / "episode-classification.json"
+        classification_path.write_text(
+            json.dumps(classification, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+    except Exception:
+        pass  # Non-fatal: classification is advisory
+
     # Show completion
     console.print(f"\n[green]✓ Analysis complete ({minutes}:{seconds:02d})[/green]")
-    if json_data:
-        console.print(f"  Key points: {len(json_data.get('key_points', []))}")
-        console.print(f"  Quotes: {len(json_data.get('quotes', []))}")
+    results = result.get("results", {})
+    if results.get("key_points"):
+        console.print(f"  Key points: {len(results['key_points'])}")
+    if results.get("quotes"):
+        quotes = results["quotes"]
+        verbatim_count = sum(1 for q in quotes if q.get("verbatim"))
+        console.print(f"  Quotes: {len(quotes)} ({verbatim_count} verbatim)")
     console.print(f"  Output: {analysis_path}")
 
     sys.exit(ExitCode.SUCCESS)

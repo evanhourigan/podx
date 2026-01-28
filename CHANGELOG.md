@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ Added
 
+- **`quote-miner` template** — Mine the most quotable moments from any episode
+  - Specialized map/reduce prompts optimized for verbatim quote extraction
+  - Quotability heuristics (metaphor, reframe, maxim, humor, sticky-label, etc.)
+  - Per-quote metadata: category, tags, use case, why-it-works
+  - Post-LLM verbatim validation against raw transcript text
+  - Stable `quote_id` (SHA-256 hash) for each quote
+  - Deterministic markdown rendering from JSON output
+  - Usage: `podx analyze ./ep/ --template quote-miner`
+
+- **Template extensibility** — Templates can now customize the map-reduce pipeline
+  - `map_instructions`: custom per-chunk extraction instructions
+  - `json_schema`: custom JSON schema hint for reduce phase
+  - `wants_json_only`: LLM returns JSON, markdown rendered in code
+  - Backward-compatible — existing templates unaffected
+
+- **Word-level alignment preservation** — `transcript.aligned.json` written after diarization
+  - Frozen snapshot with `words[]` arrays intact, never mutated by cleanup
+  - Enables future clip extraction and word-level quote matching
+
+- **Episode classification artifact** — Heuristic-based `episode-classification.json`
+  - Classifies format: solo-commentary, interview-1on1, panel-discussion, general
+  - Uses speaker count, QA ratio, turn length distribution
+  - Written during `podx analyze`, foundation for future auto-template selection
+
+- **Structured analysis output** — `analysis.json` now includes episode metadata
+  - `episode` block: title, show, published, description, duration
+  - `results` container: template-specific structured data
+  - `markdown`: rendered analysis (top-level, backward-compatible for export)
+
 - **`podx transcode` command** - Extract and convert audio from video/audio files
   - Converts video files (mp4, mkv, mov, etc.) to audio for transcription
   - Default WAV output (16kHz mono) is optimal for Whisper

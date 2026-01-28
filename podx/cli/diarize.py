@@ -243,6 +243,15 @@ def main(path: Optional[Path], speakers: Optional[int]):
     transcript["diarized"] = True
     transcript["audio_path"] = str(audio_file)
 
+    # Write aligned transcript snapshot (frozen copy with words[] intact)
+    # This file is never mutated by cleanup or later stages, preserving
+    # word-level alignment data for downstream features like quote extraction.
+    aligned_path = episode_dir / "transcript.aligned.json"
+    if not aligned_path.exists():
+        aligned_path.write_text(
+            json.dumps(transcript, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+
     # Count speakers
     speakers_found = set()
     for seg in result.get("segments", []):

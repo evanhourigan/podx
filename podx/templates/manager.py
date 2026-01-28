@@ -8,6 +8,7 @@ import yaml
 from pydantic import BaseModel, Field
 
 from podx.logging import get_logger
+from podx.prompt_templates import QUOTE_MINER_JSON_SCHEMA
 
 logger = get_logger(__name__)
 
@@ -41,6 +42,9 @@ class DeepcastTemplate(BaseModel):
     variables: List[str] = Field(default_factory=list)
     output_format: str = "markdown"
     format: Optional[str] = None  # Podcast format (interview, panel, solo, etc.)
+    map_instructions: Optional[str] = None  # Custom map phase instructions
+    json_schema: Optional[str] = None  # Custom JSON schema hint for reduce phase
+    wants_json_only: bool = False  # LLM returns JSON only; markdown rendered in code
 
     def render(self, context: Dict[str, Any]) -> tuple[str, str]:
         """Render template with context variables.
@@ -516,6 +520,82 @@ class TemplateManager:
                     "What should listeners understand about this research? What are the main insights?"
                 ),
                 variables=["title", "show", "duration", "transcript"],
+            ),
+            "quote-miner": DeepcastTemplate(
+                name="quote-miner",
+                description="Mine the most quotable moments from a podcast episode. Returns structured JSON with verbatim-verified quotes, categories, and usage suggestions.",
+                format="quote-mining",
+                system_prompt=(
+                    "You are a quote mining specialist — an expert at identifying the most "
+                    "quotable, shareable, and memorable moments from spoken content.\n\n"
+                    "Your ear is tuned to statements that are:\n"
+                    "- **Short** (ideally < 25 words)\n"
+                    "- **Vivid** — uses a concrete image, metaphor, or analogy\n"
+                    "- **Reframes** — 'people think X, but actually Y'\n"
+                    "- **Sticky labels** — coins a term or phrase that sticks\n"
+                    "- **Parallel structure** — has rhythm or cadence\n"
+                    "- **Surprising twists** — unexpected punchlines or insights\n"
+                    "- **Testable rules** — 'if you do X, then Y happens'\n"
+                    "- **Maxims** — timeless principles or pithy wisdom\n"
+                    "- **Humor** — laugh lines that also carry insight\n\n"
+                    "CRITICAL RULES:\n"
+                    "1. Every quote MUST be copied EXACTLY from the transcript — verbatim, "
+                    "word-for-word, no paraphrasing, no cleaning up grammar.\n"
+                    "2. Include the speaker label exactly as it appears in the transcript.\n"
+                    "3. Include both start and end timestamps when available.\n"
+                    "4. Return ONLY valid JSON. No markdown, no commentary.\n\n"
+                    "IMPORTANT: Output ONLY the analysis. Do not include conversational follow-ups, "
+                    "offers to do additional work, or questions like 'Would you like me to...' at the end."
+                ),
+                map_instructions=(
+                    "Extract 8-15 verbatim candidate quotes from this transcript chunk.\n\n"
+                    "For EACH candidate:\n"
+                    "1. Copy the quote EXACTLY as spoken — word for word from the transcript. "
+                    "Do NOT fix grammar, do NOT paraphrase, do NOT polish.\n"
+                    "2. Include the speaker label (e.g. SPEAKER_00)\n"
+                    "3. Include start timestamp (HH:MM:SS) and end timestamp if available\n"
+                    "4. Write 1-2 sentences of lead-in context\n"
+                    "5. Classify as: metaphor | reframe | maxim | definition | warning | "
+                    "humor | analogy | sticky-label\n"
+                    "6. Briefly explain why it works (the rhetorical power)\n\n"
+                    "Quotability checklist — prefer quotes that hit multiple:\n"
+                    "- Short (< 25 words ideal)\n"
+                    "- Vivid metaphor or concrete image\n"
+                    "- Crisp reframe ('people think X, but actually Y')\n"
+                    "- Sticky label / coined term\n"
+                    "- Parallel structure / cadence\n"
+                    "- Surprising twist or laugh line\n"
+                    "- Testable rule of thumb\n"
+                    "- 'If…then…' clarity\n\n"
+                    "Cast a wide net — high recall. Include borderline candidates. "
+                    "The reduce phase will filter.\n\n"
+                    "Format output as a JSON array of objects."
+                ),
+                user_prompt=(
+                    "You are the validator/ranker. You received candidate quotes from multiple "
+                    "transcript chunks.\n\n"
+                    "Episode: {{title}}\n"
+                    "Show: {{show}}\n"
+                    "Duration: {{duration}} minutes\n"
+                    "Speakers: {{speakers}}\n\n"
+                    "Your job:\n"
+                    "1. REMOVE candidates that aren't truly quotable — generic statements, "
+                    "filler, incomplete thoughts\n"
+                    "2. GROUP near-duplicates and keep the stronger version\n"
+                    "3. SELECT the top quotes (roughly 1 per 4-5 minutes of episode duration, "
+                    "so a 60-min episode gets ~12-15 top quotes)\n"
+                    "4. For each winner, provide:\n"
+                    "   - title: 3-6 word library title\n"
+                    "   - tags: 2-4 topical tags\n"
+                    "   - use_case: one-liner on how to use this quote\n"
+                    "5. RANK by quotability (best first)\n\n"
+                    "Remember: every quote must be EXACTLY as it appeared in the transcript. "
+                    "Do not clean up, paraphrase, or improve any quote text.\n\n"
+                    "Return the final results as a JSON object."
+                ),
+                variables=["title", "show", "duration", "speakers"],
+                json_schema=QUOTE_MINER_JSON_SCHEMA,
+                wants_json_only=True,
             ),
         }
 

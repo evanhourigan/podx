@@ -382,6 +382,38 @@ Separate with: ---JSON---
 ).strip()
 
 
+QUOTE_MINER_JSON_SCHEMA = textwrap.dedent(
+    """
+Return your output as a JSON object with this exact structure:
+
+{
+  "quotes": [
+    {
+      "rank": 1,
+      "title": "3-6 word library title",
+      "quote": "Exact verbatim text from transcript",
+      "speaker": "Speaker label",
+      "start": "HH:MM:SS",
+      "end": "HH:MM:SS",
+      "context": "1-2 sentence lead-in",
+      "category": "metaphor|reframe|maxim|definition|warning|humor|analogy|sticky-label",
+      "why_it_works": "Brief explanation of rhetorical power",
+      "tags": ["tag1", "tag2"],
+      "use_case": "How I'd use this in writing/speaking",
+      "verbatim": true,
+      "source_chunk_index": 0
+    }
+  ],
+  "episode_summary": "2-3 sentence summary of the episode",
+  "total_candidates_found": 42,
+  "speakers": ["SPEAKER_00", "SPEAKER_01"]
+}
+
+Return ONLY the JSON object. No markdown, no commentary, no code fences.
+"""
+).strip()
+
+
 # Template collection
 TEMPLATES = {
     PodcastType.INTERVIEW: PromptTemplate(

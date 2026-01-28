@@ -88,7 +88,7 @@ class TestTemplateManager:
         """Test getting built-in templates."""
         builtins = manager.get_builtin_templates()
 
-        # Verify all 10 new format-based templates exist
+        # Verify all built-in templates exist (10 format-based + quote-miner)
         expected_templates = [
             "solo-commentary",
             "interview-1on1",
@@ -100,6 +100,7 @@ class TestTemplateManager:
             "technical-deep-dive",
             "business-strategy",
             "research-review",
+            "quote-miner",
         ]
 
         for template_name in expected_templates:
@@ -281,10 +282,13 @@ output_format: markdown
         assert solo.format == "solo"
 
     def test_all_templates_have_scaling_guidance(self, manager):
-        """Test that all templates include length-adaptive scaling guidance."""
+        """Test that all non-JSON-only templates include length-adaptive scaling guidance."""
         builtins = manager.get_builtin_templates()
 
         for name, template in builtins.items():
+            # JSON-only templates (e.g. quote-miner) handle scaling differently
+            if template.wants_json_only:
+                continue
             # Check that system prompt contains scaling guidance
             assert (
                 "Adapt your analysis depth based on episode length" in template.system_prompt
