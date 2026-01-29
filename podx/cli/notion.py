@@ -19,8 +19,19 @@ from podx.ui import select_episode_interactive
 console = Console()
 
 
-def _find_analysis(directory: Path) -> Optional[Path]:
-    """Find analysis file in episode directory."""
+def _find_analysis(directory: Path, template: Optional[str] = None) -> Optional[Path]:
+    """Find analysis file in episode directory.
+
+    Args:
+        directory: Episode directory to search
+        template: Optional template name to find template-specific analysis
+    """
+    # Template-specific file first
+    if template and template != "general":
+        specific = directory / f"analysis.{template}.json"
+        if specific.exists():
+            return specific
+
     # Check for analysis.json first (new standard name)
     analysis = directory / "analysis.json"
     if analysis.exists():

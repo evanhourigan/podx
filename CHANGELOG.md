@@ -7,7 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 Fixed
+
+- **`wants_json_only` markdown rendering** — When a template uses `wants_json_only=True`
+  (e.g. quote-miner), the LLM returns pure JSON without a `---JSON---` separator. The
+  engine returned this as `md` with `json_data=None`, causing raw JSON to be stored in
+  the `markdown` field. Now the analyze command detects this case and parses the raw JSON
+  so the rendering path runs correctly.
+
 ### ✨ Added
+
+- **Template-specific analysis filenames** — Non-default templates now write to
+  `analysis.{template}.json` (e.g. `analysis.quote-miner.json`), allowing multiple
+  analyses to coexist in the same episode directory. The default `general` template
+  continues writing to `analysis.json` for backward compatibility.
+  - `podx export analysis` gains `--template` option to export a specific template's analysis
+  - Episode selector detects any `analysis.*.json` for "analyzed" status
+  - `podx run` export step finds template-specific analysis files
+  - `podx notion` accepts template-specific analysis files
 
 - **`quote-miner` template** — Mine the most quotable moments from any episode
   - Specialized map/reduce prompts optimized for verbatim quote extraction

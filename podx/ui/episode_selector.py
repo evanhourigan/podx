@@ -56,7 +56,7 @@ def scan_episode_status(root: Path) -> List[Dict[str, Any]]:
         has_transcript = transcript_path.exists()
         has_diarized = False
         has_cleaned = False
-        has_analyzed = analysis_path.exists()
+        has_analyzed = analysis_path.exists() or any(ep_dir.glob("analysis.*.json"))
 
         # Check transcript state flags
         if has_transcript:

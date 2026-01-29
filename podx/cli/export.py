@@ -56,8 +56,20 @@ def _find_transcript(directory: Path) -> Optional[Path]:
     return None
 
 
-def _find_analysis(directory: Path) -> Optional[Path]:
-    """Find analysis file in episode directory."""
+def _find_analysis(directory: Path, template: Optional[str] = None) -> Optional[Path]:
+    """Find analysis file in episode directory.
+
+    Args:
+        directory: Episode directory to search
+        template: Optional template name to find template-specific analysis
+    """
+    # Template-specific file first
+    if template and template != "general":
+        specific = directory / f"analysis.{template}.json"
+        if specific.exists():
+            return specific
+
+    # Standard analysis.json
     analysis = directory / "analysis.json"
     if analysis.exists():
         return analysis
@@ -382,8 +394,16 @@ def export_transcript(path: Optional[Path], format_opt: Optional[str], timestamp
     is_flag=True,
     help="Append cleaned transcript after analysis",
 )
+@click.option(
+    "--template",
+    default=None,
+    help="Export a specific template's analysis (e.g. quote-miner)",
+)
 def export_analysis(
-    path: Optional[Path], format_opt: Optional[str], include_transcript: bool
+    path: Optional[Path],
+    format_opt: Optional[str],
+    include_transcript: bool,
+    template: Optional[str],
 ) -> None:
     """Export analysis to document formats.
 
@@ -437,7 +457,7 @@ def export_analysis(
         episode_dir = episode_dir.parent
 
     # Find analysis
-    analysis_path = _find_analysis(episode_dir)
+    analysis_path = _find_analysis(episode_dir, template=template)
     if not analysis_path:
         console.print(f"[red]Error:[/red] No analysis.json found in {episode_dir}")
         console.print("[dim]Run 'podx analyze' first[/dim]")
@@ -493,7 +513,11 @@ def export_analysis(
     exported = []
 
     for fmt in formats:
-        output_path = episode_dir / f"analysis.{fmt}"
+        # Template-specific output names
+        if template and template != "general":
+            output_path = episode_dir / f"analysis.{template}.{fmt}"
+        else:
+            output_path = episode_dir / f"analysis.{fmt}"
 
         if fmt == "md":
             output_path.write_text(md_content, encoding="utf-8")
@@ -544,7 +568,11 @@ def export_analysis(
         elif fmt == "pdf":
             import subprocess
 
-            md_path = episode_dir / "analysis.md"
+            # Use template-aware name for intermediate md file
+            if template and template != "general":
+                md_path = episode_dir / f"analysis.{template}.md"
+            else:
+                md_path = episode_dir / "analysis.md"
             md_path.write_text(md_content, encoding="utf-8")
 
             try:

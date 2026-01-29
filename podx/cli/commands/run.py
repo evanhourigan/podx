@@ -343,8 +343,13 @@ def _run_export_step(episode_dir: Path) -> bool:
         md_path.write_text("\n".join(lines), encoding="utf-8")
         console.print("  Exported: transcript.md")
 
-    # Export analysis to markdown
+    # Export analysis to markdown — check both standard and template-specific
     analysis_path = episode_dir / "analysis.json"
+    if not analysis_path.exists():
+        # Look for any template-specific analysis.*.json
+        candidates = [c for c in episode_dir.glob("analysis.*.json") if c.suffix == ".json"]
+        if candidates:
+            analysis_path = candidates[0]
     if analysis_path.exists():
         import json
 

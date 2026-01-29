@@ -245,8 +245,11 @@ def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
         console.print("[dim]Use 'podx templates list' to see available templates[/dim]")
         sys.exit(ExitCode.USER_ERROR)
 
-    # Output path
-    analysis_path = episode_dir / "analysis.json"
+    # Output path — template-specific to avoid overwriting
+    if template == DEFAULT_TEMPLATE:
+        analysis_path = episode_dir / "analysis.json"
+    else:
+        analysis_path = episode_dir / f"analysis.{template}.json"
 
     # Show what we're doing
     console.print(f"[cyan]Analyzing:[/cyan] {transcript_path.name}")
@@ -326,6 +329,15 @@ def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
         timer.stop()
         console.print(f"[red]Analysis Error:[/red] {e}")
         sys.exit(ExitCode.PROCESSING_ERROR)
+
+    # For wants_json_only: if the LLM returned pure JSON (no ---JSON--- separator),
+    # the engine returns it as `md` with json_data=None. Parse it here.
+    if tmpl.wants_json_only and json_data is None:
+        try:
+            json_data = json.loads(md)
+            md = ""  # Will be rendered from JSON below
+        except (json.JSONDecodeError, TypeError):
+            pass  # Leave md as-is if it's not valid JSON
 
     # Stop timer
     elapsed = timer.stop()
