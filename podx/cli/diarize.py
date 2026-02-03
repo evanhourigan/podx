@@ -24,7 +24,12 @@ from podx.core.diarize import (
 )
 from podx.domain.exit_codes import ExitCode
 from podx.logging import get_logger
-from podx.ui import LiveTimer, select_episode_interactive
+from podx.ui import (
+    LiveTimer,
+    apply_speaker_names_to_transcript,
+    select_episode_interactive,
+    verify_chunks,
+)
 
 logger = get_logger(__name__)
 console = Console()
@@ -57,7 +62,13 @@ def _find_audio_file(directory: Path) -> Optional[Path]:
     default=None,
     help="Expected number of speakers (improves accuracy)",
 )
-def main(path: Optional[Path], speakers: Optional[int]):
+@click.option(
+    "--verify",
+    is_flag=True,
+    default=False,
+    help="Verify speaker labels after chunked diarization",
+)
+def main(path: Optional[Path], speakers: Optional[int], verify: bool):
     """Add speaker labels to a transcript.
 
     \b
@@ -78,7 +89,11 @@ def main(path: Optional[Path], speakers: Optional[int]):
       podx diarize                              # Interactive selection
       podx diarize ./Show/2024-11-24-ep/        # Direct path
       podx diarize . --speakers 2               # Hint: 2 speakers expected
+      podx diarize . --verify                   # Verify speaker labels after chunking
     """
+    # Track if we're in interactive mode (for verification prompt)
+    interactive_mode = path is None
+
     # Interactive mode if no path provided
     if path is None:
         try:
@@ -197,7 +212,19 @@ def main(path: Optional[Path], speakers: Optional[int]):
         console.print()
         console.print("    [dim]For best results:[/dim]")
         console.print("    [dim]• Close other applications to free memory[/dim]")
+        console.print("    [dim]• Use --verify to review speaker labels after diarization[/dim]")
         console.print()
+
+        # In interactive mode without --verify flag, prompt for verification
+        if interactive_mode and not verify:
+            try:
+                verify_prompt = (
+                    input("Verify speaker labels after diarization? [y/N] ").strip().lower()
+                )
+                verify = verify_prompt in ("y", "yes")
+            except (KeyboardInterrupt, EOFError):
+                console.print("\n[dim]Cancelled[/dim]")
+                sys.exit(0)
     elif batch_size < 32:
         console.print(f"[dim]Using reduced batch size ({batch_size}) for memory efficiency[/dim]")
 
@@ -243,6 +270,52 @@ def main(path: Optional[Path], speakers: Optional[int]):
     transcript["diarized"] = True
     transcript["audio_path"] = str(audio_file)
 
+    # Count speakers before verification
+    speakers_found = set()
+    for seg in result.get("segments", []):
+        if seg.get("speaker"):
+            speakers_found.add(seg["speaker"])
+
+    # Show initial completion
+    console.print(f"\n[green]✓ Diarization complete ({minutes}:{seconds:02d})[/green]")
+    console.print(f"  Speakers found: {len(speakers_found)}")
+
+    # Show chunking info if it was used
+    chunk_info = None
+    if hasattr(engine, "_chunking_info") and engine._chunking_info.get("needs_chunking"):
+        chunk_count: Any = engine._chunking_info.get("num_chunks")
+        console.print(f"  Chunks processed: {chunk_count if chunk_count else '?'}")
+
+        # Get chunk info for verification
+        if hasattr(engine, "_chunk_info"):
+            chunk_info = engine._chunk_info
+
+    # Run speaker verification if requested and we have chunk info
+    speaker_names: dict[str, str] = {}
+    if verify and chunk_info:
+        console.print()
+        console.print("[cyan]Starting speaker verification...[/cyan]")
+        try:
+            speaker_names = verify_chunks(chunk_info, transcript["segments"])
+
+            # Apply speaker names to transcript
+            if speaker_names:
+                apply_speaker_names_to_transcript(transcript["segments"], speaker_names)
+                console.print("\n[green]✓ Speaker names applied[/green]")
+
+                # Update speakers_found with actual names
+                speakers_found = set(speaker_names.values())
+
+        except (KeyboardInterrupt, EOFError):
+            console.print(
+                "\n[yellow]Verification cancelled. Saving transcript with generic IDs.[/yellow]"
+            )
+    elif verify and not chunk_info:
+        console.print(
+            "\n[dim]Note: --verify only applies to chunked diarization. "
+            "Skipping verification.[/dim]"
+        )
+
     # Write aligned transcript snapshot (frozen copy with words[] intact)
     # This file is never mutated by cleanup or later stages, preserving
     # word-level alignment data for downstream features like quote extraction.
@@ -252,25 +325,10 @@ def main(path: Optional[Path], speakers: Optional[int]):
             json.dumps(transcript, indent=2, ensure_ascii=False), encoding="utf-8"
         )
 
-    # Count speakers
-    speakers_found = set()
-    for seg in result.get("segments", []):
-        if seg.get("speaker"):
-            speakers_found.add(seg["speaker"])
-
     # Save updated transcript
     transcript_path.write_text(
         json.dumps(transcript, indent=2, ensure_ascii=False), encoding="utf-8"
     )
-
-    # Show completion
-    console.print(f"\n[green]✓ Diarization complete ({minutes}:{seconds:02d})[/green]")
-    console.print(f"  Speakers found: {len(speakers_found)}")
-
-    # Show chunking info if it was used
-    if hasattr(engine, "_chunking_info") and engine._chunking_info.get("needs_chunking"):
-        chunk_count: Any = engine._chunking_info.get("num_chunks")
-        console.print(f"  Chunks processed: {chunk_count if chunk_count else '?'}")
 
     console.print(f"  Updated: {transcript_path}")
 

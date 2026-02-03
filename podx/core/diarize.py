@@ -244,11 +244,30 @@ def split_audio_into_chunks(
     return chunks
 
 
+def calculate_match_confidence(distance: float, threshold: float = 0.4) -> float:
+    """Convert cosine distance to confidence percentage.
+
+    Args:
+        distance: Cosine distance (0 = identical, 2 = opposite)
+        threshold: Distance threshold for matching
+
+    Returns:
+        Confidence as a float from 0.0 to 1.0
+        - distance=0 -> 100% confidence
+        - distance=threshold -> 60% confidence
+        - distance>=threshold -> 50% confidence (low)
+    """
+    if distance >= threshold:
+        return 0.5  # Below threshold = low confidence
+    # Scale to 60-100% based on distance
+    return 1.0 - (distance / threshold) * 0.4
+
+
 def match_speakers_across_chunks(
     embeddings_prev: Dict[str, np.ndarray],
     embeddings_curr: Dict[str, np.ndarray],
     threshold: float = 0.4,
-) -> Dict[str, str]:
+) -> Tuple[Dict[str, str], Dict[str, float]]:
     """Match speakers from current chunk to previous chunk.
 
     Uses cosine similarity of speaker embeddings to find the best match.
@@ -260,13 +279,16 @@ def match_speakers_across_chunks(
         threshold: Maximum cosine distance to consider a match (0.3-0.5 typical)
 
     Returns:
-        Mapping of {current_speaker: matched_or_new_speaker_id}
+        Tuple of:
+        - Mapping of {current_speaker: matched_or_new_speaker_id}
+        - Distances dict {current_speaker: best_distance} for confidence scoring
     """
     if not embeddings_prev:
         # First chunk - no mapping needed
-        return {spk: spk for spk in embeddings_curr}
+        return {spk: spk for spk in embeddings_curr}, {spk: 0.0 for spk in embeddings_curr}
 
     mapping: Dict[str, str] = {}
+    distances: Dict[str, float] = {}
     used_prev_speakers: set = set()
 
     # Find max speaker ID from previous chunk for new speaker numbering
@@ -293,6 +315,8 @@ def match_speakers_across_chunks(
                 best_distance = dist
                 best_match = spk_prev
 
+        distances[spk_curr] = best_distance
+
         if best_distance < threshold and best_match is not None:
             mapping[spk_curr] = best_match
             used_prev_speakers.add(best_match)
@@ -314,7 +338,7 @@ def match_speakers_across_chunks(
                 best_distance=(f"{best_distance:.3f}" if best_distance != float("inf") else "N/A"),
             )
 
-    return mapping
+    return mapping, distances
 
 
 def merge_chunk_segments(
@@ -644,8 +668,14 @@ class DiarizationEngine:
             all_chunk_results: List[Dict[str, Any]] = []
             chunk_times: List[Tuple[float, float]] = []
             speaker_mappings: List[Dict[str, str]] = []
-            prev_embeddings: Dict[str, np.ndarray] = {}
+
+            # Cumulative embedding storage for improved speaker matching
+            # Key: global speaker ID, Value: list of embeddings from all chunks
+            cumulative_embeddings: Dict[str, List[np.ndarray]] = {}
             cumulative_mapping: Dict[str, str] = {}
+
+            # Store chunk info for verification workflow
+            chunk_info: List[Dict[str, Any]] = []
 
             for chunk_idx, (chunk_path, start_sec, end_sec) in enumerate(chunks):
                 self._report_progress(
@@ -668,20 +698,59 @@ class DiarizationEngine:
                         f"Diarization failed on chunk {chunk_idx + 1}: {e}"
                     ) from e
 
-                # Match speakers to previous chunk
+                # Match speakers using cumulative embeddings (averaged across all chunks)
+                chunk_confidence = 1.0  # First chunk has perfect confidence
                 if embeddings:
-                    chunk_mapping = match_speakers_across_chunks(prev_embeddings, embeddings)
-                    # Update cumulative mapping for consistent IDs
-                    for curr, mapped in chunk_mapping.items():
-                        if mapped in cumulative_mapping:
-                            chunk_mapping[curr] = cumulative_mapping[mapped]
-                        else:
-                            cumulative_mapping[mapped] = mapped
+                    if chunk_idx == 0:
+                        # First chunk: establish baseline
+                        chunk_mapping: Dict[str, str] = {spk: spk for spk in embeddings}
+                        for spk, emb in embeddings.items():
+                            cumulative_embeddings[spk] = [emb]
+                            cumulative_mapping[spk] = spk
+                    else:
+                        # Compute averaged embeddings from all historical data
+                        avg_embeddings = {
+                            spk: np.mean(embs, axis=0)
+                            for spk, embs in cumulative_embeddings.items()
+                        }
 
-                    prev_embeddings = embeddings
+                        # Match against averaged historical embeddings
+                        chunk_mapping, distances = match_speakers_across_chunks(
+                            avg_embeddings, embeddings
+                        )
+
+                        # Calculate overall confidence as average of match confidences
+                        if distances:
+                            confidences = [
+                                calculate_match_confidence(d)
+                                for d in distances.values()
+                                if d != float("inf")
+                            ]
+                            chunk_confidence = (
+                                sum(confidences) / len(confidences) if confidences else 0.5
+                            )
+
+                        # Update cumulative mapping for consistent IDs
+                        for curr, mapped in list(chunk_mapping.items()):
+                            if mapped in cumulative_mapping:
+                                chunk_mapping[curr] = cumulative_mapping[mapped]
+                            else:
+                                cumulative_mapping[mapped] = mapped
+
+                        # Accumulate new embeddings under global speaker IDs
+                        for spk, emb in embeddings.items():
+                            global_id = chunk_mapping[spk]
+                            if global_id in cumulative_embeddings:
+                                cumulative_embeddings[global_id].append(emb)
+                            else:
+                                cumulative_embeddings[global_id] = [emb]
+
                     matched_count = sum(1 for k, v in chunk_mapping.items() if k != v)
                     if matched_count > 0 and chunk_idx > 0:
-                        logger.info(f"Matched {matched_count} speakers from previous chunk")
+                        logger.info(
+                            f"Matched {matched_count} speakers "
+                            f"(confidence: {chunk_confidence:.0%})"
+                        )
                 else:
                     chunk_mapping = {}
 
@@ -697,9 +766,31 @@ class DiarizationEngine:
                 chunk_times.append((start_sec, end_sec))
                 speaker_mappings.append(chunk_mapping)
 
+                # Store chunk info for verification workflow
+                speakers_in_chunk = set()
+                for seg in chunk_result.get("segments", []):
+                    spk = seg.get("speaker")
+                    if spk:
+                        # Map to global ID
+                        speakers_in_chunk.add(chunk_mapping.get(spk, spk))
+
+                chunk_info.append(
+                    {
+                        "index": chunk_idx,
+                        "start_time": start_sec,
+                        "end_time": end_sec,
+                        "confidence": chunk_confidence,
+                        "speakers": list(speakers_in_chunk),
+                        "mapping": chunk_mapping.copy(),
+                    }
+                )
+
             # Merge all chunks
             self._report_progress("Merging segments")
             merged_segments = merge_chunk_segments(all_chunk_results, chunk_times, speaker_mappings)
+
+            # Store chunk info for CLI access
+            self._chunk_info = chunk_info
 
             return {"segments": merged_segments}
 

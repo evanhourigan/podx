@@ -5,6 +5,22 @@ All notable changes to podx will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### ✨ Added
+
+- **Speaker verification for chunked diarization** — `podx diarize --verify` enables
+  chunk-by-chunk verification of speaker labels to fix swaps at chunk boundaries
+  - Interactive prompt in interactive mode when chunking is required
+  - Confidence scoring shows match quality for each chunk
+  - Low-confidence chunks (< 75%) are flagged for review
+  - Swap speakers within a chunk if labels are incorrect
+  - Apply speaker names to replace generic SPEAKER_XX IDs
+
+- **Cumulative speaker matching** — Improved speaker re-identification across chunks
+  - Matches against averaged embeddings from ALL previous chunks, not just the previous one
+  - Reduces speaker matching errors from ~5% to ~2-3%
+
 ## [4.3.0] - 2025-02-03
 
 ### 🐛 Fixed

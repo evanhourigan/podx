@@ -15,6 +15,7 @@ from podx.core.diarize import (
     DiarizationEngine,
     DiarizationError,
     calculate_chunk_duration,
+    calculate_match_confidence,
     diarize_transcript,
     estimate_memory_required,
     match_speakers_across_chunks,
@@ -652,6 +653,27 @@ class TestCalculateChunkDuration:
         assert needs_chunking is False
 
 
+class TestCalculateMatchConfidence:
+    """Test confidence calculation from cosine distance."""
+
+    def test_perfect_match(self):
+        """Test that distance=0 gives 100% confidence."""
+        assert calculate_match_confidence(0.0) == pytest.approx(1.0)
+
+    def test_threshold_boundary(self):
+        """Test that distance=threshold gives 60% confidence."""
+        assert calculate_match_confidence(0.4, threshold=0.4) == pytest.approx(0.5)
+
+    def test_half_threshold(self):
+        """Test that distance=threshold/2 gives 80% confidence."""
+        assert calculate_match_confidence(0.2, threshold=0.4) == pytest.approx(0.8)
+
+    def test_above_threshold(self):
+        """Test that distance above threshold gives 50% confidence."""
+        assert calculate_match_confidence(0.6, threshold=0.4) == pytest.approx(0.5)
+        assert calculate_match_confidence(1.0, threshold=0.4) == pytest.approx(0.5)
+
+
 class TestMatchSpeakersAcrossChunks:
     """Test speaker matching across chunks."""
 
@@ -661,9 +683,10 @@ class TestMatchSpeakersAcrossChunks:
             "SPEAKER_00": np.array([1.0, 0.0, 0.0]),
             "SPEAKER_01": np.array([0.0, 1.0, 0.0]),
         }
-        mapping = match_speakers_across_chunks({}, embeddings_curr)
+        mapping, distances = match_speakers_across_chunks({}, embeddings_curr)
 
         assert mapping == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
+        assert distances == {"SPEAKER_00": 0.0, "SPEAKER_01": 0.0}
 
     def test_matching_same_speakers(self):
         """Test matching identical speakers across chunks."""
@@ -676,10 +699,13 @@ class TestMatchSpeakersAcrossChunks:
             "SPEAKER_00": np.array([1.0, 0.0, 0.0]),  # Should match prev SPEAKER_00
             "SPEAKER_01": np.array([0.0, 1.0, 0.0]),  # Should match prev SPEAKER_01
         }
-        mapping = match_speakers_across_chunks(embeddings_prev, embeddings_curr)
+        mapping, distances = match_speakers_across_chunks(embeddings_prev, embeddings_curr)
 
         assert mapping["SPEAKER_00"] == "SPEAKER_00"
         assert mapping["SPEAKER_01"] == "SPEAKER_01"
+        # Perfect matches should have distance ~0
+        assert distances["SPEAKER_00"] == pytest.approx(0.0, abs=0.01)
+        assert distances["SPEAKER_01"] == pytest.approx(0.0, abs=0.01)
 
     def test_matching_swapped_speakers(self):
         """Test matching when speaker IDs are swapped in new chunk."""
@@ -692,7 +718,7 @@ class TestMatchSpeakersAcrossChunks:
             "SPEAKER_00": np.array([0.0, 1.0, 0.0]),  # Matches prev SPEAKER_01
             "SPEAKER_01": np.array([1.0, 0.0, 0.0]),  # Matches prev SPEAKER_00
         }
-        mapping = match_speakers_across_chunks(embeddings_prev, embeddings_curr)
+        mapping, distances = match_speakers_across_chunks(embeddings_prev, embeddings_curr)
 
         assert mapping["SPEAKER_00"] == "SPEAKER_01"
         assert mapping["SPEAKER_01"] == "SPEAKER_00"
@@ -706,7 +732,7 @@ class TestMatchSpeakersAcrossChunks:
             "SPEAKER_00": np.array([1.0, 0.0, 0.0]),  # Matches prev
             "SPEAKER_01": np.array([0.0, 0.0, 1.0]),  # New speaker (orthogonal)
         }
-        mapping = match_speakers_across_chunks(embeddings_prev, embeddings_curr)
+        mapping, distances = match_speakers_across_chunks(embeddings_prev, embeddings_curr)
 
         assert mapping["SPEAKER_00"] == "SPEAKER_00"
         # New speaker should get a new ID
@@ -722,10 +748,14 @@ class TestMatchSpeakersAcrossChunks:
         embeddings_curr = {
             "SPEAKER_00": np.array([-1.0, 0.0, 0.0]),  # Opposite direction
         }
-        mapping = match_speakers_across_chunks(embeddings_prev, embeddings_curr, threshold=0.4)
+        mapping, distances = match_speakers_across_chunks(
+            embeddings_prev, embeddings_curr, threshold=0.4
+        )
 
         # Should be treated as new speaker due to high distance
         assert mapping["SPEAKER_00"] != "SPEAKER_00"
+        # Distance should be high (cosine distance of opposite vectors is 2.0)
+        assert distances["SPEAKER_00"] > 0.4
 
 
 class TestMergeChunkSegments:
