@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ Added
 
+- **Transcript reset for re-diarization** — `podx diarize --reset` restores transcript
+  from `transcript.aligned.json` to allow re-processing after cleanup
+  - Clears `cleaned` and `restored` flags that block diarization
+  - Combine with `--verify` to fix speaker swaps: `podx diarize . --reset --verify`
+  - Useful when speakers were misidentified during initial diarization
+
 - **Speaker verification for chunked diarization** — `podx diarize --verify` enables
   chunk-by-chunk verification of speaker labels to fix swaps at chunk boundaries
   - Interactive prompt in interactive mode when chunking is required

@@ -68,7 +68,13 @@ def _find_audio_file(directory: Path) -> Optional[Path]:
     default=False,
     help="Verify speaker labels after chunked diarization",
 )
-def main(path: Optional[Path], speakers: Optional[int], verify: bool):
+@click.option(
+    "--reset",
+    is_flag=True,
+    default=False,
+    help="Reset transcript from transcript.aligned.json before diarizing",
+)
+def main(path: Optional[Path], speakers: Optional[int], verify: bool, reset: bool):
     """Add speaker labels to a transcript.
 
     \b
@@ -90,6 +96,8 @@ def main(path: Optional[Path], speakers: Optional[int], verify: bool):
       podx diarize ./Show/2024-11-24-ep/        # Direct path
       podx diarize . --speakers 2               # Hint: 2 speakers expected
       podx diarize . --verify                   # Verify speaker labels after chunking
+      podx diarize . --reset                    # Reset from aligned transcript and re-diarize
+      podx diarize . --reset --verify           # Reset and verify speakers
     """
     # Track if we're in interactive mode (for verification prompt)
     interactive_mode = path is None
@@ -143,12 +151,38 @@ def main(path: Optional[Path], speakers: Optional[int], verify: bool):
         console.print(f"[red]Error:[/red] No audio file found in {episode_dir}")
         sys.exit(ExitCode.USER_ERROR)
 
-    # Load transcript
-    try:
-        transcript = json.loads(transcript_path.read_text())
-    except Exception as e:
-        console.print(f"[red]Error:[/red] Failed to load transcript: {e}")
-        sys.exit(ExitCode.USER_ERROR)
+    # Handle --reset flag: restore from aligned transcript
+    if reset:
+        aligned_path = episode_dir / "transcript.aligned.json"
+        if not aligned_path.exists():
+            console.print("[red]Error:[/red] No transcript.aligned.json found")
+            console.print("[dim]Cannot reset - run initial diarization first[/dim]")
+            sys.exit(ExitCode.USER_ERROR)
+
+        console.print("[cyan]Resetting from transcript.aligned.json...[/cyan]")
+        try:
+            transcript = json.loads(aligned_path.read_text())
+        except Exception as e:
+            console.print(f"[red]Error:[/red] Failed to load aligned transcript: {e}")
+            sys.exit(ExitCode.USER_ERROR)
+
+        # Clear state flags that would block re-processing
+        transcript.pop("cleaned", None)
+        transcript.pop("restored", None)
+
+        # Write the reset transcript
+        transcript_path.write_text(
+            json.dumps(transcript, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        console.print("[green]✓[/green] Transcript reset")
+
+    # Load transcript (or use the one we just reset)
+    if not reset:
+        try:
+            transcript = json.loads(transcript_path.read_text())
+        except Exception as e:
+            console.print(f"[red]Error:[/red] Failed to load transcript: {e}")
+            sys.exit(ExitCode.USER_ERROR)
 
     if "segments" not in transcript:
         console.print("[red]Error:[/red] transcript.json missing 'segments' field")
