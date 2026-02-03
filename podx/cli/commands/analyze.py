@@ -24,8 +24,8 @@ def analyze_cmd(ctx, path, model, analysis_type):
     analyze_main.main(args=args, standalone_mode=False)
 
 
-# Backwards compatibility alias - shows deprecation message
-@click.command("deepcast")
+# Backwards compatibility alias - hidden from help, shows deprecation warning when used
+@click.command("deepcast", hidden=True)
 @click.argument("args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def deepcast_cmd(ctx, args):
