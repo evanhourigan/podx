@@ -155,8 +155,14 @@ def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
 
             path = selected["directory"]
 
-            # Warn if already analyzed
-            if selected.get("analyzed"):
+            # Warn if this template's analysis already exists
+            ep_dir = Path(selected["directory"])
+            if template == DEFAULT_TEMPLATE:
+                existing_analysis = ep_dir / "analysis.json"
+            else:
+                existing_analysis = ep_dir / f"analysis.{template}.json"
+
+            if existing_analysis.exists():
                 console.print("\n[yellow]This episode already has an analysis.[/yellow]")
                 console.print("[dim]Re-analyzing will overwrite the existing file.[/dim]")
                 try:
