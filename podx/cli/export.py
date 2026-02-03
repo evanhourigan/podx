@@ -56,6 +56,34 @@ def _find_transcript(directory: Path) -> Optional[Path]:
     return None
 
 
+def _find_all_analyses(directory: Path) -> list[Path]:
+    """Find all analysis files in episode directory.
+
+    Returns list of paths sorted by modification time (newest first).
+    """
+    candidates = []
+
+    # Standard analysis.json
+    analysis = directory / "analysis.json"
+    if analysis.exists():
+        candidates.append(analysis)
+
+    # Template-specific analysis files
+    for p in directory.glob("analysis.*.json"):
+        if p.suffix == ".json" and p not in candidates:
+            candidates.append(p)
+
+    # Legacy patterns
+    for pattern in ["deepcast-*.json", "deepcast.json"]:
+        for p in directory.glob(pattern):
+            if p not in candidates:
+                candidates.append(p)
+
+    # Sort by modification time, newest first
+    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return candidates
+
+
 def _find_analysis(directory: Path, template: Optional[str] = None) -> Optional[Path]:
     """Find analysis file in episode directory.
 
@@ -69,18 +97,9 @@ def _find_analysis(directory: Path, template: Optional[str] = None) -> Optional[
         if specific.exists():
             return specific
 
-    # Standard analysis.json
-    analysis = directory / "analysis.json"
-    if analysis.exists():
-        return analysis
-
-    # Legacy patterns
-    patterns = ["deepcast-*.json", "deepcast.json"]
-    for pattern in patterns:
-        matches = list(directory.glob(pattern))
-        if matches:
-            return matches[0]
-    return None
+    # Return first (most recent) analysis file
+    candidates = _find_all_analyses(directory)
+    return candidates[0] if candidates else None
 
 
 def _export_transcript_txt(transcript: dict, output_path: Path, timestamps: bool = False) -> None:
@@ -456,12 +475,63 @@ def export_analysis(
     if episode_dir.is_file():
         episode_dir = episode_dir.parent
 
-    # Find analysis
-    analysis_path = _find_analysis(episode_dir, template=template)
+    # Find analysis - prompt if multiple exist and no template specified
+    analysis_path: Optional[Path] = None
+
+    if template:
+        # Explicit template requested
+        analysis_path = _find_analysis(episode_dir, template=template)
+    else:
+        # Check for multiple analyses
+        all_analyses = _find_all_analyses(episode_dir)
+
+        if len(all_analyses) == 0:
+            pass  # Will error below
+        elif len(all_analyses) == 1:
+            analysis_path = all_analyses[0]
+        else:
+            # Multiple analyses found - prompt user to select
+            console.print(f"[cyan]Found {len(all_analyses)} analysis files:[/cyan]")
+            for i, p in enumerate(all_analyses, 1):
+                # Extract template name from filename
+                if p.name == "analysis.json":
+                    label = "general (default)"
+                else:
+                    parts = p.stem.split(".", 1)
+                    label = parts[1] if len(parts) == 2 else p.name
+                mtime = p.stat().st_mtime
+                from datetime import datetime
+
+                mtime_str = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
+                console.print(f"  [{i}] {label} [dim]({mtime_str})[/dim]")
+
+            try:
+                choice = console.input("\n[bold]Select analysis[/bold] [dim](1)[/dim]: ").strip()
+                if not choice:
+                    choice = "1"
+                idx = int(choice) - 1
+                if 0 <= idx < len(all_analyses):
+                    analysis_path = all_analyses[idx]
+                else:
+                    console.print("[red]Invalid selection[/red]")
+                    sys.exit(ExitCode.USER_ERROR)
+            except (ValueError, KeyboardInterrupt):
+                console.print("\n[dim]Cancelled[/dim]")
+                sys.exit(0)
+
     if not analysis_path:
         console.print(f"[red]Error:[/red] No analysis.json found in {episode_dir}")
         console.print("[dim]Run 'podx analyze' first[/dim]")
         sys.exit(ExitCode.USER_ERROR)
+
+    # Derive template from filename if not explicitly provided
+    # analysis.interview-1on1.json -> interview-1on1
+    if not template and analysis_path.name != "analysis.json":
+        parts = analysis_path.stem.split(
+            ".", 1
+        )  # "analysis.interview-1on1" -> ["analysis", "interview-1on1"]
+        if len(parts) == 2:
+            template = parts[1]
 
     analysis = json.loads(analysis_path.read_text())
     md_content = analysis.get("markdown", "")
