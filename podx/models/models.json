@@ -70,11 +70,27 @@
   },
   "models": [
     {
+      "id": "gpt-5.2",
+      "name": "GPT-5.2",
+      "provider": "openai",
+      "aliases": ["gpt5.2", "gpt-5-2"],
+      "description": "Latest GPT-5.2; best quality/performance (Dec 2025)",
+      "pricing": {
+        "input_per_1m": 1.75,
+        "output_per_1m": 14.00,
+        "currency": "USD",
+        "tier": "standard"
+      },
+      "context_window": 128000,
+      "capabilities": ["text", "chat", "function-calling"],
+      "default_in_cli": true
+    },
+    {
       "id": "gpt-5.1",
       "name": "GPT-5.1",
       "provider": "openai",
       "aliases": ["gpt5.1", "gpt-5-1"],
-      "description": "Latest GPT-5.1; best quality/performance (2025)",
+      "description": "GPT-5.1; previous generation (2025)",
       "pricing": {
         "input_per_1m": 1.25,
         "output_per_1m": 10.00,

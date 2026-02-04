@@ -37,7 +37,7 @@ CONFIG_KEYS: Dict[str, Dict[str, Any]] = {
     "analyze-model": {
         "description": "Default analysis model",
         "secret": False,
-        "default": "openai:gpt-5.1",
+        "default": "openai:gpt-5.2",
         "validator": "llm_model",
     },
     "language": {

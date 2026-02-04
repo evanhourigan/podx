@@ -36,7 +36,7 @@ logger = get_logger(__name__)
 console = Console()
 
 # Default model for analysis
-DEFAULT_MODEL = "openai:gpt-5.1"
+DEFAULT_MODEL = "openai:gpt-5.2"
 DEFAULT_TEMPLATE = "general"
 DEFAULT_MAP_INSTRUCTIONS = "Extract key points, notable quotes, and insights from this section."
 
@@ -106,9 +106,9 @@ def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
 
     \b
     Models (use 'podx models' for full list):
-      openai:gpt-5.1               Latest, highest quality
+      openai:gpt-5.2               Latest, highest quality
+      openai:gpt-5.1               Previous generation
       openai:gpt-5-mini            Fast and affordable
-      openai:gpt-4.1               Previous generation
       openai:gpt-4o                Multimodal capable
       anthropic:claude-opus-4-5    Anthropic highest quality
       anthropic:claude-sonnet-4-5  Anthropic alternative
