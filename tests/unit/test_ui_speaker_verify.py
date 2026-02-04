@@ -65,7 +65,7 @@ class TestGetSpeakerSamples:
         samples = _get_speaker_samples(sample_segments, "SPEAKER_00")
         assert len(samples) == 2  # "Short." is filtered out
         assert samples[0][0] == 0  # First sample at time 0
-        assert "longer sample" in samples[0][1]
+        assert "longer sample" in samples[0][2]  # Text is now at index 2 (start, end, text)
 
     def test_respects_max_samples(self, sample_segments):
         """Test that max_samples limit is respected."""

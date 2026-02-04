@@ -4,6 +4,7 @@ Walks through each chunk and lets the user verify/correct speaker labels.
 Helps fix speaker label swaps that can occur at chunk boundaries.
 """
 
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from rich.console import Console
@@ -16,6 +17,7 @@ MAX_SAMPLES_PER_SPEAKER = 3
 MAX_DISPLAY_LENGTH = 150
 MIN_UTTERANCE_LENGTH = 20
 LOW_CONFIDENCE_THRESHOLD = 0.75
+DEFAULT_CLIP_DURATION = 15.0  # Default clip duration if no end time
 
 
 def _format_timecode(seconds: float) -> str:
@@ -39,7 +41,7 @@ def _get_speaker_samples(
     segments: List[Dict[str, Any]],
     speaker_id: str,
     max_samples: int = MAX_SAMPLES_PER_SPEAKER,
-) -> List[Tuple[float, str]]:
+) -> List[Tuple[float, float, str]]:
     """Get sample utterances for a speaker.
 
     Args:
@@ -48,7 +50,7 @@ def _get_speaker_samples(
         max_samples: Maximum number of samples to return
 
     Returns:
-        List of (timestamp, text) tuples
+        List of (start_time, end_time, text) tuples
     """
     samples = []
     for seg in segments:
@@ -56,11 +58,12 @@ def _get_speaker_samples(
             text = seg.get("text", "").strip()
             if len(text) >= MIN_UTTERANCE_LENGTH:
                 start = seg.get("start", 0)
+                end = seg.get("end", start + DEFAULT_CLIP_DURATION)
                 # Truncate for display
                 display_text = (
                     text if len(text) <= MAX_DISPLAY_LENGTH else text[:MAX_DISPLAY_LENGTH] + "..."
                 )
-                samples.append((start, display_text))
+                samples.append((start, end, display_text))
                 if len(samples) >= max_samples:
                     break
     return samples
@@ -68,21 +71,105 @@ def _get_speaker_samples(
 
 def _display_speaker_samples(
     speaker_id: str,
-    samples: List[Tuple[float, str]],
+    samples: List[Tuple[float, float, str]],
     speaker_name: Optional[str] = None,
 ) -> None:
-    """Display sample utterances for a speaker.
+    """Display sample utterances for a speaker (unnumbered).
 
     Args:
         speaker_id: The speaker ID (e.g., SPEAKER_00)
-        samples: List of (timestamp, text) tuples
+        samples: List of (start_time, end_time, text) tuples
         speaker_name: Optional display name for the speaker
     """
     display_name = speaker_name if speaker_name else speaker_id
     console.print(f"[bold cyan]{display_name}[/bold cyan]:")
-    for timestamp, text in samples:
-        timecode = _format_timecode(timestamp)
+    for start, end, text in samples:
+        timecode = _format_timecode(start)
         console.print(f'  [cyan]{timecode}[/cyan] [dim]"{text}"[/dim]')
+
+
+def _display_speaker_samples_numbered(
+    speaker_id: str,
+    samples: List[Tuple[float, float, str]],
+    start_index: int,
+    speaker_name: Optional[str] = None,
+) -> int:
+    """Display numbered sample utterances for a speaker.
+
+    Args:
+        speaker_id: The speaker ID (e.g., SPEAKER_00)
+        samples: List of (start_time, end_time, text) tuples
+        start_index: Starting index for numbering (0-based)
+        speaker_name: Optional display name for the speaker
+
+    Returns:
+        Next index after displayed samples
+    """
+    display_name = speaker_name if speaker_name else speaker_id
+    console.print(f"[bold cyan]{display_name}[/bold cyan]:")
+
+    for i, (start, end, text) in enumerate(samples):
+        num = start_index + i + 1
+        timecode = _format_timecode(start)
+        console.print(f'  [yellow]\\[{num}][/yellow] [cyan]{timecode}[/cyan] [dim]"{text}"[/dim]')
+
+    return start_index + len(samples)
+
+
+def _prompt_play_audio(
+    all_samples: List[Tuple[str, float, float, str]],
+    audio_path: Path,
+    temp_clips: List[Path],
+) -> None:
+    """Prompt to play audio samples.
+
+    Args:
+        all_samples: List of (speaker_id, start, end, text) tuples
+        audio_path: Path to the source audio file
+        temp_clips: List to track temporary clip files for cleanup
+    """
+    from podx.core.audio_player import (
+        CLIP_PADDING_SECONDS,
+        AudioPlaybackError,
+        extract_audio_clip,
+        play_audio_file,
+    )
+
+    while True:
+        try:
+            console.print("\n[dim]Press [p] to play a sample, [Enter] to continue:[/dim] ", end="")
+            response = input().strip().lower()
+
+            if not response:
+                break
+
+            if response == "p":
+                console.print(f"[dim]Which sample? (1-{len(all_samples)}):[/dim] ", end="")
+                choice = input().strip()
+                if not choice:
+                    continue
+
+                try:
+                    idx = int(choice) - 1
+                    if 0 <= idx < len(all_samples):
+                        speaker_id, start, end, text = all_samples[idx]
+                        clip_start = max(0, start - CLIP_PADDING_SECONDS)
+                        clip_end = end + CLIP_PADDING_SECONDS
+
+                        console.print("[dim]Extracting clip...[/dim]")
+                        clip_path = extract_audio_clip(audio_path, clip_start, clip_end)
+                        temp_clips.append(clip_path)
+
+                        console.print("[dim]Playing audio...[/dim]")
+                        play_audio_file(clip_path)
+                    else:
+                        console.print(f"[red]Enter 1-{len(all_samples)}[/red]")
+                except ValueError:
+                    console.print("[red]Enter a number[/red]")
+                except AudioPlaybackError as e:
+                    console.print(f"[yellow]Audio error:[/yellow] {e}")
+        except (KeyboardInterrupt, EOFError):
+            break
 
 
 def _prompt_speaker_name(speaker_id: str) -> str:
@@ -242,6 +329,7 @@ def _get_segments_for_chunk(
 def verify_chunks(
     chunk_info: List[Dict[str, Any]],
     transcript_segments: List[Dict[str, Any]],
+    audio_path: Optional[Path] = None,
 ) -> Dict[str, str]:
     """Interactive chunk-by-chunk speaker verification.
 
@@ -255,89 +343,137 @@ def verify_chunks(
             - confidence: Match confidence (0-1) for non-first chunks
             - speakers: List of speaker IDs in this chunk
         transcript_segments: List of transcript segments with speaker labels
+        audio_path: Optional path to audio file for playback during verification
 
     Returns:
         Final speaker name mapping (e.g., {"SPEAKER_00": "Lenny Rachitsky"})
     """
+    from podx.core.audio_player import cleanup_temp_clips
+
     speaker_names: Dict[str, str] = {}
+    temp_clips: List[Path] = []
+    playback_available = audio_path is not None and audio_path.exists()
 
-    console.print()
-    console.print(
-        Panel(
-            "[bold]Speaker Verification[/bold]\n"
-            "Review speaker assignments for each chunk.\n"
-            "[dim]This helps fix speaker label swaps that can occur at chunk boundaries.[/dim]",
-            border_style="cyan",
-        )
-    )
-
-    for chunk in chunk_info:
-        chunk_idx = chunk["index"]
-        start_time = chunk["start_time"]
-        end_time = chunk["end_time"]
-        confidence = chunk.get("confidence", 1.0)
-        speakers = chunk.get("speakers", [])
-
-        # Get segments for this chunk
-        chunk_segments = _get_segments_for_chunk(transcript_segments, start_time, end_time)
-
-        if not chunk_segments:
-            continue
-
-        # Display chunk header
+    try:
         console.print()
+        playback_hint = (
+            "\n[dim]Press [p] to play audio samples during verification.[/dim]"
+            if playback_available
+            else ""
+        )
         console.print(
-            f"[bold]━━━ Chunk {chunk_idx + 1} ({_format_time_range(start_time, end_time)}) ━━━[/bold]"
+            Panel(
+                "[bold]Speaker Verification[/bold]\n"
+                "Review speaker assignments for each chunk.\n"
+                "[dim]This helps fix speaker label swaps that can occur at chunk boundaries.[/dim]"
+                + playback_hint,
+                border_style="cyan",
+            )
         )
 
-        if chunk_idx == 0:
-            # First chunk: establish ground truth names
-            console.print(f"Found {len(speakers)} speakers. Samples:\n")
+        for chunk in chunk_info:
+            chunk_idx = chunk["index"]
+            start_time = chunk["start_time"]
+            end_time = chunk["end_time"]
+            confidence = chunk.get("confidence", 1.0)
+            speakers = chunk.get("speakers", [])
 
-            for speaker_id in sorted(speakers):
-                samples = _get_speaker_samples(chunk_segments, speaker_id)
-                if samples:
-                    _display_speaker_samples(speaker_id, samples)
-                    console.print()
+            # Get segments for this chunk
+            chunk_segments = _get_segments_for_chunk(transcript_segments, start_time, end_time)
 
-            # Prompt for names
-            for speaker_id in sorted(speakers):
-                name = _prompt_speaker_name(speaker_id)
-                speaker_names[speaker_id] = name
-                console.print(f"  [green]✓[/green] {speaker_id} → {name}")
+            if not chunk_segments:
+                continue
 
-        else:
-            # Subsequent chunks: verify matching
-            if confidence < LOW_CONFIDENCE_THRESHOLD:
-                console.print(f"[yellow]⚠ LOW CONFIDENCE ({confidence:.0%})[/yellow]")
-            else:
-                console.print(f"Matched to previous chunks (confidence: {confidence:.0%})")
-
-            # Show samples for verification
+            # Display chunk header
             console.print()
-            for speaker_id in sorted(speakers):
-                samples = _get_speaker_samples(chunk_segments, speaker_id)
-                if samples:
-                    display_name = speaker_names.get(speaker_id, speaker_id)
-                    _display_speaker_samples(speaker_id, samples, display_name)
+            console.print(
+                f"[bold]━━━ Chunk {chunk_idx + 1} "
+                f"({_format_time_range(start_time, end_time)}) ━━━[/bold]"
+            )
 
-            # Ask for confirmation
-            if not _prompt_confirm("Correct?"):
-                # User says incorrect - prompt for correction
-                swap = _prompt_speaker_correction(chunk_segments, speaker_names)
-                if swap:
-                    speaker_a, speaker_b = swap
-                    console.print(
-                        f"\n[cyan]↻[/cyan] Swapping {speaker_names.get(speaker_a, speaker_a)} "
-                        f"and {speaker_names.get(speaker_b, speaker_b)} for this chunk..."
-                    )
-                    apply_speaker_swap(
-                        transcript_segments, start_time, end_time, speaker_a, speaker_b
-                    )
-                    console.print("[green]✓[/green] Speakers swapped")
+            if chunk_idx == 0:
+                # First chunk: establish ground truth names
+                console.print(f"Found {len(speakers)} speakers. Samples:\n")
 
-    console.print()
-    return speaker_names
+                # Collect all samples for playback
+                all_samples: List[Tuple[str, float, float, str]] = []
+                sample_index = 0
+
+                for speaker_id in sorted(speakers):
+                    samples = _get_speaker_samples(chunk_segments, speaker_id)
+                    if samples:
+                        if playback_available:
+                            sample_index = _display_speaker_samples_numbered(
+                                speaker_id, samples, sample_index
+                            )
+                            for start, end, text in samples:
+                                all_samples.append((speaker_id, start, end, text))
+                        else:
+                            _display_speaker_samples(speaker_id, samples)
+                        console.print()
+
+                # Offer audio playback if available
+                if playback_available and all_samples and audio_path:
+                    _prompt_play_audio(all_samples, audio_path, temp_clips)
+
+                # Prompt for names
+                for speaker_id in sorted(speakers):
+                    name = _prompt_speaker_name(speaker_id)
+                    speaker_names[speaker_id] = name
+                    console.print(f"  [green]✓[/green] {speaker_id} → {name}")
+
+            else:
+                # Subsequent chunks: verify matching
+                if confidence < LOW_CONFIDENCE_THRESHOLD:
+                    console.print(f"[yellow]⚠ LOW CONFIDENCE ({confidence:.0%})[/yellow]")
+                else:
+                    console.print(f"Matched to previous chunks (confidence: {confidence:.0%})")
+
+                # Show samples for verification
+                console.print()
+
+                # Collect all samples for playback
+                all_samples = []
+                sample_index = 0
+
+                for speaker_id in sorted(speakers):
+                    samples = _get_speaker_samples(chunk_segments, speaker_id)
+                    if samples:
+                        display_name = speaker_names.get(speaker_id, speaker_id)
+                        if playback_available:
+                            sample_index = _display_speaker_samples_numbered(
+                                speaker_id, samples, sample_index, display_name
+                            )
+                            for start, end, text in samples:
+                                all_samples.append((speaker_id, start, end, text))
+                        else:
+                            _display_speaker_samples(speaker_id, samples, display_name)
+
+                # Offer audio playback if available
+                if playback_available and all_samples and audio_path:
+                    _prompt_play_audio(all_samples, audio_path, temp_clips)
+
+                # Ask for confirmation
+                if not _prompt_confirm("Correct?"):
+                    # User says incorrect - prompt for correction
+                    swap = _prompt_speaker_correction(chunk_segments, speaker_names)
+                    if swap:
+                        speaker_a, speaker_b = swap
+                        console.print(
+                            f"\n[cyan]↻[/cyan] Swapping {speaker_names.get(speaker_a, speaker_a)} "
+                            f"and {speaker_names.get(speaker_b, speaker_b)} for this chunk..."
+                        )
+                        apply_speaker_swap(
+                            transcript_segments, start_time, end_time, speaker_a, speaker_b
+                        )
+                        console.print("[green]✓[/green] Speakers swapped")
+
+        console.print()
+        return speaker_names
+
+    finally:
+        # Clean up temporary audio clips
+        cleanup_temp_clips(temp_clips)
 
 
 def apply_speaker_names_to_transcript(

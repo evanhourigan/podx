@@ -330,7 +330,7 @@ def main(path: Optional[Path], speakers: Optional[int], verify: bool, reset: boo
         console.print()
         console.print("[cyan]Starting speaker verification...[/cyan]")
         try:
-            speaker_names = verify_chunks(chunk_info, transcript["segments"])
+            speaker_names = verify_chunks(chunk_info, transcript["segments"], audio_path=audio_file)
 
             # Apply speaker names to transcript
             if speaker_names:

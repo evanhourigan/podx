@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ Added
 
+- **Audio playback during speaker verification** — Press `[p]` during `--verify` to hear
+  audio clips and identify speakers by voice
+  - Numbered sample list for easy selection (e.g., `[1]`, `[2]`, `[3]`)
+  - Extracts clip around utterance with 2s padding before/after
+  - Cross-platform: macOS (`open`), Linux (`xdg-open`), Windows (`start`)
+  - Automatic cleanup of temporary audio clips
+
 - **Transcript reset for re-diarization** — `podx diarize --reset` restores transcript
   from `transcript.aligned.json` to allow re-processing after cleanup
   - Clears `cleaned` and `restored` flags that block diarization
