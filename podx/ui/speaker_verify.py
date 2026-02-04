@@ -137,7 +137,9 @@ def _prompt_play_audio(
 
     while True:
         try:
-            console.print("\n[dim]Press [p] to play a sample, [Enter] to continue:[/dim] ", end="")
+            console.print(
+                "\n[dim]Press \[p] to play a sample, \[Enter] to continue:[/dim] ", end=""
+            )
             response = input().strip().lower()
 
             if not response:
@@ -357,7 +359,7 @@ def verify_chunks(
     try:
         console.print()
         playback_hint = (
-            "\n[dim]Press [p] to play audio samples during verification.[/dim]"
+            "\n[dim]Press \[p] to play audio samples during verification.[/dim]"
             if playback_available
             else ""
         )
