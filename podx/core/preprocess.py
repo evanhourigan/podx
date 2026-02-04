@@ -230,12 +230,13 @@ class TranscriptPreprocessor:
                 batch_results.append(line == "AD")
 
             # If LLM returned fewer results, assume remaining are content
-            while len(batch_results) < len(batch):
-                logger.warning(
+            if len(batch_results) < len(batch):
+                logger.debug(
                     f"Ad classification returned {len(lines)} results for {len(batch)} segments. "
                     "Assuming remaining are content."
                 )
-                batch_results.append(False)
+                while len(batch_results) < len(batch):
+                    batch_results.append(False)
 
             is_ad.extend(batch_results)
 
@@ -324,15 +325,19 @@ class TranscriptPreprocessor:
                 logger.error(f"LLM API request failed for batch {batch_num}: {e}")
                 raise PreprocessError(f"Semantic restore failed: {e}") from e
 
-            # Split response back into individual segments
+            # Split response back into individual segments.
+            # Try exact delimiter first, then stripped version (LLMs often
+            # omit the surrounding newlines).
             cleaned_chunks = batch_result.split(delimiter)
+            if len(cleaned_chunks) != len(chunk):
+                cleaned_chunks = batch_result.split(delimiter.strip())
 
             # Handle case where LLM doesn't return exact number
             if len(cleaned_chunks) == len(chunk):
                 out.extend([c.strip() for c in cleaned_chunks])
             else:
                 # Fallback: if batch processing failed, keep originals
-                logger.warning(
+                logger.debug(
                     f"Batch restore returned {len(cleaned_chunks)} segments, "
                     f"expected {len(chunk)}. Using original texts for this batch."
                 )
