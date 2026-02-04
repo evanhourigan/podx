@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 from podx.core.diarize import (
+    MIN_SEGMENT_DURATION_FOR_ALIGNMENT,
     DiarizationEngine,
     DiarizationError,
     calculate_chunk_duration,
@@ -587,6 +588,30 @@ class TestSanitizeSegmentsForAlignment:
         assert "words" not in result[0]
         assert "speaker" not in result[0]
         assert result[0] == {"start": 0.0, "end": 2.0, "text": "Hello world"}
+
+    def test_removes_too_short_segments(self):
+        """Test that segments shorter than min duration are removed."""
+        segments = [
+            {"text": "Valid segment", "start": 0.0, "end": 2.0},
+            {"text": "I", "start": 3.0, "end": 3.02},  # 0.02s - too short
+            {"text": "And", "start": 5.0, "end": 5.06},  # 0.06s - too short
+            {"text": "Another valid one", "start": 7.0, "end": 9.0},
+        ]
+        result = sanitize_segments_for_alignment(segments)
+        assert len(result) == 2
+        assert result[0]["text"] == "Valid segment"
+        assert result[1]["text"] == "Another valid one"
+
+    def test_keeps_segments_at_min_duration(self):
+        """Test that segments exactly at min duration are kept."""
+        min_dur = MIN_SEGMENT_DURATION_FOR_ALIGNMENT
+        segments = [
+            {"text": "At threshold", "start": 0.0, "end": min_dur},
+            {"text": "Below threshold", "start": 1.0, "end": 1.0 + min_dur - 0.001},
+        ]
+        result = sanitize_segments_for_alignment(segments)
+        assert len(result) == 1
+        assert result[0]["text"] == "At threshold"
 
     def test_empty_input(self):
         """Test that empty input returns empty output."""

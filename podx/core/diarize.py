@@ -66,6 +66,11 @@ MIN_CHUNK_MINUTES = 10.0  # Need context for speaker patterns
 MAX_CHUNK_MINUTES = 30.0  # Reasonable memory ceiling
 CHUNK_OVERLAP_SECONDS = 30.0  # Overlap for speaker continuity
 
+# Alignment constants
+# Segments shorter than this are too short for wav2vec2 alignment
+# (produces zero emission frames → ZeroDivisionError in trellis)
+MIN_SEGMENT_DURATION_FOR_ALIGNMENT = 0.1  # seconds
+
 
 def get_audio_duration(audio_path: Path) -> float:
     """Get audio duration in minutes without loading the full file.
@@ -438,6 +443,8 @@ def sanitize_segments_for_alignment(
     - Segments have missing start/end times
     - Segments contain pre-existing alignment data (words[], speaker)
       from a previous diarization run
+    - Segments are too short for the wav2vec2 model to produce
+      emission frames (< MIN_SEGMENT_DURATION_FOR_ALIGNMENT)
 
     Args:
         segments: List of transcript segments
@@ -466,6 +473,14 @@ def sanitize_segments_for_alignment(
 
         # Skip segments with zero or negative duration
         if end <= start:
+            removed_count += 1
+            continue
+
+        # Skip segments too short for alignment model.
+        # wav2vec2 produces zero emission frames for very short segments,
+        # causing ZeroDivisionError in trellis ratio calculation.
+        duration = end - start
+        if duration < MIN_SEGMENT_DURATION_FOR_ALIGNMENT:
             removed_count += 1
             continue
 
