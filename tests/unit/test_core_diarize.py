@@ -556,6 +556,38 @@ class TestSanitizeSegmentsForAlignment:
         result = sanitize_segments_for_alignment(segments)
         assert result[0]["text"] == "Hello"
 
+    def test_strips_alignment_data(self):
+        """Test that pre-existing words[] and speaker labels are stripped."""
+        segments = [
+            {
+                "text": "Hello world",
+                "start": 0.0,
+                "end": 2.0,
+                "speaker": "SPEAKER_00",
+                "words": [
+                    {
+                        "word": "Hello",
+                        "start": 0.0,
+                        "end": 0.5,
+                        "score": 0.9,
+                        "speaker": "SPEAKER_00",
+                    },
+                    {
+                        "word": "world",
+                        "start": 0.6,
+                        "end": 1.0,
+                        "score": 0.8,
+                        "speaker": "SPEAKER_00",
+                    },
+                ],
+            },
+        ]
+        result = sanitize_segments_for_alignment(segments)
+        assert len(result) == 1
+        assert "words" not in result[0]
+        assert "speaker" not in result[0]
+        assert result[0] == {"start": 0.0, "end": 2.0, "text": "Hello world"}
+
     def test_empty_input(self):
         """Test that empty input returns empty output."""
         result = sanitize_segments_for_alignment([])

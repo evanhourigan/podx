@@ -436,12 +436,15 @@ def sanitize_segments_for_alignment(
     - Segments have empty or whitespace-only text
     - Segments have zero or negative duration
     - Segments have missing start/end times
+    - Segments contain pre-existing alignment data (words[], speaker)
+      from a previous diarization run
 
     Args:
         segments: List of transcript segments
 
     Returns:
-        Sanitized list of segments safe for alignment
+        Sanitized list of segments safe for alignment, containing only
+        the fields WhisperX expects (start, end, text)
     """
     sanitized = []
     removed_count = 0
@@ -466,9 +469,14 @@ def sanitize_segments_for_alignment(
             removed_count += 1
             continue
 
-        # Create clean segment copy
-        clean_seg = dict(seg)
-        clean_seg["text"] = text  # Use stripped text
+        # Only keep fields that WhisperX alignment expects.
+        # Pre-existing words[] and speaker labels from previous diarization
+        # cause "float division by zero" crashes during re-alignment.
+        clean_seg = {
+            "start": start,
+            "end": end,
+            "text": text,
+        }
         sanitized.append(clean_seg)
 
     if removed_count > 0:
