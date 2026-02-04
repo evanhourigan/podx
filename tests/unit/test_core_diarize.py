@@ -20,6 +20,7 @@ from podx.core.diarize import (
     estimate_memory_required,
     match_speakers_across_chunks,
     merge_chunk_segments,
+    sanitize_segments_for_alignment,
 )
 
 
@@ -499,13 +500,75 @@ class TestConvenienceFunction:
         mock_whisperx.load_align_model.assert_called_once_with(language_code="es", device="cuda")
 
 
+class TestSanitizeSegmentsForAlignment:
+    """Test segment sanitization for WhisperX alignment."""
+
+    def test_passes_valid_segments(self):
+        """Test that valid segments pass through unchanged."""
+        segments = [
+            {"text": "Hello world", "start": 0.0, "end": 2.0},
+            {"text": "More text here", "start": 2.5, "end": 5.0},
+        ]
+        result = sanitize_segments_for_alignment(segments)
+        assert len(result) == 2
+        assert result[0]["text"] == "Hello world"
+        assert result[1]["text"] == "More text here"
+
+    def test_removes_empty_text(self):
+        """Test that segments with empty text are removed."""
+        segments = [
+            {"text": "Valid text", "start": 0.0, "end": 2.0},
+            {"text": "", "start": 2.5, "end": 5.0},
+            {"text": "   ", "start": 5.5, "end": 7.0},  # Whitespace only
+        ]
+        result = sanitize_segments_for_alignment(segments)
+        assert len(result) == 1
+        assert result[0]["text"] == "Valid text"
+
+    def test_removes_missing_timing(self):
+        """Test that segments with missing start/end are removed."""
+        segments = [
+            {"text": "Valid", "start": 0.0, "end": 2.0},
+            {"text": "No start", "end": 5.0},
+            {"text": "No end", "start": 5.5},
+            {"text": "No timing"},
+        ]
+        result = sanitize_segments_for_alignment(segments)
+        assert len(result) == 1
+        assert result[0]["text"] == "Valid"
+
+    def test_removes_zero_duration(self):
+        """Test that segments with zero or negative duration are removed."""
+        segments = [
+            {"text": "Valid", "start": 0.0, "end": 2.0},
+            {"text": "Zero duration", "start": 3.0, "end": 3.0},
+            {"text": "Negative duration", "start": 5.0, "end": 4.0},
+        ]
+        result = sanitize_segments_for_alignment(segments)
+        assert len(result) == 1
+        assert result[0]["text"] == "Valid"
+
+    def test_strips_whitespace_from_text(self):
+        """Test that text is stripped of leading/trailing whitespace."""
+        segments = [
+            {"text": "  Hello  ", "start": 0.0, "end": 2.0},
+        ]
+        result = sanitize_segments_for_alignment(segments)
+        assert result[0]["text"] == "Hello"
+
+    def test_empty_input(self):
+        """Test that empty input returns empty output."""
+        result = sanitize_segments_for_alignment([])
+        assert result == []
+
+
 class TestEdgeCases:
     """Test edge cases and error conditions."""
 
     def test_diarize_empty_segments(
         self, mock_whisperx, sample_aligned_result, sample_diarized_result, tmp_path
     ):
-        """Test diarization with empty transcript segments."""
+        """Test diarization with empty transcript segments raises error."""
         audio_file = tmp_path / "test.wav"
         audio_file.write_text("fake audio")
 
@@ -514,16 +577,11 @@ class TestEdgeCases:
         mock_whisperx.load_audio.return_value = MagicMock()
         mock_whisperx.align.return_value = sample_aligned_result
 
-        mock_pipeline = MagicMock()
-        mock_pipeline.return_value = MagicMock()
-        mock_whisperx.diarize.DiarizationPipeline.return_value = mock_pipeline
-        mock_whisperx.diarize.assign_word_speakers.return_value = sample_diarized_result
-
         engine = DiarizationEngine()
-        result = engine.diarize(audio_file, [])
 
-        # Should still work with empty segments
-        assert result == sample_diarized_result
+        # Should raise error for empty segments
+        with pytest.raises(DiarizationError, match="No valid segments"):
+            engine.diarize(audio_file, [])
 
     def test_diarize_result_without_words(
         self, mock_whisperx, sample_transcript_segments, tmp_path

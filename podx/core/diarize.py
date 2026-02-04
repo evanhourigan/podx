@@ -427,6 +427,60 @@ def cleanup_chunk_files(chunks: List[Tuple[Path, float, float]]) -> None:
             logger.warning("Failed to remove chunk file", path=str(chunk_path), error=str(e))
 
 
+def sanitize_segments_for_alignment(
+    segments: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Filter and fix segments that could cause WhisperX alignment to fail.
+
+    WhisperX alignment can crash with "float division by zero" when:
+    - Segments have empty or whitespace-only text
+    - Segments have zero or negative duration
+    - Segments have missing start/end times
+
+    Args:
+        segments: List of transcript segments
+
+    Returns:
+        Sanitized list of segments safe for alignment
+    """
+    sanitized = []
+    removed_count = 0
+
+    for seg in segments:
+        text = seg.get("text", "").strip()
+        start = seg.get("start")
+        end = seg.get("end")
+
+        # Skip segments with empty text
+        if not text:
+            removed_count += 1
+            continue
+
+        # Skip segments with missing timing
+        if start is None or end is None:
+            removed_count += 1
+            continue
+
+        # Skip segments with zero or negative duration
+        if end <= start:
+            removed_count += 1
+            continue
+
+        # Create clean segment copy
+        clean_seg = dict(seg)
+        clean_seg["text"] = text  # Use stripped text
+        sanitized.append(clean_seg)
+
+    if removed_count > 0:
+        logger.info(
+            "Sanitized segments for alignment",
+            removed=removed_count,
+            remaining=len(sanitized),
+        )
+
+    return sanitized
+
+
 class DiarizationError(Exception):
     """Raised when diarization fails."""
 
@@ -562,10 +616,18 @@ class DiarizationEngine:
         except Exception as e:
             raise DiarizationError(f"Failed to load audio: {e}") from e
 
+        # Sanitize segments to prevent alignment crashes (division by zero, etc.)
+        clean_segments = sanitize_segments_for_alignment(transcript_segments)
+        if not clean_segments:
+            raise DiarizationError(
+                "No valid segments after sanitization. "
+                "Check that transcript has text with valid timing."
+            )
+
         self._report_progress("Aligning transcript")
         try:
             aligned_result = whisperx.align(
-                transcript_segments,
+                clean_segments,
                 model_a,
                 metadata,
                 audio_data,

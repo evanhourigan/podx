@@ -16,7 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Cross-platform: macOS (`open`), Linux (`xdg-open`), Windows (`start`)
   - Automatic cleanup of temporary audio clips
 
-- **Transcript reset for re-diarization** — `podx diarize --reset` restores transcript
+- **Transcript reset for re-diarization**
+
+### 🐛 Fixed
+
+- **Diarization "float division by zero" crash** — Alignment no longer fails when
+  transcript contains problematic segments (empty text, zero duration, missing timing)
+  - Segments are sanitized before passing to WhisperX alignment
+  - Clear error message if no valid segments remain after sanitization — `podx diarize --reset` restores transcript
   from `transcript.aligned.json` to allow re-processing after cleanup
   - Clears `cleaned` and `restored` flags that block diarization
   - Combine with `--verify` to fix speaker swaps: `podx diarize . --reset --verify`
