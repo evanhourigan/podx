@@ -22,6 +22,7 @@ from podx.core.diarize import (
     get_audio_duration,
     get_memory_info,
 )
+from podx.core.history import record_processing_event
 from podx.domain.exit_codes import ExitCode
 from podx.logging import get_logger
 from podx.ui import (
@@ -362,6 +363,23 @@ def main(path: Optional[Path], speakers: Optional[int], verify: bool, reset: boo
     # Save updated transcript
     transcript_path.write_text(
         json.dumps(transcript, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+    # Record history event
+    episode_meta = {}
+    meta_path = episode_dir / "episode-meta.json"
+    if meta_path.exists():
+        try:
+            episode_meta = json.loads(meta_path.read_text())
+        except Exception:
+            pass  # Non-fatal
+
+    record_processing_event(
+        episode_dir=episode_dir,
+        step="diarize",
+        model="pyannote",
+        show=episode_meta.get("show"),
+        episode_title=episode_meta.get("episode_title", episode_dir.name),
     )
 
     console.print(f"  Updated: {transcript_path}")

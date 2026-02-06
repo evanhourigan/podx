@@ -16,6 +16,7 @@ from rich.console import Console
 
 from podx.core.analyze import AnalyzeEngine, AnalyzeError
 from podx.core.classify import classify_episode
+from podx.core.history import record_processing_event
 from podx.core.quotes import generate_quote_id, render_quotes_markdown, validate_quotes_verbatim
 from podx.domain.exit_codes import ExitCode
 from podx.logging import get_logger
@@ -390,6 +391,16 @@ def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
         )
     except Exception:
         pass  # Non-fatal: classification is advisory
+
+    # Record history event
+    record_processing_event(
+        episode_dir=episode_dir,
+        step="analyze",
+        model=model,
+        template=template,
+        show=episode_meta.get("show"),
+        episode_title=episode_meta.get("episode_title", episode_dir.name),
+    )
 
     # Show completion
     console.print(f"\n[green]✓ Analysis complete ({minutes}:{seconds:02d})[/green]")

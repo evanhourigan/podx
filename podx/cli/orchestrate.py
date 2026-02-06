@@ -21,7 +21,7 @@ setup_logging()
 # Import simplified config command
 # Import missing commands for v3.0 CLI restructure
 from podx.cli import config  # noqa: E402
-from podx.cli import analyze, cloud, init, templates, transcode  # noqa: E402
+from podx.cli import analyze, cloud, history, init, templates, transcode  # noqa: E402
 
 # Import all command modules
 from podx.cli.commands import (  # noqa: E402 - Must import after logging setup
@@ -71,6 +71,7 @@ def main() -> None:
       templates   Manage analysis templates
       cloud       Cloud acceleration (RunPod)
       run         Full pipeline orchestrator
+      history     View episode processing history
 
     \b
     Tips:
@@ -109,6 +110,7 @@ main.add_command(analyze.main, name="analyze")
 main.add_command(templates.main, name="templates")
 main.add_command(cloud.main, name="cloud")
 main.add_command(transcode.main, name="transcode")
+main.add_command(history.main, name="history")
 
 
 # Help command (alias for --help)

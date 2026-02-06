@@ -11,6 +11,7 @@ from typing import Optional
 import click
 from rich.console import Console
 
+from podx.core.history import record_processing_event
 from podx.core.preprocess import PreprocessError, TranscriptPreprocessor
 from podx.domain.exit_codes import ExitCode
 from podx.logging import get_logger
@@ -262,6 +263,29 @@ def main(path: Optional[Path], no_restore: bool, no_skip_ads: bool):
 
     # Save updated transcript
     transcript_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    # Record history event
+    episode_meta = {}
+    meta_path = episode_dir / "episode-meta.json"
+    if meta_path.exists():
+        try:
+            episode_meta = json.loads(meta_path.read_text())
+        except Exception:
+            pass  # Non-fatal
+
+    record_processing_event(
+        episode_dir=episode_dir,
+        step="cleanup",
+        model="gpt-4o-mini" if do_restore else None,
+        show=episode_meta.get("show"),
+        episode_title=episode_meta.get("episode_title", episode_dir.name),
+        details={
+            "merge": True,
+            "normalize": True,
+            "restore": do_restore,
+            "skip_ads": do_skip_ads,
+        },
+    )
 
     # Show completion
     original_count = len(transcript["segments"])

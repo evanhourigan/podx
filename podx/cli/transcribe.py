@@ -12,6 +12,7 @@ import click
 from rich.console import Console
 
 from podx.config import get_config
+from podx.core.history import record_processing_event
 from podx.core.transcribe import TranscriptionEngine, TranscriptionError
 from podx.domain.exit_codes import ExitCode
 from podx.errors import AudioError
@@ -269,6 +270,24 @@ def main(path: Optional[Path], model: Optional[str], language: Optional[str]):
 
     # Save transcript
     transcript_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    # Record history event
+    episode_meta = {}
+    meta_path = episode_dir / "episode-meta.json"
+    if meta_path.exists():
+        try:
+            episode_meta = json.loads(meta_path.read_text())
+        except Exception:
+            pass  # Non-fatal
+
+    record_processing_event(
+        episode_dir=episode_dir,
+        step="transcribe",
+        model=model,
+        show=episode_meta.get("show"),
+        episode_title=episode_meta.get("episode_title", episode_dir.name),
+        details={"language": result.get("language", language)},
+    )
 
     # Show completion
     console.print(f"\n[green]✓ Transcription complete ({minutes}:{seconds:02d})[/green]")

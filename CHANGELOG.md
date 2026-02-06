@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ Added
 
+- **Episode processing history** - Track all episodes you've processed with `podx history`
+  - Records transcribe, diarize, cleanup, and analyze operations
+  - Shows timestamps and models used for each step
+  - Filter by show name: `podx history --show "Lenny"`
+  - Filter by episode: `podx history --episode "marc"`
+  - Detailed view: `podx history --detailed`
+  - History stored at `~/.config/podx/history.json`
+
 - **Audio playback during speaker verification** — Press `[p]` during `--verify` to hear
   audio clips and identify speakers by voice
   - Numbered sample list for easy selection (e.g., `[1]`, `[2]`, `[3]`)
