@@ -1,13 +1,14 @@
 """RunPod cloud ASR provider.
 
 Provides cloud-accelerated transcription via RunPod serverless GPUs,
-with optional fallback to local processing on failure.
+with Cloudflare R2 storage for audio uploads and optional fallback
+to local processing on failure.
 """
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ...cloud import CloudConfig, CloudError, RunPodClient
+from ...cloud import CloudConfig, CloudError, CloudStorage, RunPodClient
 from ...logging import get_logger
 from .base import ASRProvider, ProviderConfig, TranscriptionError, TranscriptionResult
 from .local_provider import LocalProvider
@@ -72,8 +73,9 @@ class RunPodProvider(ASRProvider):
         # Validate configuration (raises CloudError if missing)
         self.cloud_config.validate()
 
-        # Create RunPod client
+        # Create RunPod client and R2 storage
         self.client = RunPodClient(self.cloud_config)
+        self.storage = CloudStorage(self.cloud_config)
 
         # Lazy-init fallback provider
         self._fallback_provider: Optional[LocalProvider] = None
@@ -160,24 +162,36 @@ class RunPodProvider(ASRProvider):
             raise TranscriptionError(f"Cloud transcription failed: {e}") from e
 
     def _transcribe_cloud(self, audio_path: Path) -> TranscriptionResult:
-        """Perform cloud transcription."""
-        # Submit job with audio
-        self._report_progress("Uploading audio to RunPod...")
-        job_id = self.client.submit_job(
-            audio_path=audio_path,
-            model=self.normalized_model,
-            language=self.config.language if self.config.language != "en" else "auto",
-        )
+        """Perform cloud transcription via R2 upload."""
+        r2_key: Optional[str] = None
 
-        # Wait for completion
-        self._report_progress("Transcribing on cloud GPU...")
-        result = self.client.wait_for_completion(
-            job_id=job_id,
-            progress_callback=self._report_progress,
-        )
+        try:
+            # Step 1: Upload audio to R2
+            self._report_progress("Uploading audio to R2...")
+            audio_url, r2_key = self.storage.upload_and_presign(audio_path)
 
-        # Convert result to TranscriptionResult
-        return self._convert_result(result, audio_path)
+            # Step 2: Submit job with presigned URL
+            self._report_progress("Submitting transcription job...")
+            job_id = self.client.submit_job(
+                audio_url=audio_url,
+                model=self.normalized_model,
+                language=self.config.language if self.config.language != "en" else "auto",
+            )
+
+            # Step 3: Wait for completion
+            self._report_progress("Transcribing on cloud GPU...")
+            result = self.client.wait_for_completion(
+                job_id=job_id,
+                progress_callback=self._report_progress,
+            )
+
+            # Convert result to TranscriptionResult
+            return self._convert_result(result, audio_path)
+
+        finally:
+            # Always clean up R2 upload
+            if r2_key:
+                self.storage.delete(r2_key)
 
     def _convert_result(
         self, cloud_result: Dict[str, Any], audio_path: Path

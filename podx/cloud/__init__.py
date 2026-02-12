@@ -1,11 +1,10 @@
 """Cloud acceleration for PodX.
 
 Provides RunPod serverless GPU support for transcription,
-reducing processing time from 60-90 minutes to 2-4 minutes
-for a 1-hour podcast.
+with Cloudflare R2 storage for audio uploads.
 
 Usage:
-    podx cloud setup           # Configure RunPod credentials
+    podx cloud setup           # Configure RunPod + R2 credentials
     podx transcribe --model runpod:large-v3-turbo ./episode/
 """
 
@@ -19,6 +18,7 @@ from .exceptions import (
     UploadError,
 )
 from .runpod_client import RunPodClient
+from .storage import CloudStorage
 
 __all__ = [
     "CloudConfig",
@@ -29,4 +29,5 @@ __all__ = [
     "JobFailedError",
     "UploadError",
     "RunPodClient",
+    "CloudStorage",
 ]

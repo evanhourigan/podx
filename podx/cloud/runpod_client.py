@@ -1,12 +1,11 @@
 """RunPod API client for cloud transcription.
 
-Handles uploading audio, submitting jobs, polling for status,
+Handles submitting jobs, polling for status,
 and retrieving results from RunPod serverless endpoints.
+Audio is passed as a URL (hosted on R2) rather than inline.
 """
 
-import base64
 import time
-from pathlib import Path
 from typing import Any, Callable, Optional
 
 import httpx
@@ -28,10 +27,9 @@ class RunPodClient:
     """Client for interacting with RunPod serverless API.
 
     Handles the full lifecycle of a cloud transcription job:
-    1. Upload audio (base64 encoded in request)
-    2. Submit transcription job
-    3. Poll for completion
-    4. Return results
+    1. Submit job with audio URL (hosted on R2)
+    2. Poll for completion
+    3. Return results
 
     Attributes:
         config: Cloud configuration with credentials and settings
@@ -76,17 +74,16 @@ class RunPodClient:
 
     def submit_job(
         self,
-        audio_path: Path,
+        audio_url: str,
         model: str = "large-v3-turbo",
         language: str = "auto",
     ) -> str:
-        """Submit a transcription job with audio data.
+        """Submit a transcription job with an audio URL.
 
-        The audio is base64 encoded and sent inline with the request.
-        This avoids the need for separate blob storage.
+        The RunPod worker downloads the audio from the URL and transcribes it.
 
         Args:
-            audio_path: Path to audio file
+            audio_url: Presigned URL to audio file (hosted on R2)
             model: Whisper model to use (default: large-v3-turbo)
             language: Language code or "auto" for detection
 
@@ -94,38 +91,28 @@ class RunPodClient:
             Job ID for tracking
 
         Raises:
-            UploadError: If audio encoding or upload fails
+            UploadError: If submission fails
             CloudAuthError: If API key is invalid
             EndpointNotFoundError: If endpoint doesn't exist
         """
-        if not audio_path.exists():
-            raise UploadError(f"Audio file not found: {audio_path}")
-
-        # Read and base64 encode audio
-        try:
-            audio_bytes = audio_path.read_bytes()
-            audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
-        except Exception as e:
-            raise UploadError(f"Failed to read audio file: {e}", cause=e)
-
-        file_size_mb = len(audio_bytes) / (1024 * 1024)
         logger.info(
             "Submitting transcription job",
             model=model,
-            audio_size_mb=round(file_size_mb, 2),
             language=language,
         )
 
         # Build request payload
         payload = {
             "input": {
-                "audio_base64": audio_base64,
+                "audio": audio_url,
                 "model": model,
-                "language": None if language == "auto" else language,
                 "word_timestamps": True,
-                "vad_filter": True,
             }
         }
+
+        # Only set language if not auto-detect
+        if language != "auto":
+            payload["input"]["language"] = language
 
         # Submit job
         try:

@@ -90,6 +90,29 @@ CONFIG_KEYS: Dict[str, Dict[str, Any]] = {
         "secret": True,
         "env_var": "RUNPOD_DIARIZE_ENDPOINT_ID",
     },
+    # Cloudflare R2 storage settings
+    "r2-account-id": {
+        "description": "Cloudflare account ID for R2",
+        "secret": False,
+        "default": "",
+        "env_var": "R2_ACCOUNT_ID",
+    },
+    "r2-bucket-name": {
+        "description": "R2 bucket name for audio uploads",
+        "secret": False,
+        "default": "",
+        "env_var": "R2_BUCKET_NAME",
+    },
+    "r2-access-key-id": {
+        "description": "R2 API token access key ID",
+        "secret": True,
+        "env_var": "R2_ACCESS_KEY_ID",
+    },
+    "r2-secret-access-key": {
+        "description": "R2 API token secret access key",
+        "secret": True,
+        "env_var": "R2_SECRET_ACCESS_KEY",
+    },
 }
 
 
