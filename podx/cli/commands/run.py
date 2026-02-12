@@ -432,7 +432,7 @@ def run(model: Optional[str], cloud: bool):
     Examples:
       podx run                              # Use default transcription model
       podx run --model large-v3             # Use local large-v3 model
-      podx run --model runpod:large-v3-turbo  # Use RunPod cloud transcription
+      podx run --model runpod:large-v3    # Use RunPod cloud transcription
       podx run --cloud                      # Use cloud for both transcription and diarization
 
     \b
@@ -445,7 +445,7 @@ def run(model: Optional[str], cloud: bool):
     """
     # Set default model for cloud mode
     if cloud and model is None:
-        model = "runpod:large-v3-turbo"
+        model = "runpod:large-v3"
 
     try:
         # Step 1: Fetch
