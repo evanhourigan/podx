@@ -17,9 +17,9 @@ Transform podcast audio into structured insights with AI-powered transcription, 
 
 ## 🆕 v4.1.0 - Cloud GPU Acceleration
 
-**New Feature: RunPod Cloud Transcription (~20-30x faster!)**
+**New Feature: RunPod Cloud Transcription & Diarization (~20-30x faster!)**
 
-Offload transcription to cloud GPUs for dramatically faster processing:
+Offload transcription and diarization to cloud GPUs for dramatically faster processing:
 - 1-hour podcast: ~60-90 minutes → ~2-4 minutes
 - Cost: ~$0.05-0.10 per hour of audio
 - Automatic fallback to local if cloud fails
@@ -28,11 +28,12 @@ Offload transcription to cloud GPUs for dramatically faster processing:
 # One-time setup
 podx cloud setup
 
-# Transcribe with cloud GPU
-podx transcribe --model runpod:large-v3-turbo ./episode/
+# Full pipeline with cloud (transcription + diarization)
+podx run --cloud
 
-# Full pipeline with cloud
-podx run --model runpod:large-v3-turbo ./episode/
+# Or specify model explicitly
+podx transcribe --model runpod:large-v3-turbo ./episode/
+podx diarize --provider runpod ./episode/
 ```
 
 **v4.0.0 Changes:**

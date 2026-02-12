@@ -85,15 +85,21 @@ def _run_transcribe_step(episode_dir: Path, model: Optional[str] = None) -> bool
     return True
 
 
-def _run_diarize_step(episode_dir: Path) -> bool:
-    """Run diarize step. Returns True on success."""
+def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
+    """Run diarize step. Returns True on success.
+
+    Args:
+        episode_dir: Path to episode directory
+        use_cloud: If True, use RunPod cloud GPU for diarization
+    """
     import json
     import os
     from contextlib import redirect_stderr, redirect_stdout
 
     from podx.cli.diarize import _find_audio_file
+    from podx.core.diarization import DiarizationProviderError, get_diarization_provider
     from podx.core.diarize import DiarizationEngine, DiarizationError
-    from podx.ui import LiveTimer
+    from podx.ui import LiveTimer, LiveTimerProgressReporter
 
     console.print("\n[bold cyan]── Diarize ────────────────────────────────────────[/bold cyan]")
 
@@ -116,41 +122,70 @@ def _run_diarize_step(episode_dir: Path) -> bool:
         console.print("[red]Error:[/red] No audio file found")
         return False
 
-    console.print("[dim]Adding speaker labels...[/dim]")
+    language = transcript.get("language", "en")
 
-    timer = LiveTimer("Diarizing")
-    timer.start()
+    if use_cloud:
+        # Cloud diarization via RunPod
+        console.print("[dim]Diarizing on cloud GPU...[/dim]")
 
-    try:
-        with (
-            redirect_stdout(open(os.devnull, "w")),
-            redirect_stderr(open(os.devnull, "w")),
-        ):
-            engine = DiarizationEngine(
-                language=transcript.get("language", "en"),
-                hf_token=os.getenv("HUGGINGFACE_TOKEN"),
+        timer = LiveTimer("Diarizing")
+        progress = LiveTimerProgressReporter(timer)
+        timer.start()
+
+        try:
+            provider = get_diarization_provider(
+                "runpod",
+                language=language,
+                progress_callback=progress.report,
             )
-            result = engine.diarize(audio_file, transcript["segments"])
-    except DiarizationError as e:
-        timer.stop()
-        console.print(f"[red]Error:[/red] {e}")
-        return False
+            result = provider.diarize(audio_file, transcript["segments"])
+            segments = result.segments
+            speakers_count = result.speakers_count
+        except DiarizationProviderError as e:
+            timer.stop()
+            console.print(f"[red]Error:[/red] {e}")
+            return False
 
-    elapsed = timer.stop()
+        elapsed = timer.stop()
+    else:
+        # Local diarization
+        console.print("[dim]Adding speaker labels...[/dim]")
+
+        timer = LiveTimer("Diarizing")
+        timer.start()
+
+        try:
+            with (
+                redirect_stdout(open(os.devnull, "w")),
+                redirect_stderr(open(os.devnull, "w")),
+            ):
+                engine = DiarizationEngine(
+                    language=language,
+                    hf_token=os.getenv("HUGGINGFACE_TOKEN"),
+                )
+                result = engine.diarize(audio_file, transcript["segments"])
+                segments = result["segments"]
+                speakers = set(s.get("speaker") for s in segments if s.get("speaker"))
+                speakers_count = len(speakers)
+        except DiarizationError as e:
+            timer.stop()
+            console.print(f"[red]Error:[/red] {e}")
+            return False
+
+        elapsed = timer.stop()
+
     minutes = int(elapsed // 60)
     seconds = int(elapsed % 60)
 
     # Update transcript
-    transcript["segments"] = result["segments"]
+    transcript["segments"] = segments
     transcript["diarized"] = True
     transcript_path.write_text(
         json.dumps(transcript, indent=2, ensure_ascii=False), encoding="utf-8"
     )
 
-    # Count speakers
-    speakers = set(s.get("speaker") for s in result["segments"] if s.get("speaker"))
     console.print(f"[green]✓ Diarization complete ({minutes}:{seconds:02d})[/green]")
-    console.print(f"  Speakers found: {len(speakers)}")
+    console.print(f"  Speakers found: {speakers_count}")
     return True
 
 
@@ -376,7 +411,12 @@ def _run_export_step(episode_dir: Path) -> bool:
     default=None,
     help="Transcription model (e.g., base, large-v3, runpod:large-v3-turbo).",
 )
-def run(model: Optional[str]):
+@click.option(
+    "--cloud",
+    is_flag=True,
+    help="Use cloud GPU for transcription and diarization (requires 'podx cloud setup').",
+)
+def run(model: Optional[str], cloud: bool):
     """Run the full podcast processing pipeline interactively.
 
     \b
@@ -392,7 +432,8 @@ def run(model: Optional[str]):
     Examples:
       podx run                              # Use default transcription model
       podx run --model large-v3             # Use local large-v3 model
-      podx run --model runpod:large-v3-turbo  # Use RunPod cloud
+      podx run --model runpod:large-v3-turbo  # Use RunPod cloud transcription
+      podx run --cloud                      # Use cloud for both transcription and diarization
 
     \b
     For scripting, use individual commands:
@@ -402,6 +443,10 @@ def run(model: Optional[str]):
       podx cleanup ./episode/
       podx analyze ./episode/
     """
+    # Set default model for cloud mode
+    if cloud and model is None:
+        model = "runpod:large-v3-turbo"
+
     try:
         # Step 1: Fetch
         episode_dir = _run_fetch_step()
@@ -414,7 +459,7 @@ def run(model: Optional[str]):
             sys.exit(ExitCode.PROCESSING_ERROR)
 
         # Step 3: Diarize
-        if not _run_diarize_step(episode_dir):
+        if not _run_diarize_step(episode_dir, use_cloud=cloud):
             # Diarization failure is not fatal - continue
             console.print("[yellow]Diarization skipped[/yellow]")
 

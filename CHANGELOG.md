@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ Added
+
+- **`--cloud` flag for `podx run`** — Use cloud GPU for both transcription and diarization
+  - `podx run --cloud` — one-command cloud pipeline
+  - Defaults to `runpod:large-v3-turbo` model when `--cloud` is set
+  - Cloud diarization via `RunPodDiarizationProvider`
+  - Real-time status updates during cloud diarization
+
 ## [4.4.0] - 2026-02-12
 
 ### 🚀 Cloud Transcription with R2 Storage
