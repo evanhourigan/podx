@@ -1,7 +1,7 @@
 # RunPod Diarization Handler
-# Based on CUDA 12.1 with Python 3.10 for WhisperX compatibility
+# Based on CUDA 12.4 with Python 3.11
 
-FROM runpod/pytorch:2.1.0-py3.10-cuda12.1.0-devel-ubuntu22.04
+FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
 
 WORKDIR /app
 
@@ -12,11 +12,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-# WhisperX requires specific versions for compatibility
 RUN pip install --no-cache-dir \
     runpod \
-    torch==2.1.0 \
-    torchaudio==2.1.0 \
     whisperx \
     pyannote.audio \
     && pip cache purge
