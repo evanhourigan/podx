@@ -320,6 +320,31 @@ def _interactive_video_selection(
                 console.print("[red]Invalid input[/red]")
 
 
+def _check_existing_episode(output_dir: Path) -> List[str]:
+    """Check what files already exist in episode directory.
+
+    Returns list of descriptions of existing files.
+    """
+    existing = []
+
+    # Check for audio files
+    for ext in [".wav", ".mp3", ".m4a"]:
+        audio_files = list(output_dir.glob(f"*{ext}"))
+        if audio_files:
+            existing.append(f"Audio: {audio_files[0].name}")
+            break
+
+    # Check for transcript
+    if (output_dir / "transcript.json").exists():
+        existing.append("Transcript")
+
+    # Check for analysis
+    if (output_dir / "analysis.json").exists():
+        existing.append("Analysis")
+
+    return existing
+
+
 def _run_interactive(fetcher: PodcastFetcher) -> Optional[Dict[str, Any]]:
     """Run full interactive flow: search → select show → select episode → download.
 
@@ -353,10 +378,9 @@ def _run_interactive(fetcher: PodcastFetcher) -> Optional[Dict[str, Any]]:
             # Step 3: Download
             # episode is Dict[str, Any] at this point
             episode_dict: Dict[str, Any] = episode
-            console.print(f"\n[cyan]Downloading:[/cyan] {episode_dict.get('title', 'Unknown')}")
 
             try:
-                # Download audio
+                # Check if episode directory already exists
                 from podx.utils import generate_workdir
 
                 episode_date = (
@@ -364,6 +388,48 @@ def _run_interactive(fetcher: PodcastFetcher) -> Optional[Dict[str, Any]]:
                 )
                 episode_title = episode_dict.get("title", "")
                 output_dir = generate_workdir(show_name, episode_date, episode_title)
+
+                # Check for existing episode data
+                if output_dir.exists():
+                    existing_files = _check_existing_episode(output_dir)
+                    if existing_files:
+                        console.print(
+                            f"\n[yellow]Episode already exists:[/yellow] {episode_dict.get('title', 'Unknown')}"
+                        )
+                        console.print(f"  Directory: {output_dir}")
+                        for desc in existing_files:
+                            console.print(f"  • {desc}")
+
+                        try:
+                            choice = input("\nUse existing data? [Y/n]: ").strip().lower()
+                        except (KeyboardInterrupt, EOFError):
+                            return None
+
+                        if choice not in ("n", "no"):
+                            # Return existing directory info
+                            meta_file = output_dir / "episode-meta.json"
+                            meta = {}
+                            if meta_file.exists():
+                                import json
+
+                                meta = json.loads(meta_file.read_text())
+
+                            # Find audio file
+                            audio_path = None
+                            for ext in [".wav", ".mp3", ".m4a"]:
+                                audio_files = list(output_dir.glob(f"*{ext}"))
+                                if audio_files:
+                                    audio_path = audio_files[0]
+                                    break
+
+                            return {
+                                "meta": meta,
+                                "meta_path": str(meta_file) if meta_file.exists() else None,
+                                "directory": str(output_dir),
+                                "audio_path": str(audio_path) if audio_path else None,
+                            }
+
+                console.print(f"\n[cyan]Downloading:[/cyan] {episode_dict.get('title', 'Unknown')}")
 
                 progress, progress_callback = _make_download_progress()
                 audio_path = fetcher.download_audio(
@@ -522,6 +588,40 @@ def main(
                 meta.get("title", "video"),
             )
 
+            # Check for existing episode data
+            if workdir.exists():
+                existing_files = _check_existing_episode(workdir)
+                if existing_files:
+                    console.print(
+                        f"\n[yellow]Episode already exists:[/yellow] {meta.get('title', 'Unknown')}"
+                    )
+                    console.print(f"  Directory: {workdir}")
+                    for desc in existing_files:
+                        console.print(f"  • {desc}")
+
+                    try:
+                        choice = input("\nUse existing data? [Y/n]: ").strip().lower()
+                    except (KeyboardInterrupt, EOFError):
+                        console.print("\n[dim]Cancelled[/dim]")
+                        sys.exit(0)
+
+                    if choice not in ("n", "no"):
+                        # Find audio file and exit with existing data
+                        audio_path = None
+                        for ext in [".wav", ".mp3", ".m4a"]:
+                            audio_files = list(workdir.glob(f"*{ext}"))
+                            if audio_files:
+                                audio_path = str(audio_files[0])
+                                break
+
+                        console.print(
+                            f"\n[green]✓ Using existing:[/green] {meta.get('title', 'Unknown')}"
+                        )
+                        if audio_path:
+                            console.print(f"  Audio: {audio_path}")
+                        console.print(f"  Directory: {workdir}")
+                        sys.exit(ExitCode.SUCCESS)
+
             progress, progress_callback = _make_download_progress()
             result = {
                 "meta": engine.fetch_episode(
@@ -640,9 +740,6 @@ def main(
             # episode is Dict[str, Any] at this point
             episode_dict: Dict[str, Any] = episode
 
-            # Download selected episode
-            console.print(f"\n[cyan]Downloading:[/cyan] {episode_dict.get('title', 'Unknown')}")
-
             import json
 
             from podx.utils import generate_workdir
@@ -650,6 +747,57 @@ def main(
             episode_date = episode_dict.get("published") or episode_dict.get("updated") or "unknown"
             episode_title = episode_dict.get("title", "")
             output_dir = generate_workdir(show_name or show or "", episode_date, episode_title)
+
+            # Check for existing episode data
+            if output_dir.exists():
+                existing_files = _check_existing_episode(output_dir)
+                if existing_files:
+                    console.print(
+                        f"\n[yellow]Episode already exists:[/yellow] {episode_dict.get('title', 'Unknown')}"
+                    )
+                    console.print(f"  Directory: {output_dir}")
+                    for desc in existing_files:
+                        console.print(f"  • {desc}")
+
+                    try:
+                        choice = input("\nUse existing data? [Y/n]: ").strip().lower()
+                    except (KeyboardInterrupt, EOFError):
+                        console.print("\n[dim]Cancelled[/dim]")
+                        sys.exit(0)
+
+                    if choice not in ("n", "no"):
+                        # Use existing data
+                        meta_file = output_dir / "episode-meta.json"
+                        meta = {}
+                        if meta_file.exists():
+                            meta = json.loads(meta_file.read_text())
+
+                        # Find audio file
+                        audio_path = None
+                        for ext in [".wav", ".mp3", ".m4a"]:
+                            audio_files = list(output_dir.glob(f"*{ext}"))
+                            if audio_files:
+                                audio_path = str(audio_files[0])
+                                break
+
+                        result = {
+                            "meta": meta,
+                            "meta_path": str(meta_file) if meta_file.exists() else None,
+                            "directory": str(output_dir),
+                            "audio_path": audio_path,
+                        }
+
+                        console.print(
+                            f"\n[green]✓ Using existing:[/green] {meta.get('episode_title', 'Unknown')}"
+                        )
+                        console.print(f"  Show: {meta.get('show', 'Unknown')}")
+                        if audio_path:
+                            console.print(f"  Audio: {audio_path}")
+                        console.print(f"  Directory: {output_dir}")
+                        sys.exit(ExitCode.SUCCESS)
+
+            # Download selected episode
+            console.print(f"\n[cyan]Downloading:[/cyan] {episode_dict.get('title', 'Unknown')}")
 
             progress, progress_callback = _make_download_progress()
             audio_path = fetcher.download_audio(
