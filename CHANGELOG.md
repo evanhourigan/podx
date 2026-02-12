@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.4.0] - 2026-02-12
+
+### 🚀 Cloud Transcription with R2 Storage
+
+Cloud transcription is now fully integrated with Cloudflare R2 for audio uploads, removing payload size limits.
+
+---
+
 ### ✨ Added
 
 - **RunPod cloud transcription with R2 storage** — Use `runpod:` model prefix for
@@ -27,13 +35,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Provider abstraction allows adding new backends without modifying existing code
   - Cloud handles memory-intensive processing, eliminating local chunking requirements
 
-- **Episode processing history** - Track all episodes you've processed with `podx history`
+- **Episode processing history** — Track all episodes you've processed with `podx history`
   - Records transcribe, diarize, cleanup, and analyze operations
   - Shows timestamps and models used for each step
   - Filter by show name: `podx history --show "Lenny"`
   - Filter by episode: `podx history --episode "marc"`
   - Detailed view: `podx history --detailed`
   - History stored at `~/.config/podx/history.json`
+
+## [4.3.1] - 2026-02-10
+
+### 🚀 Diarization Improvements
+
+Major improvements to speaker diarization reliability, with new verification tools and crash fixes.
+
+---
+
+### ✨ Added
 
 - **Audio playback during speaker verification** — Press `[p]` during `--verify` to hear
   audio clips and identify speakers by voice
@@ -42,14 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Cross-platform: macOS (`open`), Linux (`xdg-open`), Windows (`start`)
   - Automatic cleanup of temporary audio clips
 
-- **Transcript reset for re-diarization**
-
-### 🐛 Fixed
-
-- **Diarization "float division by zero" crash** — Alignment no longer fails when
-  transcript contains problematic segments (empty text, zero duration, missing timing)
-  - Segments are sanitized before passing to WhisperX alignment
-  - Clear error message if no valid segments remain after sanitization — `podx diarize --reset` restores transcript
+- **Transcript reset for re-diarization** — `podx diarize --reset` restores transcript
   from `transcript.aligned.json` to allow re-processing after cleanup
   - Clears `cleaned` and `restored` flags that block diarization
   - Combine with `--verify` to fix speaker swaps: `podx diarize . --reset --verify`
@@ -63,9 +74,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Swap speakers within a chunk if labels are incorrect
   - Apply speaker names to replace generic SPEAKER_XX IDs
 
+### 🐛 Fixed
+
+- **Diarization "float division by zero" crash** — Alignment no longer fails when
+  transcript contains problematic segments (empty text, zero duration, missing timing)
+  - Segments are sanitized before passing to WhisperX alignment
+  - Clear error message if no valid segments remain after sanitization
+
 - **Cumulative speaker matching** — Improved speaker re-identification across chunks
   - Matches against averaged embeddings from ALL previous chunks, not just the previous one
   - Reduces speaker matching errors from ~5% to ~2-3%
+
+- **Reduced noisy warnings** — Ad classification and restore no longer spam warnings
+
+- **Rich markup escaping** — Fixed yellow highlighting on colons in playback prompts
+
+- **Short segment filtering** — Segments too short for alignment model are now filtered
 
 ## [4.3.0] - 2025-02-03
 
