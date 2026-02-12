@@ -1,7 +1,7 @@
 """CLI commands for cloud acceleration.
 
 Provides setup wizard and management commands for RunPod
-cloud transcription.
+cloud transcription and diarization.
 """
 
 import sys
@@ -23,7 +23,7 @@ def main() -> None:
 
     \b
     Commands:
-      setup     Configure RunPod cloud transcription
+      setup     Configure RunPod cloud processing
       status    Check cloud configuration status
 
     \b
@@ -32,52 +32,80 @@ def main() -> None:
       podx cloud status    # Check if configured
 
     \b
-    After setup, use cloud transcription with:
+    After setup, use cloud processing with:
       podx transcribe --model runpod:large-v3-turbo ./episode/
+      podx diarize --provider runpod ./episode/
     """
     pass
 
 
 @main.command()
 def setup() -> None:
-    """Configure RunPod cloud transcription.
+    """Configure RunPod cloud processing.
 
-    Interactive wizard to configure RunPod API credentials.
-    Cloud transcription is ~20-30x faster than local processing.
+    Interactive wizard to configure RunPod API credentials for
+    cloud transcription and diarization.
 
     \b
     Steps:
       1. Enter RunPod API key (from runpod.io/console)
-      2. Enter endpoint ID (from deployed faster-whisper template)
-      3. Test connection
+      2. Enter transcription endpoint ID (faster-whisper template)
+      3. Optionally enter diarization endpoint ID (pyannote template)
+      4. Test connections
 
     \b
     Pricing:
-      ~$0.05-0.10 per hour of podcast audio
-      Based on GPU-seconds used (~$0.067/hr for A4000)
+      Transcription: ~$0.05-0.10 per hour of podcast audio
+      Diarization: ~$0.10-0.20 per hour (more GPU-intensive)
     """
     console.print("\n[bold]RunPod Cloud Setup[/bold]\n")
-    console.print("Cloud transcription is ~20-30x faster than local processing.")
-    console.print("Pricing: ~$0.05-0.10 per hour of podcast audio\n")
+    console.print("Cloud processing is ~20-30x faster than local.")
+    console.print("Pricing: ~$0.05-0.20 per hour of podcast audio\n")
 
     # Step 1: API Key
     api_key = _setup_api_key()
     if not api_key:
         sys.exit(1)
 
-    # Step 2: Endpoint ID
-    endpoint_id = _setup_endpoint_id(api_key)
+    # Step 2: Transcription Endpoint ID
+    endpoint_id = _setup_endpoint_id(api_key, "transcription", "runpod-endpoint-id")
     if not endpoint_id:
         sys.exit(1)
 
-    # Step 3: Save configuration
+    # Step 3: Save API key and transcription endpoint
     _set_value("runpod-api-key", api_key)
     _set_value("runpod-endpoint-id", endpoint_id)
 
-    console.print("\n[green]Cloud setup complete![/green]")
+    # Step 4: Optional Diarization Endpoint
+    console.print("\n[bold]Step 3: Diarization Endpoint (Optional)[/bold]")
+    console.print("Cloud diarization offloads speaker identification to cloud GPUs.")
+    console.print("[dim]Skip this if you only need transcription.[/dim]\n")
+
+    if Confirm.ask("Configure cloud diarization?", default=False):
+        diarize_endpoint_id = _setup_endpoint_id(
+            api_key, "diarization", "runpod-diarize-endpoint-id"
+        )
+        if diarize_endpoint_id:
+            _set_value("runpod-diarize-endpoint-id", diarize_endpoint_id)
+            console.print("\n[green]Cloud setup complete![/green]")
+            console.print("\n[dim]Usage:[/dim]")
+            console.print("  podx transcribe --model runpod:large-v3-turbo ./episode/")
+            console.print("  podx diarize --provider runpod ./episode/")
+            console.print("  podx run --model runpod:large-v3-turbo ./episode/\n")
+        else:
+            console.print("\n[yellow]Diarization skipped.[/yellow]")
+            _print_transcription_usage()
+    else:
+        console.print("\n[green]Cloud setup complete![/green]")
+        _print_transcription_usage()
+
+
+def _print_transcription_usage() -> None:
+    """Print transcription-only usage instructions."""
     console.print("\n[dim]Usage:[/dim]")
     console.print("  podx transcribe --model runpod:large-v3-turbo ./episode/")
-    console.print("  podx run --model runpod:large-v3-turbo ./episode/\n")
+    console.print("  podx run --model runpod:large-v3-turbo ./episode/")
+    console.print("\n[dim]To add cloud diarization later, run 'podx cloud setup' again.[/dim]\n")
 
 
 def _setup_api_key() -> Optional[str]:
@@ -119,12 +147,28 @@ def _setup_api_key() -> Optional[str]:
     return api_key
 
 
-def _setup_endpoint_id(api_key: str) -> Optional[str]:
-    """Set up RunPod endpoint ID."""
+def _setup_endpoint_id(
+    api_key: str, endpoint_type: str = "transcription", config_key: str = "runpod-endpoint-id"
+) -> Optional[str]:
+    """Set up RunPod endpoint ID.
+
+    Args:
+        api_key: RunPod API key for validation
+        endpoint_type: Type of endpoint ("transcription" or "diarization")
+        config_key: Config key to check for existing value
+    """
+    # Template suggestions based on endpoint type
+    if endpoint_type == "transcription":
+        template_name = "faster-whisper"
+        step_num = "2"
+    else:
+        template_name = "pyannote"
+        step_num = "3"
+
     # Check for existing endpoint
-    existing_endpoint = _get_value("runpod-endpoint-id")
+    existing_endpoint = _get_value(config_key)
     if existing_endpoint:
-        console.print(f"\n[dim]Found existing endpoint: {existing_endpoint}[/dim]")
+        console.print(f"\n[dim]Found existing {endpoint_type} endpoint: {existing_endpoint}[/dim]")
         if Confirm.ask("Use existing endpoint?", default=True):
             # Validate existing endpoint
             if _validate_endpoint(api_key, existing_endpoint):
@@ -136,16 +180,26 @@ def _setup_endpoint_id(api_key: str) -> Optional[str]:
                 )
 
     # Get new endpoint
-    console.print("\n[bold]Step 2: Endpoint ID[/bold]")
-    console.print("You need a faster-whisper serverless endpoint.")
-    console.print(
-        "Deploy from: [link=https://runpod.io/console/serverless]https://runpod.io/console/serverless[/link]"
-    )
-    console.print("[dim](Search for 'faster-whisper' in templates)[/dim]\n")
+    if endpoint_type == "transcription":
+        console.print(f"\n[bold]Step {step_num}: Transcription Endpoint ID[/bold]")
+        console.print("You need a faster-whisper serverless endpoint.")
+        console.print(
+            "Deploy from: [link=https://runpod.io/console/serverless]"
+            "https://runpod.io/console/serverless[/link]"
+        )
+        console.print(f"[dim](Search for '{template_name}' in templates)[/dim]\n")
+    else:
+        console.print(f"\n[bold]Step {step_num}: Diarization Endpoint ID[/bold]")
+        console.print("You need a pyannote diarization serverless endpoint.")
+        console.print(
+            "Deploy from: [link=https://runpod.io/console/serverless]"
+            "https://runpod.io/console/serverless[/link]"
+        )
+        console.print("[dim](Search for 'pyannote' or deploy custom handler)[/dim]\n")
 
-    endpoint_id = Prompt.ask("Enter endpoint ID after deployment").strip()
+    endpoint_id = Prompt.ask(f"Enter {endpoint_type} endpoint ID").strip()
     if not endpoint_id:
-        console.print("[red]Error: Endpoint ID is required[/red]")
+        console.print(f"[red]Error: {endpoint_type.title()} endpoint ID is required[/red]")
         return None
 
     # Validate
@@ -191,8 +245,8 @@ def _validate_endpoint(api_key: str, endpoint_id: str) -> bool:
 def status() -> None:
     """Check cloud configuration status.
 
-    Shows whether RunPod cloud transcription is configured
-    and the endpoint is responding.
+    Shows whether RunPod cloud processing is configured
+    and endpoints are responding.
     """
     console.print("\n[bold]Cloud Status[/bold]\n")
 
@@ -200,25 +254,48 @@ def status() -> None:
     api_key = _get_value("runpod-api-key")
     if api_key:
         masked = api_key[:8] + "..." if len(api_key) > 8 else "[set]"
-        console.print(f"  API Key:     [green]{masked}[/green]")
+        console.print(f"  API Key:              [green]{masked}[/green]")
     else:
-        console.print("  API Key:     [red]not set[/red]")
+        console.print("  API Key:              [red]not set[/red]")
 
-    # Check endpoint ID
+    # Check transcription endpoint ID
     endpoint_id = _get_value("runpod-endpoint-id")
     if endpoint_id:
-        console.print(f"  Endpoint ID: [green]{endpoint_id}[/green]")
+        console.print(f"  Transcription:        [green]{endpoint_id}[/green]")
     else:
-        console.print("  Endpoint ID: [red]not set[/red]")
+        console.print("  Transcription:        [red]not set[/red]")
 
-    # Test connection if both are set
-    if api_key and endpoint_id:
-        console.print("\n[dim]Testing connection...[/dim]")
-        if _validate_endpoint(api_key, endpoint_id):
-            console.print("[green]Endpoint is responding[/green]")
-        else:
-            console.print("[yellow]Endpoint not responding (may be cold)[/yellow]")
-            console.print("[dim]First request will take ~30s to warm up[/dim]")
+    # Check diarization endpoint ID
+    diarize_endpoint_id = _get_value("runpod-diarize-endpoint-id")
+    if diarize_endpoint_id:
+        console.print(f"  Diarization:          [green]{diarize_endpoint_id}[/green]")
+    else:
+        console.print("  Diarization:          [dim]not set (optional)[/dim]")
+
+    # Test connections if API key is set
+    if api_key:
+        console.print()
+
+        # Test transcription endpoint
+        if endpoint_id:
+            console.print("[dim]Testing transcription endpoint...[/dim]")
+            if _validate_endpoint(api_key, endpoint_id):
+                console.print("[green]Transcription endpoint responding[/green]")
+            else:
+                console.print(
+                    "[yellow]Transcription endpoint not responding (may be cold)[/yellow]"
+                )
+
+        # Test diarization endpoint
+        if diarize_endpoint_id:
+            console.print("[dim]Testing diarization endpoint...[/dim]")
+            if _validate_endpoint(api_key, diarize_endpoint_id):
+                console.print("[green]Diarization endpoint responding[/green]")
+            else:
+                console.print("[yellow]Diarization endpoint not responding (may be cold)[/yellow]")
+
+        if not endpoint_id and not diarize_endpoint_id:
+            console.print("[dim]No endpoints configured. Run 'podx cloud setup'[/dim]")
     else:
         console.print("\n[dim]Run 'podx cloud setup' to configure[/dim]")
 

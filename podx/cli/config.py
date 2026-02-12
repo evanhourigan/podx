@@ -76,14 +76,19 @@ CONFIG_KEYS: Dict[str, Dict[str, Any]] = {
     },
     # RunPod cloud settings
     "runpod-api-key": {
-        "description": "RunPod API key for cloud transcription",
+        "description": "RunPod API key for cloud processing",
         "secret": True,
         "env_var": "RUNPOD_API_KEY",
     },
     "runpod-endpoint-id": {
-        "description": "RunPod serverless endpoint ID",
+        "description": "RunPod endpoint ID for transcription",
         "secret": True,
         "env_var": "RUNPOD_ENDPOINT_ID",
+    },
+    "runpod-diarize-endpoint-id": {
+        "description": "RunPod endpoint ID for diarization",
+        "secret": True,
+        "env_var": "RUNPOD_DIARIZE_ENDPOINT_ID",
     },
 }
 
