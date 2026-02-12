@@ -33,6 +33,7 @@ from .download_progress import DownloadProgress
 from .episode_selector import RequiredArtifact, scan_episode_status, select_episode_interactive
 from .formatters import clean_cell, sanitize_filename
 from .live_timer import LiveTimer
+from .live_timer_progress import LiveTimerProgressReporter
 from .prompts import (
     get_asr_models_help,
     get_export_formats_help,
@@ -78,6 +79,7 @@ __all__ = [
     "Confirmation",
     "DownloadProgress",
     "LiveTimer",
+    "LiveTimerProgressReporter",
     "clean_cell",
     "get_most_sophisticated_model",
     "sanitize_filename",

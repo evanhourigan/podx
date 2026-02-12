@@ -38,7 +38,7 @@ def _run_transcribe_step(episode_dir: Path, model: Optional[str] = None) -> bool
     from podx.cli.transcribe import _find_audio_file
     from podx.config import get_config
     from podx.core.transcribe import TranscriptionEngine, TranscriptionError
-    from podx.ui import LiveTimer
+    from podx.ui import LiveTimer, LiveTimerProgressReporter
 
     console.print("\n[bold cyan]── Transcribe ─────────────────────────────────────[/bold cyan]")
 
@@ -60,10 +60,11 @@ def _run_transcribe_step(episode_dir: Path, model: Optional[str] = None) -> bool
     console.print(f"[dim]Transcribing with {model}...[/dim]")
 
     timer = LiveTimer("Transcribing")
+    progress = LiveTimerProgressReporter(timer)
     timer.start()
 
     try:
-        engine = TranscriptionEngine(model=model)
+        engine = TranscriptionEngine(model=model, progress=progress)
         result = engine.transcribe(audio_file)
     except TranscriptionError as e:
         timer.stop()

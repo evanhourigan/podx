@@ -19,6 +19,7 @@ from podx.errors import AudioError
 from podx.logging import get_logger
 from podx.ui import (
     LiveTimer,
+    LiveTimerProgressReporter,
     get_asr_models_help,
     get_languages_help,
     prompt_with_help,
@@ -226,8 +227,9 @@ def main(path: Optional[Path], model: Optional[str], language: Optional[str]):
     if language != "auto":
         console.print(f"[cyan]Language:[/cyan] {language}")
 
-    # Start timer
+    # Start timer with progress reporter
     timer = LiveTimer("Transcribing")
+    progress = LiveTimerProgressReporter(timer)
     timer.start()
 
     try:
@@ -237,16 +239,12 @@ def main(path: Optional[Path], model: Optional[str], language: Optional[str]):
         if ":" in model:
             provider, model_name = model.split(":", 1)
 
-        def progress_callback(msg: str):
-            # Update the timer message
-            timer.message = msg
-
         engine = TranscriptionEngine(
             model=model_name,
             provider=provider,
             compute_type=None,  # Auto-detect
             device=None,  # Auto-detect
-            progress=progress_callback,
+            progress=progress,
         )
 
         result = engine.transcribe(audio_file)
