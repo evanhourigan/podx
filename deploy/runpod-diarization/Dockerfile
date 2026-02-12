@@ -12,10 +12,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
+# WhisperX must be installed from GitHub
 RUN pip install --no-cache-dir \
     runpod \
-    whisperx \
     pyannote.audio \
+    git+https://github.com/m-bain/whisperx.git \
     && pip cache purge
 
 # Copy handler
