@@ -9,13 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ Added
 
-- **Cloudflare R2 storage for cloud transcription** — Audio files are now uploaded to
-  R2 and passed via presigned URL instead of inline base64 encoding
+- **RunPod cloud transcription with R2 storage** — Use `runpod:` model prefix for
+  cloud-accelerated transcription (~20-30x faster than local)
+  - `podx transcribe --model runpod:large-v3-turbo ./episode/`
+  - Audio uploaded to Cloudflare R2 (free tier), passed via presigned URL
   - Removes payload size limits for long podcasts (2+ hours)
-  - R2 free tier: 10GB storage, no egress fees
   - Automatic cleanup after transcription completes
-  - New setup wizard steps: `podx cloud setup` now configures R2
+  - `podx cloud setup` configures both RunPod and R2
+  - `podx cloud clear` removes all cloud configuration
   - Config keys: `r2-account-id`, `r2-bucket-name`, `r2-access-key-id`, `r2-secret-access-key`
+  - New optional dependency group: `pip install podx[cloud]`
 
 - **Cloud diarization support** — Offload speaker diarization to RunPod cloud GPUs
   - New `--provider` option: `podx diarize --provider runpod ./episode/`
