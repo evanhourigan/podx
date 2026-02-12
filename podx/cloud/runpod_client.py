@@ -20,6 +20,10 @@ from .exceptions import (
     UploadError,
 )
 
+# Retry configuration
+MAX_SUBMIT_RETRIES = 3
+RETRY_DELAY_SECONDS = 5
+
 logger = get_logger(__name__)
 
 
@@ -114,14 +118,31 @@ class RunPodClient:
         if language != "auto":
             payload["input"]["language"] = language
 
-        # Submit job
-        try:
-            response = self.client.post(
-                f"{self.config.base_url}/run",
-                json=payload,
-            )
-        except httpx.RequestError as e:
-            raise UploadError(f"Network error: {e}", cause=e)
+        # Submit job with retry logic
+        last_error: Optional[Exception] = None
+        for attempt in range(MAX_SUBMIT_RETRIES):
+            try:
+                response = self.client.post(
+                    f"{self.config.base_url}/run",
+                    json=payload,
+                )
+                break  # Success
+            except httpx.RequestError as e:
+                last_error = e
+                if attempt < MAX_SUBMIT_RETRIES - 1:
+                    logger.warning(
+                        "Job submission failed, retrying",
+                        attempt=attempt + 1,
+                        error=str(e),
+                    )
+                    time.sleep(RETRY_DELAY_SECONDS * (attempt + 1))
+                else:
+                    raise UploadError(
+                        f"Network error after {MAX_SUBMIT_RETRIES} attempts: {e}",
+                        cause=e,
+                    )
+        else:
+            raise UploadError(f"Network error: {last_error}", cause=last_error)
 
         # Handle response
         if response.status_code == 401:

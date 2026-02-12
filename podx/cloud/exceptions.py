@@ -89,9 +89,14 @@ class CloudTimeoutError(CloudError):
     """
 
     def __init__(self, job_id: str, timeout_seconds: int):
+        minutes = timeout_seconds // 60
         message = (
-            f"Transcription job {job_id} timed out after {timeout_seconds} seconds. "
-            "The endpoint may be experiencing high load."
+            f"Transcription job {job_id} timed out after {minutes} minutes. "
+            "This can happen if:\n"
+            "  • The endpoint is cold (no active workers) - try again in a few minutes\n"
+            "  • High queue load - workers may be busy with other jobs\n"
+            "  • Audio is very long - increase timeout with RUNPOD_TIMEOUT env var\n"
+            "Try: RUNPOD_TIMEOUT=3600 podx transcribe ... (for 1 hour timeout)"
         )
         super().__init__(message, recoverable=True)
         self.job_id = job_id

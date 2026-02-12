@@ -23,7 +23,7 @@ class CloudConfig:
         r2_access_key_id: R2 API token access key ID
         r2_secret_access_key: R2 API token secret access key
         r2_bucket_name: R2 bucket name for audio uploads
-        timeout_seconds: Maximum time to wait for job completion (default: 600s/10min)
+        timeout_seconds: Maximum time to wait for job completion (default: 1800s/30min)
         poll_interval_seconds: How often to check job status (default: 2.0s)
         enable_fallback: Whether to fall back to local on failure (default: True)
     """
@@ -40,7 +40,7 @@ class CloudConfig:
     r2_bucket_name: Optional[str] = None
 
     # Settings
-    timeout_seconds: int = 600  # 10 minutes max
+    timeout_seconds: int = 1800  # 30 minutes max (long podcasts can take 20+ min)
     poll_interval_seconds: float = 2.0
     enable_fallback: bool = True
 
@@ -59,14 +59,14 @@ class CloudConfig:
             R2_ACCESS_KEY_ID: R2 API token access key
             R2_SECRET_ACCESS_KEY: R2 API token secret
             R2_BUCKET_NAME: R2 bucket name
-            RUNPOD_TIMEOUT: Optional timeout in seconds (default: 600)
+            RUNPOD_TIMEOUT: Optional timeout in seconds (default: 1800)
             RUNPOD_POLL_INTERVAL: Optional poll interval (default: 2.0)
             RUNPOD_ENABLE_FALLBACK: Optional fallback flag (default: true)
 
         Returns:
             CloudConfig populated from environment
         """
-        timeout_str = os.getenv("RUNPOD_TIMEOUT", "600")
+        timeout_str = os.getenv("RUNPOD_TIMEOUT", "1800")
         poll_str = os.getenv("RUNPOD_POLL_INTERVAL", "2.0")
         fallback_str = os.getenv("RUNPOD_ENABLE_FALLBACK", "true").lower()
 
@@ -103,7 +103,7 @@ class CloudConfig:
         r2_bucket_name = _get_value("r2-bucket-name")
 
         # Fall back to env vars for timeout/poll/fallback (not in podx config)
-        timeout_str = os.getenv("RUNPOD_TIMEOUT", "600")
+        timeout_str = os.getenv("RUNPOD_TIMEOUT", "1800")
         poll_str = os.getenv("RUNPOD_POLL_INTERVAL", "2.0")
         fallback_str = os.getenv("RUNPOD_ENABLE_FALLBACK", "true").lower()
 
