@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ Added
 
+- **Cloud diarization support** — Offload speaker diarization to RunPod cloud GPUs
+  - New `--provider` option: `podx diarize --provider runpod ./episode/`
+  - Requires `RUNPOD_DIARIZE_ENDPOINT_ID` environment variable (separate from transcription)
+  - Automatic fallback to local processing on cloud failure
+  - Provider abstraction allows adding new backends without modifying existing code
+  - Cloud handles memory-intensive processing, eliminating local chunking requirements
+
 - **Episode processing history** - Track all episodes you've processed with `podx history`
   - Records transcribe, diarize, cleanup, and analyze operations
   - Shows timestamps and models used for each step

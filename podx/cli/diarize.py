@@ -1,6 +1,7 @@
 """CLI wrapper for diarize command.
 
 Simplified v4.0 command that operates on episode directories.
+Supports both local (pyannote) and cloud (RunPod) diarization.
 """
 
 import json
@@ -13,6 +14,7 @@ from typing import Any, Optional
 import click
 from rich.console import Console
 
+from podx.core.diarization import DiarizationProviderError, get_diarization_provider
 from podx.core.diarize import (
     DiarizationEngine,
     DiarizationError,
@@ -75,7 +77,19 @@ def _find_audio_file(directory: Path) -> Optional[Path]:
     default=False,
     help="Reset transcript from transcript.aligned.json before diarizing",
 )
-def main(path: Optional[Path], speakers: Optional[int], verify: bool, reset: bool):
+@click.option(
+    "--provider",
+    type=click.Choice(["local", "runpod"]),
+    default="local",
+    help="Diarization provider (default: local)",
+)
+def main(
+    path: Optional[Path],
+    speakers: Optional[int],
+    verify: bool,
+    reset: bool,
+    provider: str,
+):
     """Add speaker labels to a transcript.
 
     \b
@@ -89,7 +103,8 @@ def main(path: Optional[Path], speakers: Optional[int], verify: bool, reset: boo
       - Episode must have transcript.json (run 'podx transcribe' first)
       - Episode must have audio file (audio.wav or audio.mp3)
       - First run downloads ~1GB pyannote model (cached after)
-      - Requires HUGGINGFACE_TOKEN environment variable
+      - Local provider requires HUGGINGFACE_TOKEN environment variable
+      - RunPod provider requires RUNPOD_API_KEY and RUNPOD_DIARIZE_ENDPOINT_ID
 
     \b
     Examples:
@@ -99,6 +114,7 @@ def main(path: Optional[Path], speakers: Optional[int], verify: bool, reset: boo
       podx diarize . --verify                   # Verify speaker labels after chunking
       podx diarize . --reset                    # Reset from aligned transcript and re-diarize
       podx diarize . --reset --verify           # Reset and verify speakers
+      podx diarize . --provider runpod          # Use cloud GPU for diarization
     """
     # Track if we're in interactive mode (for verification prompt)
     interactive_mode = path is None
@@ -216,18 +232,29 @@ def main(path: Optional[Path], speakers: Optional[int], verify: bool, reset: boo
     # Display info
     console.print(f"[cyan]Diarizing:[/cyan] {audio_file.name}")
     console.print(f"[cyan]Transcript:[/cyan] {transcript_path.name}")
+    console.print(f"[cyan]Provider:[/cyan] {provider}")
     if speakers:
         console.print(f"[cyan]Expected speakers:[/cyan] {speakers}")
     else:
         console.print("[cyan]Expected speakers:[/cyan] auto-detect")
-    console.print(f"[cyan]Memory:[/cyan] {available_gb:.1f} GB available / {total_gb:.1f} GB total")
-    if audio_duration_minutes > 0:
-        console.print(f"[cyan]Audio duration:[/cyan] {audio_duration_minutes:.0f} minutes")
-        memory_status = "✓" if not needs_chunking else "✗"
-        console.print(f"[cyan]Estimated memory:[/cyan] {estimated_memory:.1f} GB {memory_status}")
 
-    # Show chunking warning if needed
-    if needs_chunking:
+    # Memory info only relevant for local provider
+    if provider == "local":
+        console.print(
+            f"[cyan]Memory:[/cyan] {available_gb:.1f} GB available / {total_gb:.1f} GB total"
+        )
+        if audio_duration_minutes > 0:
+            console.print(f"[cyan]Audio duration:[/cyan] {audio_duration_minutes:.0f} minutes")
+            memory_status = "✓" if not needs_chunking else "✗"
+            console.print(
+                f"[cyan]Estimated memory:[/cyan] {estimated_memory:.1f} GB {memory_status}"
+            )
+    else:
+        if audio_duration_minutes > 0:
+            console.print(f"[cyan]Audio duration:[/cyan] {audio_duration_minutes:.0f} minutes")
+
+    # Show chunking warning if needed (only for local provider)
+    if provider == "local" and needs_chunking:
         num_chunks = int((audio_duration_minutes * 60) / (chunk_duration * 60 - 30)) + 1
         console.print()
         console.print("[yellow][!] Chunked diarization required[/yellow]")
@@ -260,7 +287,7 @@ def main(path: Optional[Path], speakers: Optional[int], verify: bool, reset: boo
             except (KeyboardInterrupt, EOFError):
                 console.print("\n[dim]Cancelled[/dim]")
                 sys.exit(0)
-    elif batch_size < 32:
+    elif provider == "local" and batch_size < 32:
         console.print(f"[dim]Using reduced batch size ({batch_size}) for memory efficiency[/dim]")
 
     # Start timer
@@ -271,20 +298,55 @@ def main(path: Optional[Path], speakers: Optional[int], verify: bool, reset: boo
         """Update the timer message for step transitions."""
         timer.message = msg
 
+    # Initialize variables for result handling
+    result: dict[str, Any] = {}
+    engine: Optional[DiarizationEngine] = None
+    diarization_result = None
+    chunk_info = None
+
     try:
-        engine = DiarizationEngine(
-            language=language,
-            device=None,  # Auto-detect
-            hf_token=os.getenv("HUGGINGFACE_TOKEN"),
-            num_speakers=speakers,
-            progress_callback=progress_callback,
-        )
-        # Suppress WhisperX debug output during diarization
-        with (
-            redirect_stdout(open(os.devnull, "w")),
-            redirect_stderr(open(os.devnull, "w")),
-        ):
-            result = engine.diarize(audio_file, transcript["segments"])
+        if provider == "runpod":
+            # Use cloud diarization provider
+            from podx.cloud import CloudError
+
+            try:
+                diarization_provider = get_diarization_provider(
+                    provider_name="runpod",
+                    language=language,
+                    num_speakers=speakers,
+                    progress_callback=progress_callback,
+                )
+                diarization_result = diarization_provider.diarize(
+                    audio_file, transcript["segments"]
+                )
+                result = {"segments": diarization_result.segments}
+
+            except CloudError as e:
+                timer.stop()
+                console.print(f"[red]Cloud Error:[/red] {e}")
+                console.print(
+                    "[dim]Check RUNPOD_API_KEY and RUNPOD_DIARIZE_ENDPOINT_ID are set[/dim]"
+                )
+                sys.exit(ExitCode.PROCESSING_ERROR)
+            except DiarizationProviderError as e:
+                timer.stop()
+                console.print(f"[red]Diarization Error:[/red] {e}")
+                sys.exit(ExitCode.PROCESSING_ERROR)
+        else:
+            # Use local diarization engine (original behavior)
+            engine = DiarizationEngine(
+                language=language,
+                device=None,  # Auto-detect
+                hf_token=os.getenv("HUGGINGFACE_TOKEN"),
+                num_speakers=speakers,
+                progress_callback=progress_callback,
+            )
+            # Suppress WhisperX debug output during diarization
+            with (
+                redirect_stdout(open(os.devnull, "w")),
+                redirect_stderr(open(os.devnull, "w")),
+            ):
+                result = engine.diarize(audio_file, transcript["segments"])
 
     except DiarizationError as e:
         timer.stop()
@@ -304,6 +366,7 @@ def main(path: Optional[Path], speakers: Optional[int], verify: bool, reset: boo
     transcript["segments"] = result["segments"]
     transcript["diarized"] = True
     transcript["audio_path"] = str(audio_file)
+    transcript["diarization_provider"] = provider
 
     # Count speakers before verification
     speakers_found = set()
@@ -313,17 +376,22 @@ def main(path: Optional[Path], speakers: Optional[int], verify: bool, reset: boo
 
     # Show initial completion
     console.print(f"\n[green]✓ Diarization complete ({minutes}:{seconds:02d})[/green]")
+    console.print(f"  Provider: {provider}")
     console.print(f"  Speakers found: {len(speakers_found)}")
 
-    # Show chunking info if it was used
-    chunk_info = None
-    if hasattr(engine, "_chunking_info") and engine._chunking_info.get("needs_chunking"):
-        chunk_count: Any = engine._chunking_info.get("num_chunks")
-        console.print(f"  Chunks processed: {chunk_count if chunk_count else '?'}")
+    # Show chunking info if it was used (local provider only)
+    if provider == "local" and engine is not None:
+        if hasattr(engine, "_chunking_info") and engine._chunking_info.get("needs_chunking"):
+            chunk_count: Any = engine._chunking_info.get("num_chunks")
+            console.print(f"  Chunks processed: {chunk_count if chunk_count else '?'}")
 
-        # Get chunk info for verification
-        if hasattr(engine, "_chunk_info"):
-            chunk_info = engine._chunk_info
+            # Get chunk info for verification
+            if hasattr(engine, "_chunk_info"):
+                chunk_info = engine._chunk_info
+    elif provider == "runpod" and diarization_result is not None:
+        # Cloud provider might also have chunk info
+        if diarization_result.chunked and diarization_result.chunk_info:
+            chunk_info = diarization_result.chunk_info
 
     # Run speaker verification if requested and we have chunk info
     speaker_names: dict[str, str] = {}
@@ -374,10 +442,12 @@ def main(path: Optional[Path], speakers: Optional[int], verify: bool, reset: boo
         except Exception:
             pass  # Non-fatal
 
+    # Use provider-specific model name for history
+    diarize_model = "pyannote" if provider == "local" else "runpod:pyannote"
     record_processing_event(
         episode_dir=episode_dir,
         step="diarize",
-        model="pyannote",
+        model=diarize_model,
         show=episode_meta.get("show"),
         episode_title=episode_meta.get("episode_title", episode_dir.name),
     )
