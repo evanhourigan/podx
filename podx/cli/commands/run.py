@@ -31,7 +31,7 @@ def _run_fetch_step() -> Optional[Path]:
     return Path(result["directory"])
 
 
-def _run_transcribe_step(episode_dir: Path) -> bool:
+def _run_transcribe_step(episode_dir: Path, model: Optional[str] = None) -> bool:
     """Run transcribe step. Returns True on success."""
     import json
 
@@ -54,7 +54,9 @@ def _run_transcribe_step(episode_dir: Path) -> bool:
         console.print("[red]Error:[/red] No audio file found")
         return False
 
-    model = get_config().default_asr_model
+    # Use provided model or default from config
+    if model is None:
+        model = get_config().default_asr_model
     console.print(f"[dim]Transcribing with {model}...[/dim]")
 
     timer = LiveTimer("Transcribing")
@@ -73,6 +75,9 @@ def _run_transcribe_step(episode_dir: Path) -> bool:
     seconds = int(elapsed % 60)
 
     result["audio_path"] = str(audio_file)
+    result["diarized"] = False
+    result["cleaned"] = False
+    result["restored"] = False
     transcript_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
 
     console.print(f"[green]✓ Transcription complete ({minutes}:{seconds:02d})[/green]")
@@ -364,17 +369,29 @@ def _run_export_step(episode_dir: Path) -> bool:
 
 
 @click.command("run", context_settings={"max_content_width": 120})
-def run():
+@click.option(
+    "--model",
+    "-m",
+    default=None,
+    help="Transcription model (e.g., base, large-v3, runpod:large-v3-turbo).",
+)
+def run(model: Optional[str]):
     """Run the full podcast processing pipeline interactively.
 
     \b
-    No options - walks you through each step:
+    Walks you through each step:
       1. Fetch: Search and download episode
       2. Transcribe: Convert audio to text
       3. Diarize: Add speaker labels
       4. Cleanup: Clean up transcript text
       5. Analyze: Generate AI analysis
       6. Export: Create markdown files
+
+    \b
+    Examples:
+      podx run                              # Use default transcription model
+      podx run --model large-v3             # Use local large-v3 model
+      podx run --model runpod:large-v3-turbo  # Use RunPod cloud
 
     \b
     For scripting, use individual commands:
@@ -392,7 +409,7 @@ def run():
             sys.exit(0)
 
         # Step 2: Transcribe
-        if not _run_transcribe_step(episode_dir):
+        if not _run_transcribe_step(episode_dir, model=model):
             sys.exit(ExitCode.PROCESSING_ERROR)
 
         # Step 3: Diarize
