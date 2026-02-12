@@ -35,6 +35,18 @@ LOCAL_MODEL_ALIASES: Dict[str, str] = {
     "medium": "medium",
 }
 
+RUNPOD_MODEL_ALIASES: Dict[str, str] = {
+    "large-v3-turbo": "large-v3-turbo",
+    "turbo": "large-v3-turbo",
+    "large-v3": "large-v3",
+    "large-v2": "large-v2",
+    "large": "large-v3",
+    "medium": "medium",
+    "small": "small",
+    "base": "base",
+    "tiny": "tiny",
+}
+
 
 class TranscriptionError(Exception):
     """Raised when transcription fails."""
@@ -67,7 +79,7 @@ def parse_model_and_provider(model_arg: str, provider_arg: Optional[str] = None)
     detected_provider = None
     if ":" in model_arg:
         prefix, remainder = model_arg.split(":", 1)
-        if prefix in {"local", "openai", "hf"}:
+        if prefix in {"local", "openai", "hf", "runpod"}:
             detected_provider = prefix
             model_key = remainder
         else:
@@ -83,6 +95,9 @@ def parse_model_and_provider(model_arg: str, provider_arg: Optional[str] = None)
     if provider == "hf":
         normalized = HF_MODEL_ALIASES.get(model_key, model_key)
         return ("hf", normalized)
+    if provider == "runpod":
+        normalized = RUNPOD_MODEL_ALIASES.get(model_key, model_key)
+        return ("runpod", normalized)
 
     # local
     normalized = LOCAL_MODEL_ALIASES.get(model_key, model_key)
@@ -191,6 +206,8 @@ class TranscriptionEngine:
             return self._transcribe_openai(audio_path)
         elif self.provider == "hf":
             return self._transcribe_huggingface(audio_path)
+        elif self.provider == "runpod":
+            return self._transcribe_runpod(audio_path)
         else:
             raise TranscriptionError(f"Unknown ASR provider: {self.provider}")
 
@@ -374,6 +391,90 @@ class TranscriptionEngine:
 
         except Exception as e:
             raise TranscriptionError(f"Hugging Face transcription failed: {e}") from e
+
+    def _transcribe_runpod(self, audio_path: Path) -> Dict[str, Any]:
+        """Transcribe using RunPod cloud GPU with R2 storage."""
+        self._report_progress("Initializing cloud transcription...")
+
+        try:
+            from ..cloud import CloudConfig, CloudStorage, RunPodClient
+        except ImportError:
+            raise TranscriptionError(
+                "Cloud dependencies not installed. Install with: pip install boto3 httpx"
+            )
+
+        # Load config from podx config system
+        try:
+            config = CloudConfig.from_podx_config()
+            config.validate()
+        except Exception as e:
+            raise TranscriptionError(f"Cloud not configured: {e}. Run 'podx cloud setup'.") from e
+
+        storage = CloudStorage(config)
+        client = RunPodClient(config)
+        r2_key: Optional[str] = None
+
+        try:
+            # Step 1: Upload audio to R2
+            self._report_progress("Uploading audio to R2...")
+            audio_url, r2_key = storage.upload_and_presign(audio_path)
+
+            # Step 2: Submit job with presigned URL
+            self._report_progress("Submitting transcription job...")
+            job_id = client.submit_job(
+                audio_url=audio_url,
+                model=self.normalized_model,
+                language="auto",
+            )
+
+            # Step 3: Wait for completion
+            self._report_progress("Transcribing on cloud GPU...")
+            result = client.wait_for_completion(
+                job_id=job_id,
+                progress_callback=self._report_progress,
+            )
+
+            # Step 4: Convert result to standard format
+            segments_raw = result.get("segments", [])
+            segments: List[Dict[str, Any]] = []
+            text_lines: List[str] = []
+
+            for seg in segments_raw:
+                segment = {
+                    "start": seg.get("start", 0.0),
+                    "end": seg.get("end", 0.0),
+                    "text": seg.get("text", "").strip(),
+                }
+                segments.append(segment)
+                if segment["text"]:
+                    text_lines.append(segment["text"])
+
+            language = result.get("language", "en")
+
+            logger.info(
+                "RunPod transcription completed",
+                segments_count=len(segments),
+                language=language,
+            )
+
+            return {
+                "audio_path": str(audio_path.resolve()),
+                "language": language,
+                "asr_model": self.normalized_model,
+                "asr_provider": "runpod",
+                "decoder_options": None,
+                "segments": segments,
+                "text": "\n".join(text_lines).strip(),
+            }
+
+        except Exception as e:
+            raise TranscriptionError(f"RunPod transcription failed: {e}") from e
+
+        finally:
+            # Always clean up R2 upload
+            if r2_key:
+                storage.delete(r2_key)
+            client.close()
 
 
 # Convenience functions for direct use

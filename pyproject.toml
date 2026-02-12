@@ -50,6 +50,10 @@ server = [
   "slowapi~=0.1.9",
   "python-multipart~=0.0.20",  # Required for form data handling
 ]
+cloud = [
+  "boto3>=1.34.0",   # R2/S3 storage
+  "httpx>=0.27.0",   # RunPod API client
+]
 dev = [
   "pytest~=8.4.2",
   "pytest-asyncio~=1.2.0",

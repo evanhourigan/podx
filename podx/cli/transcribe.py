@@ -107,7 +107,12 @@ def main(path: Optional[Path], model: Optional[str], language: Optional[str]):
       local:tiny            Fastest, lowest accuracy
 
     \b
-    Models - Cloud (requires API key):
+    Models - RunPod Cloud (requires 'podx cloud setup'):
+      runpod:large-v3-turbo  ~$0.05/hr, fastest cloud option
+      runpod:large-v3        ~$0.05/hr, best quality
+
+    \b
+    Models - OpenAI (requires API key):
       openai:whisper-1  $0.006/min, requires OPENAI_API_KEY
 
     \b

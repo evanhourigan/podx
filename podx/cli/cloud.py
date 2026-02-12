@@ -451,5 +451,28 @@ def status() -> None:
     console.print()
 
 
+@main.command()
+def clear() -> None:
+    """Remove all cloud configuration.
+
+    Clears RunPod and R2 settings. Transcription will use local processing.
+    """
+    if not Confirm.ask("Remove all cloud configuration?", default=False):
+        console.print("[dim]Cancelled[/dim]")
+        return
+
+    # Clear all cloud settings
+    _set_value("runpod-api-key", "")
+    _set_value("runpod-endpoint-id", "")
+    _set_value("runpod-diarize-endpoint-id", "")
+    _set_value("r2-account-id", "")
+    _set_value("r2-bucket-name", "")
+    _set_value("r2-access-key-id", "")
+    _set_value("r2-secret-access-key", "")
+
+    console.print("[green]Cloud configuration cleared.[/green]")
+    console.print("[dim]Transcription will use local processing.[/dim]\n")
+
+
 if __name__ == "__main__":
     main()

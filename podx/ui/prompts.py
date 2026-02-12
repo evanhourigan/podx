@@ -94,7 +94,19 @@ def validate_asr_model(model: str) -> bool:
     # HuggingFace models
     hf_models = {"hf:distil-large-v3"}
 
-    all_models = local_models | cloud_models | hf_models
+    # RunPod cloud models
+    runpod_models = {
+        "runpod:large-v3-turbo",
+        "runpod:turbo",
+        "runpod:large-v3",
+        "runpod:large-v2",
+        "runpod:medium",
+        "runpod:small",
+        "runpod:base",
+        "runpod:tiny",
+    }
+
+    all_models = local_models | cloud_models | hf_models | runpod_models
     return model.lower() in {m.lower() for m in all_models}
 
 
@@ -237,7 +249,11 @@ def get_asr_models_help() -> str:
   local:base            Fast, lower accuracy
   local:tiny            Fastest, lowest accuracy
 
-Models - Cloud (requires API key):
+Models - RunPod Cloud (requires 'podx cloud setup'):
+  runpod:large-v3-turbo  ~$0.05/hr, fastest cloud option
+  runpod:large-v3        ~$0.05/hr, best quality
+
+Models - OpenAI (requires API key):
   openai:whisper-1  $0.006/min, requires OPENAI_API_KEY
 
 Models - HuggingFace (downloads locally, free):
