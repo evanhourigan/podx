@@ -10,6 +10,7 @@ import base64
 import os
 import tempfile
 from pathlib import Path
+from urllib.request import urlretrieve
 
 import runpod
 
@@ -88,7 +89,8 @@ def handler(job: dict) -> dict:
     """RunPod handler for diarization jobs.
 
     Input:
-        audio_base64: Base64-encoded audio file
+        audio_url: URL to download audio file (preferred for large files)
+        audio_base64: Base64-encoded audio file (alternative to audio_url)
         transcript_segments: List of {start, end, text} segments
         num_speakers: Optional exact number of speakers
         min_speakers: Optional minimum speakers
@@ -104,6 +106,7 @@ def handler(job: dict) -> dict:
     job_input = job.get("input", {})
 
     # Extract inputs
+    audio_url = job_input.get("audio_url")
     audio_base64 = job_input.get("audio_base64")
     transcript_segments = job_input.get("transcript_segments", [])
     num_speakers = job_input.get("num_speakers")
@@ -111,16 +114,22 @@ def handler(job: dict) -> dict:
     max_speakers = job_input.get("max_speakers")
     language = job_input.get("language", "en")
 
-    if not audio_base64:
-        return {"error": "Missing audio_base64"}
+    if not audio_url and not audio_base64:
+        return {"error": "Missing audio_url or audio_base64"}
 
     if not transcript_segments:
         return {"error": "Missing transcript_segments"}
 
-    # Decode audio to temp file
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-        audio_path = Path(f.name)
-        f.write(base64.b64decode(audio_base64))
+    # Get audio to temp file (URL download or base64 decode)
+    if audio_url:
+        print("Downloading audio from URL...")
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+            audio_path = Path(f.name)
+        urlretrieve(audio_url, str(audio_path))
+    else:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+            audio_path = Path(f.name)
+            f.write(base64.b64decode(audio_base64))
 
     try:
         # Sanitize segments
