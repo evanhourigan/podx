@@ -13,14 +13,15 @@ RUN apt-get update && apt-get install -y \
 
 # Install Python dependencies
 # WhisperX must be installed from GitHub
-# pyannote.audio can pull in an incompatible torchvision, so we
-# reinstall the CUDA 12.4 build matching the base image's PyTorch 2.4.0 last.
-RUN pip install --no-cache-dir \
-    runpod \
-    pyannote.audio \
-    git+https://github.com/m-bain/whisperx.git \
-    && pip install --no-cache-dir torchvision==0.19.0+cu124 \
-       --index-url https://download.pytorch.org/whl/cu124 \
+# Pin torch + torchvision from the base image so pyannote.audio/whisperx
+# cannot upgrade them to incompatible versions.
+RUN python -c "import torch; print(f'torch=={torch.__version__}'); import torchvision; print(f'torchvision=={torchvision.__version__}')" > /tmp/constraints.txt \
+    && cat /tmp/constraints.txt \
+    && pip install --no-cache-dir -c /tmp/constraints.txt \
+       runpod \
+       pyannote.audio \
+       git+https://github.com/m-bain/whisperx.git \
+    && rm /tmp/constraints.txt \
     && pip cache purge
 
 # Copy handler

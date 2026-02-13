@@ -36,6 +36,8 @@ jobs:
         with:
           context: deploy/runpod-diarization
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/podx-diarization:latest
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/podx-diarization:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/podx-diarization:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
