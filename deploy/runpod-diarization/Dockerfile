@@ -13,10 +13,13 @@ RUN apt-get update && apt-get install -y \
 
 # Install Python dependencies
 # WhisperX must be installed from GitHub
+# pyannote.audio can pull in an incompatible torchvision, so we
+# reinstall the version matching the base image's PyTorch 2.4.0 last.
 RUN pip install --no-cache-dir \
     runpod \
     pyannote.audio \
     git+https://github.com/m-bain/whisperx.git \
+    && pip install --no-cache-dir torchvision==0.19.0 \
     && pip cache purge
 
 # Copy handler
