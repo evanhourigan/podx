@@ -82,7 +82,7 @@ def generate_workdir(show_name: str, episode_date: str, title: str = "") -> Path
     Args:
         show_name: Name of the podcast show
         episode_date: Episode publication date (will be parsed and formatted)
-        title: Optional episode title (will be slugified and truncated to 20 chars)
+        title: Optional episode title (will be slugified)
 
     Returns:
         Path object for the work directory
@@ -104,9 +104,7 @@ def generate_workdir(show_name: str, episode_date: str, title: str = "") -> Path
 
     # Add slugified title if provided
     if title:
-        # Truncate to 20 chars before slugifying to keep URL manageable
-        truncated = title[:20].strip()
-        title_slug = slugify(truncated, separator="-")
+        title_slug = slugify(title, separator="-")
         if title_slug:  # Only add if slugification produced something
             date_str = f"{date_str}-{title_slug}"
 
