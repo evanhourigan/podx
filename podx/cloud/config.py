@@ -151,6 +151,9 @@ class CloudConfig:
     def validate_for_diarization(self) -> None:
         """Validate that configuration is complete for diarization.
 
+        Requires RunPod API key, diarization endpoint, and R2 storage
+        (audio is uploaded to R2 and a presigned URL is sent to the endpoint).
+
         Raises:
             CloudError: If required configuration is missing
         """
@@ -163,6 +166,16 @@ class CloudConfig:
             raise CloudError(
                 "RUNPOD_DIARIZE_ENDPOINT_ID not set. "
                 "Set the environment variable or run 'podx cloud setup' to configure.",
+                recoverable=False,
+            )
+        if not self.r2_account_id or not self.r2_bucket_name:
+            raise CloudError(
+                "Cloudflare R2 not configured. Run 'podx cloud setup' to configure.",
+                recoverable=False,
+            )
+        if not self.r2_access_key_id or not self.r2_secret_access_key:
+            raise CloudError(
+                "R2 API credentials not set. Run 'podx cloud setup' to configure.",
                 recoverable=False,
             )
         self._validated = True

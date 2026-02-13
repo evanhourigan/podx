@@ -6,7 +6,6 @@ with optional fallback to local processing on failure.
 
 from __future__ import annotations
 
-import base64
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -21,6 +20,7 @@ from ...cloud.exceptions import (
     JobFailedError,
     UploadError,
 )
+from ...cloud.storage import CloudStorage
 from ...logging import get_logger
 from .base import (
     DiarizationConfig,
@@ -43,12 +43,13 @@ class RunPodDiarizationProvider(DiarizationProvider):
     (unless disabled).
 
     The cloud endpoint is expected to:
-    1. Receive audio (base64) and transcript segments
+    1. Receive audio URL (presigned R2 URL) and transcript segments
     2. Run pyannote diarization
     3. Return speaker-labeled segments
 
     Features:
     - Cloud-accelerated pyannote diarization
+    - Audio uploaded to R2 with presigned URL (avoids RunPod 10MB payload limit)
     - Automatic retry with local fallback
     - Progress callbacks for status updates
 
@@ -91,6 +92,9 @@ class RunPodDiarizationProvider(DiarizationProvider):
         # Create HTTP client
         self._client: Optional[httpx.Client] = None
 
+        # R2 storage for audio upload
+        self._storage: Optional[CloudStorage] = None
+
         # Lazy-init fallback provider
         self._fallback_provider: Optional["LocalDiarizationProvider"] = None
 
@@ -108,6 +112,13 @@ class RunPodDiarizationProvider(DiarizationProvider):
                 headers=self.cloud_config.headers,
             )
         return self._client
+
+    @property
+    def storage(self) -> CloudStorage:
+        """Get or create R2 storage client."""
+        if self._storage is None:
+            self._storage = CloudStorage(self.cloud_config)
+        return self._storage
 
     @property
     def fallback_provider(self) -> Optional["LocalDiarizationProvider"]:
@@ -169,54 +180,53 @@ class RunPodDiarizationProvider(DiarizationProvider):
         transcript_segments: List[Dict[str, Any]],
     ) -> DiarizationResult:
         """Perform cloud diarization."""
-        # Submit job with audio and segments
-        self._report_progress("Uploading audio to RunPod...")
-        job_id = self._submit_job(audio_path, transcript_segments)
+        # Step 1: Upload audio to R2
+        self._report_progress("Uploading audio to R2...")
+        audio_url, r2_key = self.storage.upload_and_presign(audio_path)
 
-        # Wait for completion
-        self._report_progress("Diarizing on cloud GPU...")
-        result = self._wait_for_completion(job_id)
+        try:
+            # Step 2: Submit job with presigned URL
+            self._report_progress("Submitting diarization job...")
+            job_id = self._submit_job(audio_url, transcript_segments)
+
+            # Step 3: Wait for completion
+            self._report_progress("Diarizing on cloud GPU...")
+            result = self._wait_for_completion(job_id)
+        finally:
+            # Step 4: Clean up R2 object
+            self.storage.delete(r2_key)
 
         # Convert result to DiarizationResult
         return self._convert_result(result, audio_path)
 
     def _submit_job(
         self,
-        audio_path: Path,
+        audio_url: str,
         transcript_segments: List[Dict[str, Any]],
     ) -> str:
-        """Submit a diarization job with audio and transcript data.
+        """Submit a diarization job with audio URL and transcript data.
 
         Args:
-            audio_path: Path to audio file
+            audio_url: Presigned R2 URL to audio file
             transcript_segments: Transcript segments with timing
 
         Returns:
             Job ID for tracking
 
         Raises:
-            UploadError: If audio encoding or upload fails
+            UploadError: If submission fails
             CloudAuthError: If API key is invalid
             EndpointNotFoundError: If endpoint doesn't exist
         """
-        # Read and base64 encode audio
-        try:
-            audio_bytes = audio_path.read_bytes()
-            audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
-        except Exception as e:
-            raise UploadError(f"Failed to read audio file: {e}", cause=e)
-
-        file_size_mb = len(audio_bytes) / (1024 * 1024)
         logger.info(
             "Submitting diarization job",
-            audio_size_mb=round(file_size_mb, 2),
             segments_count=len(transcript_segments),
         )
 
         # Build request payload
         payload = {
             "input": {
-                "audio_base64": audio_base64,
+                "audio_url": audio_url,
                 "transcript_segments": transcript_segments,
                 "num_speakers": self.config.num_speakers,
                 "min_speakers": self.config.min_speakers,
