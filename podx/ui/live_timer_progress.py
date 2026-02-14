@@ -54,7 +54,27 @@ class LiveTimerProgressReporter(ProgressReporter):
             step: Optional current step number (ignored)
             progress: Optional progress percentage (ignored for timer display)
         """
-        self.timer.update_message(message)
+        # Cloud polling messages contain '...' with elapsed time — show as substatus
+        if "..." in message and "(" in message:
+            activity = message.split("...")[0].strip() + "..."
+            self.timer.update_message(activity)
+            self.timer.update_substatus(message)
+        else:
+            self.timer.update_message(message)
+            self.timer.update_substatus(None)
+
+    def report(self, message: str) -> None:
+        """Simple string callback for cloud progress with substatus support.
+
+        Splits messages with '...' into activity + substatus detail.
+        """
+        if "..." in message:
+            activity = message.split("...")[0].strip() + "..."
+            self.timer.update_message(activity)
+            self.timer.update_substatus(message)
+        else:
+            self.timer.update_message(message)
+            self.timer.update_substatus(None)
 
     def complete_step(self, message: str, duration: Optional[float] = None) -> None:
         """Mark current step as complete.

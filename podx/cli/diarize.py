@@ -298,6 +298,18 @@ def main(
         """Update the timer message for step transitions."""
         timer.message = msg
 
+    def cloud_progress(msg: str) -> None:
+        """Update timer with cloud status as activity + substatus detail."""
+        # Split status into activity type and detail
+        # e.g. "Waiting for GPU worker... (42s)" -> activity + substatus
+        if "..." in msg:
+            activity = msg.split("...")[0].strip() + "..."
+            timer.update_message(activity)
+            timer.update_substatus(msg)
+        else:
+            timer.update_message(msg)
+            timer.update_substatus(None)
+
     # Initialize variables for result handling
     result: dict[str, Any] = {}
     engine: Optional[DiarizationEngine] = None
@@ -314,7 +326,7 @@ def main(
                     provider_name="runpod",
                     language=language,
                     num_speakers=speakers,
-                    progress_callback=progress_callback,
+                    progress_callback=cloud_progress,
                 )
                 diarization_result = diarization_provider.diarize(
                     audio_file, transcript["segments"]

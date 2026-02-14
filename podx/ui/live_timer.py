@@ -18,6 +18,10 @@ class LiveTimer:
         self._stdout: IO[str] = sys.stdout
         # Track longest message length for proper line clearing
         self._max_line_length: int = 0
+        # Substatus line (second line below timer)
+        self._substatus: Optional[str] = None
+        self._max_sub_length: int = 0
+        self._showing_substatus: bool = False
 
     def _format_time(self, seconds: int) -> str:
         """Format seconds as M:SS."""
@@ -35,13 +39,44 @@ class LiveTimer:
             if line_length < self._max_line_length:
                 line += " " * (self._max_line_length - line_length)
             self._max_line_length = max(self._max_line_length, line_length)
-            self._stdout.write(line)
+
+            # Build substatus line if present
+            if self._substatus:
+                sub_line = f"\n    {self._substatus}"
+                sub_visible = len(sub_line) - 1  # Don't count \n
+                if sub_visible < self._max_sub_length:
+                    sub_line += " " * (self._max_sub_length - sub_visible)
+                self._max_sub_length = max(self._max_sub_length, sub_visible)
+                # Move cursor up if we already showed a substatus
+                if self._showing_substatus:
+                    self._stdout.write("\033[A")  # Move up one line
+                self._stdout.write(line + sub_line)
+                self._showing_substatus = True
+            else:
+                if self._showing_substatus:
+                    # Clear substatus line and move back up
+                    self._stdout.write("\033[A")
+                    self._stdout.write(line)
+                    self._stdout.write("\n" + " " * (self._max_sub_length + 4) + "\033[A")
+                    self._showing_substatus = False
+                    self._max_sub_length = 0
+                else:
+                    self._stdout.write(line)
+
             self._stdout.flush()
             time.sleep(1)
 
     def update_message(self, message: str) -> None:
         """Update the timer message (for step transitions)."""
         self.message = message
+
+    def update_substatus(self, message: Optional[str]) -> None:
+        """Update the substatus line below the timer.
+
+        Args:
+            message: Detail message to show, or None to clear.
+        """
+        self._substatus = message
 
     def start(self) -> None:
         """Start the timer."""
@@ -57,8 +92,19 @@ class LiveTimer:
         self.stop_flag.set()
         if self.thread:
             self.thread.join(timeout=2)
-        # Clear the line using tracked max length (plus buffer)
+        # Clear the substatus line if showing
         clear_length = max(self._max_line_length + 10, 80)
-        self._stdout.write("\r" + " " * clear_length + "\r")
+        if self._showing_substatus:
+            # Clear substatus line, move up, clear main line
+            sub_clear = max(self._max_sub_length + 10, 80)
+            self._stdout.write("\033[A")  # Move up
+            self._stdout.write("\r" + " " * clear_length)  # Clear main line
+            self._stdout.write("\n" + " " * sub_clear)  # Clear sub line
+            self._stdout.write("\033[A\r")  # Move back up to start
+            self._showing_substatus = False
+        else:
+            self._stdout.write("\r" + " " * clear_length + "\r")
         self._stdout.flush()
+        self._substatus = None
+        self._max_sub_length = 0
         return elapsed

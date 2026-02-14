@@ -99,7 +99,7 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
     from podx.cli.diarize import _find_audio_file
     from podx.core.diarization import DiarizationProviderError, get_diarization_provider
     from podx.core.diarize import DiarizationEngine, DiarizationError
-    from podx.ui import LiveTimer, LiveTimerProgressReporter
+    from podx.ui import LiveTimer
 
     console.print("\n[bold cyan]── Diarize ────────────────────────────────────────[/bold cyan]")
 
@@ -129,14 +129,22 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
         console.print("[dim]Diarizing on cloud GPU...[/dim]")
 
         timer = LiveTimer("Diarizing")
-        progress = LiveTimerProgressReporter(timer)
         timer.start()
+
+        def cloud_progress(msg: str) -> None:
+            if "..." in msg:
+                activity = msg.split("...")[0].strip() + "..."
+                timer.update_message(activity)
+                timer.update_substatus(msg)
+            else:
+                timer.update_message(msg)
+                timer.update_substatus(None)
 
         try:
             provider = get_diarization_provider(
                 "runpod",
                 language=language,
-                progress_callback=progress.report,
+                progress_callback=cloud_progress,
             )
             result = provider.diarize(audio_file, transcript["segments"])
             segments = result.segments

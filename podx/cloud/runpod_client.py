@@ -216,18 +216,20 @@ class RunPodClient:
             status_data = self.get_status(job_id)
             status = status_data.get("status", "UNKNOWN")
 
-            # Report progress on status change
+            # Log on status change
             if status != last_status:
                 last_status = status
-                message = self._format_status_message(status, elapsed)
-                if progress_callback:
-                    progress_callback(message)
                 logger.debug(
                     "Job status update",
                     job_id=job_id,
                     status=status,
                     elapsed=round(elapsed, 1),
                 )
+
+            # Report progress on every poll so the UI stays fresh
+            message = self._format_status_message(status, elapsed)
+            if progress_callback:
+                progress_callback(message)
 
             # Check terminal states
             if status == self.STATUS_COMPLETED:
