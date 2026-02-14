@@ -124,6 +124,18 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
 
     language = transcript.get("language", "en")
 
+    # Audio preprocessing: create denoised audio for diarization
+    diarize_audio = audio_file
+    diarize_audio_path = None
+    try:
+        from podx.core.transcode import create_diarize_audio
+
+        diarize_audio_path = episode_dir / "audio_diarize.wav"
+        create_diarize_audio(audio_file, diarize_audio_path)
+        diarize_audio = diarize_audio_path
+    except Exception:
+        diarize_audio_path = None
+
     if use_cloud:
         # Cloud diarization via RunPod
         console.print("[dim]Diarizing on cloud GPU...[/dim]")
@@ -146,11 +158,13 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
                 language=language,
                 progress_callback=cloud_progress,
             )
-            result = provider.diarize(audio_file, transcript["segments"])
+            result = provider.diarize(diarize_audio, transcript["segments"])
             segments = result.segments
             speakers_count = result.speakers_count
         except DiarizationProviderError as e:
             timer.stop()
+            if diarize_audio_path and diarize_audio_path.exists():
+                diarize_audio_path.unlink()
             console.print(f"[red]Error:[/red] {e}")
             return False
 
@@ -171,16 +185,22 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
                     language=language,
                     hf_token=os.getenv("HUGGINGFACE_TOKEN"),
                 )
-                result = engine.diarize(audio_file, transcript["segments"])
+                result = engine.diarize(diarize_audio, transcript["segments"])
                 segments = result["segments"]
                 speakers = set(s.get("speaker") for s in segments if s.get("speaker"))
                 speakers_count = len(speakers)
         except DiarizationError as e:
             timer.stop()
+            if diarize_audio_path and diarize_audio_path.exists():
+                diarize_audio_path.unlink()
             console.print(f"[red]Error:[/red] {e}")
             return False
 
         elapsed = timer.stop()
+
+    # Clean up preprocessed audio
+    if diarize_audio_path and diarize_audio_path.exists():
+        diarize_audio_path.unlink()
 
     minutes = int(elapsed // 60)
     seconds = int(elapsed % 60)

@@ -83,12 +83,19 @@ def _find_audio_file(directory: Path) -> Optional[Path]:
     default="local",
     help="Diarization provider (default: local)",
 )
+@click.option(
+    "--no-denoise",
+    is_flag=True,
+    default=False,
+    help="Skip audio preprocessing (highpass + FFT denoise) before diarization",
+)
 def main(
     path: Optional[Path],
     speakers: Optional[int],
     verify: bool,
     reset: bool,
     provider: str,
+    no_denoise: bool,
 ):
     """Add speaker labels to a transcript.
 
@@ -115,6 +122,7 @@ def main(
       podx diarize . --reset                    # Reset from aligned transcript and re-diarize
       podx diarize . --reset --verify           # Reset and verify speakers
       podx diarize . --provider runpod          # Use cloud GPU for diarization
+      podx diarize . --no-denoise               # Skip audio denoising
     """
     # Track if we're in interactive mode (for verification prompt)
     interactive_mode = path is None
@@ -316,6 +324,21 @@ def main(
     diarization_result = None
     chunk_info = None
 
+    # Audio preprocessing: create denoised audio for diarization
+    diarize_audio = audio_file
+    diarize_audio_path: Optional[Path] = None
+    if not no_denoise:
+        from podx.core.transcode import TranscodeError, create_diarize_audio
+
+        diarize_audio_path = episode_dir / "audio_diarize.wav"
+        try:
+            progress_callback("Preprocessing audio for diarization...")
+            create_diarize_audio(audio_file, diarize_audio_path)
+            diarize_audio = diarize_audio_path
+        except (TranscodeError, FileNotFoundError) as e:
+            logger.warning("Audio preprocessing failed, using original", error=str(e))
+            diarize_audio_path = None
+
     try:
         if provider == "runpod":
             # Use cloud diarization provider
@@ -329,7 +352,7 @@ def main(
                     progress_callback=cloud_progress,
                 )
                 diarization_result = diarization_provider.diarize(
-                    audio_file, transcript["segments"]
+                    diarize_audio, transcript["segments"]
                 )
                 result = {"segments": diarization_result.segments}
 
@@ -358,7 +381,7 @@ def main(
                 redirect_stdout(open(os.devnull, "w")),
                 redirect_stderr(open(os.devnull, "w")),
             ):
-                result = engine.diarize(audio_file, transcript["segments"])
+                result = engine.diarize(diarize_audio, transcript["segments"])
 
     except DiarizationError as e:
         timer.stop()
@@ -368,6 +391,10 @@ def main(
         timer.stop()
         console.print(f"[red]File Not Found:[/red] {e}")
         sys.exit(ExitCode.USER_ERROR)
+
+    # Clean up preprocessed audio
+    if diarize_audio_path and diarize_audio_path.exists():
+        diarize_audio_path.unlink()
 
     # Stop timer
     elapsed = timer.stop()

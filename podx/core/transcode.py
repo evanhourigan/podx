@@ -264,3 +264,53 @@ def transcode_to_aac(
     """
     engine = TranscodeEngine(format="aac", bitrate=bitrate)
     return engine.transcode(source, output_dir)
+
+
+def create_diarize_audio(source: Path, output: Path) -> Path:
+    """Create a denoised audio file optimized for diarization.
+
+    Applies highpass filter (100 Hz) and FFT-based denoising to reduce
+    echo/reverb that confuses pyannote's speaker embeddings.
+
+    Args:
+        source: Path to source audio file
+        output: Path for output WAV file
+
+    Returns:
+        Path to the created file
+
+    Raises:
+        TranscodeError: If ffmpeg processing fails
+        FileNotFoundError: If source file doesn't exist
+    """
+    if not source.exists():
+        raise FileNotFoundError(f"Source audio file not found: {source}")
+
+    try:
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-i",
+                str(source),
+                "-af",
+                "highpass=f=100,afftdn=nf=-20",
+                "-ac",
+                "1",
+                "-ar",
+                "16000",
+                "-vn",
+                str(output),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        raise TranscodeError(f"Diarize audio preprocessing failed: {e.stderr}")
+
+    logger.info("Created diarize audio", source=str(source), output=str(output))
+    return output
