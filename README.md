@@ -15,14 +15,13 @@ Transform podcast audio into structured insights with AI-powered transcription, 
 
 ---
 
-## 🆕 v4.1.0 - Cloud GPU Acceleration
+## 🆕 v4.5.0 - Cloud Progress & Audio Denoising
 
-**New Feature: RunPod Cloud Transcription & Diarization (~20-30x faster!)**
+**Cloud Progress:** Cloud polling now shows a live substatus line with elapsed time
+(e.g., "Waiting for GPU worker... (42s)") so you always know what's happening.
 
-Offload transcription and diarization to cloud GPUs for dramatically faster processing:
-- 1-hour podcast: ~60-90 minutes → ~2-4 minutes
-- Cost: ~$0.05-0.10 per hour of audio
-- Automatic fallback to local if cloud fails
+**Audio Denoising:** Diarization now applies highpass + FFT denoise to audio before
+speaker identification, reducing echo/reverb confusion. Use `--no-denoise` to skip.
 
 ```bash
 # One-time setup
@@ -34,15 +33,12 @@ podx run --cloud
 # Or specify model explicitly
 podx transcribe --model runpod:large-v3-turbo ./episode/
 podx diarize --provider runpod ./episode/
+
+# Skip denoising if needed
+podx diarize ./episode/ --no-denoise
 ```
 
-**v4.0.0 Changes:**
-- Directory-based workflow (no more stdin/stdout JSON piping)
-- `deepcast` renamed to `analyze`
-- Interactive mode when no arguments provided
-- Simplified file naming: `transcript.json`, `analysis.json`
-
-**Migrating from v3.x?** Key changes: directory-based workflow, `deepcast` → `analyze`, simplified CLI options.
+**Migrating from v4.x?** No breaking changes. Audio denoising is on by default.
 
 ---
 

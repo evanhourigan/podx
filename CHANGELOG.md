@@ -7,13 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.5.0] - 2026-02-14
+
 ### ✨ Added
+
+- **Cloud progress with substatus line** — Cloud polling now shows a second
+  indented detail line below the timer (e.g., "Waiting for GPU worker... (42s)")
+  - `LiveTimer.update_substatus()` for two-line ANSI display
+  - Status reported on every poll iteration, not just on status changes
+  - Works for both cloud transcription and cloud diarization
+
+- **Audio denoising before diarization** — Highpass filter (100 Hz) + FFT-based
+  denoising applied to audio before speaker diarization to reduce echo/reverb
+  that confuses pyannote's speaker embeddings
+  - New `create_diarize_audio()` in `podx.core.transcode`
+  - Preprocessed `audio_diarize.wav` used only for diarization; original audio
+    preserved for transcription
+  - `podx diarize --no-denoise` to skip preprocessing
+  - Automatic cleanup of preprocessed file after diarization
+  - Falls back to original audio on error
 
 - **`--cloud` flag for `podx run`** — Use cloud GPU for both transcription and diarization
   - `podx run --cloud` — one-command cloud pipeline
   - Defaults to `runpod:large-v3-turbo` model when `--cloud` is set
   - Cloud diarization via `RunPodDiarizationProvider`
-  - Real-time status updates during cloud diarization
 
 ## [4.4.0] - 2026-02-12
 
