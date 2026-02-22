@@ -157,7 +157,7 @@ class RunPodProvider(ASRProvider):
         except Exception as e:
             logger.error("Unexpected error during cloud transcription", error=str(e))
             if self.fallback_provider:
-                self._report_progress(f"Cloud error: {e}. Falling back to local...")
+                self._report_progress("Cloud transcription failed, falling back to local...")
                 return self.fallback_provider.transcribe(audio_path)
             raise TranscriptionError(f"Cloud transcription failed: {e}") from e
 
@@ -262,7 +262,7 @@ class RunPodProvider(ASRProvider):
         )
 
         if error.recoverable and self.fallback_provider:
-            self._report_progress(f"Cloud failed: {error}. Falling back to local...")
+            self._report_progress("Cloud transcription failed, falling back to local...")
             return self.fallback_provider.transcribe(audio_path)
 
         raise TranscriptionError(str(error)) from error

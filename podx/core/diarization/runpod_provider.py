@@ -170,7 +170,7 @@ class RunPodDiarizationProvider(DiarizationProvider):
         except Exception as e:
             logger.error("Unexpected error during cloud diarization", error=str(e))
             if self.fallback_provider:
-                self._report_progress(f"Cloud error: {e}. Falling back to local...")
+                self._report_progress("Cloud diarization failed, falling back to local...")
                 return self.fallback_provider.diarize(audio_path, transcript_segments)
             raise DiarizationProviderError(f"Cloud diarization failed: {e}") from e
 
@@ -425,7 +425,7 @@ class RunPodDiarizationProvider(DiarizationProvider):
         )
 
         if error.recoverable and self.fallback_provider:
-            self._report_progress(f"Cloud failed: {error}. Falling back to local...")
+            self._report_progress("Cloud diarization failed, falling back to local...")
             return self.fallback_provider.diarize(audio_path, transcript_segments)
 
         raise DiarizationProviderError(str(error)) from error
