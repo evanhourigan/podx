@@ -36,8 +36,8 @@ LOCAL_MODEL_ALIASES: Dict[str, str] = {
 }
 
 RUNPOD_MODEL_ALIASES: Dict[str, str] = {
-    "large-v3-turbo": "large-v3-turbo",
-    "turbo": "large-v3-turbo",
+    "large-v3-turbo": "turbo",
+    "turbo": "turbo",
     "large-v3": "large-v3",
     "large-v2": "large-v2",
     "large": "large-v3",
@@ -468,6 +468,14 @@ class TranscriptionEngine:
             }
 
         except Exception as e:
+            msg = str(e)
+            # Parse common RunPod errors into user-friendly messages
+            if "Invalid model name" in msg:
+                valid = sorted(RUNPOD_MODEL_ALIASES.keys())
+                raise TranscriptionError(
+                    f"Model '{self.normalized_model}' is not available on the RunPod endpoint. "
+                    f"Valid models: {', '.join(valid)}"
+                ) from e
             raise TranscriptionError(f"RunPod transcription failed: {e}") from e
 
         finally:
