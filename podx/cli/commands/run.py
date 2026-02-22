@@ -97,6 +97,7 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
     from contextlib import redirect_stderr, redirect_stdout
 
     from podx.cli.diarize import _find_audio_file
+    from podx.cloud import CloudConfig
     from podx.cloud.exceptions import CloudError
     from podx.core.diarization import DiarizationProviderError, get_diarization_provider
     from podx.core.diarize import DiarizationEngine, DiarizationError
@@ -137,7 +138,18 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
     except Exception:
         diarize_audio_path = None
 
+    # Check if cloud diarization is actually configured
+    cloud_diarize_available = False
     if use_cloud:
+        try:
+            cloud_config = CloudConfig.from_podx_config()
+            cloud_diarize_available = cloud_config.is_diarization_configured
+        except Exception:
+            pass
+        if not cloud_diarize_available:
+            console.print("[dim]Cloud diarization not configured, using local...[/dim]")
+
+    if use_cloud and cloud_diarize_available:
         # Cloud diarization via RunPod
         console.print("[dim]Diarizing on cloud GPU...[/dim]")
 
