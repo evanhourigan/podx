@@ -420,9 +420,11 @@ class RunPodDiarizationProvider(DiarizationProvider):
         logger.warning(
             "Cloud diarization failed",
             error=str(error),
-            recoverable=error.recoverable,
             fallback_enabled=self.cloud_config.enable_fallback,
         )
+        # Full raw error for debugging (not shown in normal output)
+        if hasattr(error, "raw_error"):
+            logger.debug("RunPod raw error", raw_error=error.raw_error)
 
         if error.recoverable and self.fallback_provider:
             self._report_progress("Cloud diarization failed, falling back to local...")

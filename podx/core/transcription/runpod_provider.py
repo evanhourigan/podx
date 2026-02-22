@@ -257,9 +257,10 @@ class RunPodProvider(ASRProvider):
         logger.warning(
             "Cloud transcription failed",
             error=str(error),
-            recoverable=error.recoverable,
             fallback_enabled=self.cloud_config.enable_fallback,
         )
+        if hasattr(error, "raw_error"):
+            logger.debug("RunPod raw error", raw_error=error.raw_error)
 
         if error.recoverable and self.fallback_provider:
             self._report_progress("Cloud transcription failed, falling back to local...")

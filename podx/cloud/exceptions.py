@@ -75,9 +75,34 @@ class JobFailedError(CloudError):
     """
 
     def __init__(self, job_id: str, error_message: str):
-        message = f"Transcription job {job_id} failed: {error_message}"
+        # Try to extract a clean summary from RunPod's JSON error format
+        self.raw_error = error_message
+        summary = self._parse_error(error_message)
+        message = f"Job {job_id} failed: {summary}"
         super().__init__(message, recoverable=True)
         self.job_id = job_id
+
+    @staticmethod
+    def _parse_error(error_message: str) -> str:
+        """Extract a human-readable summary from RunPod error JSON."""
+        import json
+
+        try:
+            data = json.loads(error_message)
+            error_type = data.get("error_type", "")
+            error_msg = data.get("error_message", "")
+            if error_msg:
+                # Clean up the error_type (e.g., "<class 'OSError'>" -> "OSError")
+                if error_type:
+                    error_type = error_type.strip("<>").replace("class ", "").strip("'")
+                    return f"{error_type}: {error_msg}"
+                return error_msg
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            pass
+        # If not JSON or parsing fails, truncate long messages
+        if len(error_message) > 200:
+            return error_message[:200] + "..."
+        return error_message
 
 
 class CloudTimeoutError(CloudError):
