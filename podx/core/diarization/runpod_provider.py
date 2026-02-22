@@ -79,8 +79,8 @@ class RunPodDiarizationProvider(DiarizationProvider):
         """
         super().__init__(config)
 
-        # Load cloud config from environment if not provided
-        self.cloud_config = cloud_config or CloudConfig.from_env()
+        # Load cloud config from podx config system if not provided
+        self.cloud_config = cloud_config or CloudConfig.from_podx_config()
 
         # Override fallback if specified
         if enable_fallback is not None:

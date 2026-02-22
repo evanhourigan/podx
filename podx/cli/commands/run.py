@@ -97,6 +97,7 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
     from contextlib import redirect_stderr, redirect_stdout
 
     from podx.cli.diarize import _find_audio_file
+    from podx.cloud.exceptions import CloudError
     from podx.core.diarization import DiarizationProviderError, get_diarization_provider
     from podx.core.diarize import DiarizationEngine, DiarizationError
     from podx.ui import LiveTimer
@@ -161,7 +162,7 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
             result = provider.diarize(diarize_audio, transcript["segments"])
             segments = result.segments
             speakers_count = result.speakers_count
-        except DiarizationProviderError as e:
+        except (DiarizationProviderError, CloudError) as e:
             timer.stop()
             if diarize_audio_path and diarize_audio_path.exists():
                 diarize_audio_path.unlink()
