@@ -18,8 +18,8 @@ logger = get_logger(__name__)
 # Model aliases for RunPod provider
 # Maps user-friendly names to faster-whisper model names
 RUNPOD_MODEL_ALIASES: Dict[str, str] = {
-    "large-v3-turbo": "large-v3-turbo",
-    "turbo": "large-v3-turbo",
+    "large-v3-turbo": "turbo",
+    "turbo": "turbo",
     "large-v3": "large-v3",
     "large-v2": "large-v2",
     "large": "large-v3",

@@ -79,7 +79,7 @@ class RunPodClient:
     def submit_job(
         self,
         audio_url: str,
-        model: str = "large-v3-turbo",
+        model: str = "turbo",
         language: str = "auto",
     ) -> str:
         """Submit a transcription job with an audio URL.
@@ -88,7 +88,7 @@ class RunPodClient:
 
         Args:
             audio_url: Presigned URL to audio file (hosted on R2)
-            model: Whisper model to use (default: large-v3-turbo)
+            model: Whisper model to use (default: turbo)
             language: Language code or "auto" for detection
 
         Returns:
