@@ -296,12 +296,18 @@ def _run_cleanup_step(episode_dir: Path) -> bool:
     return True
 
 
-def _run_analyze_step(episode_dir: Path) -> bool:
+def _run_analyze_step(
+    episode_dir: Path,
+    model: Optional[str] = None,
+    template: Optional[str] = None,
+) -> bool:
     """Run analyze step. Returns True on success."""
     import json
     from datetime import datetime, timezone
 
+    from podx.cli.analyze import DEFAULT_MAP_INSTRUCTIONS, DEFAULT_MODEL, DEFAULT_TEMPLATE
     from podx.core.analyze import AnalyzeEngine, AnalyzeError
+    from podx.prompt_templates import ENHANCED_JSON_SCHEMA
     from podx.templates.manager import TemplateManager
     from podx.ui import LiveTimer
 
@@ -315,16 +321,24 @@ def _run_analyze_step(episode_dir: Path) -> bool:
 
     transcript = json.loads(transcript_path.read_text())
 
+    # Apply defaults
+    if model is None:
+        model = DEFAULT_MODEL
+    if template is None:
+        template = DEFAULT_TEMPLATE
+
+    # Output path — template-specific to avoid overwriting
+    if template == DEFAULT_TEMPLATE:
+        analysis_path = episode_dir / "analysis.json"
+    else:
+        analysis_path = episode_dir / f"analysis.{template}.json"
+
     # Check if already analyzed
-    analysis_path = episode_dir / "analysis.json"
     if analysis_path.exists():
         console.print("[dim]Analysis already exists, skipping...[/dim]")
         return True
 
-    model = "gpt-4o-mini"  # Default
-    template = "general"
-
-    console.print(f"[dim]Analyzing with {model}...[/dim]")
+    console.print(f"[dim]Analyzing with {model} (template: {template})...[/dim]")
 
     timer = LiveTimer("Analyzing")
     timer.start()
@@ -333,7 +347,16 @@ def _run_analyze_step(episode_dir: Path) -> bool:
         manager = TemplateManager()
         tmpl = manager.load(template)
 
-        engine = AnalyzeEngine(model=model)
+        # Parse model string (provider:model_name format)
+        provider_name = "openai"
+        model_name = model
+        if ":" in model:
+            provider_name, model_name = model.split(":", 1)
+
+        engine = AnalyzeEngine(
+            model=model_name,
+            provider_name=provider_name,
+        )
 
         # Build transcript text
         segments = transcript.get("segments", [])
@@ -357,9 +380,10 @@ def _run_analyze_step(episode_dir: Path) -> bool:
         md, json_data = engine.analyze(
             transcript=transcript,
             system_prompt=system_prompt,
-            map_instructions="Extract key points, notable quotes, and insights from this section.",
+            map_instructions=(tmpl.map_instructions or DEFAULT_MAP_INSTRUCTIONS),
             reduce_instructions=user_prompt,
             want_json=True,
+            json_schema=(tmpl.json_schema or ENHANCED_JSON_SCHEMA),
         )
     except AnalyzeError as e:
         timer.stop()
@@ -437,14 +461,25 @@ def _run_export_step(episode_dir: Path) -> bool:
     "--model",
     "-m",
     default=None,
-    help="Transcription model (e.g., base, large-v3, runpod:large-v3-turbo).",
+    help="Transcription model (see 'podx models'). E.g., base, large-v3, runpod:large-v3-turbo.",
 )
 @click.option(
     "--cloud",
     is_flag=True,
     help="Use cloud GPU for transcription and diarization (requires 'podx cloud setup').",
 )
-def run(model: Optional[str], cloud: bool):
+@click.option(
+    "--analyze-model",
+    default=None,
+    help="AI model for analysis (see 'podx models'). E.g., openai:gpt-5.2, anthropic:claude-sonnet-4-5.",
+)
+@click.option(
+    "--template",
+    "-t",
+    default=None,
+    help="Analysis template (see 'podx templates list'). E.g., general, interview-1on1, quote-miner.",
+)
+def run(model: Optional[str], cloud: bool, analyze_model: Optional[str], template: Optional[str]):
     """Run the full podcast processing pipeline interactively.
 
     \b
@@ -458,10 +493,16 @@ def run(model: Optional[str], cloud: bool):
 
     \b
     Examples:
-      podx run                              # Use default transcription model
-      podx run --model large-v3             # Use local large-v3 model
-      podx run --model runpod:large-v3    # Use RunPod cloud transcription
-      podx run --cloud                      # Use cloud for both transcription and diarization
+      podx run                                              # All defaults
+      podx run --cloud                                      # Cloud transcription + diarization
+      podx run --model runpod:large-v3-turbo                # Cloud transcription model
+      podx run --analyze-model anthropic:claude-sonnet-4-5  # Analysis model
+      podx run --template interview-1on1                    # Analysis template
+
+    \b
+    See also:
+      podx models                  List available models and pricing
+      podx templates list          List available analysis templates
 
     \b
     For scripting, use individual commands:
@@ -497,7 +538,7 @@ def run(model: Optional[str], cloud: bool):
             console.print("[yellow]Cleanup skipped[/yellow]")
 
         # Step 5: Analyze
-        if not _run_analyze_step(episode_dir):
+        if not _run_analyze_step(episode_dir, model=analyze_model, template=template):
             # Analysis failure is not fatal - continue
             console.print("[yellow]Analysis skipped[/yellow]")
 
