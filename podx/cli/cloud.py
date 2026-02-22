@@ -116,6 +116,9 @@ def setup() -> None:
             console.print("\n[yellow]Diarization skipped.[/yellow]")
             _print_transcription_usage()
     else:
+        # Clear any stale diarization endpoint from a previous setup
+        if _get_value("runpod-diarize-endpoint-id"):
+            _set_value("runpod-diarize-endpoint-id", "")
         console.print("\n[green]Cloud setup complete![/green]")
         _print_transcription_usage()
 
