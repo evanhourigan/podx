@@ -93,6 +93,7 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
         use_cloud: If True, use RunPod cloud GPU for diarization
     """
     import json
+    import logging
     import os
     from contextlib import redirect_stderr, redirect_stdout
 
@@ -189,6 +190,18 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
         timer = LiveTimer("Diarizing")
         timer.start()
 
+        # Suppress noisy loggers from pyannote/speechbrain during model loading
+        noisy_loggers = [
+            "speechbrain.utils.parameter_transfer",
+            "speechbrain.utils.checkpoints",
+            "pyannote.audio",
+        ]
+        saved_levels = {}
+        for name in noisy_loggers:
+            lg = logging.getLogger(name)
+            saved_levels[name] = lg.level
+            lg.setLevel(logging.WARNING)
+
         try:
             with (
                 redirect_stdout(open(os.devnull, "w")),
@@ -204,10 +217,15 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
                 speakers_count = len(speakers)
         except DiarizationError as e:
             timer.stop()
+            for name, level in saved_levels.items():
+                logging.getLogger(name).setLevel(level)
             if diarize_audio_path and diarize_audio_path.exists():
                 diarize_audio_path.unlink()
             console.print(f"[red]Error:[/red] {e}")
             return False
+
+        for name, level in saved_levels.items():
+            logging.getLogger(name).setLevel(level)
 
         elapsed = timer.stop()
 
