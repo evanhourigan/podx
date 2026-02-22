@@ -339,7 +339,7 @@ def _run_analyze_step(
     from podx.cli.analyze import DEFAULT_MAP_INSTRUCTIONS, DEFAULT_MODEL, DEFAULT_TEMPLATE
     from podx.core.analyze import AnalyzeEngine, AnalyzeError
     from podx.prompt_templates import ENHANCED_JSON_SCHEMA
-    from podx.templates.manager import TemplateManager
+    from podx.templates.manager import TemplateError, TemplateManager
     from podx.ui import LiveTimer
 
     console.print("\n[bold cyan]── Analyze ────────────────────────────────────────[/bold cyan]")
@@ -400,11 +400,29 @@ def _run_analyze_step(
             for s in segments
         )
 
-        speakers = set(s.get("speaker") for s in segments if s.get("speaker"))
+        # Build context with episode metadata (matching analyze.py)
+        speaker_set = set(s.get("speaker") for s in segments if s.get("speaker"))
+        speaker_count = len(speaker_set) if speaker_set else 1
+        speakers_str = ", ".join(sorted(speaker_set)) if speaker_set else "Unknown"
+
+        # Load episode metadata if available
+        episode_meta = {}
+        meta_path = episode_dir / "episode-meta.json"
+        if meta_path.exists():
+            try:
+                episode_meta = json.loads(meta_path.read_text())
+            except Exception:
+                pass
+
         context = {
             "transcript": transcript_text,
-            "speaker_count": len(speakers) if speakers else 1,
+            "speaker_count": speaker_count,
+            "speakers": speakers_str,
             "duration": int(segments[-1].get("end", 0) // 60) if segments else 0,
+            "title": episode_meta.get("episode_title", episode_dir.name),
+            "show": episode_meta.get("show", "Unknown"),
+            "date": episode_meta.get("episode_published", "Unknown"),
+            "description": episode_meta.get("episode_description", ""),
         }
 
         system_prompt, user_prompt = tmpl.render(context)
@@ -416,6 +434,10 @@ def _run_analyze_step(
             want_json=True,
             json_schema=(tmpl.json_schema or ENHANCED_JSON_SCHEMA),
         )
+    except TemplateError as e:
+        timer.stop()
+        console.print(f"[red]Error:[/red] {e}")
+        return False
     except AnalyzeError as e:
         timer.stop()
         console.print(f"[red]Error:[/red] {e}")
