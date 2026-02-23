@@ -364,10 +364,17 @@ def _run_analyze_step(
     else:
         analysis_path = episode_dir / f"analysis.{template}.json"
 
-    # Check if already analyzed
+    # Check if already analyzed with the same model
     if analysis_path.exists():
-        console.print("[dim]Analysis already exists, skipping...[/dim]")
-        return True
+        try:
+            existing = json.loads(analysis_path.read_text())
+            existing_model = existing.get("model")
+        except Exception:
+            existing_model = None
+        if existing_model == model:
+            console.print("[dim]Analysis already exists, skipping...[/dim]")
+            return True
+        console.print(f"[dim]Re-analyzing (was {existing_model}, now {model})...[/dim]")
 
     console.print(f"[dim]Analyzing with {model} (template: {template})...[/dim]")
 
