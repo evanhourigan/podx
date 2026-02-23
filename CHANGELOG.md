@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ Added
+
+- **Model name in analysis filenames** — Analysis output files now encode both
+  the template and model in the filename, allowing side-by-side comparison of
+  analyses from different models without overwriting each other
+  - Default template + default model: `analysis.json`
+  - Non-default template: `analysis.{template}.json`
+  - Non-default model: `analysis.{sanitized_model}.json`
+  - Both: `analysis.{template}.{sanitized_model}.json`
+  - `analysis.*.json` glob still finds all variants
+
+- **Analysis metadata header** — Exported analysis markdown now includes a
+  blockquote header showing which template and model were used
+
 ## [4.5.0] - 2026-02-14
 
 ### ✨ Added

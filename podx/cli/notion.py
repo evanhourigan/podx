@@ -19,23 +19,45 @@ from podx.ui import select_episode_interactive
 console = Console()
 
 
-def _find_analysis(directory: Path, template: Optional[str] = None) -> Optional[Path]:
+def _find_analysis(
+    directory: Path, template: Optional[str] = None, model: Optional[str] = None
+) -> Optional[Path]:
     """Find analysis file in episode directory.
 
     Args:
         directory: Episode directory to search
         template: Optional template name to find template-specific analysis
+        model: Optional model name to find model-specific analysis
     """
-    # Template-specific file first
+    # Exact match when template or model specified
+    if template or model:
+        from podx.cli.analyze import DEFAULT_MODEL, DEFAULT_TEMPLATE, analysis_output_path
+
+        exact = analysis_output_path(
+            directory,
+            template or DEFAULT_TEMPLATE,
+            model or DEFAULT_MODEL,
+        )
+        if exact.exists():
+            return exact
+
+    # Template-specific fallback (any model) for backwards compat
     if template and template != "general":
-        specific = directory / f"analysis.{template}.json"
-        if specific.exists():
-            return specific
+        for p in directory.glob(f"analysis.{template}*.json"):
+            if p.suffix == ".json":
+                return p
 
     # Check for analysis.json first (new standard name)
     analysis = directory / "analysis.json"
     if analysis.exists():
         return analysis
+
+    # Fall back to any analysis.*.json (most recent)
+    candidates = sorted(
+        directory.glob("analysis.*.json"), key=lambda p: p.stat().st_mtime, reverse=True
+    )
+    if candidates:
+        return candidates[0]
 
     # Fall back to legacy deepcast patterns
     patterns = ["deepcast-*.json", "deepcast.json"]

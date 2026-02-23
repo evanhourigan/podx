@@ -84,18 +84,33 @@ def _find_all_analyses(directory: Path) -> list[Path]:
     return candidates
 
 
-def _find_analysis(directory: Path, template: Optional[str] = None) -> Optional[Path]:
+def _find_analysis(
+    directory: Path, template: Optional[str] = None, model: Optional[str] = None
+) -> Optional[Path]:
     """Find analysis file in episode directory.
 
     Args:
         directory: Episode directory to search
         template: Optional template name to find template-specific analysis
+        model: Optional model name to find model-specific analysis
     """
-    # Template-specific file first
+    # Exact match when both template and model are provided
+    if template or model:
+        from podx.cli.analyze import DEFAULT_MODEL, DEFAULT_TEMPLATE, analysis_output_path
+
+        exact = analysis_output_path(
+            directory,
+            template or DEFAULT_TEMPLATE,
+            model or DEFAULT_MODEL,
+        )
+        if exact.exists():
+            return exact
+
+    # Template-specific fallback (any model) for backwards compat
     if template and template != "general":
-        specific = directory / f"analysis.{template}.json"
-        if specific.exists():
-            return specific
+        for p in directory.glob(f"analysis.{template}*.json"):
+            if p.suffix == ".json":
+                return p
 
     # Return first (most recent) analysis file
     candidates = _find_all_analyses(directory)
@@ -493,12 +508,26 @@ def export_analysis(
             # Multiple analyses found - prompt user to select
             console.print(f"[cyan]Found {len(all_analyses)} analysis files:[/cyan]")
             for i, p in enumerate(all_analyses, 1):
-                # Extract template name from filename
-                if p.name == "analysis.json":
-                    label = "general (default)"
-                else:
-                    parts = p.stem.split(".", 1)
-                    label = parts[1] if len(parts) == 2 else p.name
+                # Try to read template/model from the JSON for a better label
+                try:
+                    _meta = json.loads(p.read_text())
+                    _tmpl = _meta.get("template", "")
+                    _mdl = _meta.get("model", "")
+                    if _tmpl and _mdl:
+                        label = f"{_tmpl} ({_mdl})"
+                    elif _tmpl:
+                        label = _tmpl
+                    elif p.name == "analysis.json":
+                        label = "general (default)"
+                    else:
+                        parts = p.stem.split(".", 1)
+                        label = parts[1] if len(parts) == 2 else p.name
+                except Exception:
+                    if p.name == "analysis.json":
+                        label = "general (default)"
+                    else:
+                        parts = p.stem.split(".", 1)
+                        label = parts[1] if len(parts) == 2 else p.name
                 mtime = p.stat().st_mtime
                 from datetime import datetime
 
@@ -524,17 +553,18 @@ def export_analysis(
         console.print("[dim]Run 'podx analyze' first[/dim]")
         sys.exit(ExitCode.USER_ERROR)
 
-    # Derive template from filename if not explicitly provided
-    # analysis.interview-1on1.json -> interview-1on1
-    if not template and analysis_path.name != "analysis.json":
-        parts = analysis_path.stem.split(
-            ".", 1
-        )  # "analysis.interview-1on1" -> ["analysis", "interview-1on1"]
-        if len(parts) == 2:
-            template = parts[1]
-
     analysis = json.loads(analysis_path.read_text())
     md_content = analysis.get("markdown", "")
+
+    # Derive template from the analysis JSON if not explicitly provided
+    if not template:
+        template = analysis.get("template")
+        if not template:
+            # Fallback: parse from filename (legacy files without template field)
+            if analysis_path.name != "analysis.json":
+                parts = analysis_path.stem.split(".", 1)
+                if len(parts) == 2:
+                    template = parts[1]
 
     if not md_content:
         console.print("[red]Error:[/red] Analysis has no markdown content")

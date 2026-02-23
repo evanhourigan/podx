@@ -42,6 +42,33 @@ DEFAULT_TEMPLATE = "general"
 DEFAULT_MAP_INSTRUCTIONS = "Extract key points, notable quotes, and insights from this section."
 
 
+def sanitize_model_for_filename(model: str) -> str:
+    """Sanitize model string for use in filenames.
+
+    Replaces ':' and '.' with '-' so model names are filesystem-safe.
+    e.g. 'anthropic:claude-opus-4.6' -> 'anthropic-claude-opus-4-6'
+    """
+    return model.replace(":", "-").replace(".", "-")
+
+
+def analysis_output_path(episode_dir: Path, template: str, model: str) -> Path:
+    """Build analysis output path encoding template and model.
+
+    Default template + default model: analysis.json
+    Non-default template only: analysis.{template}.json
+    Non-default model only: analysis.{sanitized_model}.json
+    Both non-default: analysis.{template}.{sanitized_model}.json
+    """
+    parts = []
+    if template != DEFAULT_TEMPLATE:
+        parts.append(template)
+    if model != DEFAULT_MODEL:
+        parts.append(sanitize_model_for_filename(model))
+    if parts:
+        return episode_dir / f"analysis.{'.'.join(parts)}.json"
+    return episode_dir / "analysis.json"
+
+
 def _find_transcript(directory: Path) -> Optional[Path]:
     """Find best transcript file in episode directory.
 
@@ -156,12 +183,13 @@ def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
 
             path = selected["directory"]
 
-            # Warn if this template's analysis already exists
+            # Warn if this template+model analysis already exists
             ep_dir = Path(selected["directory"])
-            if template == DEFAULT_TEMPLATE:
-                existing_analysis = ep_dir / "analysis.json"
-            else:
-                existing_analysis = ep_dir / f"analysis.{template}.json"
+            existing_analysis = analysis_output_path(
+                ep_dir,
+                template or DEFAULT_TEMPLATE,
+                model or DEFAULT_MODEL,
+            )
 
             if existing_analysis.exists():
                 console.print("\n[yellow]This episode already has an analysis.[/yellow]")
@@ -252,11 +280,8 @@ def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
         console.print("[dim]Use 'podx templates list' to see available templates[/dim]")
         sys.exit(ExitCode.USER_ERROR)
 
-    # Output path — template-specific to avoid overwriting
-    if template == DEFAULT_TEMPLATE:
-        analysis_path = episode_dir / "analysis.json"
-    else:
-        analysis_path = episode_dir / f"analysis.{template}.json"
+    # Output path — encodes template and model to avoid overwriting
+    analysis_path = analysis_output_path(episode_dir, template, model)
 
     # Show what we're doing
     console.print(f"[cyan]Analyzing:[/cyan] {transcript_path.name}")
@@ -360,6 +385,9 @@ def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
     # For wants_json_only templates, render markdown from JSON
     if tmpl.wants_json_only and json_data:
         md = render_quotes_markdown(json_data, episode_meta)
+
+    # Prepend metadata header to markdown
+    md = f"> **Template:** {template} | **Model:** {model}\n\n{md}"
 
     # Build structured output with episode metadata
     duration_minutes = int(segments[-1].get("end", 0) // 60) if segments else 0

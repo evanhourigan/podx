@@ -336,7 +336,12 @@ def _run_analyze_step(
     import json
     from datetime import datetime, timezone
 
-    from podx.cli.analyze import DEFAULT_MAP_INSTRUCTIONS, DEFAULT_MODEL, DEFAULT_TEMPLATE
+    from podx.cli.analyze import (
+        DEFAULT_MAP_INSTRUCTIONS,
+        DEFAULT_MODEL,
+        DEFAULT_TEMPLATE,
+        analysis_output_path,
+    )
     from podx.core.analyze import AnalyzeEngine, AnalyzeError
     from podx.prompt_templates import ENHANCED_JSON_SCHEMA
     from podx.templates.manager import TemplateError, TemplateManager
@@ -358,23 +363,13 @@ def _run_analyze_step(
     if template is None:
         template = DEFAULT_TEMPLATE
 
-    # Output path — template-specific to avoid overwriting
-    if template == DEFAULT_TEMPLATE:
-        analysis_path = episode_dir / "analysis.json"
-    else:
-        analysis_path = episode_dir / f"analysis.{template}.json"
+    # Output path — encodes template and model to avoid overwriting
+    analysis_path = analysis_output_path(episode_dir, template, model)
 
-    # Check if already analyzed with the same model
+    # Check if already analyzed (same template+model = same filename)
     if analysis_path.exists():
-        try:
-            existing = json.loads(analysis_path.read_text())
-            existing_model = existing.get("model")
-        except Exception:
-            existing_model = None
-        if existing_model == model:
-            console.print("[dim]Analysis already exists, skipping...[/dim]")
-            return True
-        console.print(f"[dim]Re-analyzing (was {existing_model}, now {model})...[/dim]")
+        console.print("[dim]Analysis already exists, skipping...[/dim]")
+        return True
 
     console.print(f"[dim]Analyzing with {model} (template: {template})...[/dim]")
 
@@ -453,6 +448,9 @@ def _run_analyze_step(
     elapsed = timer.stop()
     minutes = int(elapsed // 60)
     seconds = int(elapsed % 60)
+
+    # Prepend metadata header to markdown
+    md = f"> **Template:** {template} | **Model:** {model}\n\n{md}"
 
     # Save analysis
     result = {
