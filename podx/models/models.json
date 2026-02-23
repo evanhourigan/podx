@@ -310,6 +310,26 @@
       "default_in_cli": true
     },
     {
+      "id": "claude-opus-4-6",
+      "name": "Claude Opus 4.6",
+      "provider": "anthropic",
+      "aliases": ["claude-4-6-opus", "claude-4.6-opus", "opus-4.6", "claude-opus-4.6"],
+      "description": "Claude Opus 4.6; latest, most intelligent model (Feb 2026)",
+      "pricing": {
+        "input_per_1m": 5.00,
+        "output_per_1m": 25.00,
+        "currency": "USD",
+        "tier": "standard",
+        "prompt_caching": {
+          "write_per_1m": 6.25,
+          "read_per_1m": 0.50
+        }
+      },
+      "context_window": 200000,
+      "capabilities": ["text", "chat", "function-calling", "agents", "prompt-caching"],
+      "default_in_cli": true
+    },
+    {
       "id": "claude-opus-4.5",
       "name": "Claude Opus 4.5",
       "provider": "anthropic",

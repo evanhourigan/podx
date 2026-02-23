@@ -138,8 +138,9 @@ def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
       openai:gpt-5.1               Previous generation
       openai:gpt-5-mini            Fast and affordable
       openai:gpt-4o                Multimodal capable
-      anthropic:claude-opus-4-5    Anthropic highest quality
-      anthropic:claude-sonnet-4-5  Anthropic alternative
+      anthropic:claude-opus-4-6    Anthropic latest, highest quality
+      anthropic:claude-opus-4.5    Anthropic previous best
+      anthropic:claude-sonnet-4-5  Anthropic balanced
 
     \b
     Templates (use 'podx templates' for full list):
