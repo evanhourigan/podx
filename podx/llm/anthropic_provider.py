@@ -99,9 +99,9 @@ class AnthropicProvider(LLMProvider):
             else:
                 chat_messages.append(msg.to_dict())
 
-        # Claude requires max_tokens
+        # Claude requires max_tokens — 16384 allows full analysis + JSON output
         if max_tokens is None:
-            max_tokens = 4096  # Reasonable default
+            max_tokens = 16384
 
         try:
             create_kwargs = {
@@ -176,9 +176,9 @@ class AnthropicProvider(LLMProvider):
             else:
                 chat_messages.append(msg.to_dict())
 
-        # Claude requires max_tokens
+        # Claude requires max_tokens — 16384 allows full analysis + JSON output
         if max_tokens is None:
-            max_tokens = 4096
+            max_tokens = 16384
 
         try:
             create_kwargs = {
