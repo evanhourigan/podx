@@ -7,8 +7,11 @@ import click
 @click.argument("path", required=False)
 @click.option("--model", default="gpt-4o-mini", help="AI model for analysis")
 @click.option("--type", "analysis_type", default="general", help="Analysis type")
+@click.option(
+    "--question", "-q", default=None, help="Additional question to answer in the analysis"
+)
 @click.pass_context
-def analyze_cmd(ctx, path, model, analysis_type):
+def analyze_cmd(ctx, path, model, analysis_type, question):
     """Generate AI analysis of a transcript."""
     from podx.cli.analyze import main as analyze_main
 
@@ -20,6 +23,8 @@ def analyze_cmd(ctx, path, model, analysis_type):
         args.extend(["--model", model])
     if analysis_type != "general":
         args.extend(["--type", analysis_type])
+    if question:
+        args.extend(["--question", question])
 
     analyze_main.main(args=args, standalone_mode=False)
 

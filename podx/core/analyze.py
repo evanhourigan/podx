@@ -186,6 +186,7 @@ class AnalyzeEngine:
         reduce_instructions: str,
         want_json: bool = False,
         json_schema: Optional[str] = None,
+        question: Optional[str] = None,
     ) -> Tuple[str, Optional[Dict[str, Any]]]:
         """Run analyze on transcript.
 
@@ -196,6 +197,7 @@ class AnalyzeEngine:
             reduce_instructions: Instructions for reduce phase (synthesis)
             want_json: Whether to request structured JSON output
             json_schema: Optional JSON schema hint to include in reduce phase
+            question: Optional follow-up question to answer in the analysis
 
         Returns:
             Tuple of (markdown_output, json_data)
@@ -260,6 +262,18 @@ class AnalyzeEngine:
         reduce_prompt = f"{reduce_instructions}\n\nChunk notes:\n\n" + "\n\n---\n\n".join(map_notes)
         if want_json and json_schema:
             reduce_prompt += f"\n\n{json_schema}"
+
+        # Inject user's follow-up question into the reduce prompt
+        if question:
+            reduce_prompt += (
+                "\n\n---\n\nAdditional Analysis Requested:\n"
+                "Please also include a section at the END of your markdown output "
+                "under the heading '## Additional Analysis' that addresses the "
+                "following question or topic:\n\n"
+                f"> {question}\n\n"
+                "Be specific, cite the transcript when relevant, and provide "
+                "a thorough response."
+            )
 
         try:
             final = self._chat_once(system_prompt, reduce_prompt)

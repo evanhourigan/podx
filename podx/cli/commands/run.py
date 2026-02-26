@@ -331,6 +331,7 @@ def _run_analyze_step(
     episode_dir: Path,
     model: Optional[str] = None,
     template: Optional[str] = None,
+    question: Optional[str] = None,
 ) -> bool:
     """Run analyze step. Returns True on success."""
     import json
@@ -435,6 +436,7 @@ def _run_analyze_step(
             reduce_instructions=user_prompt,
             want_json=True,
             json_schema=(tmpl.json_schema or ENHANCED_JSON_SCHEMA),
+            question=question,
         )
     except TemplateError as e:
         timer.stop()
@@ -459,6 +461,8 @@ def _run_analyze_step(
         "model": model,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
+    if question:
+        result["question"] = question
     if json_data:
         result.update(json_data)
 
@@ -537,7 +541,19 @@ def _run_export_step(episode_dir: Path) -> bool:
     default=None,
     help="Analysis template (see 'podx templates list'). E.g., general, interview-1on1, quote-miner.",
 )
-def run(model: Optional[str], cloud: bool, analyze_model: Optional[str], template: Optional[str]):
+@click.option(
+    "--question",
+    "-q",
+    default=None,
+    help="Additional question to answer in the analysis (optional)",
+)
+def run(
+    model: Optional[str],
+    cloud: bool,
+    analyze_model: Optional[str],
+    template: Optional[str],
+    question: Optional[str],
+):
     """Run the full podcast processing pipeline interactively.
 
     \b
@@ -556,6 +572,7 @@ def run(model: Optional[str], cloud: bool, analyze_model: Optional[str], templat
       podx run --model runpod:large-v3-turbo                # Cloud transcription model
       podx run --analyze-model anthropic:claude-sonnet-4-5  # Analysis model
       podx run --template interview-1on1                    # Analysis template
+      podx run -q "Investment implications?"                # With follow-up question
 
     \b
     See also:
@@ -596,7 +613,9 @@ def run(model: Optional[str], cloud: bool, analyze_model: Optional[str], templat
             console.print("[yellow]Cleanup skipped[/yellow]")
 
         # Step 5: Analyze
-        if not _run_analyze_step(episode_dir, model=analyze_model, template=template):
+        if not _run_analyze_step(
+            episode_dir, model=analyze_model, template=template, question=question
+        ):
             # Analysis failure is not fatal - continue
             console.print("[yellow]Analysis skipped[/yellow]")
 

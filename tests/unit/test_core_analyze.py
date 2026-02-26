@@ -347,6 +347,74 @@ class TestAnalyzeEngineDeepcast:
         assert json_data is None  # Failed to parse JSON
 
 
+class TestAnalyzeWithQuestion:
+    """Test question injection in analyze."""
+
+    @pytest.fixture
+    def sample_transcript(self):
+        """Sample transcript for testing."""
+        return {
+            "segments": [
+                {"text": "Hello world", "start": 0.0, "end": 2.0},
+                {"text": "How are you?", "start": 2.0, "end": 4.0},
+            ]
+        }
+
+    def test_analyze_with_question(self, sample_transcript):
+        """Test that question is injected into the reduce prompt."""
+        mock_llm = MockLLMProvider(responses=["Map result", "Final synthesis"])
+        engine = AnalyzeEngine(llm_provider=mock_llm)
+
+        engine.analyze(
+            sample_transcript,
+            system_prompt="You are an analyst",
+            map_instructions="Analyze this",
+            reduce_instructions="Synthesize these notes",
+            question="What were the key debates about Rust?",
+        )
+
+        # The reduce call is the last call; calls are (messages, model, temperature)
+        last_messages = mock_llm.calls[-1][0]
+        user_msg = last_messages[-1].content
+        assert "Additional Analysis Requested" in user_msg
+        assert "What were the key debates about Rust?" in user_msg
+        assert "## Additional Analysis" in user_msg
+
+    def test_analyze_without_question(self, sample_transcript):
+        """Test that no question section appears when question is None."""
+        mock_llm = MockLLMProvider(responses=["Map result", "Final synthesis"])
+        engine = AnalyzeEngine(llm_provider=mock_llm)
+
+        engine.analyze(
+            sample_transcript,
+            system_prompt="You are an analyst",
+            map_instructions="Analyze this",
+            reduce_instructions="Synthesize these notes",
+            question=None,
+        )
+
+        last_messages = mock_llm.calls[-1][0]
+        user_msg = last_messages[-1].content
+        assert "Additional Analysis Requested" not in user_msg
+
+    def test_analyze_with_empty_question(self, sample_transcript):
+        """Test that empty string question is treated the same as None."""
+        mock_llm = MockLLMProvider(responses=["Map result", "Final synthesis"])
+        engine = AnalyzeEngine(llm_provider=mock_llm)
+
+        engine.analyze(
+            sample_transcript,
+            system_prompt="You are an analyst",
+            map_instructions="Analyze this",
+            reduce_instructions="Synthesize these notes",
+            question="",
+        )
+
+        last_messages = mock_llm.calls[-1][0]
+        user_msg = last_messages[-1].content
+        assert "Additional Analysis Requested" not in user_msg
+
+
 class TestConvenienceFunction:
     """Test analyze_transcript convenience function."""
 

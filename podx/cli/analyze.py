@@ -26,6 +26,8 @@ from podx.ui import (
     LiveTimer,
     get_llm_models_help,
     get_templates_help,
+    prompt_compact,
+    prompt_optional,
     prompt_with_help,
     select_episode_interactive,
     show_confirmation,
@@ -123,7 +125,15 @@ def _get_available_templates() -> list[str]:
     default=None,
     help=f"Analysis template (default: {DEFAULT_TEMPLATE})",
 )
-def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
+@click.option(
+    "--question",
+    "-q",
+    default=None,
+    help="Additional question to answer in the analysis (optional)",
+)
+def main(
+    path: Optional[Path], model: Optional[str], template: Optional[str], question: Optional[str]
+):
     """Generate AI analysis of a transcript.
 
     \b
@@ -156,6 +166,7 @@ def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
       podx analyze ./Show/2024-11-24-ep/                   # Direct path
       podx analyze . --model openai:gpt-4o                 # Current dir, best model
       podx analyze ./ep/ --template panel-discussion       # Panel analysis
+      podx analyze ./ep/ -q "What about Rust vs Go?"       # With follow-up question
 
     \b
     Notes:
@@ -242,19 +253,7 @@ def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
 
     # Interactive prompts for options (only in interactive mode)
     if interactive_mode:
-        # Model prompt/confirmation
-        if model is not None:
-            show_confirmation("Model", model)
-        else:
-            model = prompt_with_help(
-                help_text=get_llm_models_help(),
-                prompt_label="Model",
-                default=default_model,
-                validator=validate_llm_model,
-                error_message="Invalid model. See list above for valid options.",
-            )
-
-        # Template prompt/confirmation
+        # Template prompt/confirmation (first — determines analysis structure)
         if template is not None:
             show_confirmation("Template", template)
         else:
@@ -265,12 +264,42 @@ def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
                 validator=validate_template,
                 error_message="Invalid template. See list above for valid options.",
             )
+
+        # Question prompt (second — optional follow-up question)
+        if question is None:
+            question = prompt_optional("Additional question or context")
+
+        # Model prompt/confirmation (third — can be upgraded based on question)
+        if model is not None:
+            show_confirmation("Model", model)
+        elif question:
+            # Question provided: use compact prompt with on-demand help
+            model = prompt_compact(
+                prompt_label="Analysis model",
+                default=default_model,
+                help_text=get_llm_models_help(),
+                validator=validate_llm_model,
+                error_message="Invalid model. Enter ? for model list.",
+            )
+        else:
+            # No question: use full help prompt
+            model = prompt_with_help(
+                help_text=get_llm_models_help(),
+                prompt_label="Model",
+                default=default_model,
+                validator=validate_llm_model,
+                error_message="Invalid model. See list above for valid options.",
+            )
     else:
         # Non-interactive: use defaults if not specified
         if model is None:
             model = default_model
         if template is None:
             template = default_template
+
+    # Normalize empty question to None
+    if not question:
+        question = None
 
     # Load template
     try:
@@ -356,6 +385,7 @@ def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
             reduce_instructions=user_prompt,
             want_json=True,
             json_schema=(tmpl.json_schema or ENHANCED_JSON_SCHEMA),
+            question=question,
         )
 
     except AnalyzeError as e:
@@ -407,6 +437,8 @@ def main(path: Optional[Path], model: Optional[str], template: Optional[str]):
         "results": json_data or {},
         "markdown": md,
     }
+    if question:
+        result["question"] = question
 
     # Save analysis
     analysis_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")

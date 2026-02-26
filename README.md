@@ -486,6 +486,23 @@ podx export transcript ./ep/ -f md,srt,vtt
 podx export analysis ./ep/ -f md,html
 ```
 
+### Follow-Up Questions
+
+Ask an additional question during analysis — answered in the same API call with full transcript context:
+
+```bash
+# Interactive: prompted after template selection
+podx analyze
+
+# CLI flag
+podx analyze ./ep/ -q "What were the technical arguments about Rust vs Go?"
+
+# In the full pipeline
+podx run -q "Investment implications?"
+```
+
+The answer appears under `## Additional Analysis` in the output markdown, and the question is stored in the analysis JSON as the `question` field.
+
 ### Analysis Templates
 
 Templates customize AI output for different podcast formats:

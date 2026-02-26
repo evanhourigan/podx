@@ -56,6 +56,79 @@ def prompt_with_help(
         return user_input
 
 
+def prompt_optional(prompt_label: str, hint: str = "Enter to skip") -> str:
+    """Prompt for optional free-text input.
+
+    Args:
+        prompt_label: Label for the prompt
+        hint: Hint text shown in parentheses
+
+    Returns:
+        User's input or empty string if Enter was pressed
+    """
+    try:
+        user_input = input(f"{prompt_label} ({hint}): ").strip()
+    except (KeyboardInterrupt, EOFError):
+        console.print("\n[dim]Cancelled[/dim]")
+        raise SystemExit(0)
+    return user_input
+
+
+def prompt_compact(
+    prompt_label: str,
+    default: str,
+    help_text: str,
+    validator: Optional[Callable[[str], bool]] = None,
+    error_message: str = "Invalid input. Please try again.",
+    allow_empty: bool = False,
+) -> str:
+    """Prompt with on-demand help via '?'.
+
+    Like prompt_with_help but help is shown only when user types '?'.
+    More compact for prompts where most users accept the default.
+
+    Args:
+        prompt_label: Label for the prompt
+        default: Default value shown and used if user presses Enter
+        help_text: Help text displayed when user types '?'
+        validator: Optional function to validate input; returns True if valid
+        error_message: Message shown when validation fails
+        allow_empty: Whether to allow empty input (return "")
+
+    Returns:
+        User's input or the default if Enter was pressed
+    """
+    while True:
+        try:
+            user_input = input(f"{prompt_label} (default: {default}, ? for help): ").strip()
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[dim]Cancelled[/dim]")
+            raise SystemExit(0)
+
+        # Show help on '?'
+        if user_input == "?":
+            console.print()
+            console.print(help_text)
+            console.print()
+            continue
+
+        # Empty input means use default
+        if not user_input:
+            if allow_empty:
+                return ""
+            return default
+
+        # Validate if validator provided
+        if validator is not None:
+            if validator(user_input):
+                return user_input
+            else:
+                console.print(f"[red]{error_message}[/red]")
+                continue
+
+        return user_input
+
+
 def show_confirmation(label: str, value: str) -> None:
     """Display a confirmation line for a pre-specified option.
 

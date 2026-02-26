@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ Added
 
+- **Follow-up question in analysis** — Ask an additional question during analysis
+  with `--question`/`-q`. The question is injected into the reduce phase prompt
+  so the LLM answers it with full transcript context at no extra API cost.
+  - Interactive: prompted after template selection, Enter to skip
+  - CLI: `podx analyze ./ep/ -q "What about Rust vs Go?"`
+  - Pipeline: `podx run -q "Investment implications?"`
+  - Output appears under `## Additional Analysis` in the markdown
+  - Stored as `question` field in the analysis JSON for traceability
+
 - **Model name in analysis filenames** — Analysis output files now encode both
   the template and model in the filename, allowing side-by-side comparison of
   analyses from different models without overwriting each other
