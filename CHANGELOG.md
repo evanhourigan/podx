@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ Added
 
+- **interview-2on1 template** — New built-in template for podcasts with two
+  co-hosts interviewing a single guest. Captures host dynamics, how co-hosts
+  divide questioning and build on each other, and the three-way conversation
+  flow. Use with `--template interview-2on1`.
+
+- **Audio playback during speaker identification** — Type `play` or `p` during
+  speaker identification to hear audio clips of each speaker's utterances.
+  Pick a sample number, and podx extracts and plays the clip via your system
+  media player. Works in `podx cleanup` and `podx run` when audio is available.
+
 - **Follow-up question in analysis** — Ask an additional question during analysis
   with `--question`/`-q`. The question is injected into the reduce phase prompt
   so the LLM answers it with full transcript context at no extra API cost.

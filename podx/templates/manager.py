@@ -213,6 +213,45 @@ class TemplateManager:
                 ),
                 variables=["title", "show", "duration", "transcript", "speakers"],
             ),
+            "interview-2on1": DeepcastTemplate(
+                name="interview-2on1",
+                description="Format: Two co-hosts interviewing a single guest. Example podcasts: HBS Managing the Future of Work, How I Built This (co-host episodes), Pivot",
+                format="interview",
+                system_prompt=(
+                    "You are analyzing an interview podcast with two co-hosts and one guest. Focus on the three-way dialogue, extracting:\n"
+                    "- The guest's main expertise, background, or story\n"
+                    "- How the co-hosts divide their questioning and build on each other\n"
+                    "- Distinct interviewing styles or focus areas of each host\n"
+                    "- Key questions asked and important answers from the guest\n"
+                    "- Areas of depth and substance in the conversation\n"
+                    "- Notable exchanges or turning points\n\n"
+                    f"{scaling_guidance}"
+                ),
+                user_prompt=(
+                    "Analyze this interview episode:\n\n"
+                    "Title: {{title}}\n"
+                    "Show: {{show}}\n"
+                    "Duration: {{duration}} minutes\n"
+                    "Speakers: {{speakers}}\n\n"
+                    "Transcript:\n{{transcript}}\n\n"
+                    "Provide a structured analysis using markdown headings:\n\n"
+                    "## Guest Introduction\n"
+                    "Who is the guest? (background, expertise, current work) Why are they interesting for this conversation?\n\n"
+                    "## Host Dynamics\n"
+                    "How do the two co-hosts work together? What are their distinct roles, styles, or focus areas? How do they complement each other's lines of inquiry?\n\n"
+                    "## Key Topics Discussed\n"
+                    "(scale with duration) What major subjects did they cover? For each topic, note the main insights or arguments\n\n"
+                    "## Best Questions\n"
+                    "(scale with duration) What were the most insightful or thought-provoking questions? Include which host asked and how the other host followed up. Note the guest's key response\n\n"
+                    "## Notable Quotes\n"
+                    "(scale with duration) Extract memorable or impactful quotes from both hosts and the guest with brief context and attribution\n\n"
+                    "## Key Takeaways\n"
+                    "What are the main lessons or insights? What should listeners remember from this conversation?\n\n"
+                    "## Conversation Dynamics\n"
+                    "How did the three-way conversation flow? Were there moments where the hosts built on each other's questions? Any notable turning points or deep dives?"
+                ),
+                variables=["title", "show", "duration", "transcript", "speakers"],
+            ),
             "panel-discussion": DeepcastTemplate(
                 name="panel-discussion",
                 description="Format: Multiple co-hosts or guests discussing topics. Example podcasts: All-In Podcast, The Talk Show, Hard Fork (NYT), Recode Decode (multi-guest)",

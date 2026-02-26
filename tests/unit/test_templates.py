@@ -88,10 +88,11 @@ class TestTemplateManager:
         """Test getting built-in templates."""
         builtins = manager.get_builtin_templates()
 
-        # Verify all built-in templates exist (10 format-based + quote-miner)
+        # Verify all built-in templates exist (11 format-based + quote-miner)
         expected_templates = [
             "solo-commentary",
             "interview-1on1",
+            "interview-2on1",
             "panel-discussion",
             "lecture-presentation",
             "debate-roundtable",
@@ -269,6 +270,33 @@ output_format: markdown
         # Test panel-discussion variables
         panel = manager.load("panel-discussion")
         assert "speaker_count" in panel.variables
+
+    def test_load_interview_2on1_template(self, manager):
+        """Test loading interview-2on1 template."""
+        template = manager.load("interview-2on1")
+
+        assert template.name == "interview-2on1"
+        assert template.format == "interview"
+        assert "title" in template.variables
+        assert "transcript" in template.variables
+        assert "speakers" in template.variables
+
+        # Verify it renders with correct context
+        context = {
+            "title": "Test Episode",
+            "show": "Test Podcast",
+            "duration": 60,
+            "transcript": "Sample transcript",
+            "speakers": "Host A, Host B, Guest",
+        }
+        system, user = template.render(context)
+
+        # Should reference co-hosts in system prompt
+        assert "co-host" in system.lower()
+        # Should have Host Dynamics section in user prompt
+        assert "Host Dynamics" in user
+        # Should mention three-way dynamics
+        assert "three-way" in user.lower()
 
     def test_builtin_template_format_field(self, manager):
         """Test that built-in templates have format field."""

@@ -397,6 +397,7 @@ def get_templates_help() -> str:
     return """Templates (use 'podx templates' for full list):
   general             Works for any podcast
   interview-1on1      Host interviewing a single guest
+  interview-2on1      Two co-hosts interviewing a guest
   panel-discussion    Multiple hosts/guests discussing
   solo-commentary     Single host sharing thoughts
   technical-deep-dive In-depth technical discussion"""
