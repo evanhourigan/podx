@@ -289,8 +289,20 @@ def _run_cleanup_step(episode_dir: Path) -> bool:
             raise SystemExit(0)
 
         if identify_choice not in ("n", "no"):
+            # Resolve audio path for playback during speaker identification
+            audio_path = None
+            audio_path_str = transcript.get("audio_path")
+            if audio_path_str:
+                candidate = Path(audio_path_str)
+                if not candidate.is_absolute():
+                    candidate = episode_dir / candidate
+                if candidate.exists():
+                    audio_path = candidate
+
             try:
-                speaker_map = identify_speakers_interactive(transcript["segments"])
+                speaker_map = identify_speakers_interactive(
+                    transcript["segments"], audio_path=audio_path
+                )
                 if speaker_map:
                     transcript["segments"] = apply_speaker_names(
                         transcript["segments"], speaker_map

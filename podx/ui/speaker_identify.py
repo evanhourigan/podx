@@ -4,7 +4,8 @@ Prompts user to identify speakers based on sample utterances.
 Port from talkwise/core/speaker_identify.py.
 """
 
-from typing import Any, Dict, List, Tuple
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from rich.console import Console
 from rich.panel import Panel
@@ -13,6 +14,7 @@ console = Console()
 
 # Commands that won't be interpreted as speaker names
 MORE_COMMANDS = {"?", "more", "m"}
+PLAY_COMMANDS = {"play", "p"}
 DEFAULT_SAMPLES = 7
 EXTRA_SAMPLES = 7  # Additional samples when user requests more
 MIN_UTTERANCE_LENGTH = 30  # Minimum chars for meaningful sample
@@ -121,18 +123,64 @@ def _display_utterances(
         console.print(f'  {i}. [cyan]{timecode}[/cyan] [dim]"{display_text}"[/dim]')
 
 
-def identify_speakers_interactive(segments: List[Dict[str, Any]]) -> Dict[str, str]:
+def _play_speaker_sample(
+    sample_utterance: Tuple[str, int],
+    segments: List[Dict[str, Any]],
+    audio_path: Path,
+    temp_clips: List[Path],
+) -> None:
+    """Extract and play an audio clip for a sample utterance.
+
+    Args:
+        sample_utterance: (text, segment_index) tuple
+        segments: Full segments list to look up timestamps
+        audio_path: Path to the source audio file
+        temp_clips: List to track temporary clip files for cleanup
+    """
+    from podx.core.audio_player import (
+        CLIP_PADDING_SECONDS,
+        AudioPlaybackError,
+        extract_audio_clip,
+        play_audio_file,
+    )
+
+    text, seg_idx = sample_utterance
+    seg = segments[seg_idx]
+    start = seg.get("start", 0)
+    end = seg.get("end", start + 15.0)
+
+    clip_start = max(0, start - CLIP_PADDING_SECONDS)
+    clip_end = end + CLIP_PADDING_SECONDS
+
+    try:
+        console.print("[dim]Extracting clip...[/dim]")
+        clip_path = extract_audio_clip(audio_path, clip_start, clip_end)
+        temp_clips.append(clip_path)
+        console.print("[dim]Playing audio...[/dim]")
+        play_audio_file(clip_path)
+    except AudioPlaybackError as e:
+        console.print(f"[yellow]Audio error:[/yellow] {e}")
+
+
+def identify_speakers_interactive(
+    segments: List[Dict[str, Any]],
+    audio_path: Optional[Path] = None,
+) -> Dict[str, str]:
     """Interactively prompt user to identify speakers.
 
     Shows sample utterances for each speaker and asks for names.
-    User can type '?' or 'more' to see additional utterances.
+    User can type '?' or 'more' to see additional utterances,
+    or 'play'/'p' to hear audio clips of displayed samples.
 
     Args:
         segments: List of transcript segments
+        audio_path: Optional path to source audio file for playback
 
     Returns:
         Mapping of SPEAKER_XX -> actual name
     """
+    from podx.core.audio_player import cleanup_temp_clips
+
     samples = get_speaker_samples(segments)
 
     # Skip if no speakers to identify
@@ -140,75 +188,120 @@ def identify_speakers_interactive(segments: List[Dict[str, Any]]) -> Dict[str, s
         return {}
 
     speaker_names: Dict[str, str] = {}
+    temp_clips: List[Path] = []
+    playback_available = audio_path is not None and audio_path.exists()
 
-    console.print()
-    console.print(
-        Panel(
-            "[bold]Speaker Identification[/bold]\n"
-            "Identify each speaker based on sample utterances.\n"
-            "[dim]Press Enter to keep original ID, or type '?' for more samples.[/dim]",
-            border_style="cyan",
+    try:
+        console.print()
+        play_hint = ", 'play' to hear audio" if playback_available else ""
+        console.print(
+            Panel(
+                "[bold]Speaker Identification[/bold]\n"
+                "Identify each speaker based on sample utterances.\n"
+                f"[dim]Press Enter to keep original ID, '?' for more samples{play_hint}.[/dim]",
+                border_style="cyan",
+            )
         )
-    )
-    console.print()
+        console.print()
 
-    for speaker_id in sorted(samples.keys()):
-        initial_utterances = samples[speaker_id]
+        for speaker_id in sorted(samples.keys()):
+            initial_utterances = samples[speaker_id]
 
-        # Skip speakers with no displayable utterances
-        if not initial_utterances:
-            console.print(f"[dim]Skipping {speaker_id} (no utterances to display)[/dim]")
-            speaker_names[speaker_id] = speaker_id  # Keep original ID
-            continue
-
-        shown_count = len(initial_utterances)
-
-        console.print(f"[bold cyan]{speaker_id}[/bold cyan] said:")
-        _display_utterances(initial_utterances, segments)
-
-        # Track all utterances for this speaker (for "more" requests)
-        all_utterances: List[Tuple[str, int]] = []
-        all_loaded = False
-
-        while True:
-            try:
-                console.print(f"\nWho is {speaker_id}? [dim](? for more)[/dim] ", end="")
-                name = input().strip()
-            except (KeyboardInterrupt, EOFError):
-                console.print("\n[dim]Cancelled[/dim]")
-                # Return what we have so far, keeping remaining as original
-                for remaining_speaker in samples.keys():
-                    if remaining_speaker not in speaker_names:
-                        speaker_names[remaining_speaker] = remaining_speaker
-                return speaker_names
-
-            # Check if user wants more utterances
-            if name.lower() in MORE_COMMANDS:
-                # Lazy load all utterances on first "more" request
-                if not all_loaded:
-                    all_utterances = get_all_speaker_utterances(segments, speaker_id)
-                    all_loaded = True
-
-                # Show next batch
-                remaining = all_utterances[shown_count:]
-                if remaining:
-                    next_batch = remaining[:EXTRA_SAMPLES]
-                    console.print(f"\n[dim]Additional utterances for {speaker_id}:[/dim]")
-                    _display_utterances(next_batch, segments, start_num=shown_count + 1)
-                    shown_count += len(next_batch)
-
-                    if shown_count >= len(all_utterances):
-                        console.print("[dim](No more utterances available)[/dim]")
-                else:
-                    console.print("[dim](No more utterances available)[/dim]")
+            # Skip speakers with no displayable utterances
+            if not initial_utterances:
+                console.print(f"[dim]Skipping {speaker_id} (no utterances to display)[/dim]")
+                speaker_names[speaker_id] = speaker_id  # Keep original ID
                 continue
 
-            # Accept the name (or keep speaker ID if empty)
-            speaker_names[speaker_id] = name if name else speaker_id
-            console.print()
-            break
+            shown_count = len(initial_utterances)
+            # Track all displayed utterances for this speaker (for play requests)
+            displayed_utterances: List[Tuple[str, int]] = list(initial_utterances)
 
-    return speaker_names
+            console.print(f"[bold cyan]{speaker_id}[/bold cyan] said:")
+            _display_utterances(initial_utterances, segments)
+
+            # Track all utterances for this speaker (for "more" requests)
+            all_utterances: List[Tuple[str, int]] = []
+            all_loaded = False
+
+            while True:
+                try:
+                    play_suffix = "/play" if playback_available else ""
+                    console.print(
+                        f"\nWho is {speaker_id}? [dim](?{play_suffix} for help)[/dim] ", end=""
+                    )
+                    name = input().strip()
+                except (KeyboardInterrupt, EOFError):
+                    console.print("\n[dim]Cancelled[/dim]")
+                    # Return what we have so far, keeping remaining as original
+                    for remaining_speaker in samples.keys():
+                        if remaining_speaker not in speaker_names:
+                            speaker_names[remaining_speaker] = remaining_speaker
+                    return speaker_names
+
+                # Check if user wants more utterances
+                if name.lower() in MORE_COMMANDS:
+                    # Lazy load all utterances on first "more" request
+                    if not all_loaded:
+                        all_utterances = get_all_speaker_utterances(segments, speaker_id)
+                        all_loaded = True
+
+                    # Show next batch
+                    remaining = all_utterances[shown_count:]
+                    if remaining:
+                        next_batch = remaining[:EXTRA_SAMPLES]
+                        console.print(f"\n[dim]Additional utterances for {speaker_id}:[/dim]")
+                        _display_utterances(next_batch, segments, start_num=shown_count + 1)
+                        displayed_utterances.extend(next_batch)
+                        shown_count += len(next_batch)
+
+                        if shown_count >= len(all_utterances):
+                            console.print("[dim](No more utterances available)[/dim]")
+                    else:
+                        console.print("[dim](No more utterances available)[/dim]")
+                    continue
+
+                # Check if user wants to play audio
+                if name.lower() in PLAY_COMMANDS:
+                    if not playback_available:
+                        console.print("[dim]No audio file available for playback.[/dim]")
+                        continue
+
+                    console.print(
+                        f"[dim]Which sample? (1-{len(displayed_utterances)}):[/dim] ", end=""
+                    )
+                    try:
+                        choice = input().strip()
+                    except (KeyboardInterrupt, EOFError):
+                        continue
+
+                    if not choice:
+                        continue
+
+                    try:
+                        idx = int(choice) - 1
+                        if 0 <= idx < len(displayed_utterances):
+                            _play_speaker_sample(
+                                displayed_utterances[idx],
+                                segments,
+                                audio_path,
+                                temp_clips,
+                            )
+                        else:
+                            console.print(f"[red]Enter 1-{len(displayed_utterances)}[/red]")
+                    except ValueError:
+                        console.print("[red]Enter a number[/red]")
+                    continue
+
+                # Accept the name (or keep speaker ID if empty)
+                speaker_names[speaker_id] = name if name else speaker_id
+                console.print()
+                break
+
+        return speaker_names
+
+    finally:
+        cleanup_temp_clips(temp_clips)
 
 
 def apply_speaker_names(

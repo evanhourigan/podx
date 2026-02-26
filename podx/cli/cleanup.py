@@ -186,11 +186,23 @@ def main(path: Optional[Path], no_restore: bool, no_skip_ads: bool):
             sys.exit(0)
         do_identify_speakers = identify_choice not in ("n", "no")
 
+    # Resolve audio path for playback during speaker identification
+    audio_path = None
+    audio_path_str = transcript.get("audio_path")
+    if audio_path_str:
+        candidate = Path(audio_path_str)
+        if not candidate.is_absolute():
+            candidate = episode_dir / candidate
+        if candidate.exists():
+            audio_path = candidate
+
     # Run speaker identification if requested
     speaker_map: dict = {}
     if do_identify_speakers:
         try:
-            speaker_map = identify_speakers_interactive(transcript["segments"])
+            speaker_map = identify_speakers_interactive(
+                transcript["segments"], audio_path=audio_path
+            )
             if speaker_map:
                 # Apply names to transcript
                 transcript["segments"] = apply_speaker_names(transcript["segments"], speaker_map)
