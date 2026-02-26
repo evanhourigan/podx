@@ -346,7 +346,7 @@ def _run_analyze_step(
     from podx.core.analyze import AnalyzeEngine, AnalyzeError
     from podx.prompt_templates import ENHANCED_JSON_SCHEMA
     from podx.templates.manager import TemplateError, TemplateManager
-    from podx.ui import LiveTimer
+    from podx.ui import LiveTimer, prompt_optional
 
     console.print("\n[bold cyan]── Analyze ────────────────────────────────────────[/bold cyan]")
 
@@ -371,6 +371,12 @@ def _run_analyze_step(
     if analysis_path.exists():
         console.print("[dim]Analysis already exists, skipping...[/dim]")
         return True
+
+    # Prompt for optional question if not provided via CLI flag
+    if question is None:
+        question = prompt_optional("Additional question or context")
+    if not question:
+        question = None
 
     console.print(f"[dim]Analyzing with {model} (template: {template})...[/dim]")
 
