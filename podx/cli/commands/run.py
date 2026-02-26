@@ -254,7 +254,12 @@ def _run_cleanup_step(episode_dir: Path) -> bool:
     import os
 
     from podx.core.preprocess import PreprocessError, TranscriptPreprocessor
-    from podx.ui import LiveTimer
+    from podx.ui import (
+        LiveTimer,
+        apply_speaker_names,
+        has_generic_speaker_ids,
+        identify_speakers_interactive,
+    )
 
     console.print("\n[bold cyan]── Cleanup ────────────────────────────────────────[/bold cyan]")
 
@@ -270,6 +275,33 @@ def _run_cleanup_step(episode_dir: Path) -> bool:
     if transcript.get("cleaned"):
         console.print("[dim]Already cleaned, skipping...[/dim]")
         return True
+
+    # Speaker identification for diarized transcripts with generic SPEAKER_XX labels
+    if transcript.get("diarized") and has_generic_speaker_ids(transcript["segments"]):
+        try:
+            identify_choice = (
+                input("Identify speakers? (recommended for diarized transcripts) [Y/n]: ")
+                .strip()
+                .lower()
+            )
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[dim]Cancelled[/dim]")
+            raise SystemExit(0)
+
+        if identify_choice not in ("n", "no"):
+            try:
+                speaker_map = identify_speakers_interactive(transcript["segments"])
+                if speaker_map:
+                    transcript["segments"] = apply_speaker_names(
+                        transcript["segments"], speaker_map
+                    )
+                    # Save updated transcript with speaker names before cleanup
+                    transcript_path.write_text(
+                        json.dumps(transcript, indent=2, ensure_ascii=False), encoding="utf-8"
+                    )
+                    console.print(f"[green]✓ Identified {len(speaker_map)} speaker(s)[/green]")
+            except (KeyboardInterrupt, EOFError):
+                console.print("\n[dim]Speaker identification cancelled[/dim]")
 
     # Check if we have OpenAI key for restore
     do_restore = bool(os.getenv("OPENAI_API_KEY"))
