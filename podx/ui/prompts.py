@@ -3,11 +3,34 @@
 Provides reusable functions for prompting users with help text and defaults.
 """
 
-from typing import Callable, Optional
+import select
+import sys
+from typing import Callable, List, Optional
 
 from rich.console import Console
 
 console = Console()
+
+
+def _read_paste_continuation() -> List[str]:
+    """Read additional lines from a multiline paste.
+
+    After an input() call, checks if more data is buffered in stdin
+    (indicating a multiline paste) and reads all remaining lines.
+
+    Returns:
+        List of additional lines (empty for single-line input).
+    """
+    lines: List[str] = []
+    try:
+        while select.select([sys.stdin], [], [], 0.05)[0]:
+            line = sys.stdin.readline()
+            if not line:  # EOF
+                break
+            lines.append(line.rstrip("\n"))
+    except (OSError, ValueError):
+        pass  # select not available (non-tty stdin), skip
+    return lines
 
 
 def prompt_with_help(
@@ -57,7 +80,7 @@ def prompt_with_help(
 
 
 def prompt_optional(prompt_label: str, hint: str = "Enter to skip") -> str:
-    """Prompt for optional free-text input.
+    """Prompt for optional free-text input. Supports multiline paste.
 
     Args:
         prompt_label: Label for the prompt
@@ -67,11 +90,23 @@ def prompt_optional(prompt_label: str, hint: str = "Enter to skip") -> str:
         User's input or empty string if Enter was pressed
     """
     try:
-        user_input = input(f"{prompt_label} ({hint}): ").strip()
+        first_line = input(f"{prompt_label} ({hint}): ").strip()
     except (KeyboardInterrupt, EOFError):
         console.print("\n[dim]Cancelled[/dim]")
         raise SystemExit(0)
-    return user_input
+
+    if not first_line:
+        return ""
+
+    # Capture remaining lines from multiline paste
+    extra_lines = _read_paste_continuation()
+    if extra_lines:
+        all_text = first_line + "\n" + "\n".join(extra_lines)
+        total_lines = 1 + len(extra_lines)
+        console.print(f"[dim]  (captured {total_lines} lines)[/dim]")
+        return all_text.strip()
+
+    return first_line
 
 
 def prompt_compact(
