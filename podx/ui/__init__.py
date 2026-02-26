@@ -54,6 +54,7 @@ from .speaker_identify import (
     apply_speaker_names,
     has_generic_speaker_ids,
     identify_speakers_interactive,
+    resolve_audio_path,
 )
 from .speaker_verify import apply_speaker_names_to_transcript, apply_speaker_swap, verify_chunks
 
@@ -110,6 +111,7 @@ __all__ = [
     "apply_speaker_names",
     "has_generic_speaker_ids",
     "identify_speakers_interactive",
+    "resolve_audio_path",
     # Speaker verification (chunked diarization)
     "apply_speaker_names_to_transcript",
     "apply_speaker_swap",

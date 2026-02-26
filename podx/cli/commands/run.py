@@ -259,6 +259,7 @@ def _run_cleanup_step(episode_dir: Path) -> bool:
         apply_speaker_names,
         has_generic_speaker_ids,
         identify_speakers_interactive,
+        resolve_audio_path,
     )
 
     console.print("\n[bold cyan]── Cleanup ────────────────────────────────────────[/bold cyan]")
@@ -290,14 +291,7 @@ def _run_cleanup_step(episode_dir: Path) -> bool:
 
         if identify_choice not in ("n", "no"):
             # Resolve audio path for playback during speaker identification
-            audio_path = None
-            audio_path_str = transcript.get("audio_path")
-            if audio_path_str:
-                candidate = Path(audio_path_str)
-                if not candidate.is_absolute():
-                    candidate = episode_dir / candidate
-                if candidate.exists():
-                    audio_path = candidate
+            audio_path = resolve_audio_path(episode_dir, transcript.get("audio_path"))
 
             try:
                 speaker_map = identify_speakers_interactive(

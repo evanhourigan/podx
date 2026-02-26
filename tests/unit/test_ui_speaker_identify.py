@@ -11,6 +11,7 @@ from podx.ui.speaker_identify import (
     get_speaker_samples,
     has_generic_speaker_ids,
     identify_speakers_interactive,
+    resolve_audio_path,
 )
 
 
@@ -189,3 +190,74 @@ class TestIdentifySpeakersInteractive:
         assert result["SPEAKER_01"] == "Bob"
         # Verify play was called with the right sample
         mock_play.assert_called_once()
+
+
+class TestResolveAudioPath:
+    """Test resolve_audio_path function."""
+
+    def test_finds_audio_wav_in_episode_dir(self, tmp_path):
+        """Test finding audio.wav directly in episode directory."""
+        audio_file = tmp_path / "audio.wav"
+        audio_file.write_bytes(b"fake")
+
+        result = resolve_audio_path(tmp_path)
+        assert result == audio_file
+
+    def test_finds_audio_mp3_in_episode_dir(self, tmp_path):
+        """Test finding audio.mp3 when no .wav exists."""
+        audio_file = tmp_path / "audio.mp3"
+        audio_file.write_bytes(b"fake")
+
+        result = resolve_audio_path(tmp_path)
+        assert result == audio_file
+
+    def test_uses_transcript_audio_path_absolute(self, tmp_path):
+        """Test using absolute path from transcript."""
+        audio_file = tmp_path / "audio.wav"
+        audio_file.write_bytes(b"fake")
+
+        result = resolve_audio_path(tmp_path, str(audio_file))
+        assert result == audio_file
+
+    def test_uses_transcript_audio_path_relative(self, tmp_path):
+        """Test using relative path from transcript."""
+        audio_file = tmp_path / "audio.wav"
+        audio_file.write_bytes(b"fake")
+
+        result = resolve_audio_path(tmp_path, "audio.wav")
+        assert result == audio_file
+
+    def test_extracts_filename_from_stale_path(self, tmp_path):
+        """Test extracting filename when stored path is stale."""
+        audio_file = tmp_path / "audio.wav"
+        audio_file.write_bytes(b"fake")
+
+        # Simulate a stale absolute path from a different machine
+        stale_path = "/old/machine/episodes/2024-01-01-episode/audio.wav"
+        result = resolve_audio_path(tmp_path, stale_path)
+        assert result == audio_file
+
+    def test_fallback_to_directory_scan(self, tmp_path):
+        """Test fallback when transcript audio_path is None."""
+        audio_file = tmp_path / "episode-audio.wav"
+        audio_file.write_bytes(b"fake")
+
+        result = resolve_audio_path(tmp_path, None)
+        # Should find via glob since no audio.wav exists but episode-audio.wav does
+        assert result == audio_file
+
+    def test_returns_none_when_no_audio(self, tmp_path):
+        """Test returning None when no audio file exists."""
+        result = resolve_audio_path(tmp_path)
+        assert result is None
+
+    def test_prefers_stored_path_over_fallback(self, tmp_path):
+        """Test that stored path is preferred over directory scan."""
+        # Create two audio files
+        stored = tmp_path / "original.wav"
+        stored.write_bytes(b"fake")
+        other = tmp_path / "audio.wav"
+        other.write_bytes(b"fake")
+
+        result = resolve_audio_path(tmp_path, str(stored))
+        assert result == stored

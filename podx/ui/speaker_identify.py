@@ -12,6 +12,9 @@ from rich.panel import Panel
 
 console = Console()
 
+# Audio file extensions to search for
+AUDIO_EXTENSIONS = [".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac"]
+
 # Commands that won't be interpreted as speaker names
 MORE_COMMANDS = {"?", "more", "m"}
 PLAY_COMMANDS = {"play", "p"}
@@ -19,6 +22,52 @@ DEFAULT_SAMPLES = 7
 EXTRA_SAMPLES = 7  # Additional samples when user requests more
 MIN_UTTERANCE_LENGTH = 30  # Minimum chars for meaningful sample
 MAX_DISPLAY_LENGTH = 200  # Max chars to display per utterance
+
+
+def resolve_audio_path(
+    episode_dir: Path,
+    transcript_audio_path: Optional[str] = None,
+) -> Optional[Path]:
+    """Resolve audio file path for an episode.
+
+    Tries the transcript's stored audio_path first, then falls back to
+    searching the episode directory for common audio files.
+
+    Args:
+        episode_dir: Path to the episode directory
+        transcript_audio_path: The audio_path value from transcript.json
+
+    Returns:
+        Resolved Path to audio file, or None if not found
+    """
+    # Try the stored path first
+    if transcript_audio_path:
+        candidate = Path(transcript_audio_path)
+        if candidate.exists():
+            return candidate
+        # Try resolving relative to episode dir
+        if not candidate.is_absolute():
+            resolved = episode_dir / candidate
+            if resolved.exists():
+                return resolved
+        # Try just the filename in the episode dir
+        name_only = candidate.name
+        if name_only:
+            resolved = episode_dir / name_only
+            if resolved.exists():
+                return resolved
+
+    # Fallback: search episode directory for audio files
+    for ext in AUDIO_EXTENSIONS:
+        audio_file = episode_dir / f"audio{ext}"
+        if audio_file.exists():
+            return audio_file
+    for ext in AUDIO_EXTENSIONS:
+        matches = list(episode_dir.glob(f"*{ext}"))
+        if matches:
+            return matches[0]
+
+    return None
 
 
 def get_speaker_samples(
