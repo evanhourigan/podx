@@ -35,6 +35,7 @@ def main() -> None:
     Subcommands:
       transcript    Export transcript to text/subtitle formats
       analysis      Export analysis to document formats
+      all           Export both transcript and analysis in all formats
     """
     pass
 
@@ -689,6 +690,203 @@ def export_analysis(
 
         else:
             console.print(f"[yellow]Unknown format: {fmt}[/yellow]")
+
+    if exported:
+        console.print(f"[green]✓ Exported:[/green] {', '.join(exported)}")
+        sys.exit(ExitCode.SUCCESS)
+    else:
+        console.print("[red]No files exported[/red]")
+        sys.exit(ExitCode.USER_ERROR)
+
+
+@main.command(name="all")
+@click.argument(
+    "path",
+    type=click.Path(exists=True, path_type=Path),
+    required=False,
+)
+@click.option(
+    "--timestamps/--no-timestamps",
+    "-t/-T",
+    default=False,
+    help="Include timestamps in transcript txt/md output",
+)
+@click.option(
+    "--include-transcript",
+    is_flag=True,
+    help="Append cleaned transcript after analysis",
+)
+def export_all(
+    path: Optional[Path],
+    timestamps: bool,
+    include_transcript: bool,
+) -> None:
+    """Export both transcript and analysis in all available formats.
+
+    \b
+    Arguments:
+      PATH    Episode directory (default: interactive selection)
+
+    \b
+    Exports:
+      Transcript:  txt, md, srt, vtt
+      Analysis:    md, html (pdf skipped unless pandoc installed)
+
+    \b
+    Examples:
+      podx export all ./ep/                     # Export everything
+      podx export all ./ep/ -t                  # With timestamps
+      podx export all ./ep/ --include-transcript # Transcript in analysis
+    """
+    # Interactive mode if no path provided
+    if path is None:
+        try:
+            selected, _ = select_episode_interactive(
+                scan_dir=".",
+                show_filter=None,
+                require="transcript",
+                title="Select episode to export",
+            )
+            if not selected:
+                console.print("[dim]Selection cancelled[/dim]")
+                sys.exit(0)
+            path = Path(selected["directory"])
+        except KeyboardInterrupt:
+            console.print("\n[dim]Cancelled[/dim]")
+            sys.exit(0)
+
+    if path is None:
+        console.print("[red]Error:[/red] No path specified")
+        sys.exit(ExitCode.USER_ERROR)
+
+    episode_dir = path.resolve()
+    if episode_dir.is_file():
+        episode_dir = episode_dir.parent
+
+    exported = []
+
+    # --- Transcript exports ---
+    transcript_path = _find_transcript(episode_dir)
+    if transcript_path:
+        transcript = json.loads(transcript_path.read_text())
+
+        # Load video_url for clickable timestamps
+        video_url = None
+        if timestamps:
+            meta_path = episode_dir / "episode-meta.json"
+            if meta_path.exists():
+                try:
+                    meta = json.loads(meta_path.read_text())
+                    video_url = meta.get("video_url")
+                except Exception:
+                    pass
+
+        for fmt in ("txt", "md", "srt", "vtt"):
+            output_path = episode_dir / f"transcript.{fmt}"
+            if fmt == "txt":
+                _export_transcript_txt(transcript, output_path, timestamps=timestamps)
+            elif fmt == "md":
+                _export_transcript_md(
+                    transcript, output_path, timestamps=timestamps, video_url=video_url
+                )
+            elif fmt == "srt":
+                _export_transcript_srt(transcript, output_path)
+            elif fmt == "vtt":
+                _export_transcript_vtt(transcript, output_path)
+            exported.append(output_path.name)
+    else:
+        console.print("[yellow]Warning:[/yellow] No transcript found, skipping transcript exports")
+
+    # --- Analysis exports ---
+    all_analyses = _find_all_analyses(episode_dir)
+    if all_analyses:
+        for analysis_path in all_analyses:
+            analysis = json.loads(analysis_path.read_text())
+            md_content = analysis.get("markdown", "")
+            if not md_content:
+                continue
+
+            template = analysis.get("template")
+
+            # Optionally append transcript
+            if include_transcript and transcript_path:
+                transcript_for_append = json.loads(transcript_path.read_text())
+                video_url_for_append = None
+                meta_path = episode_dir / "episode-meta.json"
+                if meta_path.exists():
+                    try:
+                        meta = json.loads(meta_path.read_text())
+                        video_url_for_append = meta.get("video_url")
+                    except Exception:
+                        pass
+                transcript_md = _format_transcript_as_markdown(
+                    transcript_for_append, video_url_for_append
+                )
+                md_content = md_content + "\n\n---\n\n" + transcript_md
+
+            # Build output name prefix
+            if template and template != "general":
+                name_prefix = f"analysis.{template}"
+            else:
+                name_prefix = "analysis"
+
+            # Markdown
+            md_path = episode_dir / f"{name_prefix}.md"
+            md_path.write_text(md_content, encoding="utf-8")
+            exported.append(md_path.name)
+
+            # HTML
+            try:
+                import markdown
+
+                analysis_html = markdown.markdown(analysis.get("markdown", ""))
+                transcript_html = ""
+                if include_transcript and transcript_path:
+                    transcript_for_html = json.loads(transcript_path.read_text())
+                    video_url_html = None
+                    meta_path = episode_dir / "episode-meta.json"
+                    if meta_path.exists():
+                        try:
+                            meta = json.loads(meta_path.read_text())
+                            video_url_html = meta.get("video_url")
+                        except Exception:
+                            pass
+                    transcript_body = markdown.markdown(
+                        _format_transcript_as_markdown(transcript_for_html, video_url_html)
+                    )
+                    transcript_html = f"""
+<hr>
+<details>
+  <summary><strong>Full Transcript</strong> (click to expand)</summary>
+  {transcript_body}
+</details>"""
+
+                html_doc = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Analysis</title>
+    <style>
+        body {{ font-family: -apple-system, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }}
+        h1, h2, h3 {{ color: #333; }}
+        blockquote {{ border-left: 3px solid #ccc; padding-left: 1rem; color: #666; }}
+        details {{ margin-top: 2rem; }}
+        details summary {{ cursor: pointer; padding: 0.5rem; background: #f5f5f5; border-radius: 4px; }}
+        details summary:hover {{ background: #e8e8e8; }}
+    </style>
+</head>
+<body>
+{analysis_html}
+{transcript_html}
+</body>
+</html>"""
+                html_path = episode_dir / f"{name_prefix}.html"
+                html_path.write_text(html_doc, encoding="utf-8")
+                exported.append(html_path.name)
+            except ImportError:
+                pass  # Silently skip HTML if markdown package not installed
+    else:
+        console.print("[yellow]Warning:[/yellow] No analysis found, skipping analysis exports")
 
     if exported:
         console.print(f"[green]✓ Exported:[/green] {', '.join(exported)}")
