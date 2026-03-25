@@ -665,6 +665,9 @@ class TemplateManager:
                     "- Stories or examples that illustrate principles in memorable ways\n\n"
                     "Be specific and concrete. Don't just say 'leadership is important.' Say exactly\n"
                     "what framework or approach was described and how it works.\n\n"
+                    "When speakers have been identified with real names in the transcript (e.g., "
+                    "'Lex Fridman:' instead of 'SPEAKER_00:'), use those real names throughout your "
+                    "analysis. Attribute quotes and insights to the actual person by name.\n\n"
                     f"{scaling_guidance}"
                 ),
                 map_instructions=(
@@ -729,7 +732,22 @@ class TemplateManager:
                     "rather than stretching.\n\n"
                     "### For Personal Development\n"
                     "Bullet the 3-5 most relevant insights for individual growth, career navigation,\n"
-                    "learning, or mindset."
+                    "learning, or mindset.\n\n"
+                    "## Episode Classification\n\n"
+                    "At the very end of your analysis, include a structured classification block "
+                    "for database tagging. Use this EXACT format with the delimiters:\n\n"
+                    "---CLASSIFICATION---\n"
+                    '{"domain_relevance": ["Consulting", "Leadership"], '
+                    '"relevance_score": "High", '
+                    '"topic_tags": ["ai", "organizational-design", "productivity"], '
+                    '"guests": ["Guest Name"]}\n'
+                    "---CLASSIFICATION---\n\n"
+                    "Rules for classification:\n"
+                    "- domain_relevance: Choose from: Consulting, Therapy Sites, Engineering, "
+                    "Personal Development, Leadership, Marketing, AI/ML\n"
+                    "- relevance_score: Exactly one of: High, Medium, Low\n"
+                    "- topic_tags: 3-7 descriptive lowercase tags\n"
+                    "- guests: Real guest name(s) from the episode (not host names, not SPEAKER_XX)"
                 ),
                 variables=["title", "show", "duration", "transcript", "speakers"],
             ),
