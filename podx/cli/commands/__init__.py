@@ -2,6 +2,7 @@
 
 # Import all command functions
 from .analyze import analyze_cmd, deepcast_cmd  # deepcast_cmd is backwards compat alias
+from .ask import ask_cmd
 from .backfill import backfill_cmd
 from .clean import clean_cmd
 from .cleanup import cleanup_cmd
@@ -30,6 +31,7 @@ __all__ = [
     "speakers_cmd",
     "backfill_cmd",
     "clean_cmd",
+    "ask_cmd",
     # Main orchestration command
     "run",
     # Server
