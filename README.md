@@ -448,6 +448,10 @@ markdown, insights = analyzer.analyze(diarized, metadata)
 | `podx models` | List models with pricing |
 | `podx config` | Manage configuration |
 | `podx templates` | Manage analysis templates |
+| `podx speakers` | Identify speakers (standalone) |
+| `podx backfill` | Batch re-analyze + publish to Notion |
+| `podx ask` | Ask questions about transcripts |
+| `podx clean` | Disk cleanup after Notion publish |
 | `podx init` | Setup wizard |
 
 ### Interactive Mode (v4.0+)

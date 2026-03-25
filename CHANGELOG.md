@@ -9,12 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ Added
 
-- **knowledge-oracle template** — New built-in template for cross-domain
-  knowledge extraction. Mines transferable frameworks, mental models, contrarian
-  insights, and actionable strategies, then maps them to consulting, therapy
-  practice marketing, personal development, and other domains. Designed to run
-  as a second analysis pass alongside format-based templates. Use with
-  `--template knowledge-oracle`.
+- **Knowledge Oracle system** — Full pipeline for building a searchable podcast
+  knowledge base in Notion with cross-domain insight extraction.
+
+- **knowledge-oracle template** — Built-in template for cross-domain knowledge
+  extraction. Mines transferable frameworks, mental models, contrarian insights,
+  and actionable strategies. Outputs structured classification JSON for
+  automated Notion property tagging (domain relevance, relevance score, topic
+  tags, guest names). Use with `--template knowledge-oracle`.
+
+- **`podx speakers`** — Standalone speaker identification command, decoupled
+  from cleanup. Saves speaker maps to `speaker-map.json` for reuse. Can be
+  re-run without re-diarizing. Cleanup auto-applies saved maps.
+
+- **`podx backfill`** — Batch re-analyze episodes and publish to Notion. Walks
+  episode directories, runs format + knowledge-oracle dual-template analysis,
+  parses classification metadata, and upserts to Notion with full property
+  mapping. Features template version hashing for smart skip, `--dry-run`,
+  `--missing-from-notion`, `--force`, and `--limit` flags.
+
+- **`podx clean`** — Tiered disk cleanup after verified Notion publish. Tier 1
+  (always safe): WAV, analysis files, exports. Tier 2 (confirmation): original
+  audio. Tier 3 (never): episode-meta.json, transcript.json, speaker-map.json.
+
+- **`podx ask`** — Post-analysis Q&A on episode transcripts. Sends questions to
+  an LLM with full transcript context. `--notion` flag appends Q&A as a toggle
+  block to the episode's Notion page.
 
 - **Template import/export/delete CLI commands** — `podx templates export NAME`
   exports any template as YAML. `podx templates import FILE_OR_URL` imports a
