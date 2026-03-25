@@ -180,6 +180,12 @@ def upsert_page(
         props.update(props_extra)
 
     filters: List[Dict[str, Any]] = []
+
+    # Always filter on podcast name (title property) for correct matching
+    podcast_type = db_props.get(podcast_prop, {}).get("type")
+    if podcast_type == "title":
+        filters.append({"property": podcast_prop, "title": {"equals": podcast_name}})
+
     if episode_prop:
         episode_type = db_props.get(episode_prop, {}).get("type")
         if episode_type == "title":
