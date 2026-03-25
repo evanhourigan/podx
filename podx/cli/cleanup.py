@@ -178,7 +178,9 @@ def main(path: Optional[Path], no_restore: bool, no_skip_ads: bool):
             # Auto-apply saved speaker map
             transcript["segments"] = apply_speaker_names(transcript["segments"], existing_map)
             speaker_map = existing_map
-            console.print(f"[green]✓ Applied saved speaker map ({len(existing_map)} speakers)[/green]")
+            console.print(
+                f"[green]✓ Applied saved speaker map ({len(existing_map)} speakers)[/green]"
+            )
         elif interactive_mode:
             try:
                 identify_choice = (
@@ -201,9 +203,7 @@ def main(path: Optional[Path], no_restore: bool, no_skip_ads: bool):
                             transcript["segments"], speaker_map
                         )
                         save_speaker_map(episode_dir, speaker_map)
-                        console.print(
-                            f"[green]✓ Identified {len(speaker_map)} speaker(s)[/green]"
-                        )
+                        console.print(f"[green]✓ Identified {len(speaker_map)} speaker(s)[/green]")
                 except (KeyboardInterrupt, EOFError):
                     console.print("\n[dim]Speaker identification cancelled[/dim]")
 

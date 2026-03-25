@@ -13,10 +13,7 @@ import click
 from rich.console import Console
 
 from podx.core.history import record_processing_event
-from podx.core.speakers import (
-    load_speaker_map,
-    save_speaker_map,
-)
+from podx.core.speakers import load_speaker_map, save_speaker_map
 from podx.domain.exit_codes import ExitCode
 from podx.logging import get_logger
 from podx.ui import (
@@ -32,7 +29,9 @@ console = Console()
 
 @click.command(context_settings={"max_content_width": 120})
 @click.argument("path", type=click.Path(exists=True, path_type=Path), required=False)
-@click.option("--reidentify", is_flag=True, help="Re-run identification even if speaker-map.json exists")
+@click.option(
+    "--reidentify", is_flag=True, help="Re-run identification even if speaker-map.json exists"
+)
 def main(path: Optional[Path], reidentify: bool) -> None:
     """Identify speakers in a diarized transcript.
 

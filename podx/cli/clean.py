@@ -91,9 +91,7 @@ def main(
     """
     # Find episode directories
     if all_episodes:
-        episode_dirs = [
-            d.parent for d in path.rglob("episode-meta.json") if d.parent.is_dir()
-        ]
+        episode_dirs = [d.parent for d in path.rglob("episode-meta.json") if d.parent.is_dir()]
     elif (path / "episode-meta.json").exists():
         episode_dirs = [path]
     else:
@@ -141,9 +139,11 @@ def main(
             audio_names = ", ".join(f.name for f in plan.tier2_files)
             audio_size = format_bytes(plan.total_bytes_tier2)
             try:
-                confirm = input(
-                    f"  Delete original audio ({audio_names}, {audio_size})? [y/N]: "
-                ).strip().lower()
+                confirm = (
+                    input(f"  Delete original audio ({audio_names}, {audio_size})? [y/N]: ")
+                    .strip()
+                    .lower()
+                )
             except (KeyboardInterrupt, EOFError):
                 console.print("\n[dim]Cancelled[/dim]")
                 sys.exit(0)
@@ -163,6 +163,8 @@ def main(
             console.print(f"  [red]Error:[/red] {e}")
 
     if not dry_run:
-        console.print(f"\n[bold]Total:[/bold] {total_files} files, {format_bytes(total_bytes)} freed")
+        console.print(
+            f"\n[bold]Total:[/bold] {total_files} files, {format_bytes(total_bytes)} freed"
+        )
 
     sys.exit(ExitCode.SUCCESS)

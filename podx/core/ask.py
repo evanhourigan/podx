@@ -73,11 +73,7 @@ def ask_transcript(
 
     context_header = "\n".join(context_parts) + "\n\n" if context_parts else ""
 
-    user_prompt = (
-        f"{context_header}"
-        f"TRANSCRIPT:\n{transcript_text}\n\n"
-        f"QUESTION: {question}"
-    )
+    user_prompt = f"{context_header}" f"TRANSCRIPT:\n{transcript_text}\n\n" f"QUESTION: {question}"
 
     # Parse model string
     provider_name = "openai"
@@ -160,9 +156,7 @@ def append_qa_to_notion(
         answer_blocks.append(
             {
                 "type": "paragraph",
-                "paragraph": {
-                    "rich_text": [{"type": "text", "text": {"content": chunk}}]
-                },
+                "paragraph": {"rich_text": [{"type": "text", "text": {"content": chunk}}]},
             }
         )
 

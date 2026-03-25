@@ -342,9 +342,7 @@ def _format_transcript_blocks(
         blocks.append(
             {
                 "type": "paragraph",
-                "paragraph": {
-                    "rich_text": [{"type": "text", "text": {"content": content[:2000]}}]
-                },
+                "paragraph": {"rich_text": [{"type": "text", "text": {"content": content[:2000]}}]},
             }
         )
     return blocks
@@ -592,8 +590,12 @@ def backfill_episode(
     _progress(f"Running {format_template} analysis...")
     try:
         format_md, _, _ = run_analysis(
-            transcript, episode_meta, episode_dir,
-            format_template, config.model, config.force_reanalyze,
+            transcript,
+            episode_meta,
+            episode_dir,
+            format_template,
+            config.model,
+            config.force_reanalyze,
         )
         result.templates_run.append(format_template)
     except Exception as e:
@@ -605,8 +607,12 @@ def backfill_episode(
     oracle_md = None
     try:
         oracle_md, _, _ = run_analysis(
-            transcript, episode_meta, episode_dir,
-            "knowledge-oracle", config.model, config.force_reanalyze,
+            transcript,
+            episode_meta,
+            episode_dir,
+            "knowledge-oracle",
+            config.model,
+            config.force_reanalyze,
         )
         result.templates_run.append("knowledge-oracle")
     except Exception as e:
@@ -622,8 +628,13 @@ def backfill_episode(
     if config.publish_to_notion and (format_md or oracle_md):
         try:
             page_id = _publish_to_notion(
-                episode_dir, episode_meta, transcript,
-                format_md, oracle_md, result, config,
+                episode_dir,
+                episode_meta,
+                transcript,
+                format_md,
+                oracle_md,
+                result,
+                config,
             )
             result.notion_page_id = page_id
             _progress(f"Published to Notion: {page_id}")
@@ -677,9 +688,7 @@ def _publish_to_notion(
 
     # Add ASR Model if available
     if asr_model:
-        props_extra["ASR Model"] = {
-            "rich_text": [{"type": "text", "text": {"content": asr_model}}]
-        }
+        props_extra["ASR Model"] = {"rich_text": [{"type": "text", "text": {"content": asr_model}}]}
 
     # Build page blocks
     blocks = build_notion_page_blocks(format_md, oracle_md, transcript, video_url)

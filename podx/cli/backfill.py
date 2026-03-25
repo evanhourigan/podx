@@ -79,14 +79,16 @@ def _get_existing_notion_episodes(db_id: str) -> set:
 
 @click.command(context_settings={"max_content_width": 120})
 @click.argument("path", type=click.Path(exists=True, path_type=Path))
-@click.option("--dry-run", is_flag=True, help="Preview what would be processed without making changes")
+@click.option(
+    "--dry-run", is_flag=True, help="Preview what would be processed without making changes"
+)
 @click.option("--model", default="gpt-5.2", show_default=True, help="LLM model for analysis")
 @click.option("--show", "show_filter", default=None, help="Filter by show name (substring match)")
 @click.option("--since", default=None, help="Only episodes after this date (YYYY-MM-DD)")
+@click.option("--missing-from-notion", is_flag=True, help="Only episodes not yet in Notion")
 @click.option(
-    "--missing-from-notion", is_flag=True, help="Only episodes not yet in Notion"
+    "--no-analysis", is_flag=True, help="Skip analysis, only publish existing files to Notion"
 )
-@click.option("--no-analysis", is_flag=True, help="Skip analysis, only publish existing files to Notion")
 @click.option("--force", is_flag=True, help="Re-analyze even if template hash matches")
 @click.option("--limit", default=None, type=int, help="Process at most N episodes")
 @click.option("--no-notion", is_flag=True, help="Run analysis only, skip Notion publishing")
