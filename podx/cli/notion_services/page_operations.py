@@ -181,10 +181,10 @@ def upsert_page(
 
     filters: List[Dict[str, Any]] = []
 
-    # Always filter on podcast name (title property) for correct matching
-    podcast_type = db_props.get(podcast_prop, {}).get("type")
-    if podcast_type == "title":
-        filters.append({"property": podcast_prop, "title": {"equals": podcast_name}})
+    # Note: We intentionally do NOT filter on podcast_prop (title) here.
+    # Old entries may have episode_title in the title property while new
+    # entries put show_name there. Matching on Episode + Date is sufficient
+    # and backward-compatible with both old and new page layouts.
 
     if episode_prop:
         episode_type = db_props.get(episode_prop, {}).get("type")

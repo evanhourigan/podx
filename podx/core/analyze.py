@@ -248,9 +248,18 @@ class AnalyzeEngine:
             tasks = [process_chunk(i, chunk) for i, chunk in enumerate(chunks)]
             return await asyncio.gather(*tasks)
 
-        # Run parallel processing
+        # Run parallel processing using an explicit event loop to avoid
+        # "Event loop is closed" errors when called repeatedly (e.g., backfill).
+        # asyncio.run() creates and destroys a loop each time, which causes
+        # httpx's async client cleanup to fail on subsequent calls.
         try:
-            map_notes = asyncio.run(process_chunks_parallel())
+            loop = asyncio.new_event_loop()
+            try:
+                map_notes = loop.run_until_complete(process_chunks_parallel())
+            finally:
+                # Suppress cleanup errors from httpx/anyio connection pools
+                loop.run_until_complete(loop.shutdown_asyncgens())
+                loop.close()
         except Exception as e:
             raise AnalyzeError(f"Map phase failed: {e}") from e
 

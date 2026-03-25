@@ -690,8 +690,18 @@ def _publish_to_notion(
     if asr_model:
         props_extra["ASR Model"] = {"rich_text": [{"type": "text", "text": {"content": asr_model}}]}
 
-    # Build page blocks
-    blocks = build_notion_page_blocks(format_md, oracle_md, transcript, video_url)
+    # Build page blocks — separate analysis from transcript toggles
+    # Toggle blocks with nested children can blow past Notion's per-request
+    # block limit, so we append them individually after page creation.
+    all_blocks = build_notion_page_blocks(format_md, oracle_md, transcript, video_url)
+
+    analysis_blocks = []
+    toggle_blocks = []
+    for b in all_blocks:
+        if b.get("type") == "toggle":
+            toggle_blocks.append(b)
+        else:
+            analysis_blocks.append(b)
 
     # Parse date
     date_iso = None
@@ -706,7 +716,7 @@ def _publish_to_notion(
             if len(date_str) >= 10:
                 date_iso = date_str[:10]
 
-    # Upsert
+    # Upsert with analysis blocks only (no toggles)
     from podx.cli.notion_services.page_operations import upsert_page
 
     page_id = upsert_page(
@@ -723,8 +733,15 @@ def _publish_to_notion(
         deepcast_model=config.model,
         asr_model=asr_model,
         props_extra=props_extra,
-        blocks=blocks,
+        blocks=analysis_blocks,
         replace_content=True,
     )
+
+    # Append transcript toggle blocks one at a time (each has nested children)
+    for toggle in toggle_blocks:
+        try:
+            client.blocks.children.append(block_id=page_id, children=[toggle])
+        except Exception as e:
+            logger.warning("Failed to append toggle block", error=str(e))
 
     return page_id
