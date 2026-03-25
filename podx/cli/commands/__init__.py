@@ -11,6 +11,7 @@ from .models import models_cmd
 from .notion import notion_cmd
 from .run import run
 from .server import server
+from .speakers import speakers_cmd
 from .transcribe import transcribe_cmd
 
 __all__ = [
@@ -24,6 +25,7 @@ __all__ = [
     "deepcast_cmd",  # Backwards compatibility alias for analyze_cmd
     "models_cmd",
     "notion_cmd",
+    "speakers_cmd",
     # Main orchestration command
     "run",
     # Server

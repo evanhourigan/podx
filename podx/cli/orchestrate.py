@@ -35,6 +35,7 @@ from podx.cli.commands import (  # noqa: E402 - Must import after logging setup
     register_deprecated_commands,
     run,
     server,
+    speakers_cmd,
     transcribe_cmd,
 )
 
@@ -89,6 +90,7 @@ main.add_command(fetch_cmd, name="fetch")
 main.add_command(transcribe_cmd, name="transcribe")
 main.add_command(diarize_cmd, name="diarize")
 main.add_command(cleanup_cmd, name="cleanup")
+main.add_command(speakers_cmd, name="speakers")
 main.add_command(export_cmd, name="export")
 main.add_command(deepcast_cmd, name="deepcast")  # Backwards compat alias for analyze
 main.add_command(models_cmd, name="models")
