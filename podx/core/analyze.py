@@ -4,9 +4,9 @@ No UI dependencies, no CLI concerns. Just podcast transcript analysis using LLM 
 Handles chunking, parallel API calls, and structured output generation.
 """
 
-import asyncio
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from ..llm import LLMMessage, LLMProvider, get_provider
@@ -231,35 +231,26 @@ class AnalyzeEngine:
         chunks = split_into_chunks(text, self.max_chars_per_chunk)
         logger.info("Split transcript into chunks", chunk_count=len(chunks))
 
-        # Map phase: process chunks in parallel
+        # Map phase: process chunks in parallel using threads.
+        # Uses ThreadPoolExecutor instead of asyncio to avoid "Event loop is closed"
+        # errors from httpx client cleanup when called repeatedly (e.g., backfill).
         self._report_progress(f"Processing {len(chunks)} chunks")
 
-        async def process_chunks_parallel():
-            """Process all chunks concurrently with rate limiting."""
-            semaphore = asyncio.Semaphore(3)  # Limit to 3 concurrent requests
+        def process_chunk(i: int, chunk: str) -> str:
+            prompt = f"{map_instructions}\n\nChunk {i+1}/{len(chunks)}:\n\n{chunk}"
+            self._report_progress(f"Processing chunk {i+1}/{len(chunks)}")
+            return self._chat_once(system_prompt, prompt)
 
-            async def process_chunk(i: int, chunk: str) -> str:
-                async with semaphore:
-                    prompt = f"{map_instructions}\n\nChunk {i+1}/{len(chunks)}:\n\n{chunk}"
-                    self._report_progress(f"Processing chunk {i+1}/{len(chunks)}")
-                    note = await self._chat_once_async(system_prompt, prompt)
-                    return note
-
-            tasks = [process_chunk(i, chunk) for i, chunk in enumerate(chunks)]
-            return await asyncio.gather(*tasks)
-
-        # Run parallel processing using an explicit event loop to avoid
-        # "Event loop is closed" errors when called repeatedly (e.g., backfill).
-        # asyncio.run() creates and destroys a loop each time, which causes
-        # httpx's async client cleanup to fail on subsequent calls.
         try:
-            loop = asyncio.new_event_loop()
-            try:
-                map_notes = loop.run_until_complete(process_chunks_parallel())
-            finally:
-                # Suppress cleanup errors from httpx/anyio connection pools
-                loop.run_until_complete(loop.shutdown_asyncgens())
-                loop.close()
+            map_notes = [None] * len(chunks)
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                futures = {
+                    executor.submit(process_chunk, i, chunk): i
+                    for i, chunk in enumerate(chunks)
+                }
+                for future in as_completed(futures):
+                    idx = futures[future]
+                    map_notes[idx] = future.result()
         except Exception as e:
             raise AnalyzeError(f"Map phase failed: {e}") from e
 

@@ -295,7 +295,7 @@ class TestAnalyzeEngineDeepcast:
         from podx.llm.base import LLMAPIError
 
         class FailingMockProvider(MockLLMProvider):
-            async def complete_async(self, *args, **kwargs):
+            def complete(self, *args, **kwargs):
                 raise LLMAPIError("API error")
 
         mock_llm = FailingMockProvider()
