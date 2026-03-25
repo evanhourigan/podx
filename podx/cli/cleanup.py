@@ -13,6 +13,7 @@ from rich.console import Console
 
 from podx.core.history import record_processing_event
 from podx.core.preprocess import PreprocessError, TranscriptPreprocessor
+from podx.core.speakers import load_speaker_map, save_speaker_map
 from podx.domain.exit_codes import ExitCode
 from podx.logging import get_logger
 from podx.ui import (
@@ -169,41 +170,42 @@ def main(path: Optional[Path], no_restore: bool, no_skip_ads: bool):
         sys.exit(ExitCode.USER_ERROR)
 
     # Speaker identification for diarized transcripts
-    # Only prompt in interactive mode if transcript has generic SPEAKER_XX labels
-    do_identify_speakers = False
-    if (
-        interactive_mode
-        and transcript.get("diarized")
-        and has_generic_speaker_ids(transcript["segments"])
-    ):
-        try:
-            identify_choice = (
-                input("Identify speakers? (recommended for diarized transcripts) [Y/n]: ")
-                .strip()
-                .lower()
-            )
-        except (KeyboardInterrupt, EOFError):
-            console.print("\n[dim]Cancelled[/dim]")
-            sys.exit(0)
-        do_identify_speakers = identify_choice not in ("n", "no")
-
-    # Resolve audio path for playback during speaker identification
-    audio_path = resolve_audio_path(episode_dir, transcript.get("audio_path"))
-
-    # Run speaker identification if requested
+    # First check for saved speaker-map.json, then prompt interactively
     speaker_map: dict = {}
-    if do_identify_speakers:
-        try:
-            speaker_map = identify_speakers_interactive(
-                transcript["segments"], audio_path=audio_path
-            )
-            if speaker_map:
-                # Apply names to transcript
-                transcript["segments"] = apply_speaker_names(transcript["segments"], speaker_map)
-                console.print(f"[green]✓ Identified {len(speaker_map)} speaker(s)[/green]")
-        except (KeyboardInterrupt, EOFError):
-            console.print("\n[dim]Speaker identification cancelled[/dim]")
-            # Continue with cleanup using original speaker IDs
+    if has_generic_speaker_ids(transcript["segments"]):
+        existing_map = load_speaker_map(episode_dir)
+        if existing_map:
+            # Auto-apply saved speaker map
+            transcript["segments"] = apply_speaker_names(transcript["segments"], existing_map)
+            speaker_map = existing_map
+            console.print(f"[green]✓ Applied saved speaker map ({len(existing_map)} speakers)[/green]")
+        elif interactive_mode:
+            try:
+                identify_choice = (
+                    input("Identify speakers? (recommended for diarized transcripts) [Y/n]: ")
+                    .strip()
+                    .lower()
+                )
+            except (KeyboardInterrupt, EOFError):
+                console.print("\n[dim]Cancelled[/dim]")
+                sys.exit(0)
+
+            if identify_choice not in ("n", "no"):
+                audio_path = resolve_audio_path(episode_dir, transcript.get("audio_path"))
+                try:
+                    speaker_map = identify_speakers_interactive(
+                        transcript["segments"], audio_path=audio_path
+                    )
+                    if speaker_map:
+                        transcript["segments"] = apply_speaker_names(
+                            transcript["segments"], speaker_map
+                        )
+                        save_speaker_map(episode_dir, speaker_map)
+                        console.print(
+                            f"[green]✓ Identified {len(speaker_map)} speaker(s)[/green]"
+                        )
+                except (KeyboardInterrupt, EOFError):
+                    console.print("\n[dim]Speaker identification cancelled[/dim]")
 
     # Check for restore without API key (non-interactive mode)
     do_restore = not no_restore
