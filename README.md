@@ -522,7 +522,8 @@ Available templates:
 - `solo-commentary` - Single host
 - `technical-deep-dive` - In-depth technical content
 - `quote-miner` - Mine the most quotable moments (verbatim-verified, categorized)
-- And more: `lecture-presentation`, `debate-roundtable`, `news-analysis`, `case-study`, `business-strategy`, `research-review`
+- `knowledge-oracle` - Cross-domain knowledge extraction (frameworks, mental models, actionable strategies)
+- And more: `interview-2on1`, `lecture-presentation`, `debate-roundtable`, `news-analysis`, `case-study`, `business-strategy`, `research-review`
 
 See [docs/TEMPLATES.md](docs/TEMPLATES.md) for complete guide.
 

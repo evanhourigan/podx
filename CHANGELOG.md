@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ Added
 
+- **knowledge-oracle template** — New built-in template for cross-domain
+  knowledge extraction. Mines transferable frameworks, mental models, contrarian
+  insights, and actionable strategies, then maps them to consulting, therapy
+  practice marketing, personal development, and other domains. Designed to run
+  as a second analysis pass alongside format-based templates. Use with
+  `--template knowledge-oracle`.
+
+- **Template import/export/delete CLI commands** — `podx templates export NAME`
+  exports any template as YAML. `podx templates import FILE_OR_URL` imports a
+  custom template from a local YAML file or URL. `podx templates delete NAME`
+  removes a user-imported template. These commands were previously documented
+  but missing from the CLI.
+
 - **interview-2on1 template** — New built-in template for podcasts with two
   co-hosts interviewing a single guest. Captures host dynamics, how co-hosts
   divide questioning and build on each other, and the three-way conversation
