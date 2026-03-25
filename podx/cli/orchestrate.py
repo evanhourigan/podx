@@ -26,6 +26,7 @@ from podx.cli import analyze, cloud, history, init, templates, transcode  # noqa
 # Import all command modules
 from podx.cli.commands import (  # noqa: E402 - Must import after logging setup
     backfill_cmd,
+    clean_cmd,
     cleanup_cmd,
     deepcast_cmd,
     diarize_cmd,
@@ -97,6 +98,7 @@ main.add_command(deepcast_cmd, name="deepcast")  # Backwards compat alias for an
 main.add_command(models_cmd, name="models")
 main.add_command(notion_cmd, name="notion")
 main.add_command(backfill_cmd, name="backfill")
+main.add_command(clean_cmd, name="clean")
 
 # Register utility commands
 main.add_command(config.main, name="config")
