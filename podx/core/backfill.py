@@ -55,7 +55,7 @@ DEFAULT_MAP_INSTRUCTIONS = "Extract key points, notable quotes, and insights fro
 class BackfillConfig:
     """Configuration for a backfill run."""
 
-    model: str = "gpt-5.2"
+    model: str = "gpt-5.1"
     dry_run: bool = False
     force_reanalyze: bool = False
     notion_db_id: str = NOTION_DB_ID

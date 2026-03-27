@@ -22,7 +22,7 @@ console = Console()
 @click.command(context_settings={"max_content_width": 120})
 @click.argument("path", type=click.Path(exists=True, path_type=Path), required=False)
 @click.option("--question", "-q", required=True, help="Question to ask about the episode")
-@click.option("--model", default="gpt-5.2", show_default=True, help="LLM model for answering")
+@click.option("--model", default="gpt-5.1", show_default=True, help="LLM model for answering")
 @click.option("--notion", is_flag=True, help="Append Q&A to the episode's Notion page")
 def main(
     path: Optional[Path],
@@ -39,7 +39,7 @@ def main(
     Examples:
       podx ask ./episode/ -q "What was the main argument?"
       podx ask ./episode/ -q "How does this relate to consulting?" --notion
-      podx ask ./episode/ -q "Summarize the guest's background" --model gpt-5.2
+      podx ask ./episode/ -q "Summarize the guest's background" --model gpt-5.1
     """
     # Resolve episode directory
     if path:

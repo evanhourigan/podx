@@ -25,7 +25,7 @@ SYSTEM_PROMPT = (
 def ask_transcript(
     transcript: Dict[str, Any],
     question: str,
-    model: str = "gpt-5.2",
+    model: str = "gpt-5.1",
     episode_meta: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Send a question about a transcript to an LLM.

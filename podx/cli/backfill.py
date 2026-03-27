@@ -82,7 +82,7 @@ def _get_existing_notion_episodes(db_id: str) -> set:
 @click.option(
     "--dry-run", is_flag=True, help="Preview what would be processed without making changes"
 )
-@click.option("--model", default="gpt-5.2", show_default=True, help="LLM model for analysis")
+@click.option("--model", default="gpt-5.1", show_default=True, help="LLM model for analysis")
 @click.option("--show", "show_filter", default=None, help="Filter by show name (substring match)")
 @click.option("--since", default=None, help="Only episodes after this date (YYYY-MM-DD)")
 @click.option("--missing-from-notion", is_flag=True, help="Only episodes not yet in Notion")
