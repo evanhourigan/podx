@@ -85,7 +85,11 @@ def _get_existing_notion_episodes(db_id: str) -> set:
 @click.option("--model", default="gpt-5.1", show_default=True, help="LLM model for analysis")
 @click.option("--show", "show_filter", default=None, help="Filter by show name (substring match)")
 @click.option("--since", default=None, help="Only episodes after this date (YYYY-MM-DD)")
-@click.option("--missing-from-notion", is_flag=True, help="Only episodes not yet in Notion")
+@click.option(
+    "--include-published",
+    is_flag=True,
+    help="Include episodes already in Notion (default: skip them)",
+)
 @click.option(
     "--no-analysis", is_flag=True, help="Skip analysis, only publish existing files to Notion"
 )
@@ -98,7 +102,7 @@ def main(
     model: str,
     show_filter: Optional[str],
     since: Optional[str],
-    missing_from_notion: bool,
+    include_published: bool,
     no_analysis: bool,
     force: bool,
     limit: Optional[int],
@@ -115,7 +119,7 @@ def main(
       podx backfill ~/podcasts/ --dry-run               # Preview only
       podx backfill ~/podcasts/ --show "Lex Fridman"    # Filter by show
       podx backfill ~/podcasts/ --since 2025-01-01      # Recent only
-      podx backfill ~/podcasts/ --missing-from-notion   # Only new to Notion
+      podx backfill ~/podcasts/ --include-published       # Re-process already-published episodes
       podx backfill ~/podcasts/ --no-analysis            # Publish existing only
       podx backfill ~/podcasts/ --force                  # Re-analyze everything
       podx backfill ~/podcasts/ --limit 5                # Cap at N episodes
@@ -144,9 +148,9 @@ def main(
         console.print("[yellow]No episodes with transcripts found[/yellow]")
         sys.exit(ExitCode.SUCCESS)
 
-    # Filter missing from Notion
-    if missing_from_notion:
-        console.print("[dim]Querying Notion for existing episodes...[/dim]")
+    # Skip episodes already in Notion (default behavior)
+    if not include_published and not no_notion:
+        console.print("[dim]Checking Notion for already-published episodes...[/dim]")
         existing = _get_existing_notion_episodes(BackfillConfig.notion_db_id)
         console.print(f"[dim]Found {len(existing)} existing entries in Notion[/dim]")
 
@@ -155,6 +159,10 @@ def main(
             ep_title = ep.get("episode_title", ep.get("title", ""))
             if not any(ep_title == t for t, _ in existing):
                 filtered.append(ep)
+
+        skipped = len(episodes) - len(filtered)
+        if skipped:
+            console.print(f"[dim]Skipping {skipped} already-published episodes[/dim]")
         episodes = filtered
 
     # Apply limit
