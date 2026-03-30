@@ -67,6 +67,7 @@ class BackfillConfig:
     force_reanalyze: bool = False
     notion_db_id: str = NOTION_DB_ID
     publish_to_notion: bool = True
+    publish_to_obsidian: bool = True
     format_template_override: Optional[str] = None
 
 
@@ -654,6 +655,27 @@ def backfill_episode(
             _progress(f"Notion publish failed: {e}")
             result.error = f"Notion publish failed: {e}"
             return result
+
+    # 9. Publish to Obsidian vault
+    if config.publish_to_obsidian and (format_md or oracle_md):
+        try:
+            from .obsidian import ObsidianConfig, publish_to_obsidian
+
+            obsidian_config = ObsidianConfig()
+            publish_to_obsidian(
+                vault_path=obsidian_config.vault_path,
+                episode_meta=episode_meta,
+                transcript=transcript,
+                format_md=format_md,
+                oracle_md=oracle_md,
+                classification=result.classification,
+                model=config.model,
+                asr_model=transcript.get("asr_model") if transcript else None,
+                auto_commit=False,  # Backfill commits once at end
+            )
+            _progress("Published to Obsidian vault")
+        except Exception as e:
+            _progress(f"Obsidian publish failed: {e}")
 
     result.success = True
     return result

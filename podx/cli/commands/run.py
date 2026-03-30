@@ -917,6 +917,76 @@ def _run_notion_step(
 
 
 # ---------------------------------------------------------------------------
+# Obsidian vault step
+# ---------------------------------------------------------------------------
+
+
+def _run_obsidian_step(
+    episode_dir: Path,
+    format_template: str,
+    model: Optional[str] = None,
+) -> bool:
+    """Publish episode to Obsidian vault."""
+    from podx.cli.analyze import DEFAULT_MODEL, analysis_output_path
+    from podx.core.backfill import parse_classification_json
+    from podx.core.obsidian import ObsidianConfig, publish_to_obsidian
+
+    console.print("\n[bold cyan]── Obsidian ───────────────────────────────────────[/bold cyan]")
+
+    if model is None:
+        model = DEFAULT_MODEL
+
+    # Load analyses
+    format_path = analysis_output_path(episode_dir, format_template, model)
+    oracle_path = analysis_output_path(episode_dir, "knowledge-oracle", model)
+
+    format_md = None
+    oracle_md = None
+
+    if format_path.exists():
+        format_md = json.loads(format_path.read_text()).get("markdown", "")
+    if oracle_path.exists():
+        oracle_md = json.loads(oracle_path.read_text()).get("markdown", "")
+
+    if not format_md and not oracle_md:
+        console.print("[dim]No analysis to publish to Obsidian[/dim]")
+        return True
+
+    # Load metadata and transcript
+    episode_meta = {}
+    meta_path = episode_dir / "episode-meta.json"
+    if meta_path.exists():
+        episode_meta = json.loads(meta_path.read_text())
+
+    transcript = None
+    transcript_path = episode_dir / "transcript.json"
+    if transcript_path.exists():
+        transcript = json.loads(transcript_path.read_text())
+
+    # Parse classification
+    classification = parse_classification_json(oracle_md) if oracle_md else None
+
+    try:
+        config = ObsidianConfig()
+        publish_to_obsidian(
+            vault_path=config.vault_path,
+            episode_meta=episode_meta,
+            transcript=transcript,
+            format_md=format_md,
+            oracle_md=oracle_md,
+            classification=classification,
+            model=model,
+            asr_model=transcript.get("asr_model") if transcript else None,
+        )
+        console.print("[green]✓ Published to Obsidian vault[/green]")
+    except Exception as e:
+        console.print(f"[red]Obsidian publish failed:[/red] {e}")
+        return False
+
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Main command
 # ---------------------------------------------------------------------------
 
@@ -962,6 +1032,7 @@ def _run_notion_step(
 )
 @click.option("--no-oracle", is_flag=True, help="Skip knowledge-oracle analysis.")
 @click.option("--no-notion", is_flag=True, help="Skip Notion publish.")
+@click.option("--no-obsidian", is_flag=True, help="Skip Obsidian vault output.")
 @click.option(
     "--resume",
     is_flag=True,
@@ -977,6 +1048,7 @@ def run(
     moments: Optional[str],
     no_oracle: bool,
     no_notion: bool,
+    no_obsidian: bool,
     resume: bool,
 ) -> None:
     """Run the full podcast processing pipeline interactively.
@@ -1082,6 +1154,10 @@ def run(
         # --- Notion ---
         if not no_notion:
             _run_notion_step(episode_dir, format_template=selected_template, model=analyze_model)
+
+        # --- Obsidian ---
+        if not no_obsidian:
+            _run_obsidian_step(episode_dir, format_template=selected_template, model=analyze_model)
 
         # --- Done ---
         console.print(

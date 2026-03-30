@@ -96,6 +96,7 @@ def _get_existing_notion_episodes(db_id: str) -> set:
 @click.option("--force", is_flag=True, help="Re-analyze even if template hash matches")
 @click.option("--limit", default=None, type=int, help="Process at most N episodes")
 @click.option("--no-notion", is_flag=True, help="Run analysis only, skip Notion publishing")
+@click.option("--no-obsidian", is_flag=True, help="Skip Obsidian vault output")
 @click.option(
     "--review",
     is_flag=True,
@@ -112,6 +113,7 @@ def main(
     force: bool,
     limit: Optional[int],
     no_notion: bool,
+    no_obsidian: bool,
     review: bool,
 ) -> None:
     """Batch re-analyze episodes and publish to Notion.
@@ -193,6 +195,7 @@ def main(
         dry_run=dry_run,
         force_reanalyze=force,
         publish_to_notion=not no_notion and not no_analysis,
+        publish_to_obsidian=not no_obsidian and not no_analysis,
     )
 
     # Process episodes
@@ -252,6 +255,17 @@ def main(
         console.print(f"  [dim]{skipped} skipped[/dim]")
     if failures:
         console.print(f"  [red]{failures} failed[/red]")
+
+    # Git commit the Obsidian vault (once for the entire backfill)
+    if not no_obsidian and not dry_run and successes > 0:
+        try:
+            from podx.core.obsidian import ObsidianConfig, git_commit_vault
+
+            obsidian_config = ObsidianConfig()
+            if git_commit_vault(obsidian_config.vault_path, f"Backfill: {successes} episodes"):
+                console.print("[green]✓ Obsidian vault committed[/green]")
+        except Exception:
+            pass
 
     sys.exit(ExitCode.SUCCESS if failures == 0 else ExitCode.PROCESSING_ERROR)
 
