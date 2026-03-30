@@ -67,6 +67,7 @@ class BackfillConfig:
     force_reanalyze: bool = False
     notion_db_id: str = NOTION_DB_ID
     publish_to_notion: bool = True
+    format_template_override: Optional[str] = None
 
 
 @dataclass
@@ -584,9 +585,13 @@ def backfill_episode(
             transcript = json.loads(transcript_path.read_text(encoding="utf-8"))
             _progress(f"Applied speaker map ({len(speaker_map)} speakers)")
 
-    # 3. Auto-detect format template
-    format_template = detect_format_template(transcript, episode_meta)
-    _progress(f"Detected format: {format_template}")
+    # 3. Determine format template (override or auto-detect)
+    if config.format_template_override:
+        format_template = config.format_template_override
+        _progress(f"Using template: {format_template}")
+    else:
+        format_template = detect_format_template(transcript, episode_meta)
+        _progress(f"Detected format: {format_template}")
 
     if config.dry_run:
         result.success = True

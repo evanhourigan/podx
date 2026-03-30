@@ -96,6 +96,11 @@ def _get_existing_notion_episodes(db_id: str) -> set:
 @click.option("--force", is_flag=True, help="Re-analyze even if template hash matches")
 @click.option("--limit", default=None, type=int, help="Process at most N episodes")
 @click.option("--no-notion", is_flag=True, help="Run analysis only, skip Notion publishing")
+@click.option(
+    "--review",
+    is_flag=True,
+    help="Review each episode's template assignment before re-analyzing",
+)
 def main(
     path: Path,
     dry_run: bool,
@@ -107,6 +112,7 @@ def main(
     force: bool,
     limit: Optional[int],
     no_notion: bool,
+    review: bool,
 ) -> None:
     """Batch re-analyze episodes and publish to Notion.
 
@@ -123,6 +129,7 @@ def main(
       podx backfill ~/podcasts/ --no-analysis            # Publish existing only
       podx backfill ~/podcasts/ --force                  # Re-analyze everything
       podx backfill ~/podcasts/ --limit 5                # Cap at N episodes
+      podx backfill ~/podcasts/ --review                  # Review/fix template per episode
     """
     # Discover episodes
     discovery = EpisodeDiscovery(base_dir=path)
@@ -176,7 +183,11 @@ def main(
     console.print(f"\n[bold]Backfill: {len(episodes)} episode(s)[/bold]")
     console.print(f"[dim]Model: {model} | Notion: {'skip' if no_notion else 'publish'}[/dim]\n")
 
-    # Build config
+    # Review mode implies --include-published and --force
+    if review:
+        force = True
+
+    # Build base config
     config = BackfillConfig(
         model=model,
         dry_run=dry_run,
@@ -187,6 +198,7 @@ def main(
     # Process episodes
     successes = 0
     failures = 0
+    skipped = 0
 
     for i, ep in enumerate(episodes, 1):
         ep_dir = Path(ep.get("directory", ep.get("path", "")))
@@ -195,17 +207,35 @@ def main(
 
         prefix = f"[{i}/{len(episodes)}]"
 
-        if dry_run:
+        if dry_run and not review:
             console.print(f"  {prefix} [cyan]{show}[/cyan] — {title}")
             successes += 1
             continue
 
         console.print(f"\n{prefix} [cyan]{show}[/cyan] — {title}")
 
+        # Review mode: show auto-detected template, let user confirm or change
+        ep_config = config
+        if review:
+            template_choice = _review_template(ep_dir, ep)
+            if template_choice is None:
+                console.print("  [dim]Skipped[/dim]")
+                skipped += 1
+                continue
+            # Create per-episode config with template override
+            ep_config = BackfillConfig(
+                model=config.model,
+                dry_run=config.dry_run,
+                force_reanalyze=True,
+                notion_db_id=config.notion_db_id,
+                publish_to_notion=config.publish_to_notion,
+                format_template_override=template_choice,
+            )
+
         def progress(msg: str) -> None:
             console.print(f"  [dim]{msg}[/dim]")
 
-        result = backfill_episode(ep_dir, config, progress_callback=progress)
+        result = backfill_episode(ep_dir, ep_config, progress_callback=progress)
 
         if result.success:
             successes += 1
@@ -218,7 +248,74 @@ def main(
     # Summary
     console.print(f"\n[bold]{'Preview' if dry_run else 'Backfill'} complete:[/bold]")
     console.print(f"  [green]{successes} succeeded[/green]")
+    if skipped:
+        console.print(f"  [dim]{skipped} skipped[/dim]")
     if failures:
         console.print(f"  [red]{failures} failed[/red]")
 
     sys.exit(ExitCode.SUCCESS if failures == 0 else ExitCode.PROCESSING_ERROR)
+
+
+def _review_template(ep_dir: Path, ep: dict) -> Optional[str]:
+    """Interactive template review for a single episode.
+
+    Shows auto-detected template and lets user confirm, change, or skip.
+    Returns template name, or None to skip this episode.
+    """
+    import json as json_module
+
+    from podx.core.backfill import detect_format_template, find_transcript
+    from podx.templates.manager import TemplateManager
+
+    # Load transcript for auto-detection
+    transcript_path = find_transcript(ep_dir)
+    if not transcript_path:
+        return None
+
+    transcript = json_module.loads(transcript_path.read_text())
+
+    episode_meta = {}
+    meta_path = ep_dir / "episode-meta.json"
+    if meta_path.exists():
+        episode_meta = json_module.loads(meta_path.read_text())
+
+    # Auto-detect
+    detected = detect_format_template(transcript, episode_meta)
+
+    # Count speakers for context
+    speakers = set(s.get("speaker") for s in transcript.get("segments", []) if s.get("speaker"))
+
+    console.print(f"  Speakers: {len(speakers)} | Auto-detected: [cyan]{detected}[/cyan]")
+
+    manager = TemplateManager()
+    valid_names = set(manager.list_templates())
+
+    while True:
+        try:
+            choice = input(f"  Template (Enter={detected}, ?=list, s=skip): ").strip()
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[dim]Cancelled[/dim]")
+            raise SystemExit(0)
+
+        if not choice:
+            return detected
+
+        if choice.lower() == "s":
+            return None
+
+        if choice == "?":
+            for name in sorted(valid_names):
+                tmpl = manager.load(name)
+                desc = tmpl.description
+                if "Format:" in desc:
+                    desc = desc.split("Example podcasts:")[0].replace("Format:", "").strip()
+                if len(desc) > 55:
+                    desc = desc[:52] + "..."
+                marker = " <--" if name == detected else ""
+                console.print(f"    [cyan]{name:<24}[/cyan] {desc}{marker}")
+            continue
+
+        if choice in valid_names:
+            return choice
+
+        console.print(f"  [red]Unknown template '{choice}'. Type ? to list.[/red]")
