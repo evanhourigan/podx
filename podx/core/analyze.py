@@ -187,6 +187,8 @@ class AnalyzeEngine:
         want_json: bool = False,
         json_schema: Optional[str] = None,
         question: Optional[str] = None,
+        moments: Optional[List[Dict[str, Any]]] = None,
+        questions: Optional[List[str]] = None,
     ) -> Tuple[str, Optional[Dict[str, Any]]]:
         """Run analyze on transcript.
 
@@ -245,8 +247,7 @@ class AnalyzeEngine:
             map_notes = [None] * len(chunks)
             with ThreadPoolExecutor(max_workers=3) as executor:
                 futures = {
-                    executor.submit(process_chunk, i, chunk): i
-                    for i, chunk in enumerate(chunks)
+                    executor.submit(process_chunk, i, chunk): i for i, chunk in enumerate(chunks)
                 }
                 for future in as_completed(futures):
                     idx = futures[future]
@@ -273,6 +274,43 @@ class AnalyzeEngine:
                 f"> {question}\n\n"
                 "Be specific, cite the transcript when relevant, and provide "
                 "a thorough response."
+            )
+
+        # Inject flagged moments
+        if moments:
+            moment_lines = []
+            for m in moments:
+                if m.get("note"):
+                    moment_lines.append(f"- [{m['time']}] Listener note: \"{m['note']}\"")
+                else:
+                    moment_lines.append(f"- [{m['time']}]")
+
+            reduce_prompt += (
+                "\n\n---\n\nFlagged Moments:\n"
+                "The listener flagged these timestamps as personally significant "
+                "while listening. For each one:\n"
+                "- Surface what was being discussed AROUND that point in the "
+                "conversation (not just the exact second)\n"
+                "- Tease out the significance in the context of the larger "
+                "conversation — why this moment matters\n"
+                "- Include relevant quotes from nearby in the transcript\n"
+                "- If the listener added a note, connect the discussion to their "
+                "context and explore how the insight applies to what they described\n\n"
+                + "\n".join(moment_lines)
+                + "\n\n"
+                "Include a '## Flagged Moments' section in your output."
+            )
+
+        # Inject listener questions (multi-question support)
+        if questions:
+            q_lines = "\n".join(f"- {q}" for q in questions)
+            reduce_prompt += (
+                "\n\n---\n\nListener Questions:\n"
+                "Answer each of these questions using the transcript as evidence. "
+                "Be specific, cite speakers and timestamps when relevant.\n\n"
+                f"{q_lines}\n\n"
+                "Include a '## Listener Questions' section with a subsection "
+                "for each question."
             )
 
         try:

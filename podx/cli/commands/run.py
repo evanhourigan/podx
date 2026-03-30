@@ -1,12 +1,15 @@
 """Main run command - interactive wizard for full pipeline.
 
-No options - walks through each step sequentially using the same UI
-as individual commands. For scripting, use individual commands instead.
+Enhanced flow: fetch → cloud prompt → transcribe → diarize → cleanup →
+listen-through → template → oracle → moments → questions → analyze → export → notion
 """
 
+import json
+import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 import click
 from rich.console import Console
@@ -14,6 +17,11 @@ from rich.console import Console
 from podx.domain.exit_codes import ExitCode
 
 console = Console()
+
+
+# ---------------------------------------------------------------------------
+# Pipeline step functions (fetch, transcribe, diarize, cleanup, export)
+# ---------------------------------------------------------------------------
 
 
 def _run_fetch_step() -> Optional[Path]:
@@ -33,8 +41,6 @@ def _run_fetch_step() -> Optional[Path]:
 
 def _run_transcribe_step(episode_dir: Path, model: Optional[str] = None) -> bool:
     """Run transcribe step. Returns True on success."""
-    import json
-
     from podx.cli.transcribe import _find_audio_file
     from podx.config import get_config
     from podx.core.transcribe import TranscriptionEngine, TranscriptionError
@@ -42,19 +48,16 @@ def _run_transcribe_step(episode_dir: Path, model: Optional[str] = None) -> bool
 
     console.print("\n[bold cyan]── Transcribe ─────────────────────────────────────[/bold cyan]")
 
-    # Check if already transcribed
     transcript_path = episode_dir / "transcript.json"
     if transcript_path.exists():
         console.print("[dim]Transcript already exists, skipping...[/dim]")
         return True
 
-    # Find audio
     audio_file = _find_audio_file(episode_dir)
     if not audio_file:
         console.print("[red]Error:[/red] No audio file found")
         return False
 
-    # Use provided model or default from config
     if model is None:
         model = get_config().default_asr_model
     console.print(f"[dim]Transcribing with {model}...[/dim]")
@@ -86,15 +89,8 @@ def _run_transcribe_step(episode_dir: Path, model: Optional[str] = None) -> bool
 
 
 def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
-    """Run diarize step. Returns True on success.
-
-    Args:
-        episode_dir: Path to episode directory
-        use_cloud: If True, use RunPod cloud GPU for diarization
-    """
-    import json
+    """Run diarize step. Returns True on success."""
     import logging
-    import os
     from contextlib import redirect_stderr, redirect_stdout
 
     from podx.cli.diarize import _find_audio_file
@@ -106,7 +102,6 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
 
     console.print("\n[bold cyan]── Diarize ────────────────────────────────────────[/bold cyan]")
 
-    # Load transcript
     transcript_path = episode_dir / "transcript.json"
     if not transcript_path.exists():
         console.print("[red]Error:[/red] No transcript found")
@@ -114,12 +109,10 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
 
     transcript = json.loads(transcript_path.read_text())
 
-    # Check if already diarized
     if transcript.get("diarized"):
         console.print("[dim]Already diarized, skipping...[/dim]")
         return True
 
-    # Find audio
     audio_file = _find_audio_file(episode_dir)
     if not audio_file:
         console.print("[red]Error:[/red] No audio file found")
@@ -139,7 +132,7 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
     except Exception:
         diarize_audio_path = None
 
-    # Check if cloud diarization is actually configured
+    # Check if cloud diarization is configured
     cloud_diarize_available = False
     if use_cloud:
         try:
@@ -151,9 +144,7 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
             console.print("[dim]Cloud diarization not configured, using local...[/dim]")
 
     if use_cloud and cloud_diarize_available:
-        # Cloud diarization via RunPod
         console.print("[dim]Diarizing on cloud GPU...[/dim]")
-
         timer = LiveTimer("Diarizing")
         timer.start()
 
@@ -168,9 +159,7 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
 
         try:
             provider = get_diarization_provider(
-                "runpod",
-                language=language,
-                progress_callback=cloud_progress,
+                "runpod", language=language, progress_callback=cloud_progress
             )
             result = provider.diarize(diarize_audio, transcript["segments"])
             segments = result.segments
@@ -181,16 +170,12 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
                 diarize_audio_path.unlink()
             console.print(f"[red]Error:[/red] {e}")
             return False
-
         elapsed = timer.stop()
     else:
-        # Local diarization
         console.print("[dim]Adding speaker labels...[/dim]")
-
         timer = LiveTimer("Diarizing")
         timer.start()
 
-        # Suppress noisy loggers from pyannote/speechbrain during model loading
         noisy_loggers = [
             "speechbrain.utils.parameter_transfer",
             "speechbrain.utils.checkpoints",
@@ -208,8 +193,7 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
                 redirect_stderr(open(os.devnull, "w")),
             ):
                 engine = DiarizationEngine(
-                    language=language,
-                    hf_token=os.getenv("HUGGINGFACE_TOKEN"),
+                    language=language, hf_token=os.getenv("HUGGINGFACE_TOKEN")
                 )
                 result = engine.diarize(diarize_audio, transcript["segments"])
                 segments = result["segments"]
@@ -226,17 +210,14 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
 
         for name, level in saved_levels.items():
             logging.getLogger(name).setLevel(level)
-
         elapsed = timer.stop()
 
-    # Clean up preprocessed audio
     if diarize_audio_path and diarize_audio_path.exists():
         diarize_audio_path.unlink()
 
     minutes = int(elapsed // 60)
     seconds = int(elapsed % 60)
 
-    # Update transcript
     transcript["segments"] = segments
     transcript["diarized"] = True
     transcript_path.write_text(
@@ -250,10 +231,8 @@ def _run_diarize_step(episode_dir: Path, use_cloud: bool = False) -> bool:
 
 def _run_cleanup_step(episode_dir: Path) -> bool:
     """Run cleanup step. Returns True on success."""
-    import json
-    import os
-
     from podx.core.preprocess import PreprocessError, TranscriptPreprocessor
+    from podx.core.speakers import load_speaker_map, save_speaker_map
     from podx.ui import (
         LiveTimer,
         apply_speaker_names,
@@ -264,7 +243,6 @@ def _run_cleanup_step(episode_dir: Path) -> bool:
 
     console.print("\n[bold cyan]── Cleanup ────────────────────────────────────────[/bold cyan]")
 
-    # Load transcript
     transcript_path = episode_dir / "transcript.json"
     if not transcript_path.exists():
         console.print("[red]Error:[/red] No transcript found")
@@ -272,44 +250,49 @@ def _run_cleanup_step(episode_dir: Path) -> bool:
 
     transcript = json.loads(transcript_path.read_text())
 
-    # Check if already cleaned
     if transcript.get("cleaned"):
         console.print("[dim]Already cleaned, skipping...[/dim]")
         return True
 
-    # Speaker identification for diarized transcripts with generic SPEAKER_XX labels
+    # Speaker identification
     if transcript.get("diarized") and has_generic_speaker_ids(transcript["segments"]):
-        try:
-            identify_choice = (
-                input("Identify speakers? (recommended for diarized transcripts) [Y/n]: ")
-                .strip()
-                .lower()
+        # Check for saved speaker map first
+        existing_map = load_speaker_map(episode_dir)
+        if existing_map:
+            transcript["segments"] = apply_speaker_names(transcript["segments"], existing_map)
+            console.print(
+                f"[green]✓ Applied saved speaker map ({len(existing_map)} speakers)[/green]"
             )
-        except (KeyboardInterrupt, EOFError):
-            console.print("\n[dim]Cancelled[/dim]")
-            raise SystemExit(0)
-
-        if identify_choice not in ("n", "no"):
-            # Resolve audio path for playback during speaker identification
-            audio_path = resolve_audio_path(episode_dir, transcript.get("audio_path"))
-
+        else:
             try:
-                speaker_map = identify_speakers_interactive(
-                    transcript["segments"], audio_path=audio_path
+                choice = (
+                    input("Identify speakers? (recommended for diarized transcripts) [Y/n]: ")
+                    .strip()
+                    .lower()
                 )
-                if speaker_map:
-                    transcript["segments"] = apply_speaker_names(
-                        transcript["segments"], speaker_map
-                    )
-                    # Save updated transcript with speaker names before cleanup
-                    transcript_path.write_text(
-                        json.dumps(transcript, indent=2, ensure_ascii=False), encoding="utf-8"
-                    )
-                    console.print(f"[green]✓ Identified {len(speaker_map)} speaker(s)[/green]")
             except (KeyboardInterrupt, EOFError):
-                console.print("\n[dim]Speaker identification cancelled[/dim]")
+                console.print("\n[dim]Cancelled[/dim]")
+                raise SystemExit(0)
 
-    # Check if we have OpenAI key for restore
+            if choice not in ("n", "no"):
+                audio_path = resolve_audio_path(episode_dir, transcript.get("audio_path"))
+                try:
+                    speaker_map = identify_speakers_interactive(
+                        transcript["segments"], audio_path=audio_path
+                    )
+                    if speaker_map:
+                        transcript["segments"] = apply_speaker_names(
+                            transcript["segments"], speaker_map
+                        )
+                        save_speaker_map(episode_dir, speaker_map)
+                        transcript_path.write_text(
+                            json.dumps(transcript, indent=2, ensure_ascii=False), encoding="utf-8"
+                        )
+                        console.print(f"[green]✓ Identified {len(speaker_map)} speaker(s)[/green]")
+                except (KeyboardInterrupt, EOFError):
+                    console.print("\n[dim]Speaker identification cancelled[/dim]")
+
+    # Run text cleanup
     do_restore = bool(os.getenv("OPENAI_API_KEY"))
     if do_restore:
         console.print("[dim]Cleaning up with LLM restore...[/dim]")
@@ -338,24 +321,19 @@ def _run_cleanup_step(episode_dir: Path) -> bool:
     minutes = int(elapsed // 60)
     seconds = int(elapsed % 60)
 
-    # Preserve existing metadata
-    original_keys = [
+    for key in [
         "audio_path",
         "language",
         "asr_model",
         "asr_provider",
         "decoder_options",
         "diarized",
-    ]
-    for key in original_keys:
+    ]:
         if key in transcript:
             result[key] = transcript[key]
-
-    # Set cleanup state flags
     result["cleaned"] = True
     result["restored"] = do_restore
 
-    # Save updated transcript
     transcript_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
 
     original_count = len(transcript["segments"])
@@ -365,28 +343,284 @@ def _run_cleanup_step(episode_dir: Path) -> bool:
     return True
 
 
+def _run_export_step(episode_dir: Path) -> bool:
+    """Run export step. Returns True on success."""
+    console.print("\n[bold cyan]── Export ─────────────────────────────────────────[/bold cyan]")
+
+    transcript_path = episode_dir / "transcript.json"
+    if transcript_path.exists():
+        transcript = json.loads(transcript_path.read_text())
+        segments = transcript.get("segments", [])
+        lines = ["# Transcript\n"]
+        for seg in segments:
+            speaker = seg.get("speaker", "")
+            text = seg.get("text", "")
+            if speaker:
+                lines.append(f"**{speaker}:** {text}\n")
+            else:
+                lines.append(f"{text}\n")
+        md_path = episode_dir / "transcript.md"
+        md_path.write_text("\n".join(lines), encoding="utf-8")
+        console.print("  Exported: transcript.md")
+
+    # Export all analysis files to markdown
+    for analysis_path in sorted(episode_dir.glob("analysis*.json")):
+        if analysis_path.suffix != ".json":
+            continue
+        try:
+            analysis = json.loads(analysis_path.read_text())
+            md = analysis.get("markdown", "")
+            if md:
+                md_name = analysis_path.stem + ".md"
+                md_path = episode_dir / md_name
+                md_path.write_text(md, encoding="utf-8")
+                console.print(f"  Exported: {md_name}")
+        except Exception:
+            pass
+
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Interactive prompt functions
+# ---------------------------------------------------------------------------
+
+
+def _prompt_cloud() -> bool:
+    """Prompt for cloud GPU usage. Returns False if not configured."""
+    try:
+        from podx.cloud import CloudConfig
+
+        cloud_config = CloudConfig.from_podx_config()
+        if not cloud_config.is_configured:
+            return False
+    except Exception:
+        return False
+
+    try:
+        choice = input("Use cloud GPU? [Y/n]: ").strip().lower()
+    except (KeyboardInterrupt, EOFError):
+        console.print("\n[dim]Cancelled[/dim]")
+        raise SystemExit(0)
+
+    return choice not in ("n", "no")
+
+
+def _prompt_listen_through(cli_value: Optional[str]) -> Optional[str]:
+    """Prompt for how far the user listened. Returns timecode or None for full."""
+    if cli_value is not None:
+        return cli_value
+
+    console.print("\n[bold cyan]── Analysis Setup ─────────────────────────────────[/bold cyan]")
+    try:
+        value = input("How far did you listen? (Enter for full, or timecode like 45:00): ").strip()
+    except (KeyboardInterrupt, EOFError):
+        console.print("\n[dim]Cancelled[/dim]")
+        raise SystemExit(0)
+
+    return value if value else None
+
+
+def _prompt_template(cli_value: Optional[str]) -> str:
+    """Prompt for analysis template selection."""
+    if cli_value is not None:
+        return cli_value
+
+    from podx.cli.analyze import DEFAULT_TEMPLATE
+    from podx.templates.manager import TemplateManager
+    from podx.ui import prompt_with_help
+
+    manager = TemplateManager()
+    template_names = manager.list_templates()
+    help_text = "Available templates:\n" + "\n".join(f"  {n}" for n in template_names)
+
+    return prompt_with_help(
+        help_text=help_text,
+        prompt_label="Template",
+        default=DEFAULT_TEMPLATE,
+    )
+
+
+def _prompt_oracle(no_oracle: bool) -> bool:
+    """Prompt for knowledge-oracle. Default yes."""
+    if no_oracle:
+        return False
+
+    try:
+        choice = input("Run knowledge-oracle? [Y/n]: ").strip().lower()
+    except (KeyboardInterrupt, EOFError):
+        console.print("\n[dim]Cancelled[/dim]")
+        raise SystemExit(0)
+
+    return choice not in ("n", "no")
+
+
+def _prompt_moments(cli_value: Optional[str]) -> List[Dict[str, Any]]:
+    """Prompt for flagged moments. Returns list of {time, note?} dicts.
+
+    Parses each line: if ' - ' present, split into time + note.
+    Otherwise just the timecode — AI determines significance.
+    """
+    if cli_value is not None:
+        return _parse_moments_string(cli_value)
+
+    try:
+        first = input("Flag any moments? (timecodes, one per line, Enter to skip): ").strip()
+    except (KeyboardInterrupt, EOFError):
+        console.print("\n[dim]Cancelled[/dim]")
+        raise SystemExit(0)
+
+    if not first:
+        return []
+
+    lines = [first]
+    console.print("[dim]  (one per line, Enter to finish)[/dim]")
+    while True:
+        try:
+            line = input("  > ").strip()
+        except (KeyboardInterrupt, EOFError):
+            break
+        if not line:
+            break
+        lines.append(line)
+
+    return _parse_moments_lines(lines)
+
+
+def _prompt_questions(cli_value: Optional[str]) -> List[str]:
+    """Prompt for follow-up questions. Returns list of question strings."""
+    if cli_value is not None:
+        return [cli_value] if cli_value else []
+
+    try:
+        first = input("Questions for the analysis? (one per line, Enter to skip): ").strip()
+    except (KeyboardInterrupt, EOFError):
+        console.print("\n[dim]Cancelled[/dim]")
+        raise SystemExit(0)
+
+    if not first:
+        return []
+
+    questions = [first]
+    console.print("[dim]  (one per line, Enter to finish)[/dim]")
+    while True:
+        try:
+            line = input("  > ").strip()
+        except (KeyboardInterrupt, EOFError):
+            break
+        if not line:
+            break
+        questions.append(line)
+
+    return questions
+
+
+def _parse_moments_string(s: str) -> List[Dict[str, Any]]:
+    """Parse comma-separated moments from CLI flag."""
+    moments = []
+    for part in s.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if " - " in part:
+            time_str, note = part.split(" - ", 1)
+            moments.append({"time": time_str.strip(), "note": note.strip()})
+        else:
+            moments.append({"time": part})
+    return moments
+
+
+def _parse_moments_lines(lines: List[str]) -> List[Dict[str, Any]]:
+    """Parse multi-line moments input."""
+    moments = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        if " - " in line:
+            time_str, note = line.split(" - ", 1)
+            moments.append({"time": time_str.strip(), "note": note.strip()})
+        else:
+            moments.append({"time": line})
+    return moments
+
+
+def _parse_timecode_to_seconds(tc: str) -> float:
+    """Parse a timecode string like '45:00' or '1:02:33' to seconds."""
+    parts = tc.strip().split(":")
+    try:
+        if len(parts) == 3:
+            return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+        elif len(parts) == 2:
+            return int(parts[0]) * 60 + float(parts[1])
+        else:
+            return float(parts[0])
+    except (ValueError, IndexError):
+        return 0.0
+
+
+def _show_prior_state(moments: List[Dict], questions: List[str], through: Optional[str]) -> None:
+    """Display previously saved moments/questions when resuming."""
+    console.print("\n[bold]Previous session:[/bold]")
+    if through:
+        console.print(f"  Analyzed through: {through}")
+    if moments:
+        console.print("  Flagged moments:")
+        for m in moments:
+            note = f" — {m['note']}" if m.get("note") else ""
+            console.print(f"    [{m['time']}]{note}")
+    if questions:
+        console.print("  Questions:")
+        for q in questions:
+            console.print(f"    {q}")
+    console.print()
+
+
+def _load_partial_state(episode_dir: Path) -> Dict[str, Any]:
+    """Load state from existing analysis for resume."""
+    for path in sorted(episode_dir.glob("analysis*.json")):
+        try:
+            data = json.loads(path.read_text())
+            return {
+                "flagged_moments": data.get("flagged_moments", []),
+                "questions": data.get("questions", []),
+                "analyzed_through": data.get("analyzed_through"),
+            }
+        except Exception:
+            continue
+    return {}
+
+
+# ---------------------------------------------------------------------------
+# Analysis step (refactored — no internal prompts)
+# ---------------------------------------------------------------------------
+
+
 def _run_analyze_step(
     episode_dir: Path,
+    template_name: str,
     model: Optional[str] = None,
-    template: Optional[str] = None,
-    question: Optional[str] = None,
+    moments: Optional[List[Dict]] = None,
+    questions: Optional[List[str]] = None,
+    analyzed_through: Optional[str] = None,
+    label: Optional[str] = None,
 ) -> bool:
-    """Run analyze step. Returns True on success."""
-    import json
-    from datetime import datetime, timezone
+    """Run a single analysis pass. Returns True on success.
 
-    from podx.cli.analyze import (
-        DEFAULT_MAP_INSTRUCTIONS,
-        DEFAULT_MODEL,
-        DEFAULT_TEMPLATE,
-        analysis_output_path,
-    )
+    Works for both format templates and knowledge-oracle.
+    """
+    from podx.cli.analyze import DEFAULT_MAP_INSTRUCTIONS, DEFAULT_MODEL, analysis_output_path
     from podx.core.analyze import AnalyzeEngine, AnalyzeError
+    from podx.core.backfill import compute_template_hash
     from podx.prompt_templates import ENHANCED_JSON_SCHEMA
     from podx.templates.manager import TemplateError, TemplateManager
-    from podx.ui import LiveTimer, prompt_optional
+    from podx.ui import LiveTimer
 
-    console.print("\n[bold cyan]── Analyze ────────────────────────────────────────[/bold cyan]")
+    if model is None:
+        model = DEFAULT_MODEL
+
+    display_label = label or template_name
+    console.print(f"[dim]Running {display_label} analysis with {model}...[/dim]")
 
     # Load transcript
     transcript_path = episode_dir / "transcript.json"
@@ -395,49 +629,52 @@ def _run_analyze_step(
         return False
 
     transcript = json.loads(transcript_path.read_text())
+    segments = transcript.get("segments", [])
 
-    # Apply defaults
-    if model is None:
-        model = DEFAULT_MODEL
-    if template is None:
-        template = DEFAULT_TEMPLATE
+    # Filter segments if partial analysis
+    if analyzed_through:
+        through_seconds = _parse_timecode_to_seconds(analyzed_through)
+        segments = [s for s in segments if s.get("end", 0) <= through_seconds]
+        console.print(
+            f"[dim]  Analyzing through {analyzed_through} ({len(segments)} segments)[/dim]"
+        )
 
-    # Output path — encodes template and model to avoid overwriting
-    analysis_path = analysis_output_path(episode_dir, template, model)
+    if not segments:
+        console.print("[yellow]No segments to analyze[/yellow]")
+        return False
 
-    # Check if already analyzed (same template+model = same filename)
+    # Check if analysis exists and is current (template hash)
+    analysis_path = analysis_output_path(episode_dir, template_name, model)
+    try:
+        manager = TemplateManager()
+        tmpl = manager.load(template_name)
+    except TemplateError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        return False
+
     if analysis_path.exists():
-        console.print("[dim]Analysis already exists, skipping...[/dim]")
-        return True
+        try:
+            existing = json.loads(analysis_path.read_text())
+            stored_hash = existing.get("template_hash")
+            current_hash = compute_template_hash(tmpl)
+            if stored_hash == current_hash and not analyzed_through:
+                console.print(f"[dim]{display_label} analysis up to date, skipping...[/dim]")
+                return True
+        except Exception:
+            pass
 
-    # Prompt for optional question if not provided via CLI flag
-    if question is None:
-        question = prompt_optional("Additional question or context")
-    if not question:
-        question = None
-
-    console.print(f"[dim]Analyzing with {model} (template: {template})...[/dim]")
-
-    timer = LiveTimer("Analyzing")
+    timer = LiveTimer(f"Analyzing ({display_label})")
     timer.start()
 
     try:
-        manager = TemplateManager()
-        tmpl = manager.load(template)
-
-        # Parse model string (provider:model_name format)
         provider_name = "openai"
         model_name = model
         if ":" in model:
             provider_name, model_name = model.split(":", 1)
 
-        engine = AnalyzeEngine(
-            model=model_name,
-            provider_name=provider_name,
-        )
+        engine = AnalyzeEngine(model=model_name, provider_name=provider_name)
 
-        # Build transcript text
-        segments = transcript.get("segments", [])
+        # Build transcript text from (possibly filtered) segments
         transcript_text = "\n".join(
             (
                 f"[{s.get('speaker', 'SPEAKER')}] {s.get('text', '')}"
@@ -447,12 +684,10 @@ def _run_analyze_step(
             for s in segments
         )
 
-        # Build context with episode metadata (matching analyze.py)
         speaker_set = set(s.get("speaker") for s in segments if s.get("speaker"))
         speaker_count = len(speaker_set) if speaker_set else 1
         speakers_str = ", ".join(sorted(speaker_set)) if speaker_set else "Unknown"
 
-        # Load episode metadata if available
         episode_meta = {}
         meta_path = episode_dir / "episode-meta.json"
         if meta_path.exists():
@@ -473,20 +708,22 @@ def _run_analyze_step(
         }
 
         system_prompt, user_prompt = tmpl.render(context)
+
+        # Use a temporary transcript dict with filtered segments
+        filtered_transcript = dict(transcript)
+        filtered_transcript["segments"] = segments
+
         md, json_data = engine.analyze(
-            transcript=transcript,
+            transcript=filtered_transcript,
             system_prompt=system_prompt,
             map_instructions=(tmpl.map_instructions or DEFAULT_MAP_INSTRUCTIONS),
             reduce_instructions=user_prompt,
             want_json=True,
             json_schema=(tmpl.json_schema or ENHANCED_JSON_SCHEMA),
-            question=question,
+            moments=moments,
+            questions=questions,
         )
-    except TemplateError as e:
-        timer.stop()
-        console.print(f"[red]Error:[/red] {e}")
-        return False
-    except AnalyzeError as e:
+    except (AnalyzeError, TemplateError) as e:
         timer.stop()
         console.print(f"[red]Error:[/red] {e}")
         return False
@@ -495,71 +732,173 @@ def _run_analyze_step(
     minutes = int(elapsed // 60)
     seconds = int(elapsed % 60)
 
-    # Prepend metadata header to markdown
-    md = f"> **Template:** {template} | **Model:** {model}\n\n{md}"
+    md = f"> **Template:** {template_name} | **Model:** {model}\n\n{md}"
 
-    # Save analysis
-    result = {
+    result: Dict[str, Any] = {
         "markdown": md,
-        "template": template,
+        "template": template_name,
+        "template_hash": compute_template_hash(tmpl),
         "model": model,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    if question:
-        result["question"] = question
+    if analyzed_through:
+        result["analyzed_through"] = analyzed_through
+    if moments:
+        result["flagged_moments"] = moments
+    if questions:
+        result["questions"] = questions
     if json_data:
-        result.update(json_data)
+        result["results"] = json_data
 
     analysis_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    console.print(f"[green]✓ Analysis complete ({minutes}:{seconds:02d})[/green]")
+    console.print(f"[green]✓ {display_label} analysis complete ({minutes}:{seconds:02d})[/green]")
     return True
 
 
-def _run_export_step(episode_dir: Path) -> bool:
-    """Run export step. Returns True on success."""
-    console.print("\n[bold cyan]── Export ─────────────────────────────────────────[/bold cyan]")
+# ---------------------------------------------------------------------------
+# Notion publish step
+# ---------------------------------------------------------------------------
 
-    # Export transcript to markdown
+
+def _run_notion_step(
+    episode_dir: Path,
+    format_template: str,
+    model: Optional[str] = None,
+) -> bool:
+    """Publish to Notion. Prompts if NOTION_TOKEN is set."""
+    from podx.cli.analyze import DEFAULT_MODEL, analysis_output_path
+    from podx.core.backfill import (
+        NOTION_DB_ID,
+        build_notion_page_blocks,
+        build_notion_properties,
+        parse_classification_json,
+    )
+
+    console.print("\n[bold cyan]── Publish ────────────────────────────────────────[/bold cyan]")
+
+    token = os.getenv("NOTION_TOKEN")
+    if not token:
+        console.print("[dim]NOTION_TOKEN not set, skipping Notion publish[/dim]")
+        return True
+
+    try:
+        choice = input("Publish to Notion? [Y/n]: ").strip().lower()
+    except (KeyboardInterrupt, EOFError):
+        console.print("\n[dim]Cancelled[/dim]")
+        raise SystemExit(0)
+
+    if choice in ("n", "no"):
+        console.print("[dim]Skipped[/dim]")
+        return True
+
+    if model is None:
+        model = DEFAULT_MODEL
+
+    # Load analyses
+    format_path = analysis_output_path(episode_dir, format_template, model)
+    oracle_path = analysis_output_path(episode_dir, "knowledge-oracle", model)
+
+    format_md = None
+    oracle_md = None
+
+    if format_path.exists():
+        format_md = json.loads(format_path.read_text()).get("markdown", "")
+    if oracle_path.exists():
+        oracle_md = json.loads(oracle_path.read_text()).get("markdown", "")
+
+    if not format_md and not oracle_md:
+        console.print("[dim]No analysis to publish[/dim]")
+        return True
+
+    # Load metadata and transcript
+    episode_meta = {}
+    meta_path = episode_dir / "episode-meta.json"
+    if meta_path.exists():
+        episode_meta = json.loads(meta_path.read_text())
+
+    transcript = None
     transcript_path = episode_dir / "transcript.json"
     if transcript_path.exists():
-        import json
-
         transcript = json.loads(transcript_path.read_text())
-        segments = transcript.get("segments", [])
 
-        # Build markdown
-        lines = ["# Transcript\n"]
-        for seg in segments:
-            speaker = seg.get("speaker", "")
-            text = seg.get("text", "")
-            if speaker:
-                lines.append(f"**{speaker}:** {text}\n")
-            else:
-                lines.append(f"{text}\n")
+    # Parse classification
+    classification = parse_classification_json(oracle_md) if oracle_md else None
 
-        md_path = episode_dir / "transcript.md"
-        md_path.write_text("\n".join(lines), encoding="utf-8")
-        console.print("  Exported: transcript.md")
+    templates_run = []
+    if format_md:
+        templates_run.append(format_template)
+    if oracle_md:
+        templates_run.append("knowledge-oracle")
 
-    # Export analysis to markdown — check both standard and template-specific
-    analysis_path = episode_dir / "analysis.json"
-    if not analysis_path.exists():
-        # Look for any template-specific analysis.*.json
-        candidates = [c for c in episode_dir.glob("analysis.*.json") if c.suffix == ".json"]
-        if candidates:
-            analysis_path = candidates[0]
-    if analysis_path.exists():
-        import json
+    props_extra = build_notion_properties(
+        classification=classification,
+        templates_run=templates_run,
+        model=model,
+        asr_model=transcript.get("asr_model") if transcript else None,
+        has_transcript=bool(transcript and transcript.get("segments")),
+        source_url=episode_meta.get("feed"),
+    )
 
-        analysis = json.loads(analysis_path.read_text())
-        md = analysis.get("markdown", "")
-        if md:
-            md_path = episode_dir / "analysis.md"
-            md_path.write_text(md, encoding="utf-8")
-            console.print("  Exported: analysis.md")
+    video_url = episode_meta.get("video_url")
+
+    # Build blocks — separate analysis from toggles (avoid block limit)
+    all_blocks = build_notion_page_blocks(format_md, oracle_md, transcript, video_url)
+    analysis_blocks = [b for b in all_blocks if b.get("type") != "toggle"]
+    toggle_blocks = [b for b in all_blocks if b.get("type") == "toggle"]
+
+    # Parse date
+    date_iso = None
+    date_str = episode_meta.get("episode_published", "")
+    if date_str:
+        try:
+            from dateutil import parser as dtparse
+
+            parsed = dtparse.parse(date_str)
+            date_iso = parsed.strftime("%Y-%m-%d")
+        except Exception:
+            if len(date_str) >= 10:
+                date_iso = date_str[:10]
+
+    try:
+        from notion_client import Client
+
+        from podx.cli.notion_services.page_operations import upsert_page
+
+        client = Client(auth=token)
+        page_id = upsert_page(
+            client=client,
+            db_id=NOTION_DB_ID,
+            podcast_name=episode_meta.get("show", "Unknown"),
+            episode_title=episode_meta.get("episode_title", episode_dir.name),
+            date_iso=date_iso,
+            podcast_prop="Podcast",
+            episode_prop="Episode",
+            date_prop="Date",
+            props_extra=props_extra,
+            blocks=analysis_blocks,
+            replace_content=True,
+        )
+
+        # Append toggles individually
+        for toggle in toggle_blocks:
+            try:
+                client.blocks.children.append(block_id=page_id, children=[toggle])
+            except Exception:
+                pass
+
+        page_url = f"https://notion.so/{page_id.replace('-', '')}"
+        console.print(f"[green]✓ Published to Notion:[/green] {page_url}")
+    except Exception as e:
+        console.print(f"[red]Notion publish failed:[/red] {e}")
+        return False
 
     return True
+
+
+# ---------------------------------------------------------------------------
+# Main command
+# ---------------------------------------------------------------------------
 
 
 @click.command("run", context_settings={"max_content_width": 120})
@@ -567,37 +906,59 @@ def _run_export_step(episode_dir: Path) -> bool:
     "--model",
     "-m",
     default=None,
-    help="Transcription model (see 'podx models'). E.g., base, large-v3, runpod:large-v3-turbo.",
+    help="Transcription model (see 'podx models').",
 )
 @click.option(
-    "--cloud",
-    is_flag=True,
-    help="Use cloud GPU for transcription and diarization (requires 'podx cloud setup').",
+    "--cloud/--no-cloud",
+    default=None,
+    help="Use cloud GPU. Default: prompt if configured. --no-cloud forces local.",
 )
 @click.option(
     "--analyze-model",
     default=None,
-    help="AI model for analysis (see 'podx models'). E.g., openai:gpt-5.2, anthropic:claude-sonnet-4-5.",
+    help="AI model for analysis. E.g., openai:gpt-5.1, anthropic:claude-sonnet-4-5.",
 )
 @click.option(
     "--template",
     "-t",
     default=None,
-    help="Analysis template (see 'podx templates list'). E.g., general, interview-1on1, quote-miner.",
+    help="Analysis template (see 'podx templates list').",
 )
 @click.option(
     "--question",
     "-q",
     default=None,
-    help="Additional question to answer in the analysis (optional)",
+    help="Follow-up question for the analysis.",
+)
+@click.option(
+    "--through",
+    default=None,
+    help="Analyze up to this timecode (e.g. '45:00' for partial analysis).",
+)
+@click.option(
+    "--moments",
+    default=None,
+    help="Flagged moments (e.g. '14:30, 45:12 - pricing framework').",
+)
+@click.option("--no-oracle", is_flag=True, help="Skip knowledge-oracle analysis.")
+@click.option("--no-notion", is_flag=True, help="Skip Notion publish.")
+@click.option(
+    "--resume",
+    is_flag=True,
+    help="Resume partial analysis, accumulating moments/questions.",
 )
 def run(
     model: Optional[str],
-    cloud: bool,
+    cloud: Optional[bool],
     analyze_model: Optional[str],
     template: Optional[str],
     question: Optional[str],
-):
+    through: Optional[str],
+    moments: Optional[str],
+    no_oracle: bool,
+    no_notion: bool,
+    resume: bool,
+) -> None:
     """Run the full podcast processing pipeline interactively.
 
     \b
@@ -606,67 +967,103 @@ def run(
       2. Transcribe: Convert audio to text
       3. Diarize: Add speaker labels
       4. Cleanup: Clean up transcript text
-      5. Analyze: Generate AI analysis
+      5. Analyze: Generate AI analysis (format + knowledge-oracle)
       6. Export: Create markdown files
+      7. Publish: Push to Notion
 
     \b
     Examples:
-      podx run                                              # All defaults
-      podx run --cloud                                      # Cloud transcription + diarization
-      podx run --model runpod:large-v3-turbo                # Cloud transcription model
-      podx run --analyze-model anthropic:claude-sonnet-4-5  # Analysis model
-      podx run --template interview-1on1                    # Analysis template
-      podx run -q "Investment implications?"                # With follow-up question
-
-    \b
-    See also:
-      podx models                  List available models and pricing
-      podx templates list          List available analysis templates
-
-    \b
-    For scripting, use individual commands:
-      podx fetch --show "Lex" --date 2024-11-24
-      podx transcribe ./episode/
-      podx diarize ./episode/
-      podx cleanup ./episode/
-      podx analyze ./episode/
+      podx run                                    # Full interactive wizard
+      podx run --cloud                            # Force cloud GPU
+      podx run --through 45:00                    # Partial analysis
+      podx run --resume ./episode/                # Resume partial
+      podx run --moments "14:30, 45:12"           # Flag moments
+      podx run -q "How does this apply to X?"     # Follow-up question
+      podx run --no-oracle --no-notion            # Skip oracle + Notion
     """
-    # Set default model for cloud mode
-    if cloud and model is None:
-        model = "runpod:large-v3"
-
     try:
-        # Step 1: Fetch
+        # --- Cloud decision ---
+        if cloud is None:
+            use_cloud = _prompt_cloud()
+        else:
+            use_cloud = cloud
+        if use_cloud and model is None:
+            model = "runpod:large-v3"
+
+        # --- Step 1: Fetch ---
         episode_dir = _run_fetch_step()
         if episode_dir is None:
             console.print("[dim]Cancelled[/dim]")
             sys.exit(0)
 
-        # Step 2: Transcribe
+        # --- Resume: load prior state ---
+        prior_moments: List[Dict] = []
+        prior_questions: List[str] = []
+        prior_through: Optional[str] = None
+        if resume:
+            prior = _load_partial_state(episode_dir)
+            prior_moments = prior.get("flagged_moments", [])
+            prior_questions = prior.get("questions", [])
+            prior_through = prior.get("analyzed_through")
+
+        # --- Steps 2-4: Transcribe → Diarize → Cleanup ---
         if not _run_transcribe_step(episode_dir, model=model):
             sys.exit(ExitCode.PROCESSING_ERROR)
 
-        # Step 3: Diarize
-        if not _run_diarize_step(episode_dir, use_cloud=cloud):
-            # Diarization failure is not fatal - continue
+        if not _run_diarize_step(episode_dir, use_cloud=use_cloud):
             console.print("[yellow]Diarization skipped[/yellow]")
 
-        # Step 4: Cleanup
         if not _run_cleanup_step(episode_dir):
-            # Cleanup failure is not fatal - continue
             console.print("[yellow]Cleanup skipped[/yellow]")
 
-        # Step 5: Analyze
-        if not _run_analyze_step(
-            episode_dir, model=analyze_model, template=template, question=question
-        ):
-            # Analysis failure is not fatal - continue
-            console.print("[yellow]Analysis skipped[/yellow]")
+        # --- Gather analysis prompts ---
+        analyzed_through = _prompt_listen_through(through)
+        selected_template = _prompt_template(template)
+        run_oracle = _prompt_oracle(no_oracle)
 
-        # Step 6: Export
+        # Show prior state if resuming
+        if prior_moments or prior_questions:
+            _show_prior_state(prior_moments, prior_questions, prior_through)
+
+        new_moments = _prompt_moments(moments)
+        new_questions = _prompt_questions(question)
+
+        # Merge prior + new
+        all_moments = prior_moments + new_moments
+        all_questions = prior_questions + new_questions
+
+        # --- Analyze (automated) ---
+        console.print(
+            "\n[bold cyan]── Analyze ────────────────────────────────────────[/bold cyan]"
+        )
+
+        _run_analyze_step(
+            episode_dir,
+            template_name=selected_template,
+            model=analyze_model,
+            moments=all_moments if all_moments else None,
+            questions=all_questions if all_questions else None,
+            analyzed_through=analyzed_through,
+        )
+
+        if run_oracle:
+            _run_analyze_step(
+                episode_dir,
+                template_name="knowledge-oracle",
+                model=analyze_model,
+                moments=all_moments if all_moments else None,
+                analyzed_through=analyzed_through,
+                label="knowledge-oracle",
+            )
+
+        # --- Export ---
         _run_export_step(episode_dir)
 
-        # Done
+        # --- Notion ---
+        if not no_notion:
+            _run_notion_step(episode_dir, format_template=selected_template, model=analyze_model)
+
+        # --- Done ---
         console.print(
             "\n[bold cyan]── Done ───────────────────────────────────────────[/bold cyan]"
         )
