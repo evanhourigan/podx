@@ -422,23 +422,43 @@ def _prompt_listen_through(cli_value: Optional[str]) -> Optional[str]:
 
 
 def _prompt_template(cli_value: Optional[str]) -> str:
-    """Prompt for analysis template selection."""
+    """Prompt for analysis template selection. Type ? to list templates."""
     if cli_value is not None:
         return cli_value
 
     from podx.cli.analyze import DEFAULT_TEMPLATE
     from podx.templates.manager import TemplateManager
-    from podx.ui import prompt_with_help
 
     manager = TemplateManager()
-    template_names = manager.list_templates()
-    help_text = "Available templates:\n" + "\n".join(f"  {n}" for n in template_names)
+    valid_names = set(manager.list_templates())
 
-    return prompt_with_help(
-        help_text=help_text,
-        prompt_label="Template",
-        default=DEFAULT_TEMPLATE,
-    )
+    while True:
+        try:
+            value = input(f"Template (default: {DEFAULT_TEMPLATE}, ? to list): ").strip()
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[dim]Cancelled[/dim]")
+            raise SystemExit(0)
+
+        if not value:
+            return DEFAULT_TEMPLATE
+
+        if value == "?":
+            console.print()
+            for name in sorted(valid_names):
+                tmpl = manager.load(name)
+                desc = tmpl.description
+                if "Format:" in desc:
+                    desc = desc.split("Example podcasts:")[0].replace("Format:", "").strip()
+                if len(desc) > 60:
+                    desc = desc[:57] + "..."
+                console.print(f"  [cyan]{name:<24}[/cyan] {desc}")
+            console.print()
+            continue
+
+        if value in valid_names:
+            return value
+
+        console.print(f"[red]Unknown template '{value}'. Type ? to see available templates.[/red]")
 
 
 def _prompt_oracle(no_oracle: bool) -> bool:
