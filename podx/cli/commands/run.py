@@ -1075,14 +1075,6 @@ def run(
       podx run --no-oracle --no-notion            # Skip oracle + Notion
     """
     try:
-        # --- Cloud decision ---
-        if cloud is None:
-            use_cloud = _prompt_cloud()
-        else:
-            use_cloud = cloud
-        if use_cloud and model is None:
-            model = "runpod:large-v3"
-
         # --- Step 1: Fetch or Resume ---
         prior_moments: List[Dict] = []
         prior_questions: List[str] = []
@@ -1097,20 +1089,28 @@ def run(
             prior_questions = prior.get("questions", [])
             prior_through = prior.get("analyzed_through")
         else:
+            # Cloud decision (only needed for fresh runs)
+            if cloud is None:
+                use_cloud = _prompt_cloud()
+            else:
+                use_cloud = cloud
+            if use_cloud and model is None:
+                model = "runpod:large-v3"
+
             episode_dir = _run_fetch_step()
             if episode_dir is None:
                 console.print("[dim]Cancelled[/dim]")
                 sys.exit(0)
 
-        # --- Steps 2-4: Transcribe → Diarize → Cleanup ---
-        if not _run_transcribe_step(episode_dir, model=model):
-            sys.exit(ExitCode.PROCESSING_ERROR)
+            # --- Steps 2-4: Transcribe → Diarize → Cleanup ---
+            if not _run_transcribe_step(episode_dir, model=model):
+                sys.exit(ExitCode.PROCESSING_ERROR)
 
-        if not _run_diarize_step(episode_dir, use_cloud=use_cloud):
-            console.print("[yellow]Diarization skipped[/yellow]")
+            if not _run_diarize_step(episode_dir, use_cloud=use_cloud):
+                console.print("[yellow]Diarization skipped[/yellow]")
 
-        if not _run_cleanup_step(episode_dir):
-            console.print("[yellow]Cleanup skipped[/yellow]")
+            if not _run_cleanup_step(episode_dir):
+                console.print("[yellow]Cleanup skipped[/yellow]")
 
         # --- Gather analysis prompts ---
         analyzed_through = _prompt_listen_through(through)
