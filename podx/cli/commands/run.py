@@ -1035,8 +1035,9 @@ def _run_obsidian_step(
 @click.option("--no-obsidian", is_flag=True, help="Skip Obsidian vault output.")
 @click.option(
     "--resume",
-    is_flag=True,
-    help="Resume partial analysis, accumulating moments/questions.",
+    default=None,
+    type=click.Path(exists=True, path_type=Path),
+    help="Resume partial analysis from an episode directory.",
 )
 def run(
     model: Optional[str],
@@ -1049,7 +1050,7 @@ def run(
     no_oracle: bool,
     no_notion: bool,
     no_obsidian: bool,
-    resume: bool,
+    resume: Optional[Path],
 ) -> None:
     """Run the full podcast processing pipeline interactively.
 
@@ -1068,7 +1069,7 @@ def run(
       podx run                                    # Full interactive wizard
       podx run --cloud                            # Force cloud GPU
       podx run --through 45:00                    # Partial analysis
-      podx run --resume ./episode/                # Resume partial
+      podx run --resume ./episode/dir/             # Resume partial
       podx run --moments "14:30, 45:12"           # Flag moments
       podx run -q "How does this apply to X?"     # Follow-up question
       podx run --no-oracle --no-notion            # Skip oracle + Notion
@@ -1082,21 +1083,24 @@ def run(
         if use_cloud and model is None:
             model = "runpod:large-v3"
 
-        # --- Step 1: Fetch ---
-        episode_dir = _run_fetch_step()
-        if episode_dir is None:
-            console.print("[dim]Cancelled[/dim]")
-            sys.exit(0)
-
-        # --- Resume: load prior state ---
+        # --- Step 1: Fetch or Resume ---
         prior_moments: List[Dict] = []
         prior_questions: List[str] = []
         prior_through: Optional[str] = None
+
         if resume:
+            episode_dir = resume if resume.is_dir() else resume.parent
+            console.print("\n[bold cyan]── Resume ─────────────────────────────────────────[/bold cyan]")
+            console.print(f"[dim]Resuming: {episode_dir}[/dim]")
             prior = _load_partial_state(episode_dir)
             prior_moments = prior.get("flagged_moments", [])
             prior_questions = prior.get("questions", [])
             prior_through = prior.get("analyzed_through")
+        else:
+            episode_dir = _run_fetch_step()
+            if episode_dir is None:
+                console.print("[dim]Cancelled[/dim]")
+                sys.exit(0)
 
         # --- Steps 2-4: Transcribe → Diarize → Cleanup ---
         if not _run_transcribe_step(episode_dir, model=model):
