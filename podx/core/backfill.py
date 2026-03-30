@@ -39,13 +39,20 @@ DOMAIN_RELEVANCE_OPTIONS = [
 # Template classification format mappings
 FORMAT_TO_TEMPLATE = {
     "interview": "interview-1on1",
+    "interview-1on1": "interview-1on1",
     "panel": "panel-discussion",
+    "panel-discussion": "panel-discussion",
     "solo": "solo-commentary",
+    "solo-commentary": "solo-commentary",
     "general": "general",
     "debate": "debate-roundtable",
+    "debate-roundtable": "debate-roundtable",
     "lecture": "lecture-presentation",
+    "lecture-presentation": "lecture-presentation",
     "news": "news-analysis",
+    "news-analysis": "news-analysis",
     "technical": "technical-deep-dive",
+    "technical-deep-dive": "technical-deep-dive",
 }
 
 DEFAULT_MAP_INSTRUCTIONS = "Extract key points, notable quotes, and insights from this section."

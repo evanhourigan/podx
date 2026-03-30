@@ -79,14 +79,12 @@ def classify_episode(transcript: Dict[str, Any], episode_meta: Dict[str, Any]) -
         evidence["markers"].append("two-speaker")
         if qa_ratio > 0.15:
             evidence["markers"].append("question-heavy")
-            return _result("interview-1on1", 0.85, evidence)
-        elif qa_ratio > 0.08:
-            evidence["markers"].append("moderate-questions")
-            return _result("interview-1on1", 0.65, evidence)
+            return _result("interview-1on1", 0.9, evidence)
         else:
-            evidence["markers"].append("low-questions")
-            # Two speakers but not many questions — could be co-hosted or conversational
-            return _result("general", 0.5, evidence)
+            # Two speakers is almost always an interview — conversational interviews
+            # have few explicit questions but are still interview format
+            evidence["markers"].append("conversational")
+            return _result("interview-1on1", 0.75, evidence)
 
     # 3+ speakers
     evidence["markers"].append("multi-speaker")

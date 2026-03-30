@@ -324,7 +324,7 @@ class TestEpisodeClassifier:
         assert result["confidence"] == 0.0
 
     def test_two_speakers_low_questions(self):
-        """Two speakers, few questions -> general."""
+        """Two speakers, few questions -> interview (conversational)."""
         transcript = {
             "segments": [
                 {"text": "I think this is great.", "speaker": "SPEAKER_00"},
@@ -336,7 +336,7 @@ class TestEpisodeClassifier:
             ]
         }
         result = classify_episode(transcript, {})
-        assert result["format"] == "general"
+        assert result["format"] == "interview-1on1"
 
     def test_evidence_fields_present(self):
         """Test that all evidence fields are populated."""
