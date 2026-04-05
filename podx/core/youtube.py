@@ -120,6 +120,35 @@ class YouTubeEngine:
         if self.progress_callback:
             self.progress_callback(message)
 
+    @staticmethod
+    def _yt_opts() -> dict:
+        """Return yt-dlp options for reliable YouTube downloads.
+
+        Loads cookies from the user's browser to avoid 403 errors,
+        and sets extractor args for compatibility.
+        """
+        import os
+        import sys
+
+        opts: dict = {}
+
+        # Use browser cookies to authenticate with YouTube
+        if sys.platform == "darwin":
+            # macOS: Chrome is most reliable with yt-dlp
+            if os.path.exists("/Applications/Google Chrome.app"):
+                opts["cookiesfrombrowser"] = ("chrome",)
+            elif os.path.exists("/Applications/Firefox.app"):
+                opts["cookiesfrombrowser"] = ("firefox",)
+        else:
+            import shutil
+
+            for browser in ["firefox", "chrome", "chromium"]:
+                if shutil.which(browser):
+                    opts["cookiesfrombrowser"] = (browser,)
+                    break
+
+        return opts
+
     def get_metadata(self, url: str) -> Dict[str, Any]:
         """Extract metadata from YouTube video without downloading.
 
@@ -135,7 +164,7 @@ class YouTubeEngine:
         try:
             import yt_dlp
 
-            with yt_dlp.YoutubeDL({"quiet": True}) as ydl:
+            with yt_dlp.YoutubeDL({"quiet": True, **self._yt_opts()}) as ydl:
                 info = ydl.extract_info(url, download=False)
 
                 return {
@@ -177,6 +206,7 @@ class YouTubeEngine:
                 "no_warnings": True,
                 "extract_flat": True,  # Don't download, just get info
                 "ignoreerrors": True,  # Skip unavailable videos
+                **self._yt_opts(),
             }
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -263,6 +293,7 @@ class YouTubeEngine:
             "noplaylist": True,
             "quiet": True,
             "no_warnings": True,
+            **self._yt_opts(),
         }
 
         # Add progress hook if callback provided
