@@ -709,7 +709,7 @@ class DiarizationEngine:
             embedding_batch_size=batch_size,
         )
         try:
-            dia = DiarizationPipeline(use_auth_token=self.hf_token, device=self.device)
+            dia = DiarizationPipeline(token=self.hf_token, device=self.device)
             if hasattr(dia.model, "embedding_batch_size"):
                 dia.model.embedding_batch_size = batch_size
         except Exception as e:
@@ -746,7 +746,7 @@ class DiarizationEngine:
             batch_size = calculate_embedding_batch_size(get_memory_info()[0])
             self._report_progress(f"Loading diarization model (batch={batch_size})")
 
-            dia = DiarizationPipeline(use_auth_token=self.hf_token, device=self.device)
+            dia = DiarizationPipeline(token=self.hf_token, device=self.device)
             if hasattr(dia.model, "embedding_batch_size"):
                 dia.model.embedding_batch_size = batch_size
 
