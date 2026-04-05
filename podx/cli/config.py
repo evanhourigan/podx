@@ -234,23 +234,81 @@ def _save_secrets(secrets: dict[str, str]) -> None:
     os.chmod(env_file, 0o600)
 
 
+def _load_talkwise_config() -> dict[str, str]:
+    """Load config from talkwise's config.yaml as fallback.
+
+    PodX and talkwise share the same RunPod/R2 infrastructure,
+    so we can fall back to talkwise's config when a value isn't
+    found in podx's own config.
+    """
+    config_file = Path.home() / ".config" / "talkwise" / "config.yaml"
+    if not config_file.exists():
+        return {}
+    config = {}
+    for line in config_file.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and ":" in line:
+            key, value = line.split(":", 1)
+            config[key.strip()] = value.strip()
+    return config
+
+
+def _load_talkwise_secrets() -> dict[str, str]:
+    """Load secrets from talkwise's env.sh as fallback."""
+    env_file = Path.home() / ".config" / "talkwise" / "env.sh"
+    if not env_file.exists():
+        return {}
+    secrets = {}
+    for line in env_file.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            if line.startswith("export "):
+                line = line[7:]
+            key, value = line.split("=", 1)
+            value = value.strip().strip('"').strip("'")
+            secrets[key.strip()] = value
+    return secrets
+
+
 def _get_value(key: str) -> Optional[str]:
-    """Get a config value by key."""
+    """Get a config value by key.
+
+    Priority: env vars > podx config > talkwise config (fallback).
+    """
     key_info = CONFIG_KEYS.get(key)
     if not key_info:
         return None
 
     if key_info.get("secret"):
-        # Check environment first, then env file
+        # Check environment first, then podx env file, then talkwise env file
         env_var = key_info.get("env_var", "")
         value = os.environ.get(env_var)
         if value:
             return value
         secrets = _load_secrets()
-        return secrets.get(env_var)
+        value = secrets.get(env_var)
+        if value:
+            return value
+        # Fallback to talkwise secrets
+        tw_secrets = _load_talkwise_secrets()
+        value = tw_secrets.get(env_var)
+        if value:
+            return value
+        # Fallback to talkwise config.yaml (talkwise stores some
+        # endpoint IDs as config, not secrets)
+        tw_config = _load_talkwise_config()
+        return tw_config.get(key) or None
     else:
         config = _load_config()
-        return config.get(key, key_info.get("default", ""))
+        value = config.get(key)
+        if value:
+            return value
+        # Fallback to talkwise config
+        tw_config = _load_talkwise_config()
+        value = tw_config.get(key)
+        if value:
+            return value
+        return key_info.get("default", "")
 
 
 def _set_value(key: str, value: str) -> bool:
