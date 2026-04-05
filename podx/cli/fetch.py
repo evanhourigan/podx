@@ -183,17 +183,23 @@ def _format_video(video: Dict[str, Any], max_width: int = 80) -> str:
     return f"{title}\n       [dim]{upload_date}[/dim]"
 
 
-def _interactive_show_selection(fetcher: PodcastFetcher) -> Optional[Dict[str, Any]]:
+def _interactive_show_selection(
+    fetcher: PodcastFetcher, initial_query: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
     """Interactive show search and selection.
 
     Returns selected show dict or None if cancelled.
     """
     while True:
-        console.print("\n[bold]Search for a podcast[/bold]")
-        try:
-            query = input("Show name: ").strip()
-        except (KeyboardInterrupt, EOFError):
-            return None
+        if initial_query:
+            query = initial_query
+            initial_query = None  # Only use on first iteration
+        else:
+            console.print("\n[bold]Search for a podcast[/bold]")
+            try:
+                query = input("Show name: ").strip()
+            except (KeyboardInterrupt, EOFError):
+                return None
 
         if not query:
             console.print("[dim]Cancelled[/dim]")
@@ -345,14 +351,17 @@ def _check_existing_episode(output_dir: Path) -> List[str]:
     return existing
 
 
-def _run_interactive(fetcher: PodcastFetcher) -> Optional[Dict[str, Any]]:
+def _run_interactive(
+    fetcher: PodcastFetcher, initial_query: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
     """Run full interactive flow: search → select show → select episode → download.
 
     Returns result dict or None if cancelled.
     """
     while True:
         # Step 1: Select show
-        show = _interactive_show_selection(fetcher)
+        show = _interactive_show_selection(fetcher, initial_query=initial_query)
+        initial_query = None  # Only use on first iteration
         if show is None:
             return None
 

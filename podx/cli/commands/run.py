@@ -25,18 +25,117 @@ console = Console()
 
 
 def _run_fetch_step() -> Optional[Path]:
-    """Run fetch step interactively. Returns episode directory or None."""
+    """Run fetch step interactively. Returns episode directory or None.
+
+    Accepts either a podcast search query or a YouTube URL.
+    """
     from podx.cli.fetch import PodcastFetcher, _run_interactive
 
     console.print("\n[bold cyan]── Fetch ──────────────────────────────────────────[/bold cyan]")
 
+    # Check if user wants to paste a URL instead of searching
+    try:
+        query = input("Search for podcast (or paste a YouTube URL): ").strip()
+    except (KeyboardInterrupt, EOFError):
+        console.print("\n[dim]Cancelled[/dim]")
+        return None
+
+    if not query:
+        console.print("[dim]Cancelled[/dim]")
+        return None
+
+    # Detect YouTube URLs
+    if _is_url(query):
+        return _fetch_from_url(query)
+
+    # Regular podcast search — pass query into interactive flow
     fetcher = PodcastFetcher()
-    result = _run_interactive(fetcher)
+    result = _run_interactive(fetcher, initial_query=query)
 
     if result is None:
         return None
 
     return Path(result["directory"])
+
+
+def _is_url(text: str) -> bool:
+    """Check if text looks like a URL."""
+    return text.startswith("http://") or text.startswith("https://")
+
+
+def _fetch_from_url(url: str) -> Optional[Path]:
+    """Fetch episode from a YouTube/video URL. Returns episode directory or None."""
+    from podx.cli.fetch import _check_existing_episode, _make_download_progress, _transcode_to_wav
+    from podx.core.youtube import YouTubeEngine, is_playlist_url
+    from podx.utils import generate_workdir
+
+    try:
+        engine = YouTubeEngine()
+
+        if is_playlist_url(url):
+            from podx.cli.fetch import _interactive_video_selection
+
+            console.print(f"[cyan]Loading playlist:[/cyan] {url}")
+            videos = engine.get_playlist_videos(url)
+            if not videos:
+                console.print("[red]Error:[/red] No videos found in playlist")
+                return None
+
+            selected = _interactive_video_selection(videos, "Playlist")
+            if selected is None:
+                return None
+            url = selected["url"]
+            console.print(f"\n[cyan]Downloading:[/cyan] {selected.get('title', 'Unknown')}")
+        else:
+            console.print(f"[cyan]Downloading from URL:[/cyan] {url}")
+
+        meta = engine.get_metadata(url)
+        workdir = generate_workdir(
+            meta.get("channel", "YouTube"),
+            meta.get("upload_date", "unknown"),
+            meta.get("title", "video"),
+        )
+
+        # Check for existing episode data
+        if workdir.exists():
+            existing_files = _check_existing_episode(workdir)
+            if existing_files:
+                console.print(
+                    f"\n[yellow]Episode already exists:[/yellow] {meta.get('title', 'Unknown')}"
+                )
+                console.print(f"  Directory: {workdir}")
+                for desc in existing_files:
+                    console.print(f"  • {desc}")
+
+                try:
+                    choice = input("\nUse existing data? [Y/n]: ").strip().lower()
+                except (KeyboardInterrupt, EOFError):
+                    return None
+
+                if choice not in ("n", "no"):
+                    return workdir
+
+        progress, progress_callback = _make_download_progress()
+        engine.fetch_episode(url, workdir, download_progress_callback=progress_callback)
+        progress.finish()
+
+        # Transcode to WAV
+        for ext in [".mp3", ".m4a", ".wav"]:
+            audio_files = list(workdir.glob(f"*{ext}"))
+            if audio_files:
+                _transcode_to_wav(audio_files[0])
+                break
+
+        console.print(f"[green]✓ Downloaded:[/green] {meta.get('title', 'Unknown')}")
+        return workdir
+
+    except ImportError:
+        console.print("[red]Error:[/red] yt-dlp not installed")
+        console.print("[dim]Install with: pip install yt-dlp[/dim]")
+        return None
+    except Exception as e:
+        console.print(f"[red]Download Error:[/red] {e}")
+        return None
 
 
 def _run_transcribe_step(episode_dir: Path, model: Optional[str] = None) -> bool:
@@ -1082,12 +1181,29 @@ def run(
 
         if resume:
             episode_dir = resume if resume.is_dir() else resume.parent
-            console.print("\n[bold cyan]── Resume ─────────────────────────────────────────[/bold cyan]")
+            console.print(
+                "\n[bold cyan]── Resume ─────────────────────────────────────────[/bold cyan]"
+            )
             console.print(f"[dim]Resuming: {episode_dir}[/dim]")
             prior = _load_partial_state(episode_dir)
             prior_moments = prior.get("flagged_moments", [])
             prior_questions = prior.get("questions", [])
             prior_through = prior.get("analyzed_through")
+
+            # Run any incomplete processing steps
+            use_cloud = cloud if cloud is not None else False
+            transcript_path = episode_dir / "transcript.json"
+            if transcript_path.exists():
+                transcript = json.loads(transcript_path.read_text())
+                if not transcript.get("diarized"):
+                    if not _run_diarize_step(episode_dir, use_cloud=use_cloud):
+                        console.print("[yellow]Diarization skipped[/yellow]")
+                if not transcript.get("cleaned"):
+                    # Re-read in case diarize updated it
+                    transcript = json.loads(transcript_path.read_text())
+                    if not transcript.get("cleaned"):
+                        if not _run_cleanup_step(episode_dir):
+                            console.print("[yellow]Cleanup skipped[/yellow]")
         else:
             # Cloud decision (only needed for fresh runs)
             if cloud is None:
